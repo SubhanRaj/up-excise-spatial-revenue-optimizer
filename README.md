@@ -28,7 +28,8 @@ Each DEO pre-registers their district's circles and sectors in the portal, distr
 ```
 up-excise-spatial-revenue-optimizer/
 ├── apps/
-│   ├── web/          # Next.js frontend — Cloudflare Pages
+│   ├── web/          # Next.js — DEO portal (Cloudflare Pages)
+│   ├── admin/        # Next.js — Admin/HQ portal (Cloudflare Pages, separate deployment)
 │   └── worker/       # Hono backend — Cloudflare Workers
 ├── packages/
 │   └── schema/       # Shared Drizzle ORM schema (D1/SQLite)
@@ -44,13 +45,18 @@ up-excise-spatial-revenue-optimizer/
 
 | Layer | Technology | Notes |
 |---|---|---|
-| Frontend | Next.js (App Router) | Static-first. Deployed to Cloudflare Pages. |
-| Backend | Cloudflare Workers + Hono | Serverless edge. 10ms CPU limit per request. |
+| Frontend | Next.js (App Router) | Two apps: DEO portal (`apps/web`) and Admin portal (`apps/admin`). Deployed to Cloudflare Pages. |
+| Backend | Cloudflare Workers + Hono | Serverless edge. 10ms CPU limit. All heavy compute stays in the browser. |
 | Database | Cloudflare D1 (SQLite) | `db.batch()` for all multi-row writes. |
 | ORM | Drizzle ORM | D1 adapter. Schema in `packages/schema/src/phase1.ts`. |
-| Excel Parsing | SheetJS (`xlsx`) | Client-side only — dynamic import with `ssr: false`. Never server-side. |
-| Local Cache | Dexie.js (IndexedDB) | Offline-first staging layer. Rows carry `status: 'pending' | 'uploaded' | 'error'`. |
-| Testing | Vitest + Playwright | Unit tests for revenue calculator and coordinate converter. E2E for upload flows. |
+| Auth | Clerk | Passwordless magic-link. 24-hour sessions. Single active session enforced. Webhook → audit log. |
+| UI Components | DaisyUI | Loaded from jsDelivr CDN. Tailwind plugin — zero JS runtime overhead. |
+| CSS Utilities | Tailwind Play CDN | Loaded from CDN — no PostCSS build step. Next.js bundle is pure app logic. |
+| Excel Parsing | SheetJS (`xlsx`) | Loaded from jsDelivr CDN dynamically on upload page. Never bundled. |
+| Local Cache | Dexie.js (IndexedDB) | Loaded from jsDelivr CDN. Offline-first staging. Rows carry `status: 'pending' \| 'uploaded' \| 'error'`. |
+| PWA / Offline | Service Worker + Background Sync | App shell + CDN asset cache. Upload retry on reconnect. |
+| Scheduled Tasks | Cloudflare Cron Triggers | Daily 45-day audit log purge. |
+| Testing | Vitest + Playwright | Unit tests for business logic. E2E for upload, auth, and offline flows. |
 
 ---
 
@@ -95,6 +101,56 @@ up-excise-spatial-revenue-optimizer/
                               │  • Indexed on district, thana, shop_id │
                               └────────────────────────────────────────┘
 ```
+
+---
+
+## Authentication
+
+**Provider:** Clerk — passwordless magic-link only. No passwords are ever set or stored.
+
+**Flow:** DEO enters their email → Clerk sends a single-use magic link → DEO clicks it in the same browser → 24-hour session established.
+
+**Single active session:** A second login from any device, browser, or tab immediately invalidates all other sessions for that DEO. Prevents concurrent uploads from multiple devices.
+
+**Session expiry:** Clock-based 24 hours. On expiry, the DEO re-authenticates. All IndexedDB staged data is preserved through re-login — no work is lost.
+
+**Accounts:** Created by the system administrator from the department-supplied DEO email list before the upload campaign. No self-registration.
+
+**Audit trail:** Every login, logout, session revocation, upload chunk, and district submission is written to the `audit_log` D1 table. Records are retained for 45 days, then automatically purged by a Cloudflare Cron Trigger.
+
+---
+
+## Security
+
+- **No data in URLs.** All mutations are HTTP POST with JSON body. No sensitive data ever appears in query strings.
+- **No secrets in source.** Clerk secret keys and webhook signing secrets live in Cloudflare Workers Secrets only.
+- **SRI on all CDN assets.** Every jsDelivr `<script>` and `<link>` has `integrity` + `crossorigin="anonymous"`. CI blocks merge if any tag is missing these.
+- **Strict CSP** via Cloudflare Pages `_headers`: `script-src` locked to `self` + jsDelivr + Tailwind CDN; `frame-ancestors 'none'`; no `unsafe-inline` or `unsafe-eval`.
+- **Session cookies:** HttpOnly, Secure, SameSite=Strict. Never stored in localStorage or IndexedDB.
+- **D1 is not internet-accessible.** Only the Worker binding can reach it.
+
+---
+
+## PWA & Offline
+
+The DEO portal is a full Progressive Web App installable on iPad or Android tablet.
+
+- **App shell cached:** After first load, the entire app — including all CDN assets (DaisyUI, Tailwind CDN, Dexie.js, SheetJS) — runs offline from Service Worker cache.
+- **IndexedDB-first:** Every DEO action (row edit, field change, pill deletion) writes to IndexedDB before any network call. The network upload is secondary.
+- **Background Sync:** If a chunk upload fails due to connectivity loss, it queues in the Service Worker and retries automatically when connectivity is restored. No DEO action needed.
+- **No data loss on disconnect:** Connection drop, network change, tab close, or device sleep never trigger a logout or data clear.
+- **Supported:** iPad (Safari, Chrome), Android tablet 10"+ (Chrome), desktop PC/Mac (all major browsers).
+- **Not supported:** Small-screen mobile (< 768px). The verification table is not usable at phone widths.
+
+---
+
+## UI & Accessibility
+
+- **Dark & light mode:** DaisyUI theme system. Preference saved to localStorage; applied before first paint — no flash.
+- **Connection indicator:** Persistent banner — Online / Offline / Slow connection. Informational only, does not interrupt the DEO's workflow.
+- **ARIA compliant:** All interactive elements (pill buttons, inline edit fields, modals, upload dropzone) have proper ARIA attributes. Dynamic updates announced via `aria-live`.
+- **Tablet-first layout:** Minimum supported viewport 768px (iPad portrait). No small-screen breakpoints.
+- **Print view:** `@media print` stylesheet for the verification table. DEOs can print staged data as a paper backup.
 
 ---
 
@@ -202,12 +258,13 @@ See [roadmap.md](roadmap.md) for full milestone specs, entry/exit criteria, and 
 
 The following require department action before development can proceed past M-1:
 
-1. **Excel template column layout** — blocks M-2. SheetJS column mapping cannot be built until column names and order are locked.
-2. **Thana master list** — blocks the adjacent Thana cross-district filter (will use runtime check if unavailable).
-3. **Shop count estimates per district** — blocks dashboard "X of Y uploaded" progress metrics.
-4. **DEO credential and identifier assignment** — blocks the upload campaign. Portal credentials and `uploaded_by_deo` identifiers must be issued by the department. DEOs must also complete circle/sector pre-registration before distributing templates to Inspectors.
-5. **Circle/sector naming convention** — DEOs need a consistent naming standard so pre-registered unit names are clean and unambiguous across all 75 districts.
-6. **Upsert vs. versioning decision** — blocks M-4. Re-upload by a DEO: overwrite or version?
+1. **DEO email addresses** — blocks M-0 close. All 75 DEO department emails required before Clerk accounts can be provisioned.
+2. **Excel template column layout** — blocks M-2. SheetJS column mapping cannot be built until column names and order are locked.
+3. **Thana master list** — blocks the adjacent Thana cross-district filter (will use runtime check if unavailable).
+4. **Shop count estimates per district** — blocks dashboard "X of Y uploaded" progress metrics.
+5. **DEO credential and identifier assignment** — blocks the upload campaign. Portal credentials and `uploaded_by_deo` identifiers must be issued by the department. DEOs must also complete circle/sector pre-registration before distributing templates to Inspectors.
+6. **Circle/sector naming convention** — DEOs need a consistent naming standard so pre-registered unit names are clean and unambiguous across all 75 districts.
+7. **Upsert vs. versioning decision** — blocks M-4. Re-upload by a DEO: overwrite or version?
 
 ---
 

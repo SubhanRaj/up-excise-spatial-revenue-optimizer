@@ -24,7 +24,8 @@
 ```
 up-excise-spatial-revenue-optimizer/
 ├── apps/
-│   ├── web/          # Next.js frontend — Cloudflare Pages
+│   ├── web/          # Next.js frontend (DEO portal) — Cloudflare Pages
+│   ├── admin/        # Next.js frontend (Admin/HQ portal) — Cloudflare Pages
 │   └── worker/       # Hono backend — Cloudflare Workers
 ├── packages/
 │   └── schema/       # Shared Drizzle ORM schema (D1/SQLite)
@@ -34,7 +35,7 @@ up-excise-spatial-revenue-optimizer/
 └── CLAUDE.md         # This file
 ```
 
-When files for `apps/web`, `apps/worker`, or `packages/schema` do not exist yet, do not create them speculatively. Create them when a milestone is actively being worked on.
+When files for any app or package do not exist yet, do not create them speculatively. Create them when a milestone is actively being worked on.
 
 ---
 
@@ -42,23 +43,47 @@ When files for `apps/web`, `apps/worker`, or `packages/schema` do not exist yet,
 
 | Layer | Technology | Notes |
 |---|---|---|
-| Frontend | Next.js (App Router) | Deployed to Cloudflare Pages. Static-first. |
+| Frontend | Next.js (App Router) | Deployed to Cloudflare Pages. Static-first. Two apps: `web` (DEO) and `admin` (HQ). |
 | Backend | Cloudflare Workers + Hono | Serverless edge. 10ms CPU limit per request — enforce this hard. |
 | Database | Cloudflare D1 (SQLite) | Use `db.batch()` for all multi-row writes. |
 | ORM | Drizzle ORM | D1 adapter. Schema lives in `packages/schema`. |
-| Excel Parsing | SheetJS (`xlsx`) | Client-side only. Dynamic import with `ssr: false`. Never import server-side. |
-| Local Cache | Dexie.js (IndexedDB) | Offline-first staging layer. Rows carry `status: 'pending' | 'uploaded' | 'error'`. |
+| Authentication | Clerk | Passwordless magic-link. Single active session per user. Webhook → `audit_log`. |
+| UI Components | DaisyUI | Loaded from jsDelivr CDN. Tailwind CSS plugin — zero JS runtime. Never bundled into Next.js output. |
+| CSS Utilities | Tailwind Play CDN | Loaded from CDN. No PostCSS build step. The Next.js bundle contains only app logic. |
+| Excel Parsing | SheetJS (`xlsx`) | Loaded from jsDelivr CDN dynamically on upload page (`ssr: false`). Never bundled. |
+| Local Cache | Dexie.js (IndexedDB) | Loaded from jsDelivr CDN. Offline-first staging layer. Rows carry `status: 'pending' | 'uploaded' | 'error'`. |
+| PWA / Offline | Service Worker + Background Sync | App shell + CDN asset cache. Transparent upload retry on reconnect. |
+| Scheduled Tasks | Cloudflare Cron Triggers | Daily audit log purge. Defined in `wrangler.toml`. |
 | Testing | Vitest (unit) + Playwright (E2E) | Revenue calculator and coordinate converter must have unit tests. |
 
 ---
 
 ## Hard Constraints — Never Violate These
 
+### Security
+- **No data in URL query parameters.** All mutations use HTTP POST with JSON body. GET endpoints return only read-only reference data. No sensitive field ever appears in a URL.
+- **No secrets in source.** All API keys, Clerk secret keys, and webhook signing secrets live in Cloudflare Workers Secrets. Only the Clerk publishable key (safe by design) is in the frontend environment.
+- **SRI on every CDN asset.** Every CDN-loaded `<script>` and `<link>` must have `integrity` and `crossorigin="anonymous"`. CI blocks merge if any CDN tag is missing these. No exceptions.
+- **Session credentials stay in Clerk cookies.** HttpOnly, Secure, SameSite=Strict. They never touch `localStorage`, `sessionStorage`, or IndexedDB.
+- **No `unsafe-inline` or `unsafe-eval` in CSP.** The CSP in `public/_headers` must never include these directives.
+- **One active session per DEO.** A second login invalidates all previous sessions. Clerk configuration enforces this.
+
 ### Cloudflare Free Tier
 - The Worker must never perform CPU-heavy work. Excel parsing, DMS-to-DD conversion, and revenue calculation all happen **in the browser**.
 - Batch inserts use `db.batch()`. Never issue individual `INSERT` calls in a loop.
 - Upload chunks are 500 rows per POST request. Do not increase this without re-evaluating D1 write quota.
 - Dashboard queries must use indexed columns only: `district_name`, `thana_name`, `shop_id`. Full table scans are not acceptable in production.
+
+### CDN-First — Bundle Contains Only App Logic
+- DaisyUI, Tailwind Play CDN, SheetJS, and Dexie.js are all loaded from jsDelivr CDN at runtime. They are never installed as npm dependencies or bundled into the Next.js output.
+- The Next.js bundle contains: React, Next.js App Router runtime, Clerk frontend SDK, and app-specific TypeScript components. Nothing else.
+- This keeps Cloudflare Pages bandwidth usage minimal — only app logic is served from CF; all library assets come from jsDelivr.
+
+### PWA & Offline
+- IndexedDB writes happen synchronously with every user action. The network upload is always secondary. Data is never at risk from a connectivity event.
+- Connection loss, network change, tab close, or device sleep must never trigger a logout or IndexedDB clear. The only session expiry is Clerk's 24-hour clock.
+- Session expiry must not destroy IndexedDB data. The DEO re-authenticates and resumes with all staged data intact.
+- Minimum supported viewport is **768px**. No small-screen mobile layouts. Do not write `sm:` or `xs:` responsive prefixes in DEO or Admin portal layouts.
 
 ### Data Language
 - All data fields — shop names, Thana names, district names, DEO identifiers — are **English only**. No Hindi, Devanagari, Urdu, or any other script. Enforce this with input validation in the UI.
@@ -124,8 +149,11 @@ These commands will apply once the monorepo is scaffolded (Milestone M-0). Do no
 # Install dependencies
 pnpm install
 
-# Run Next.js dev server
+# Run DEO portal dev server
 pnpm --filter web dev
+
+# Run Admin portal dev server
+pnpm --filter admin dev
 
 # Run Wrangler local dev (Worker + D1)
 pnpm --filter worker dev
@@ -172,12 +200,13 @@ See [roadmap.md Section 6](roadmap.md#6-development-milestones--action-plan) for
 
 The following are unresolved department-side decisions that block specific milestones. Do not implement the affected features until these are resolved.
 
-1. **Excel template column layout** — blocks M-2. SheetJS column mapping cannot be built until column names and order are locked.
-2. **Thana master list** — blocks the adjacent Thana cross-district filter (best-effort; proceed with runtime check if unavailable).
-3. **Shop count estimates per district** — blocks dashboard "X of Y uploaded" progress metrics.
-4. **DEO credential and identifier assignment** — blocks the upload campaign. Portal credentials and `uploaded_by_deo` identifiers must be issued by the department. DEOs must also complete circle/sector pre-registration before distributing templates to Inspectors.
-5. **Circle/sector naming convention** — DEOs need a consistent naming standard so pre-registered unit names are clean and unambiguous across all 75 districts.
-6. **Upsert vs. versioning decision** — blocks M-4. If a DEO re-uploads a district, does the system overwrite or version the records?
+1. **DEO email addresses** — blocks M-0 close. All 75 DEO department emails must be provided before Clerk accounts can be provisioned.
+2. **Excel template column layout** — blocks M-2. SheetJS column mapping cannot be built until column names and order are locked.
+3. **Thana master list** — blocks the adjacent Thana cross-district filter (best-effort; proceed with runtime check if unavailable).
+4. **Shop count estimates per district** — blocks dashboard "X of Y uploaded" progress metrics.
+5. **DEO credential and identifier assignment** — blocks the upload campaign. Portal credentials and `uploaded_by_deo` identifiers must be issued by the department. DEOs must also complete circle/sector pre-registration before distributing templates to Inspectors.
+6. **Circle/sector naming convention** — DEOs need a consistent naming standard so pre-registered unit names are clean and unambiguous across all 75 districts.
+7. **Upsert vs. versioning decision** — blocks M-4. If a DEO re-uploads a district, does the system overwrite or version the records?
 
 ---
 
@@ -198,7 +227,10 @@ Do not implement, suggest, or encode any of the following:
 
 - Hotel/restaurant bars, commercial lounges, banquet hall licenses, wholesale distribution.
 - Phase 2 boundary optimization logic (Inspector assignment algorithms, Voronoi-style territory splitting, etc.).
-- Role-based auth at the record level (Phase 1 uses DEO identifier as an audit tag only).
+- Password-based authentication. The system is magic-link only — no password fields, no password reset flows.
+- Inspector-level portal access. Inspectors fill Excel files and hand them to the DEO. They have no accounts and no portal access.
+- Self-registration for DEO accounts. All accounts are provisioned by the administrator from the department email list.
+- Small-screen mobile (< 768px) optimized layouts. Do not build or suggest responsive layouts for phones.
 - Any field, route, or UI component not grounded in a roadmap milestone deliverable.
 
 ---

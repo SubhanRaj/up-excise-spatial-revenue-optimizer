@@ -308,6 +308,266 @@ Full-table scans are expected during Phase 2 analysis but are not a production c
 
 ---
 
+### 3.6 Security Architecture & Constraints
+
+Security is applied at every layer. No single control is treated as sufficient.
+
+**Transmission Security:**
+- All mutations (upload chunk, circle/sector registration, district submission) use HTTP POST with a JSON body. No sensitive or structured data is ever transmitted via URL query parameters. GET endpoints return only read-only reference data.
+- All traffic is HTTPS-only. Mixed content is blocked by CSP. The Worker rejects any non-HTTPS origin.
+- The Worker validates and sanitizes all inbound fields before any D1 write: string fields are trimmed and length-bounded; numeric fields are type-coerced and range-checked; enum fields are verified against an allowlist.
+- Worker responses never expose stack traces or internal state. Only structured error objects are returned: `{ error: string, rejectedRows?: [...] }`.
+
+**Secret & Credential Management:**
+- No API keys, secrets, or service credentials are embedded in the frontend bundle, committed to source, or returned in API responses.
+- Clerk's publishable key (safe for frontend exposure by design) is the only credential in the frontend environment. All Clerk secret keys and the Clerk webhook signing secret live in Cloudflare Workers Secrets — never in `wrangler.toml`.
+- D1 is accessed exclusively via the Workers binding. It has no public connection string and is not reachable from the internet directly.
+
+**Content Security Policy (CSP):**
+Declared in `public/_headers` for Cloudflare Pages:
+```
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://cdn.tailwindcss.com; style-src 'self' https://cdn.jsdelivr.net; connect-src 'self' https://<worker-domain>.workers.dev; img-src 'self' data:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=()
+```
+No `unsafe-inline` or `unsafe-eval` directives are permitted.
+
+**Subresource Integrity (SRI):**
+Every CDN-served `<script>` and `<link>` tag must include `integrity` and `crossorigin="anonymous"` attributes. SRI hashes are pinned to a specific library version and committed to the codebase. Updating a library requires regenerating and committing the corresponding hash. A CI step fails the build if any CDN asset tag is missing its `integrity` attribute.
+
+```html
+<!-- Example — DaisyUI from jsDelivr with SRI -->
+<link rel="stylesheet"
+  href="https://cdn.jsdelivr.net/npm/daisyui@5/dist/full.min.css"
+  integrity="sha384-<hash>"
+  crossorigin="anonymous">
+```
+
+**Rate Limiting:**
+Cloudflare built-in rate limiting applied to Worker routes:
+- Upload endpoint: max 20 requests/minute per IP.
+- Webhook receiver: max 5 requests/minute per IP.
+
+**Session Credential Storage:**
+- Clerk session tokens are stored in HttpOnly, Secure, SameSite=Strict cookies — never in localStorage or sessionStorage.
+- IndexedDB stores only DEO-entered shop data. Session credentials never touch IndexedDB.
+
+---
+
+### 3.7 Authentication — Clerk Magic-Link & Session Model
+
+**Provider:** Clerk. Chosen for: magic-link/OTP support, single-session enforcement, webhook event emission, and Cloudflare Workers SDK compatibility.
+
+**Passwordless Magic-Link Flow:**
+1. DEO navigates to the portal login page and enters their email address.
+2. Clerk sends a unique, single-use magic link to that email. The link expires in 10 minutes if unused.
+3. DEO clicks the link. Clerk authenticates the session in the same browser window. No password is set or required — ever.
+4. A 24-hour session is established. The DEO can close and reopen the browser tab within 24 hours without re-authenticating.
+
+**Single Active Session Enforcement:**
+Clerk is configured to allow exactly one active session per user at a time. If the DEO authenticates on a second device, browser, or tab, all other active sessions for that user are immediately invalidated. This prevents concurrent uploads from multiple devices that could produce duplicate or conflicting data.
+
+**Session Expiry & Data Preservation:**
+- Sessions expire after 24 hours of issue (not inactivity). On expiry, the DEO sees a re-authentication prompt.
+- IndexedDB staged data is fully preserved across re-authentication. The DEO resumes exactly where they left off after re-login.
+- Connection loss, tab close, device sleep, or network change do not trigger session expiry. Expiry is clock-based only.
+
+**User Provisioning:**
+- DEO accounts are created by the system administrator before the upload campaign using Clerk's management API. No self-registration is available.
+- Each account is bound to a department-issued email address and carries a `districtName` metadata claim in Clerk, which the Worker uses to scope data access to that district only.
+- Account creation is scripted and run once during the M-5 pre-rollout phase.
+
+**Audit Log — Clerk Webhook → D1:**
+Clerk emits webhook events for: `session.created`, `session.ended`, `session.revoked`, `user.updated`. A Worker endpoint (`POST /api/webhooks/clerk`) receives these events, validates the Clerk webhook signature (SVIX HMAC), and writes a record to the `audit_log` D1 table.
+
+Application-level events (upload chunk, district submission, circle/sector registration) are also written to `audit_log` directly by the Worker on every successful operation.
+
+**Audit Log Retention — Cron Purge:**
+A Cloudflare Cron Trigger (`0 2 * * *` — 02:00 UTC daily) runs a Worker that deletes all `audit_log` rows where `created_at < NOW - 45 days`. Defined in `wrangler.toml` under `[triggers]`. This prevents D1 from accumulating unbounded audit data.
+
+---
+
+### 3.8 Frontend Asset & Bundle Strategy
+
+The guiding principle is **CDN-first**: every substantial asset is loaded from jsDelivr (or the library's official CDN where that is faster/canonical). Cloudflare Pages serves only the Next.js JavaScript bundle, which contains React, the app's component logic, and nothing else. This minimises Cloudflare Pages bandwidth usage.
+
+**Design System — Loaded from CDN:**
+
+| Asset | CDN Source | Size (gzip) | Notes |
+|---|---|---|---|
+| DaisyUI CSS | `cdn.jsdelivr.net/npm/daisyui@x/dist/full.min.css` | ~25KB | Semantic component classes: `btn`, `card`, `table`, `modal`, `badge`, `drawer`, etc. |
+| Tailwind Play CDN | `cdn.tailwindcss.com` | ~50KB | Runtime utility class generation for any Tailwind utilities used in JSX. Scans rendered HTML. |
+
+Both are loaded in `<head>` via `_document.tsx` with SRI attributes. Tailwind is not processed via PostCSS at build time — no Tailwind in the build pipeline, no purge step, no PostCSS config. The Play CDN handles this at runtime.
+
+> **Why Tailwind Play CDN instead of build-time?** The Next.js bundle (React + app logic) is the only asset Cloudflare Pages serves. Removing PostCSS + Tailwind from the build pipeline keeps the bundle exclusively application code. Bandwidth cost for the Tailwind CDN script is borne by jsDelivr, not by Cloudflare.
+
+**Data Layer Libraries — Loaded from CDN:**
+
+| Library | CDN Source | Load Strategy |
+|---|---|---|
+| SheetJS (`xlsx`) | `cdn.jsdelivr.net/npm/xlsx@x/dist/xlsx.full.min.js` | Dynamically injected on upload page mount (`ssr: false`) — loads only when the DEO reaches the upload screen |
+| Dexie.js | `cdn.jsdelivr.net/npm/dexie@x/dist/dexie.min.js` | `<script>` tag in `_document.tsx` — loaded on every DEO page; cached by Service Worker after first load |
+
+**What ships in the Next.js bundle:**
+- React + Next.js App Router runtime
+- App-specific TypeScript components and logic
+- Clerk frontend SDK (React components for auth UI)
+- No CSS frameworks, no data libraries, no Excel parsers
+
+**SRI Pin Workflow (for library version upgrades):**
+```bash
+# Generate SRI hash for a CDN file
+curl -s https://cdn.jsdelivr.net/npm/daisyui@5/dist/full.min.css | \
+  openssl dgst -sha384 -binary | openssl base64 -A
+```
+Update the `integrity` attribute and commit the hash alongside the version bump. CI blocks merge if any CDN tag is missing `integrity`.
+
+---
+
+### 3.9 PWA & Offline Architecture
+
+**Progressive Web App:**
+The DEO portal is a full PWA. Installed on an iPad or Android tablet, it loads from the Service Worker cache with no network dependency after the first visit.
+
+**`public/manifest.json`:**
+```json
+{
+  "name": "UP Excise Portal",
+  "short_name": "Excise Portal",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#1d4ed8",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
+```
+
+**Service Worker Responsibilities:**
+- **App shell caching:** On install, pre-caches the Next.js static HTML, JS bundle, and all CDN assets (DaisyUI CSS, Tailwind CDN script, Dexie.js, SheetJS). After first load, the entire app and all its dependencies run offline.
+- **Offline detection:** Posts `{ type: 'connectivity', online: boolean }` messages to the active page. The connection status indicator reacts to these messages.
+- **Background Sync:** When a chunk upload fails due to connectivity loss, the chunk payload is written to an IndexedDB queue and registered with the Background Sync API (`sync.register('upload-queue')`). On connectivity restoration, the Service Worker retries all queued chunks sequentially. No DEO action is required.
+- **Cache invalidation:** Service Worker version is tied to the Next.js build hash. On deployment, the new Service Worker installs and takes over, replacing the cached app shell.
+
+**IndexedDB-First Data Rules:**
+- Every DEO action (row edit, pill deletion, field change, unit mark-verified) writes to IndexedDB synchronously — before any network call is made or awaited.
+- The network upload is a secondary step. A failed upload changes the row status to `'error'` in IndexedDB; the data itself is never lost.
+- On page load, the app always reads from IndexedDB first. Network state has no bearing on what the DEO sees.
+- Connection drop, network change, tab sleep, or device screen-off never trigger a session clear, IndexedDB wipe, or logout. Only Clerk's 24-hour clock-based expiry touches the session — and even then, IndexedDB data is preserved through re-authentication.
+
+**Supported Devices:**
+| Device | Status | Notes |
+|---|---|---|
+| iPad (Safari, Chrome) | Fully supported — primary field device | PWA install via Safari "Add to Home Screen"; Background Sync supported in Chrome for iOS |
+| Android tablet 10"+ (Chrome) | Fully supported — primary field device | Full PWA install + Background Sync |
+| Desktop PC/Mac (Chrome, Firefox, Edge, Safari) | Fully supported — office use | |
+| Small-screen mobile (< 768px) | Not supported | Verification table not usable. App does not break but no mobile layouts will be built. |
+
+---
+
+### 3.10 Accessibility, UX Standards & User Preferences
+
+**Dark & Light Mode:**
+DaisyUI's built-in theme system defines two themes: `excise-light` and `excise-dark`. Applied by setting `data-theme` on `<html>`. An inline script in `<head>` reads `localStorage` and sets the theme before first paint — no flash of wrong theme on load.
+
+**User Preferences (localStorage):**
+| Key | Values | Purpose |
+|---|---|---|
+| `theme` | `'excise-light' \| 'excise-dark'` | UI theme, persisted across sessions |
+| `verificationPageSize` | `25 \| 50 \| 100` | Rows per page in the verification table |
+| `connectionBannerDismissed` | `'true'` | Whether the DEO has acknowledged the offline banner |
+
+**ARIA & Keyboard Accessibility:**
+- All interactive elements (pill delete buttons, inline edit fields, modal dialogs, upload dropzone, accordion sections) have `aria-label` or `aria-labelledby`.
+- The verification table uses `role="grid"`, `role="row"`, `role="gridcell"` for keyboard navigation.
+- Dynamic updates (upload progress, live revenue recalculation, pill removal) announced via `aria-live="polite"` regions.
+- After a modal closes, focus returns explicitly to the trigger element.
+- Color is never the sole status indicator — coordinate warnings use color plus an icon glyph.
+- Touch targets are minimum 44×44px (WCAG 2.5.8).
+
+**Connection Status Indicator:**
+Persistent banner in the app header:
+- **Green — "Online"**: network available, Worker reachable.
+- **Amber — "Offline — data saved locally"**: no network; all edits write to IndexedDB; nothing is lost.
+- **Amber — "Slow connection"**: ping latency > 2s detected; uploads will retry automatically.
+The banner is informational and does not interrupt the DEO's workflow.
+
+**Print View:**
+A `@media print` stylesheet renders a clean, paginated layout of the verification table. UI controls (edit buttons, pill delete icons, upload actions, navigation) are hidden. Revenue totals and coordinate status are preserved. DEOs can print their staged data as a paper backup before submission.
+
+**Tablet-First Layout:**
+- Minimum supported viewport: **768px** (iPad portrait). No `sm` or `xs` breakpoints are used in DEO-facing layouts.
+- Breakpoints: `md` (768px) — tablet portrait; `lg` (1024px) — tablet landscape/desktop.
+- Horizontal scroll on the verification table is expected on tablet — it is not a layout bug.
+- All Tailwind responsive prefixes in JSX use `md:` or `lg:` only.
+
+---
+
+### 3.11 Search Architecture
+
+**DEO-Level Search (Client-Side, IndexedDB):**
+DEOs search their own district's staged data without any network request. Dexie.js `where()` and `filter()` APIs query the local IndexedDB store directly.
+
+Searchable fields:
+| Field | Match Type |
+|---|---|
+| Shop name | Substring, case-insensitive |
+| Shop ID | Exact or prefix |
+| Thana name | Substring |
+| Shop type | Enum filter (dropdown) |
+| Circle/sector | Filter from registered units |
+| Row status | `pending \| uploaded \| error` |
+
+Results render inline in the verification table. Zero Worker calls.
+
+**Admin/HQ Search (Server-Side, D1):**
+Admin users access the separate admin portal. Search queries go to `GET /api/admin/search` (Worker, guarded by Clerk `admin` role):
+
+| Parameter | Type | Description |
+|---|---|---|
+| `district` | string | Filter by district name (indexed) |
+| `thana` | string | Filter by Thana name (indexed) |
+| `shopType` | string | Enum filter |
+| `circleSector` | string | Filter by circle/sector name |
+| `q` | string | Free-text shop name (SQLite `LIKE '%q%'`) |
+| `page` | integer | Pagination, default 50 rows/page |
+
+Free-text `LIKE` requires a column scan on `shop_name`. Acceptable at 30,000 rows for infrequent admin use. If response time exceeds 1s, a SQLite FTS5 virtual table (`phase1_fts`) will be added in a post-Phase-1 migration.
+
+---
+
+### 3.12 Admin/HQ Portal Separation
+
+The admin portal is a **separate application** from the DEO portal. It shares `packages/schema` but has its own deployment, auth scope, and Worker route namespace.
+
+| Concern | DEO Portal | Admin Portal |
+|---|---|---|
+| App | `apps/web` | `apps/admin` |
+| Deployment | Cloudflare Pages — DEO domain | Cloudflare Pages — Admin domain |
+| Auth | Clerk — `deo` role | Clerk — `admin` role, separate Clerk organization |
+| Worker routes | `/api/*` | `/api/admin/*` |
+| Data access | Own district only (scoped by Clerk `districtName` claim) | All 75 districts, read-only |
+
+**Admin Capabilities (Phase 1):**
+- State-wide dashboard: total vends ingested, per-district upload progress, missing coordinate counts, revenue aggregated by district and shop type.
+- D1-backed search across all districts (Section 3.11).
+- CSV export of full or filtered D1 dataset (streamed from Worker to browser).
+- Audit log viewer: read-only, last 45 days of DEO login and upload activity.
+- Circle/sector pre-registration status per district (which DEOs have registered their units).
+
+**Admin Cannot (Phase 1):**
+- Edit, correct, or delete any vend records — Phase 1 data is DEO-submitted and read-only from the admin side.
+- Trigger re-uploads or corrections on a DEO's behalf.
+- Access DEO session tokens or Clerk credential details.
+
+---
+
 ## 4. Data Dictionary & Shop Classification Matrix
 
 ### 4.1 Administrative Fields
@@ -554,7 +814,37 @@ export const districtCirclesSectors = sqliteTable('district_circles_sectors', {
 
 The `circle_sector_name` field in `phase1_raw_collection` (Section 5.2) references a value from this table by name (not by FK, for the same flexibility rationale as Thana names — see Section 5.1). The Worker validates that the `circleSectorName` on each uploaded chunk matches a registered unit for the DEO's district before inserting.
 
-### 5.4 Schema Notes & Constraints
+### 5.4 Audit Log Table
+
+Every significant event in the system — DEO login, session revocation, upload chunk, district submission, circle/sector registration — is recorded here. Clerk webhook events and application-level events both write to this table. Records are purged after 45 days by the Cron Trigger defined in Section 3.7.
+
+```typescript
+export const auditLog = sqliteTable('audit_log', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+
+  // 'login' | 'logout' | 'session_revoked' | 'upload_chunk' | 'district_submitted' | 'unit_registered'
+  eventType: text('event_type').notNull(),
+
+  deoId: text('deo_id').notNull(),
+  districtName: text('district_name'),
+
+  // Captured from the request context on every Worker event
+  ipAddress: text('ip_address'),
+  userAgent: text('user_agent'),
+
+  // JSON string for event-specific detail (e.g., chunk index, row count, unit name)
+  metadata: text('metadata'),
+
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+
+}, (table) => ({
+  deoIdx: index('al_deo_idx').on(table.deoId),
+  // Indexed for efficient range-delete in the daily cron purge
+  createdAtIdx: index('al_created_at_idx').on(table.createdAt),
+}));
+```
+
+### 5.5 Schema Notes & Constraints
 
 **`shopType` enum enforcement:** Drizzle ORM on SQLite does not enforce CHECK constraints via the ORM layer by default. The Worker validation layer (Section 3.4) enforces the enum at runtime. A migration file will include an explicit `CHECK (shop_type IN (...))` constraint for defense-in-depth.
 
@@ -591,15 +881,20 @@ M-5: Dashboard, Testing & DEO Handoff     [Week 5-6]
 
 **Deliverables:**
 
-- [ ] Monorepo structure initialized (`apps/web` for Next.js, `apps/worker` for Hono Worker, `packages/schema` for shared Drizzle schema).
-- [ ] `wrangler.toml` configured for Cloudflare Pages + Workers + D1 binding.
+- [ ] Monorepo structure initialized (`apps/web`, `apps/admin`, `apps/worker`, `packages/schema`).
+- [ ] `wrangler.toml` configured for Cloudflare Pages + Workers + D1 binding + Cron Trigger (`0 2 * * *` for audit log purge).
 - [ ] Drizzle ORM configured with D1 adapter.
-- [ ] GitHub Actions CI pipeline: type-check, lint, and Wrangler dry-run deploy on every PR.
-- [ ] Cloudflare Pages project created; preview deploys enabled.
-- [ ] D1 database provisioned (both `phase1-dev` and `phase1-prod` instances).
-- [ ] Environment variable structure defined: no secrets in code, all via Cloudflare Workers secrets.
+- [ ] GitHub Actions CI pipeline: type-check, lint, Wrangler dry-run deploy, and SRI attribute presence check on every PR.
+- [ ] Cloudflare Pages projects created: DEO portal + Admin portal; preview deploys enabled on both.
+- [ ] D1 database provisioned (`phase1-dev` and `phase1-prod`).
+- [ ] All secrets (Clerk secret key, Clerk webhook signing secret) stored in Cloudflare Workers Secrets — not in `wrangler.toml` or source.
+- [ ] Clerk project created: magic-link auth enabled, single-session enforcement configured, `deo` and `admin` roles defined, separate Clerk organization for admin.
+- [ ] `public/_headers` committed with full CSP, `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy`, `Permissions-Policy`.
+- [ ] `public/manifest.json` committed with PWA metadata (name, icons, display: standalone, theme color).
+- [ ] Service Worker skeleton (`public/sw.js`) committed: app shell cache strategy stubbed, registered in `_document.tsx`.
+- [ ] `_document.tsx` stubbed with CDN `<link>` and `<script>` tags for DaisyUI and Tailwind Play CDN (with SRI attribute placeholders).
 
-**Exit criterion:** `wrangler deploy --dry-run` passes on CI. A `GET /healthz` Worker route returns `200 OK` on the preview URL.
+**Exit criterion:** `wrangler deploy --dry-run` passes on CI. `GET /healthz` returns `200 OK`. CI fails if any CDN tag is missing an `integrity` attribute. PWA manifest validates in Chrome DevTools Lighthouse.
 
 ---
 
@@ -609,14 +904,16 @@ M-5: Dashboard, Testing & DEO Handoff     [Week 5-6]
 
 **Deliverables:**
 
-- [ ] Drizzle schema file (`packages/schema/src/phase1.ts`) finalized per Sections 5.2 and 5.3.
-- [ ] Migration file generated and applied to both dev and prod D1 instances — covers both `phase1_raw_collection` and `district_circles_sectors` tables.
+- [ ] Drizzle schema file (`packages/schema/src/phase1.ts`) finalized per Sections 5.2, 5.3, and 5.4 (`phase1_raw_collection`, `district_circles_sectors`, `audit_log`).
+- [ ] Migration file generated and applied to `phase1-dev` and `phase1-prod` — covers all three tables.
 - [ ] SQLite `CHECK` constraint for `shop_type` added to migration.
-- [ ] Hono Worker skeleton: `/api/upload/chunk`, `/api/districts/:district/units` (GET + POST), `/api/healthz`, CORS configured for Pages preview domains.
-- [ ] Drizzle migration applied via `wrangler d1 migrations apply`.
-- [ ] Worker unit tests for the revenue recomputation logic (pure function, no D1 dependency).
+- [ ] Hono Worker skeleton: `/api/upload/chunk`, `/api/districts/:district/units` (GET + POST), `/api/webhooks/clerk` (POST — Clerk event receiver), `/api/healthz`, CORS configured for Pages preview domains.
+- [ ] Clerk webhook Worker route implemented: validates SVIX signature, writes `session.created` / `session.ended` / `session.revoked` events to `audit_log`.
+- [ ] Cron Trigger Worker function implemented: deletes `audit_log` rows older than 45 days.
+- [ ] Admin Worker route skeleton `/api/admin/*` with Clerk `admin` role guard middleware stub.
+- [ ] Worker unit tests for: revenue recomputation logic, SRI hash validation helper, Clerk role guard.
 
-**Exit criterion:** `wrangler d1 execute phase1-dev --command "SELECT * FROM phase1_raw_collection LIMIT 1"` returns an empty result set with correct column names. Same for `district_circles_sectors`.
+**Exit criterion:** All three D1 tables exist with correct column names. Clerk webhook fires and a test event appears in `audit_log`. Cron Trigger purge function deletes test records older than 45 days in local dev.
 
 ---
 
@@ -649,24 +946,36 @@ M-5: Dashboard, Testing & DEO Handoff     [Week 5-6]
 
 **Deliverables:**
 
-- [ ] Dexie.js configured: `phase1_staging` IndexedDB table mirrors the schema. Includes a `status` field: `'pending' | 'uploaded' | 'error'` per row, plus a `circleSectorId` field to identify which unit the row belongs to.
-- [ ] Circle/Sector Management UI: the DEO can create circles and sectors for their district (calls `POST /api/districts/:district/units`), view the registered list, and download a pre-labeled Excel template per unit.
-- [ ] File upload component: DEO selects a circle/sector from the registered list, then uploads the corresponding Inspector-filled Excel — drag-and-drop + click-to-upload, triggers SheetJS parse, writes to IndexedDB tagged with the selected unit.
-- [ ] Parse progress indicator (useful for large files; parsing 5,000 rows can take 1–2 seconds).
-- [ ] Verification table component — grouped by circle/sector (tabs or collapsible sections):
-  - Paginated display (50 rows/page per unit).
+- [ ] Clerk magic-link auth integrated in DEO portal login page. Post-auth redirect to verification UI. Unauthenticated routes redirect to login.
+- [ ] Single-session enforcement verified: authenticating in Browser B invalidates the session in Browser A.
+- [ ] Dexie.js configured: `phase1_staging` IndexedDB table mirrors the schema. Each row carries `status: 'pending' | 'uploaded' | 'error'` and `circleSectorName`.
+- [ ] Circle/Sector Management UI: DEO creates and lists circles/sectors, downloads pre-labeled Excel templates per unit.
+- [ ] File upload component: DEO selects a registered circle/sector, uploads Inspector-filled Excel — drag-and-drop + click-to-upload, triggers SheetJS parse (loaded from jsDelivr CDN dynamically), writes to IndexedDB tagged with the selected unit.
+- [ ] Parse progress indicator (parsing 5,000 rows can take 1–2 seconds; shown as a DaisyUI progress bar).
+- [ ] Verification table component — grouped by circle/sector (DaisyUI tab or collapse components):
+  - Paginated display (user-preference rows per page: 25/50/100).
   - Inline edit for all DEO-editable fields.
-  - Revenue preview column (computed live from financial fields).
-  - Coordinate status indicator (green = valid DD, yellow = converted from DMS, red = invalid/missing).
+  - Revenue preview column (computed live from financial inputs).
+  - Coordinate status indicator — color + icon glyph (never color alone).
 - [ ] Adjacent Thana pill component:
-  - Parses `adjacentThanasRaw` string into individual removable pills.
-  - Cross-district pills highlighted red (district of the adjacent Thana name checked against a same-district Thana list loaded from D1 or static config).
-  - Pill deletion updates `adjacentThanasRaw` in IndexedDB.
-- [ ] Shop type field toggling: financial input fields show/hide based on selected `shopType` and `hasCl5cc` state.
-- [ ] Completeness gate: the district submit button is disabled until every registered circle/sector has at least one uploaded and verified file. A summary panel shows unit-level status (e.g., "Circle 1 — 143 rows ready", "Sector B — not yet uploaded").
-- [ ] Session recovery: on page load, check IndexedDB for pending rows per unit and restore verification UI state.
+  - Parses `adjacentThanasRaw` into removable DaisyUI badge/pill components.
+  - Cross-district pills highlighted red; must be removed before the row is marked clean.
+  - Deletion updates `adjacentThanasRaw` in IndexedDB immediately.
+- [ ] Shop type field toggling: financial inputs show/hide based on `shopType` and `hasCl5cc`.
+- [ ] Completeness gate: district submit button disabled until all registered units have at least one verified file. Per-unit status summary panel displayed.
+- [ ] Session recovery: on page load, IndexedDB is read first; staged data and UI state are restored regardless of network.
+- [ ] Service Worker fully implemented: app shell cache, CDN asset cache (DaisyUI, Tailwind CDN, Dexie.js, SheetJS), offline detection message relay.
+- [ ] Background Sync registered on failed chunk uploads; retries transparently on reconnect.
+- [ ] Dark/light mode toggle (DaisyUI themes); `localStorage` persistence; inline `<head>` script to apply theme before first paint.
+- [ ] User preferences (theme, page size) read and written to `localStorage` on every change.
+- [ ] Connection status indicator (Online / Offline / Slow) in app header using DaisyUI alert component.
+- [ ] `@media print` stylesheet for verification table.
+- [ ] ARIA attributes on all interactive components (pill buttons, edit fields, upload dropzone, modals).
+- [ ] PWA install prompt surfaced on iPad Safari and Android Chrome.
+- [ ] Client-side search in the verification UI (IndexedDB-powered, no network call).
+- [ ] Audit events written: `upload_chunk` and `unit_registered` events logged to `audit_log` via Worker.
 
-**Exit criterion:** A DEO can register two circles, upload a separate test Excel for each, review rows grouped by circle, correct an invalid coordinate, remove a cross-district adjacency pill, and see all data persisted in IndexedDB after a forced page refresh. The submit button is disabled until both circles are verified.
+**Exit criterion:** DEO can register two circles, upload a separate Excel for each (parsed from jsDelivr-served SheetJS), review grouped rows, remove a red adjacency pill, toggle dark mode, force-refresh the page, and see all data and theme preference restored from IndexedDB/localStorage. Submit button is blocked until both circles are verified. PWA install prompt appears on an iPad browser.
 
 ---
 
@@ -702,31 +1011,42 @@ M-5: Dashboard, Testing & DEO Handoff     [Week 5-6]
 
 **Deliverables:**
 
-- [ ] Department dashboard (read-only, no auth required for Phase 1 — IP-restricted via Cloudflare Access if needed):
-  - Total vends ingested: state-wide count.
-  - Per-district upload progress: rows received vs. expected total.
-  - Missing coordinates count per district.
-  - Total revenue aggregated by district and by shop type.
-  - Download option: export current D1 state as CSV (triggered via Worker, streamed to browser).
+- [ ] Admin portal (`apps/admin`) fully functional:
+  - State-wide dashboard: total vends, per-district progress, missing coordinate counts, revenue by district and shop type.
+  - D1-backed search across all districts with pagination (Section 3.11).
+  - CSV export of full or filtered D1 dataset streamed from Worker.
+  - Audit log viewer: read-only table of last 45 days of DEO activity.
+  - Circle/sector pre-registration status per district.
+- [ ] DEO accounts provisioned in Clerk from department email list using management API script (run once).
 - [ ] End-to-end test suite (Playwright):
-  - Happy path: register circle/sector → download template → upload Inspector Excel → verify → submit, for each of the 5 shop types.
-  - Multi-file district submission: register 2 circles, upload separate Excels for each, verify grouped view, complete submission.
-  - Completeness gate: attempt submission with one circle missing — confirm submit button is blocked.
-  - CL5CC endorsement flow: verify `specialBeerLf` and `specialBeerMgr` fields appear and contribute to `totalRevenue`.
+  - Happy path: login via magic link → register circle/sector → download template → upload Inspector Excel → verify → submit, for each of the 5 shop types.
+  - Multi-file district submission: register 2 circles, upload separate Excels, verify grouped view, complete submission.
+  - Completeness gate: submission blocked when one circle is missing — verified.
+  - CL5CC endorsement flow: `specialBeerLf` and `specialBeerMgr` visible and contributing to `totalRevenue`.
   - Cross-district adjacency pill rejection.
-  - Session recovery after forced refresh mid-verification.
-  - Mid-upload interruption and resume.
-- [ ] Load test: simulate 75 simultaneous DEO sessions each uploading 500 rows. Verify Worker stays within free tier limits and D1 write count does not exceed daily quota.
+  - Session recovery: forced page refresh mid-verification — all data and theme preference restored.
+  - Session invalidation: second login from a different browser revokes the first session.
+  - Offline scenario: disconnect network mid-verification, continue editing, reconnect — Background Sync retries queued upload chunks.
+  - Mid-upload interruption and resume (no duplicate rows in D1).
+  - PWA offline: installed app shell loads with no network.
+- [ ] Load test: 75 simultaneous DEO sessions each uploading 500 rows. Worker stays within free tier CPU and D1 write quota.
+- [ ] SRI audit: CI build fails if any CDN `<script>` or `<link>` tag is missing `integrity`. All SRI hashes verified against live jsDelivr responses.
+- [ ] Lighthouse audit on DEO portal: PWA score ≥ 90, Accessibility score ≥ 90.
+- [ ] ARIA audit using axe-core: all critical violations resolved.
+- [ ] Audit log verified: login, upload chunk, and submission events written correctly. 45-day purge cron tested.
 - [ ] DEO training documentation (`docs/deo-guide.md`):
-  - Screenshot-annotated walkthrough: circle/sector registration → template download → Inspector distribution → per-unit upload → grouped verification → district submission.
+  - Screenshot-annotated walkthrough: magic-link login → circle/sector registration → template download → Inspector distribution → per-unit upload → grouped verification → district submission.
   - Excel template column specifications.
-  - Coordinate input instructions (both DMS and DD formats with examples).
-  - Adjacent Thana instructions with cross-district exclusion rule explained plainly (symmetric — neither DEO may enter cross-district adjacency).
+  - Coordinate input instructions (DMS and DD with examples).
+  - Adjacent Thana instructions with symmetric cross-district exclusion rule explained plainly.
+  - PWA install instructions for iPad and Android tablet.
+  - Dark/light mode toggle and preference saving.
+  - Offline usage: what works without internet, what requires connectivity.
   - Contact and escalation procedure for upload errors.
-- [ ] Standardized Excel templates distributed to all 75 district offices (base template + instructions for generating per-circle/sector pre-labeled copies).
-- [ ] DEO pilot: 3–5 districts complete the full workflow — register circles/sectors, distribute templates to Inspectors, collect and upload all files, verify, submit — before state-wide rollout.
+- [ ] Standardized Excel templates distributed to all 75 district offices.
+- [ ] DEO pilot: 3–5 districts complete the full workflow before state-wide rollout.
 
-**Exit criterion:** Pilot districts complete upload with zero Worker errors. Dashboard reflects accurate counts. Department leadership signs off on data completeness for pilot districts. System cleared for state-wide DEO rollout.
+**Exit criterion:** Pilot districts complete upload with zero Worker errors. Admin dashboard reflects accurate counts. Lighthouse PWA and Accessibility scores ≥ 90. Department signs off on data completeness for pilot districts. System cleared for state-wide rollout.
 
 ---
 
@@ -734,19 +1054,20 @@ M-5: Dashboard, Testing & DEO Handoff     [Week 5-6]
 
 | Milestone | Duration | Key Dependency |
 |---|---|---|
-| M-0: Foundation & Repo Setup | 3 days | Cloudflare account access, GitHub repo |
-| M-1: Schema, Migrations & Worker Skeleton | 4 days | M-0 complete |
+| M-0: Foundation & Repo Setup | 4 days | Cloudflare account access, GitHub repo, Clerk account, DEO email list from department |
+| M-1: Schema, Migrations & Worker Skeleton | 5 days | M-0 complete |
 | M-2: Excel Ingestion & Coordinate Engine | 5 days | DEO Excel template finalized with department |
-| M-3: Verification UI & IndexedDB | 6 days | M-2 complete |
+| M-3: Verification UI, Auth, PWA & IndexedDB | 10 days | M-2 complete |
 | M-4: Worker Batch API & D1 Integration | 5 days | M-3 complete |
-| M-5: Dashboard, Testing & DEO Handoff | 7 days | M-4 complete, pilot district identified |
-| **Total** | **~30 working days** | |
+| M-5: Admin Portal, Testing & DEO Handoff | 10 days | M-4 complete, pilot district identified |
+| **Total** | **~39 working days** | |
 
 ### Pre-Campaign Blockers (Must Resolve Before M-2)
 
 The following require department action before engineering can proceed past M-1:
 
-1. **Excel template column layout:** The DEO spreadsheet format must be locked down. Column names, order, and data types must be confirmed with the department before the SheetJS column-mapping is built. Changes to the template after M-2 require code changes.
+1. **DEO email addresses:** The department must supply all 75 DEO email addresses before M-0 can close. Clerk accounts are provisioned from this list. Without it, the auth system cannot be configured and no DEO can log in.
+2. **Excel template column layout:** The DEO spreadsheet format must be locked down. Column names, order, and data types must be confirmed with the department before the SheetJS column-mapping is built. Changes to the template after M-2 require code changes.
 2. **Thana master list (best-effort):** A reference list of Thana names per district, even if incomplete, is valuable for building the adjacent Thana cross-district filter. If unavailable, the filter will use a runtime check against already-uploaded Thana names for the same district.
 3. **Shop count estimates per district:** Knowing the expected vend count per district allows the dashboard to display accurate "X of Y uploaded" progress metrics.
 4. **DEO credential and identifier assignment:** The department must assign and distribute DEO portal credentials and their `uploadedByDeo` identifiers before the upload campaign begins. DEOs must also complete circle/sector pre-registration before distributing templates to Inspectors.
@@ -765,28 +1086,41 @@ The following require department action before engineering can proceed past M-1:
 | Backend Framework | Hono | Lightweight, TypeScript-first, built for Workers, minimal overhead |
 | Database | Cloudflare D1 (SQLite) | Serverless SQLite at the edge, native `db.batch()`, free tier covers Phase 1 |
 | ORM | Drizzle ORM | Type-safe, SQLite-native, generates clean migrations, zero runtime overhead |
-| Excel Parsing | SheetJS (xlsx) | Industry standard, runs entirely in-browser, no server dependency |
-| Local Persistence | Dexie.js (IndexedDB) | Clean API over IndexedDB, reactive, offline-first |
-| Coordinate Conversion | Custom utility | DMS-to-DD conversion is a 3-line formula; no library needed |
-| Testing | Vitest + Playwright | Unit tests for business logic, E2E tests for critical upload flows |
+| Authentication | Clerk | Passwordless magic-link auth, single-session enforcement, webhook events, Cloudflare Workers SDK |
+| UI Components | DaisyUI | Tailwind CSS plugin — semantic component classes, zero JS runtime, loaded from jsDelivr CDN |
+| CSS Utilities | Tailwind Play CDN | Runtime utility class generation; loaded from CDN — no PostCSS build step, keeps CF Pages bundle pure app logic |
+| Excel Parsing | SheetJS (`xlsx`) | Loaded from jsDelivr CDN dynamically on upload page; ~900KB, never bundled |
+| Local Persistence | Dexie.js (IndexedDB) | Loaded from jsDelivr CDN; offline-first staging layer for all DEO-entered data |
+| Offline / PWA | Service Worker + Background Sync | App shell cache, CDN asset cache, transparent upload retry on reconnect |
+| Scheduled Tasks | Cloudflare Cron Triggers | Daily audit log purge at 45-day threshold; defined in `wrangler.toml` |
+| Coordinate Conversion | Custom utility | DMS-to-DD is a 3-line formula; no library needed |
+| Testing | Vitest + Playwright | Unit tests for business logic; E2E for full upload and auth flows |
 
 ## Appendix B: Glossary
 
 | Term | Definition |
 |---|---|
-| DEO | District Excise Officer. The most senior excise post at the district level, overseeing all Excise Inspectors across every circle and sector in their district. In this system, the DEO is the sole authenticated portal user for their district — responsible for registering circles/sectors, collecting Inspector-filled Excel files, uploading and verifying data, and submitting the complete district dataset. |
-| Inspector | Excise Inspector. The ground-level enforcement officer assigned to one or more circles or sectors within a district. Inspectors fill the standardized Excel template for their jurisdiction and hand it to the DEO; they do not have direct portal access. |
+| DEO | District Excise Officer. The most senior excise post at the district level, overseeing all Excise Inspectors across every circle and sector in their district. The sole authenticated portal user for their district. |
+| Inspector | Excise Inspector. The ground-level officer assigned to one or more circles/sectors. Fills the Excel template for their jurisdiction and hands it to the DEO. No portal access. |
 | Thana | The atomic geographic unit. Named after police station jurisdictions but interpreted under Excise administrative authority. |
 | DD | Decimal Degrees. Coordinate format used for all GIS operations (e.g., `26.8467°N`). |
-| DMS | Degrees, Minutes, Seconds. Legacy coordinate format found in historical Excise records (e.g., `26°50'48.1"N`). |
+| DMS | Degrees, Minutes, Seconds. Legacy coordinate format in historical Excise records (e.g., `26°50'48.1"N`). Converted to DD by the frontend before any data leaves the browser. |
 | LF | License Fee. Annual fee for Model Shop, Composite Shop, PRV, and Bhang Shop licenses. |
 | MGR | Minimum Guaranteed Revenue. Revenue floor commitment for Model Shop, Composite Shop, and PRV. |
-| MGQ | Minimum Guaranteed Quantity. Unit-based floor for Bhang Shop, multiplied by 20 to derive INR value. |
+| MGQ | Minimum Guaranteed Quantity. Unit-based floor for Bhang Shop, multiplied by `BHANG_MGQ_MULTIPLIER` (20) to derive INR value. |
 | BLF | Basic License Fee. Base fee for Country Liquor licenses. |
-| CL5CC | Country Liquor license with beer endorsement. Tracked as `COUNTRY_LIQUOR` with `hasCl5cc = true`. |
-| D1 | Cloudflare D1. Serverless SQLite database hosted at Cloudflare's edge. |
-| Workers | Cloudflare Workers. Serverless JavaScript/TypeScript runtime at the edge. 10ms CPU limit per request. |
-| `db.batch()` | D1 API for executing multiple SQL statements in a single transaction. Used to minimize write operation count. |
+| CL5CC | Country Liquor license with beer endorsement. Stored as `COUNTRY_LIQUOR` with `hasCl5cc = true`. |
+| Magic Link | A single-use, time-limited authentication link sent to the DEO's email. Clicking it in the same browser establishes a 24-hour session. No password is ever set. |
+| PWA | Progressive Web App. The DEO portal is installable on iPad or Android tablet and functions offline via Service Worker + IndexedDB. |
+| Service Worker | A browser background script that caches the app shell and CDN assets, detects connectivity changes, and retries queued uploads via Background Sync when connectivity is restored. |
+| Background Sync | A Web API that queues failed network requests (upload chunks) and retries them automatically when the browser regains connectivity. Requires Service Worker. |
+| SRI | Subresource Integrity. A browser security mechanism that verifies CDN-served assets against a cryptographic hash before executing them. All CDN assets in this project include SRI attributes. |
+| CSP | Content Security Policy. An HTTP header that restricts which scripts, styles, and connections the browser allows. Declared in `public/_headers` for Cloudflare Pages. |
+| Audit Log | The `audit_log` D1 table. Records every DEO login, session event, upload chunk, and district submission. Purged after 45 days by Cron Trigger. |
+| Admin Portal | The separate `apps/admin` application deployed on its own Cloudflare Pages domain. Read-only access to all district data; used by HQ/department administration. |
+| D1 | Cloudflare D1. Serverless SQLite database at the edge. |
+| Workers | Cloudflare Workers. Serverless TypeScript runtime. 10ms CPU limit per request. |
+| `db.batch()` | D1 API for executing multiple SQL statements in a single transaction. Used to minimize write operation count against the free tier quota. |
 | Phase 2 | The subsequent boundary optimization phase. Uses Phase 1 data to remap Inspector jurisdictions. Out of scope for this document. |
 
 ---
