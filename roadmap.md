@@ -286,6 +286,7 @@ The Worker is built with [Hono](https://hono.dev/) — a lightweight, TypeScript
 | `/api/districts/:district/units` | `GET` | Lists all circles/sectors registered for a district |
 | `/api/districts/:district/units/:unitId/template` | `GET` | Returns a pre-labeled Excel template for a circle/sector |
 | `/api/webhooks/clerk` | `POST` | Receives Clerk session events; validates SVIX signature; writes to `audit_log` |
+| `/api/healthz` | `GET` | Health probe — returns `200 OK` with no body. Used by CI dry-run and uptime checks. |
 
 **Key Worker routes — Admin Portal (`/api/admin/*`, Clerk `admin` role required):**
 
@@ -345,7 +346,7 @@ Security is applied at every layer. No single control is treated as sufficient.
 Declared in `public/_headers` for Cloudflare Pages:
 ```
 /*
-  Content-Security-Policy: default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://cdn.tailwindcss.com; style-src 'self' https://cdn.jsdelivr.net; connect-src 'self' https://<worker-domain>.workers.dev; img-src 'self' data:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'
+  Content-Security-Policy: default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://cdn.tailwindcss.com; style-src 'self' https://cdn.jsdelivr.net; connect-src 'self' https://<worker-domain>.workers.dev; img-src 'self' data: https://*.basemaps.cartocdn.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'
   X-Content-Type-Options: nosniff
   X-Frame-Options: DENY
   Referrer-Policy: strict-origin-when-cross-origin
@@ -380,7 +381,7 @@ Cloudflare built-in rate limiting applied to Worker routes:
 **Provider:** Clerk. Chosen for: magic-link/OTP support, single-session enforcement, webhook event emission, and Cloudflare Workers SDK compatibility.
 
 **No Public Pages — Auth Facade Covers Everything:**
-Both portals have zero publicly accessible pages except `/login`. Clerk's `clerkMiddleware` in `middleware.ts` intercepts every request — no valid session → redirect to `/login`.
+The app has zero publicly accessible pages except `/login`. Clerk's `clerkMiddleware` in `apps/web/middleware.ts` intercepts every request — no valid session → redirect to `/login`.
 
 The only public routes are `/login` and `/api/webhooks/clerk` (which authenticates itself via SVIX signature). There is no landing page, no public home — navigating to `/` unauthenticated redirects to `/login` immediately.
 
@@ -481,7 +482,7 @@ The guiding principle is **CDN-first**: every substantial asset is loaded from j
 | DaisyUI CSS | `cdn.jsdelivr.net/npm/daisyui@x/dist/full.min.css` | ~25KB | Semantic component classes: `btn`, `card`, `table`, `modal`, `badge`, `drawer`, etc. |
 | Tailwind Play CDN | `cdn.tailwindcss.com` | ~50KB | Runtime utility class generation for any Tailwind utilities used in JSX. Scans rendered HTML. |
 
-Both are loaded in `<head>` via `_document.tsx` with SRI attributes. Tailwind is not processed via PostCSS at build time — no Tailwind in the build pipeline, no purge step, no PostCSS config. The Play CDN handles this at runtime.
+Both are loaded in `<head>` via root `layout.tsx` with SRI attributes. Tailwind is not processed via PostCSS at build time — no Tailwind in the build pipeline, no purge step, no PostCSS config. The Play CDN handles this at runtime.
 
 > **Why Tailwind Play CDN instead of build-time?** The Next.js bundle (React + app logic) is the only asset Cloudflare Pages serves. Removing PostCSS + Tailwind from the build pipeline keeps the bundle exclusively application code. Bandwidth cost for the Tailwind CDN script is borne by jsDelivr, not by Cloudflare.
 
@@ -655,9 +656,9 @@ When an admin clicks a district, the portal fetches that district's shop data fr
 
 Viewing the entire state as a single UI table is an **unsupported operation** — the data volume makes it meaningless in a browser table. The supported path for full-state data is the CSV export (`/api/admin/export/all`), which streams from D1 directly to a file download. The route exists but is not exposed as a button in the default UI — it is available via the "Export" section only.
 
-**Admin Portal IndexedDB (Dexie.js) — District Cache:**
+**Admin Route Group — IndexedDB (Dexie.js) District Cache:**
 
-The admin portal loads Dexie.js from jsDelivr CDN (same as the DEO portal). After an admin queries a district's shop data, the results are written to an IndexedDB store (`admin_district_cache`) keyed by district name.
+Dexie.js is loaded from jsDelivr CDN in the root `layout.tsx` and is therefore available in both route groups. In the `(admin)` route group, after an admin queries a district's shop data, the results are written to an IndexedDB store (`admin_district_cache`) keyed by district name.
 
 | Dexie Store | Key | Contents | TTL |
 |---|---|---|---|
@@ -666,9 +667,9 @@ The admin portal loads Dexie.js from jsDelivr CDN (same as the DEO portal). Afte
 
 On subsequent visits to the same district, the cache is served immediately while a background refresh checks for newer data. If no changes exist (Worker compares `COUNT(*)` or a district `updatedAt` field), the cache is reused. This avoids redundant D1 reads for districts the admin has already reviewed.
 
-**Admin Portal SheetJS — Bulk DEO Provisioning:**
+**Admin Route Group — SheetJS Bulk DEO Provisioning:**
 
-The admin portal loads SheetJS from jsDelivr CDN for a one-time bulk-provision operation. The administrator uploads an Excel file (`.xlsx`) with columns:
+SheetJS is dynamically injected (not in root layout) on the bulk-provision page within the `(admin)` route group. The administrator uploads an Excel file (`.xlsx`) with columns:
 
 | Column | Description |
 |---|---|
@@ -1038,7 +1039,7 @@ District bbox validation is a **warning, not a rejection**, because:
 
 The bbox is populated during the admin bulk-provision step: for each district, the Worker (or a build script) computes `Math.min/max` over all polygon coordinate pairs in `up-districts.geojson` and stores the result. This is done once, not on every upload.
 
-### 5.5 Circle/Sector Reference Table
+### 5.4 Circle/Sector Reference Table
 
 The `district_circles_sectors` table stores the circles and sectors registered by each DEO before the upload campaign. It is a lightweight reference table — its rows are created by the DEO through the Circle/Sector Management UI and are then used to populate dropdowns, pre-label templates, and enforce the completeness gate at submission.
 
@@ -1057,7 +1058,7 @@ export const districtCirclesSectors = sqliteTable('district_circles_sectors', {
 
 The `circle_sector_name` field in `phase1_raw_collection` (Section 5.2) references a value from this table by name (not by FK, consistent with the flexibility rationale in Section 5.1). The Worker validates that the `circleSectorName` on each uploaded chunk matches a registered unit for the DEO's district before inserting.
 
-### 5.6 Audit Log Table
+### 5.5 Audit Log Table
 
 Every significant event in the system — DEO login, session revocation, upload chunk, district submission, circle/sector registration — is recorded here. Clerk webhook events and application-level events both write to this table. Records are purged after 45 days by the Cron Trigger defined in Section 3.7.
 
@@ -1087,7 +1088,7 @@ export const auditLog = sqliteTable('audit_log', {
 }));
 ```
 
-### 5.7 Schema Notes & Constraints
+### 5.6 Schema Notes & Constraints
 
 **`shopType` enum enforcement:** Drizzle ORM on SQLite does not enforce CHECK constraints via the ORM layer by default. The Worker validation layer (Section 3.4) enforces the enum at runtime. A migration file will include an explicit `CHECK (shop_type IN (...))` constraint for defense-in-depth.
 
@@ -1134,7 +1135,7 @@ M-5: Dashboard, Testing & DEO Handoff     [Week 5-6]
 - [ ] Clerk project created: magic-link auth enabled, single-session enforcement configured, `publicMetadata.role` set to `'deo'` or `'admin'` for each provisioned user (no Clerk Organizations — free tier caps orgs at 20 members).
 - [ ] `public/_headers` committed with full CSP, `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy`, `Permissions-Policy`.
 - [ ] `public/manifest.json` committed with PWA metadata (name, icons, display: standalone, theme color).
-- [ ] Service Worker skeleton (`public/sw.js`) committed: app shell cache strategy stubbed, registered in `_document.tsx`.
+- [ ] Service Worker skeleton (`public/sw.js`) committed: app shell cache strategy stubbed, registered in root `layout.tsx`.
 - [ ] Root `layout.tsx` stubbed with CDN `<link>` and `<script>` tags (all with SRI placeholders) for: DaisyUI CSS, Tailwind Play CDN, Dexie.js, SweetAlert2, Notyf JS + CSS. SheetJS is excluded from root layout (dynamic inject on upload pages only). Chart.js and Leaflet.js tags are in the `(admin)` layout, not the root.
 
 **Exit criterion:** `wrangler deploy --dry-run` passes on CI. `GET /healthz` returns `200 OK`. CI fails if any CDN tag is missing an `integrity` attribute. PWA manifest validates in Chrome DevTools Lighthouse.
@@ -1147,7 +1148,7 @@ M-5: Dashboard, Testing & DEO Handoff     [Week 5-6]
 
 **Deliverables:**
 
-- [ ] Drizzle schema file (`packages/schema/src/phase1.ts`) finalized per Sections 5.2–5.7 — all four tables: `phase1_raw_collection`, `districts`, `district_circles_sectors`, `audit_log`. The `districts` table includes the four `bbox_*` bounding box columns (nullable `REAL`).
+- [ ] Drizzle schema file (`packages/schema/src/phase1.ts`) finalized per Sections 5.2–5.6 — all four tables: `phase1_raw_collection`, `districts`, `district_circles_sectors`, `audit_log`. The `districts` table includes the four `bbox_*` bounding box columns (nullable `REAL`).
 - [ ] Migration file generated and applied to `phase1-dev` and `phase1-prod` — covers all four tables including bbox columns.
 - [ ] SQLite `CHECK` constraint for `shop_type` added to migration.
 - [ ] Hono Worker skeleton: `/api/upload/chunk`, `/api/districts`, `/api/districts/:district/units` (GET + POST), `/api/webhooks/clerk`, `/api/healthz`, CORS configured for Pages preview domains.
@@ -1319,11 +1320,11 @@ The following require department action before engineering can proceed past M-1:
 
 1. **DEO email addresses:** The department must supply all 75 DEO email addresses before M-0 can close. Clerk accounts are provisioned from this list. Without it, the auth system cannot be configured and no DEO can log in.
 2. **Excel template column layout:** The DEO spreadsheet format must be locked down. Column names, order, and data types must be confirmed with the department before the SheetJS column-mapping is built. Changes to the template after M-2 require code changes.
-2. **Thana master list (best-effort):** A reference list of Thana names per district, even if incomplete, is valuable for building the adjacent Thana cross-district filter. If unavailable, the filter will use a runtime check against already-uploaded Thana names for the same district.
-3. **Shop count estimates per district:** Knowing the expected vend count per district allows the dashboard to display accurate "X of Y uploaded" progress metrics.
-4. **DEO credential and identifier assignment:** The department must assign and distribute DEO portal credentials and their `uploadedByDeo` identifiers before the upload campaign begins. DEOs must also complete circle/sector pre-registration before distributing templates to Inspectors.
-5. **Circle/sector naming convention:** DEOs need a consistent naming convention for circles and sectors (e.g., "Circle 1" vs "Circle I" vs "Kotwali Circle") so that the pre-registration step produces clean, unambiguous unit names across districts.
-6. **Upsert vs. versioning decision:** If a DEO re-uploads corrected data for their district, does the system overwrite existing records or create versioned entries? This must be decided before M-4 implementation.
+3. **Thana master list (best-effort):** A reference list of Thana names per district, even if incomplete, is valuable for building the adjacent Thana cross-district filter. If unavailable, the filter will use a runtime check against already-uploaded Thana names for the same district.
+4. **Shop count estimates per district:** Knowing the expected vend count per district allows the dashboard to display accurate "X of Y uploaded" progress metrics.
+5. **DEO credential and identifier assignment:** The department must assign and distribute DEO portal credentials and their `uploadedByDeo` identifiers before the upload campaign begins. DEOs must also complete circle/sector pre-registration before distributing templates to Inspectors.
+6. **Circle/sector naming convention:** DEOs need a consistent naming convention for circles and sectors (e.g., "Circle 1" vs "Circle I" vs "Kotwali Circle") so that the pre-registration step produces clean, unambiguous unit names across districts.
+7. **Upsert vs. versioning decision:** If a DEO re-uploads corrected data for their district, does the system overwrite existing records or create versioned entries? This must be decided before M-4 implementation.
 
 ---
 

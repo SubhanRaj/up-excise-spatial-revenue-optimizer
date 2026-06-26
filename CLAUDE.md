@@ -102,6 +102,7 @@ When files for any app or package do not exist yet, do not create them speculati
 - IndexedDB writes happen synchronously with every user action. The network upload is always secondary. Data is never at risk from a connectivity event.
 - Connection loss, network change, tab close, or device sleep must never trigger a logout or IndexedDB clear. The only session expiry is Clerk's 24-hour clock.
 - Session expiry must not destroy IndexedDB data. The DEO re-authenticates and resumes with all staged data intact.
+- The Service Worker pre-caches all CDN assets on install: DaisyUI, Tailwind Play CDN, Dexie.js, SweetAlert2, Notyf, SheetJS. After first load the entire app runs offline with no network dependency.
 - Minimum supported viewport is **768px**. No small-screen mobile layouts. Do not write `sm:` or `xs:` responsive prefixes in any layout.
 
 ### Data Language
@@ -159,8 +160,8 @@ These are the canonical formulas. Encode them as named constants, never as magic
 The canonical schema is in `packages/schema/src/phase1.ts`. The schema contains four tables:
 - `phase1_raw_collection` — all shop records (Section 5.2)
 - `districts` — district registry with DEO metadata (Section 5.3)
-- `district_circles_sectors` — circles/sectors per district (Section 5.5)
-- `audit_log` — 45-day rolling event log (Section 5.6)
+- `district_circles_sectors` — circles/sectors per district (Section 5.4)
+- `audit_log` — 45-day rolling event log (Section 5.5)
 
 When schema files do not yet exist, refer to [roadmap.md Section 5](roadmap.md#5-phase-1-database-schema) for exact definitions. Do not modify the schema without updating `roadmap.md` Section 5 as well.
 

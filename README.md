@@ -123,7 +123,7 @@ up-excise-spatial-revenue-optimizer/
 
 **Accounts:** Created by the system administrator from the department-supplied DEO email list before the upload campaign. No self-registration.
 
-**No public pages:** Every route in both portals is protected by Clerk's `clerkMiddleware`. Unauthenticated requests redirect to `/login`. There is no public home, no landing page. Only `/login` and the Clerk webhook endpoint are accessible without a session.
+**No public pages:** Every route is protected by Clerk's `clerkMiddleware` in `apps/web/middleware.ts`. Unauthenticated requests redirect to `/login`. There is no public home, no landing page. Only `/login` and the Clerk webhook endpoint are accessible without a session.
 
 **Audit trail:** Every login, logout, session revocation, upload chunk, and district submission is written to the `audit_log` D1 table. Records are retained for 45 days, then automatically purged by a Cloudflare Cron Trigger.
 
@@ -144,7 +144,7 @@ up-excise-spatial-revenue-optimizer/
 
 The DEO portal is a full Progressive Web App installable on iPad or Android tablet.
 
-- **App shell cached:** After first load, the entire app — including all CDN assets (DaisyUI, Tailwind CDN, Dexie.js, SheetJS) — runs offline from Service Worker cache.
+- **App shell cached:** After first load, the entire app — including all CDN assets (DaisyUI, Tailwind CDN, Dexie.js, SweetAlert2, Notyf, SheetJS) — runs offline from Service Worker cache.
 - **IndexedDB-first:** Every DEO action (row edit, field change, pill deletion) writes to IndexedDB before any network call. The network upload is secondary.
 - **Background Sync:** If a chunk upload fails due to connectivity loss, it queues in the Service Worker and retries automatically when connectivity is restored. No DEO action needed.
 - **No data loss on disconnect:** Connection drop, network change, tab close, or device sleep never trigger a logout or data clear.
