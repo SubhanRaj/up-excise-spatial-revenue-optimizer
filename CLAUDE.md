@@ -175,8 +175,9 @@ The following are unresolved department-side decisions that block specific miles
 1. **Excel template column layout** — blocks M-2. SheetJS column mapping cannot be built until column names and order are locked.
 2. **Thana master list** — blocks the adjacent Thana cross-district filter (best-effort; proceed with runtime check if unavailable).
 3. **Shop count estimates per district** — blocks dashboard "X of Y uploaded" progress metrics.
-4. **DEO identifier assignment** — blocks the upload campaign. `uploaded_by_deo` field requires department-issued identifiers.
-5. **Upsert vs. versioning decision** — blocks M-4. If a DEO re-uploads a district, does the system overwrite or version the records?
+4. **DEO credential and identifier assignment** — blocks the upload campaign. Portal credentials and `uploaded_by_deo` identifiers must be issued by the department. DEOs must also complete circle/sector pre-registration before distributing templates to Inspectors.
+5. **Circle/sector naming convention** — DEOs need a consistent naming standard so pre-registered unit names are clean and unambiguous across all 75 districts.
+6. **Upsert vs. versioning decision** — blocks M-4. If a DEO re-uploads a district, does the system overwrite or version the records?
 
 ---
 

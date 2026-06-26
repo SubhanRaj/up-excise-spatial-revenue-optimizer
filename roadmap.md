@@ -36,7 +36,7 @@ This project, the **State Excise Portal Spatial & Revenue Optimization System**,
 
 ### 1.2 The Two-Phase Architecture
 
-**Phase 1 (This Document):** A state-wide data collection campaign. 75 District Data Entry Officers (DEOs) will upload structured spreadsheets through a browser-based portal. The system will ingest, validate, and store granular administrative, spatial, and financial metrics for every retail vend in the state. This phase produces the single authoritative dataset that everything downstream depends on.
+**Phase 1 (This Document):** A state-wide data collection campaign. 75 District Excise Officers (DEOs) will upload structured spreadsheets through a browser-based portal. The system will ingest, validate, and store granular administrative, spatial, and financial metrics for every retail vend in the state. This phase produces the single authoritative dataset that everything downstream depends on.
 
 **Phase 2 (Subsequent):** Using the Phase 1 dataset as its mathematical and spatial baseline, the system will run boundary optimization algorithms to redefine circles and sectors, reassign Excise Inspector jurisdictions, eliminate geographic redundancies, and surface revenue anomalies. Phase 2 is entirely dependent on the quality and completeness of Phase 1 data.
 
@@ -98,7 +98,7 @@ Adjacency data is critical for Phase 2's contiguity-based remapping. If Inspecto
 
 > Adjacent Thanas must belong to the **same district** as the source Thana. Cross-district adjacency is ignored and must be filtered from DEO input.
 
-**Example:** Thana BBD Nagar in Lucknow district physically borders Thana Safedabad in Barabanki district. For Phase 1 data entry in Lucknow's dataset, Safedabad must **not** appear in BBD Nagar's adjacent Thana list. Barabanki's own dataset entry for Safedabad may list BBD Nagar as adjacent — but that is Barabanki's data entry officer's concern, not Lucknow's.
+**Example:** Thana BBD in Lucknow district physically borders Thana Safedabad in Barabanki district. For data entry in Lucknow's dataset, Safedabad must **not** appear in BBD's adjacent Thana list. Equally, Barabanki's dataset entry for Safedabad must **not** list BBD as adjacent. The cross-district exclusion is symmetric — neither DEO may encode cross-district adjacency, regardless of which side the border lies on.
 
 **Rationale:** Excise administration is organized by district chains of command. Allowing cross-district adjacency in the optimization model would create pressure to merge territories across district lines, which violates administrative accountability structures. Phase 2's optimizer is district-bounded by design.
 
@@ -132,7 +132,33 @@ This constraint is enforced at the UI level with input validation and is documen
 
 ### 2.6 DEO Identity & Accountability
 
-Every record written to D1 carries `uploadedByDeo` — a non-nullable string identifier for the DEO who submitted it. This is not an authentication system (Phase 1 does not implement role-based auth at the record level); it is an audit tag. DEO identifiers will be assigned by the department and distributed alongside login credentials.
+The District Excise Officer (DEO) is the most senior excise post at the district level. They oversee all Excise Inspectors across every circle and sector in their district. In the context of this system, the DEO is the sole authenticated portal user for their district — they receive Inspector-filled Excel files, upload and verify them, and are the single entity that commits data to D1 for their district.
+
+Every record written to D1 carries `uploadedByDeo` — a non-nullable string identifier for the submitting DEO. This is an audit tag, not an authentication mechanism. DEO identifiers will be assigned by the department and distributed alongside portal credentials.
+
+---
+
+### 2.7 Circle/Sector Pre-Registration & Inspector-Level Upload Delegation
+
+A district typically comprises multiple circles and sectors, each overseen by an individual Excise Inspector. Requiring the DEO to compile a single monolithic district-wide Excel file is operationally impractical at scale. The system supports a **delegated upload model** that keeps the DEO as the sole submitting authority while enabling per-circle/sector data collection by Inspectors.
+
+**Workflow:**
+
+1. **Pre-registration:** The DEO logs into the portal and registers all circles and sectors in their district (e.g., "Circle 1", "Sector A", "Sector B") through the Circle/Sector Management UI. These are stored in D1 in the `district_circles_sectors` table, scoped to the DEO's district.
+
+2. **Template generation:** For each registered unit, the portal generates a pre-labeled Excel template (`.xlsx`) with the district name and circle/sector name pre-filled in the header. The DEO downloads and distributes each template to the respective Inspector.
+
+3. **Inspector fill:** Each Inspector fills the template with shop details for their jurisdiction only. They return the completed file to the DEO. Inspectors have no portal access — all portal interactions are the DEO's responsibility.
+
+4. **Per-unit upload:** The DEO uploads each returned Excel file individually. On upload, the DEO selects the corresponding circle/sector from a dropdown (pre-populated from the registered units). The system parses the file, tags all rows with that circle/sector, and writes them to IndexedDB.
+
+5. **Grouped verification UI:** The staging interface organizes rows in tabs or collapsible sections by circle/sector. The DEO reviews each unit's data independently — correcting coordinates, removing invalid adjacency pills, verifying revenue totals.
+
+6. **Collective district submission:** The final submit action batches all staged rows across all circle/sector uploads and transmits them to the Worker as a single district submission. The Worker treats the district as one atomic unit — individual circle/sector boundaries are metadata tags on the rows, not separate submission events.
+
+**HQ-level view:** At the headquarters dashboard, data is aggregated and displayed at the **district level only**. Circles and sectors are available as a drill-down dimension within the DEO's portal view but are not surfaced at the state-level summary. HQ sees: "Lucknow — 587 vends — ₹X total revenue."
+
+**Completeness gate:** The submission button is active only when every registered circle/sector for the district has at least one uploaded and verified file. Partial district submissions are blocked — the Phase 2 optimization baseline cannot be built on incomplete district data.
 
 ---
 
@@ -254,8 +280,11 @@ The Worker is built with [Hono](https://hono.dev/) — a lightweight, TypeScript
 
 | Route | Method | Purpose |
 |---|---|---|
-| `/api/upload/chunk` | `POST` | Accepts a 500-row batch, validates, inserts via `db.batch()` |
-| `/api/districts` | `GET` | Returns district list for DEO dropdown (read from a D1 reference table or static config) |
+| `/api/upload/chunk` | `POST` | Accepts a 500-row batch (tagged with circle/sector), validates, inserts via `db.batch()` |
+| `/api/districts` | `GET` | Returns district list for DEO dropdown |
+| `/api/districts/:district/units` | `POST` | DEO registers a new circle or sector for their district |
+| `/api/districts/:district/units` | `GET` | Lists all circles/sectors registered for a district |
+| `/api/districts/:district/units/:unitId/template` | `GET` | Returns a pre-labeled Excel template for a specific circle/sector |
 | `/api/stats/district/:name` | `GET` | Returns summary counts for a district (used by dashboard) |
 
 **Worker validation checklist (enforced before any D1 write):**
@@ -506,7 +535,26 @@ export const phase1RawCollection = sqliteTable('phase1_raw_collection', {
 }));
 ```
 
-### 5.3 Schema Notes & Constraints
+### 5.3 Circle/Sector Reference Table
+
+The `district_circles_sectors` table stores the circles and sectors registered by each DEO before the upload campaign. It is a lightweight reference table — its rows are created by the DEO through the Circle/Sector Management UI and are then used to populate dropdowns, pre-label templates, and enforce the completeness gate at submission.
+
+```typescript
+export const districtCirclesSectors = sqliteTable('district_circles_sectors', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  districtName: text('district_name').notNull(),
+  name: text('name').notNull(),               // e.g. "Circle 1", "Sector A"
+  type: text('type').notNull(),               // 'circle' | 'sector'
+  createdByDeo: text('created_by_deo').notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+}, (table) => ({
+  districtIdx: index('dcs_district_idx').on(table.districtName),
+}));
+```
+
+The `circle_sector_name` field in `phase1_raw_collection` (Section 5.2) references a value from this table by name (not by FK, for the same flexibility rationale as Thana names — see Section 5.1). The Worker validates that the `circleSectorName` on each uploaded chunk matches a registered unit for the DEO's district before inserting.
+
+### 5.4 Schema Notes & Constraints
 
 **`shopType` enum enforcement:** Drizzle ORM on SQLite does not enforce CHECK constraints via the ORM layer by default. The Worker validation layer (Section 3.4) enforces the enum at runtime. A migration file will include an explicit `CHECK (shop_type IN (...))` constraint for defense-in-depth.
 
@@ -561,14 +609,14 @@ M-5: Dashboard, Testing & DEO Handoff     [Week 5-6]
 
 **Deliverables:**
 
-- [ ] Drizzle schema file (`packages/schema/src/phase1.ts`) finalized per Section 5.2.
-- [ ] Migration file generated and applied to both dev and prod D1 instances.
+- [ ] Drizzle schema file (`packages/schema/src/phase1.ts`) finalized per Sections 5.2 and 5.3.
+- [ ] Migration file generated and applied to both dev and prod D1 instances — covers both `phase1_raw_collection` and `district_circles_sectors` tables.
 - [ ] SQLite `CHECK` constraint for `shop_type` added to migration.
-- [ ] Hono Worker skeleton: `/api/upload/chunk` route (stub, returns 200 with echo), `/api/healthz`, CORS configured for Pages preview domains.
+- [ ] Hono Worker skeleton: `/api/upload/chunk`, `/api/districts/:district/units` (GET + POST), `/api/healthz`, CORS configured for Pages preview domains.
 - [ ] Drizzle migration applied via `wrangler d1 migrations apply`.
 - [ ] Worker unit tests for the revenue recomputation logic (pure function, no D1 dependency).
 
-**Exit criterion:** `wrangler d1 execute phase1-dev --command "SELECT * FROM phase1_raw_collection LIMIT 1"` returns an empty result set with correct column names.
+**Exit criterion:** `wrangler d1 execute phase1-dev --command "SELECT * FROM phase1_raw_collection LIMIT 1"` returns an empty result set with correct column names. Same for `district_circles_sectors`.
 
 ---
 
@@ -588,9 +636,10 @@ M-5: Dashboard, Testing & DEO Handoff     [Week 5-6]
   - Returns structured result: `{ latitudeDecimal, longitudeDecimal, warning?: string }`.
 - [ ] Revenue calculator implemented and unit-tested for all six formula variants (Section 4.4).
 - [ ] Row-level validation function implemented: checks required fields, enum values, cross-field constraints (e.g., `hasCl5cc = true` requires `shopType = COUNTRY_LIQUOR`).
-- [ ] Standardized DEO Excel template (`.xlsx`) created and version-controlled in `docs/templates/`.
+- [ ] Standardized base Excel template (`.xlsx`) created and version-controlled in `docs/templates/`. This is the blank canonical layout.
+- [ ] Per-circle/sector template generation: Worker route `/api/districts/:district/units/:unitId/template` returns the base template with district name and circle/sector name pre-filled in designated header cells.
 
-**Exit criterion:** A test Excel file with 100 rows covering all shop types and both DMS/DD input formats parses correctly in a Storybook/JSDOM test. Revenue totals match expected values. Coordinate conversions match reference values to 4 decimal places.
+**Exit criterion:** A test Excel file with 100 rows covering all shop types and both DMS/DD input formats parses correctly in a Storybook/JSDOM test. Revenue totals match expected values. Coordinate conversions match reference values to 4 decimal places. A generated per-circle/sector template downloads with correct pre-filled headers.
 
 ---
 
@@ -600,11 +649,12 @@ M-5: Dashboard, Testing & DEO Handoff     [Week 5-6]
 
 **Deliverables:**
 
-- [ ] Dexie.js configured: `phase1_staging` IndexedDB table mirrors the schema. Includes a `status` field: `'pending' | 'uploaded' | 'error'` per row.
-- [ ] File upload component: drag-and-drop + click-to-upload, triggers SheetJS parse, writes to IndexedDB.
-- [ ] Parse progress indicator (useful for large district files; parsing 5,000 rows can take 1–2 seconds).
-- [ ] Verification table component:
-  - Paginated display (50 rows/page).
+- [ ] Dexie.js configured: `phase1_staging` IndexedDB table mirrors the schema. Includes a `status` field: `'pending' | 'uploaded' | 'error'` per row, plus a `circleSectorId` field to identify which unit the row belongs to.
+- [ ] Circle/Sector Management UI: the DEO can create circles and sectors for their district (calls `POST /api/districts/:district/units`), view the registered list, and download a pre-labeled Excel template per unit.
+- [ ] File upload component: DEO selects a circle/sector from the registered list, then uploads the corresponding Inspector-filled Excel — drag-and-drop + click-to-upload, triggers SheetJS parse, writes to IndexedDB tagged with the selected unit.
+- [ ] Parse progress indicator (useful for large files; parsing 5,000 rows can take 1–2 seconds).
+- [ ] Verification table component — grouped by circle/sector (tabs or collapsible sections):
+  - Paginated display (50 rows/page per unit).
   - Inline edit for all DEO-editable fields.
   - Revenue preview column (computed live from financial fields).
   - Coordinate status indicator (green = valid DD, yellow = converted from DMS, red = invalid/missing).
@@ -613,9 +663,10 @@ M-5: Dashboard, Testing & DEO Handoff     [Week 5-6]
   - Cross-district pills highlighted red (district of the adjacent Thana name checked against a same-district Thana list loaded from D1 or static config).
   - Pill deletion updates `adjacentThanasRaw` in IndexedDB.
 - [ ] Shop type field toggling: financial input fields show/hide based on selected `shopType` and `hasCl5cc` state.
-- [ ] Session recovery: on page load, check IndexedDB for pending rows and restore verification UI state.
+- [ ] Completeness gate: the district submit button is disabled until every registered circle/sector has at least one uploaded and verified file. A summary panel shows unit-level status (e.g., "Circle 1 — 143 rows ready", "Sector B — not yet uploaded").
+- [ ] Session recovery: on page load, check IndexedDB for pending rows per unit and restore verification UI state.
 
-**Exit criterion:** A DEO can upload a test Excel file, review all 100 rows, correct an invalid coordinate, remove a cross-district adjacency pill, and see the corrected data persisted in IndexedDB after a forced page refresh.
+**Exit criterion:** A DEO can register two circles, upload a separate test Excel for each, review rows grouped by circle, correct an invalid coordinate, remove a cross-district adjacency pill, and see all data persisted in IndexedDB after a forced page refresh. The submit button is disabled until both circles are verified.
 
 ---
 
@@ -626,21 +677,22 @@ M-5: Dashboard, Testing & DEO Handoff     [Week 5-6]
 **Deliverables:**
 
 - [ ] `/api/upload/chunk` Worker route fully implemented:
-  - Accepts JSON body: `{ rows: Phase1Row[], deoId: string, chunkIndex: number }`.
+  - Accepts JSON body: `{ rows: Phase1Row[], deoId: string, circleSectorName: string, chunkIndex: number }`.
+  - Validates that `circleSectorName` matches a registered unit for the DEO's district (`district_circles_sectors` lookup).
   - Validates each row per the checklist in Section 3.4.
   - Recomputes `totalRevenue` per row and rejects mismatches.
   - Calls `db.batch()` for atomic insert of the entire chunk.
   - Returns `{ accepted: number, rejected: [{ rowIndex, reason }] }`.
 - [ ] Upsert strategy implemented: if `shopId` + `districtName` already exists, update rather than duplicate. Strategy to be confirmed with department (overwrite vs. versioning).
 - [ ] Frontend upload orchestrator:
-  - Splits IndexedDB `pending` rows into 500-row chunks.
-  - Sends chunks sequentially (not parallel — prevents Worker rate-limit pressure).
+  - Splits IndexedDB `pending` rows per circle/sector into 500-row chunks.
+  - Sends chunks sequentially across all units (not parallel — prevents Worker rate-limit pressure).
   - Marks rows as `'uploaded'` in IndexedDB on acknowledgment.
   - Marks rows as `'error'` on rejection, surfaces rejection reason in UI.
-  - Progress bar: `X of Y chunks uploaded`.
-- [ ] End-to-end integration test: upload 1,000 test rows via the full browser → Worker → D1 path in a Wrangler local dev environment.
+  - Progress bar shows both per-unit progress and overall district progress.
+- [ ] End-to-end integration test: upload 1,000 test rows across 2 circles via the full browser → Worker → D1 path in a Wrangler local dev environment.
 
-**Exit criterion:** 1,000 test rows appear in D1 after a full upload cycle. IndexedDB shows all rows as `'uploaded'`. A forced mid-upload interruption followed by session recovery and resume results in no duplicate rows in D1.
+**Exit criterion:** 1,000 test rows across 2 circles appear in D1 after a full upload cycle. IndexedDB shows all rows as `'uploaded'`. A forced mid-upload interruption followed by session recovery and resume results in no duplicate rows in D1. A circle not yet uploaded prevents final district submission.
 
 ---
 
@@ -657,20 +709,22 @@ M-5: Dashboard, Testing & DEO Handoff     [Week 5-6]
   - Total revenue aggregated by district and by shop type.
   - Download option: export current D1 state as CSV (triggered via Worker, streamed to browser).
 - [ ] End-to-end test suite (Playwright):
-  - Happy path: upload → verify → submit for each of the 5 shop types.
+  - Happy path: register circle/sector → download template → upload Inspector Excel → verify → submit, for each of the 5 shop types.
+  - Multi-file district submission: register 2 circles, upload separate Excels for each, verify grouped view, complete submission.
+  - Completeness gate: attempt submission with one circle missing — confirm submit button is blocked.
   - CL5CC endorsement flow: verify `specialBeerLf` and `specialBeerMgr` fields appear and contribute to `totalRevenue`.
   - Cross-district adjacency pill rejection.
   - Session recovery after forced refresh mid-verification.
   - Mid-upload interruption and resume.
 - [ ] Load test: simulate 75 simultaneous DEO sessions each uploading 500 rows. Verify Worker stays within free tier limits and D1 write count does not exceed daily quota.
 - [ ] DEO training documentation (`docs/deo-guide.md`):
-  - Screenshot-annotated walkthrough of the upload, verification, and submission flow.
+  - Screenshot-annotated walkthrough: circle/sector registration → template download → Inspector distribution → per-unit upload → grouped verification → district submission.
   - Excel template column specifications.
   - Coordinate input instructions (both DMS and DD formats with examples).
-  - Adjacent Thana instructions with cross-district exclusion rule explained plainly.
+  - Adjacent Thana instructions with cross-district exclusion rule explained plainly (symmetric — neither DEO may enter cross-district adjacency).
   - Contact and escalation procedure for upload errors.
-- [ ] Standardized Excel template distributed to all 75 district offices.
-- [ ] DEO pilot: 3–5 districts run through the full upload flow with real data before state-wide rollout.
+- [ ] Standardized Excel templates distributed to all 75 district offices (base template + instructions for generating per-circle/sector pre-labeled copies).
+- [ ] DEO pilot: 3–5 districts complete the full workflow — register circles/sectors, distribute templates to Inspectors, collect and upload all files, verify, submit — before state-wide rollout.
 
 **Exit criterion:** Pilot districts complete upload with zero Worker errors. Dashboard reflects accurate counts. Department leadership signs off on data completeness for pilot districts. System cleared for state-wide DEO rollout.
 
@@ -695,8 +749,9 @@ The following require department action before engineering can proceed past M-1:
 1. **Excel template column layout:** The DEO spreadsheet format must be locked down. Column names, order, and data types must be confirmed with the department before the SheetJS column-mapping is built. Changes to the template after M-2 require code changes.
 2. **Thana master list (best-effort):** A reference list of Thana names per district, even if incomplete, is valuable for building the adjacent Thana cross-district filter. If unavailable, the filter will use a runtime check against already-uploaded Thana names for the same district.
 3. **Shop count estimates per district:** Knowing the expected vend count per district allows the dashboard to display accurate "X of Y uploaded" progress metrics.
-4. **DEO identifier assignment:** The department must decide and distribute DEO identifiers (used for `uploadedByDeo`) before the upload campaign begins.
-5. **Upsert vs. versioning decision:** If a DEO re-uploads corrected data for their district, does the system overwrite existing records or create versioned entries? This must be decided before M-4 implementation.
+4. **DEO credential and identifier assignment:** The department must assign and distribute DEO portal credentials and their `uploadedByDeo` identifiers before the upload campaign begins. DEOs must also complete circle/sector pre-registration before distributing templates to Inspectors.
+5. **Circle/sector naming convention:** DEOs need a consistent naming convention for circles and sectors (e.g., "Circle 1" vs "Circle I" vs "Kotwali Circle") so that the pre-registration step produces clean, unambiguous unit names across districts.
+6. **Upsert vs. versioning decision:** If a DEO re-uploads corrected data for their district, does the system overwrite existing records or create versioned entries? This must be decided before M-4 implementation.
 
 ---
 
@@ -719,7 +774,8 @@ The following require department action before engineering can proceed past M-1:
 
 | Term | Definition |
 |---|---|
-| DEO | District Data Entry Officer. The field-level administrator responsible for uploading vend data for their assigned district. |
+| DEO | District Excise Officer. The most senior excise post at the district level, overseeing all Excise Inspectors across every circle and sector in their district. In this system, the DEO is the sole authenticated portal user for their district — responsible for registering circles/sectors, collecting Inspector-filled Excel files, uploading and verifying data, and submitting the complete district dataset. |
+| Inspector | Excise Inspector. The ground-level enforcement officer assigned to one or more circles or sectors within a district. Inspectors fill the standardized Excel template for their jurisdiction and hand it to the DEO; they do not have direct portal access. |
 | Thana | The atomic geographic unit. Named after police station jurisdictions but interpreted under Excise administrative authority. |
 | DD | Decimal Degrees. Coordinate format used for all GIS operations (e.g., `26.8467°N`). |
 | DMS | Degrees, Minutes, Seconds. Legacy coordinate format found in historical Excise records (e.g., `26°50'48.1"N`). |

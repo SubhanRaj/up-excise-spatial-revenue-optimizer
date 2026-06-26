@@ -13,11 +13,13 @@ The Government of Uttar Pradesh administers approximately **30,000 retail liquor
 
 This system is a **two-phase initiative** to correct that at scale.
 
-**Phase 1 (this repo):** A state-wide data collection campaign. 75 District Data Entry Officers (DEOs) upload structured Excel spreadsheets through a browser-based portal. The system ingests, validates, geocodes, and stores granular administrative, spatial, and financial data for every retail vend in the state.
+**Phase 1 (this repo):** A state-wide data collection campaign. 75 District Excise Officers (DEOs) — the most senior excise post at the district level, each overseeing all Excise Inspectors in their district — upload structured Excel spreadsheets through a browser-based portal. The system ingests, validates, geocodes, and stores granular administrative, spatial, and financial data for every retail vend in the state.
 
 **Phase 2 (subsequent):** Boundary optimization — using Phase 1 data as the spatial and financial baseline to remap circles, reassign Inspector jurisdictions, and surface revenue anomalies.
 
 > Phase 2 is entirely dependent on Phase 1 data quality. Every schema decision and validation rule in Phase 1 must anticipate Phase 2's spatial and financial computations.
+
+Each DEO pre-registers their district's circles and sectors in the portal, distributes per-circle/sector Excel templates to individual Inspectors, and uploads the filled files one by one. The UI groups data by circle/sector for review, but the final submission to HQ is always at the district level — HQ never sees individual circle/sector breakdowns.
 
 ---
 
@@ -134,6 +136,7 @@ The browser computes `total_revenue` and sends it with the row. The Worker indep
 
 - Adjacent Thanas must belong to the **same district** as the source Thana.
 - Cross-district adjacency is rejected by the verification UI (red pill) and by the Worker.
+- The rule is symmetric: the DEO of District A cannot list a Thana from District B as adjacent, and the DEO of District B equally cannot list that Thana from District A as adjacent.
 
 ### Data Language
 
@@ -202,8 +205,9 @@ The following require department action before development can proceed past M-1:
 1. **Excel template column layout** — blocks M-2. SheetJS column mapping cannot be built until column names and order are locked.
 2. **Thana master list** — blocks the adjacent Thana cross-district filter (will use runtime check if unavailable).
 3. **Shop count estimates per district** — blocks dashboard "X of Y uploaded" progress metrics.
-4. **DEO identifier assignment** — blocks the upload campaign. `uploaded_by_deo` requires department-issued identifiers.
-5. **Upsert vs. versioning decision** — blocks M-4. Re-upload by a DEO: overwrite or version?
+4. **DEO credential and identifier assignment** — blocks the upload campaign. Portal credentials and `uploaded_by_deo` identifiers must be issued by the department. DEOs must also complete circle/sector pre-registration before distributing templates to Inspectors.
+5. **Circle/sector naming convention** — DEOs need a consistent naming standard so pre-registered unit names are clean and unambiguous across all 75 districts.
+6. **Upsert vs. versioning decision** — blocks M-4. Re-upload by a DEO: overwrite or version?
 
 ---
 
