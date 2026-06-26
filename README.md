@@ -144,6 +144,28 @@ The DEO portal is a full Progressive Web App installable on iPad or Android tabl
 
 ---
 
+## Admin / HQ Portal
+
+A separate application (`apps/admin`) deployed on its own Cloudflare Pages domain with a separate Clerk `admin` organization. Read-only access to all district data.
+
+**Loading model — district-by-district, never full-state by default:**
+- Default view: 75-row district summary list (aggregate counts from D1 — no shop rows loaded).
+- District drill-down: admin clicks a district → that district's shops load (paginated, 50/page) and are cached in admin IndexedDB for 1 hour.
+- Full-state shop table in the UI: **not supported**. Full-state data is a streamed CSV download only (available in the Export section).
+
+**Capabilities:**
+- District summary dashboard with revenue, vend count, missing coordinates, submission status.
+- District drill-down with IndexedDB-cached shop table (stale-while-revalidate, 1-hour TTL).
+- Cross-district D1 search (paginated, search-cache per query).
+- Per-district CSV export + full-state CSV export (file download, not UI table).
+- Audit log viewer — last 45 days of DEO login and upload activity.
+- **Bulk DEO provisioning** — admin uploads a DEO Excel (SheetJS parse in-browser), previews the 75 rows, confirms → 75 Clerk accounts created + `districts` table populated. Idempotent re-runs.
+
+**Separate `districts` reference table:**
+A 75-row D1 table storing district metadata: DEO name, email, identifier, division, expected vend count, and submission status. The admin dashboard queries this table for metadata without touching the 30,000-row shop table.
+
+---
+
 ## UI & Accessibility
 
 - **Dark & light mode:** DaisyUI theme system. Preference saved to localStorage; applied before first paint — no flash.

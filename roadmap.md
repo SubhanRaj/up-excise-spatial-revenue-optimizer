@@ -276,16 +276,29 @@ The frontend marks acknowledged rows in IndexedDB. If the session is interrupted
 
 The Worker is built with [Hono](https://hono.dev/) — a lightweight, TypeScript-first web framework purpose-built for Cloudflare Workers. Hono adds minimal overhead and provides clean routing, middleware, and type-safe request handling.
 
-**Key Worker routes:**
+**Key Worker routes — DEO Portal (`/api/*`):**
 
 | Route | Method | Purpose |
 |---|---|---|
 | `/api/upload/chunk` | `POST` | Accepts a 500-row batch (tagged with circle/sector), validates, inserts via `db.batch()` |
-| `/api/districts` | `GET` | Returns district list for DEO dropdown |
-| `/api/districts/:district/units` | `POST` | DEO registers a new circle or sector for their district |
+| `/api/districts` | `GET` | Returns district list for DEO dropdown (reads from `districts` table) |
+| `/api/districts/:district/units` | `POST` | DEO registers a new circle or sector |
 | `/api/districts/:district/units` | `GET` | Lists all circles/sectors registered for a district |
-| `/api/districts/:district/units/:unitId/template` | `GET` | Returns a pre-labeled Excel template for a specific circle/sector |
-| `/api/stats/district/:name` | `GET` | Returns summary counts for a district (used by dashboard) |
+| `/api/districts/:district/units/:unitId/template` | `GET` | Returns a pre-labeled Excel template for a circle/sector |
+| `/api/webhooks/clerk` | `POST` | Receives Clerk session events; validates SVIX signature; writes to `audit_log` |
+
+**Key Worker routes — Admin Portal (`/api/admin/*`, Clerk `admin` role required):**
+
+| Route | Method | Purpose |
+|---|---|---|
+| `/api/admin/districts` | `GET` | All 75 districts with summary stats (vend count, revenue, status) — lightweight aggregate; never loads shop rows |
+| `/api/admin/districts/:district` | `GET` | Single district: DEO info, circles/sectors, submission status, revenue totals |
+| `/api/admin/districts/:district/shops` | `GET` | Paginated shop rows for one district (50/page default). Never returns all districts in one call. |
+| `/api/admin/districts/:district/export` | `GET` | Streams all shop rows for one district as CSV |
+| `/api/admin/export/all` | `GET` | Streams the entire `phase1_raw_collection` as CSV. Edge-case route; not exposed in the default UI. |
+| `/api/admin/search` | `GET` | Cross-district search with query params (Section 3.11) |
+| `/api/admin/bulk-provision` | `POST` | Receives parsed DEO Excel data; provisions Clerk accounts + inserts `districts` rows |
+| `/api/admin/audit-log` | `GET` | Paginated audit log for admin viewer (last 45 days) |
 
 **Worker validation checklist (enforced before any D1 write):**
 
@@ -298,6 +311,10 @@ The Worker is built with [Hono](https://hono.dev/) — a lightweight, TypeScript
 ### 3.5 D1 Database Operational Notes
 
 **Append-only in Phase 1:** The Phase 1 collection table is write-once from a data integrity standpoint. If a DEO re-uploads a corrected dataset for their district, a `UNIQUE` constraint on `shopId` + `districtName` can be used to trigger an upsert rather than a duplicate insert. The deduplication strategy will be finalized during implementation (see Milestone M-3).
+
+**`districts` table — the district registry:** A separate, small (75-row) reference table stores district metadata: DEO name, DEO email, DEO identifier, division, expected vend count, and submission status. This table is the authoritative registry of all districts in the system. The `phase1_raw_collection` table references districts by `district_name` (text soft-reference, not FK) for the same flexibility reasons as Thana names (Section 5.1). The `districts` table keeps district metadata out of the 30,000-row shop table and gives the admin portal a fast, metadata-only query path that never touches shop rows.
+
+**Admin query pattern — district-by-district loading:** The admin portal default view queries `districts` and an aggregation over `phase1_raw_collection` grouped by `district_name` — this gives totals without loading any individual shop rows. Shop-level data is only fetched when the admin drills into a specific district (`/api/admin/districts/:district/shops`). Full-state shop data is never loaded into the UI; the only full-state operation is a streamed CSV export.
 
 **Index strategy:** Three indexes cover the primary query patterns for Phase 1 dashboards:
 - `p1_district_idx` — powers district-level summary queries (total vends per district, total revenue per district).
@@ -554,15 +571,58 @@ The admin portal is a **separate application** from the DEO portal. It shares `p
 | Worker routes | `/api/*` | `/api/admin/*` |
 | Data access | Own district only (scoped by Clerk `districtName` claim) | All 75 districts, read-only |
 
+**Admin Data Loading — District-by-District, Never Full State by Default:**
+
+The admin portal's default view is a **district summary list** — 75 rows from the `districts` table joined with aggregate counts from `phase1_raw_collection` (`COUNT(*)`, `SUM(total_revenue)`, etc. grouped by `district_name`). No individual shop rows are fetched for this view.
+
+When an admin clicks a district, the portal fetches that district's shop data from `/api/admin/districts/:district/shops` (paginated, 50 rows/page) and renders it in a table. This is the only time shop rows are loaded.
+
+Viewing the entire state as a single UI table is an **unsupported operation** — the data volume makes it meaningless in a browser table. The supported path for full-state data is the CSV export (`/api/admin/export/all`), which streams from D1 directly to a file download. The route exists but is not exposed as a button in the default UI — it is available via the "Export" section only.
+
+**Admin Portal IndexedDB (Dexie.js) — District Cache:**
+
+The admin portal loads Dexie.js from jsDelivr CDN (same as the DEO portal). After an admin queries a district's shop data, the results are written to an IndexedDB store (`admin_district_cache`) keyed by district name.
+
+| Dexie Store | Key | Contents | TTL |
+|---|---|---|---|
+| `admin_district_cache` | `districtName` | `{ rows: Phase1Row[], fetchedAt: timestamp, page: number }` | 1 hour (configurable) |
+| `admin_search_cache` | `queryHash` | Last 10 search result pages | Session only |
+
+On subsequent visits to the same district, the cache is served immediately while a background refresh checks for newer data. If no changes exist (Worker compares `COUNT(*)` or a district `updatedAt` field), the cache is reused. This avoids redundant D1 reads for districts the admin has already reviewed.
+
+**Admin Portal SheetJS — Bulk DEO Provisioning:**
+
+The admin portal loads SheetJS from jsDelivr CDN for a one-time bulk-provision operation. The administrator uploads an Excel file (`.xlsx`) with columns:
+
+| Column | Description |
+|---|---|
+| `District Name` | Canonical district name matching the system's `districts.name` |
+| `Division` | Administrative division (e.g., "Lucknow Division") |
+| `DEO Name` | Full name of the District Excise Officer |
+| `DEO Email` | Department-issued email — used as Clerk account identifier |
+| `DEO Identifier` | Dept-assigned string used as `uploaded_by_deo` in shop records |
+| `Expected Vend Count` | Approximate total retail vends in the district (for progress %) |
+
+SheetJS parses the file in-browser. The parsed array is previewed in the UI for admin review before submission. On confirm, it is sent to `POST /api/admin/bulk-provision`, which:
+1. Inserts or upserts all 75 rows into the `districts` table.
+2. Creates Clerk user accounts for each DEO email using Clerk's management API.
+3. Sets the `districtName` metadata claim on each Clerk user for downstream data scoping.
+4. Returns a summary of accounts created vs. already existing.
+
+This operation is idempotent — re-running it on an already-provisioned system updates district metadata without creating duplicate Clerk accounts.
+
 **Admin Capabilities (Phase 1):**
-- State-wide dashboard: total vends ingested, per-district upload progress, missing coordinate counts, revenue aggregated by district and shop type.
-- D1-backed search across all districts (Section 3.11).
-- CSV export of full or filtered D1 dataset (streamed from Worker to browser).
-- Audit log viewer: read-only, last 45 days of DEO login and upload activity.
-- Circle/sector pre-registration status per district (which DEOs have registered their units).
+- District summary dashboard: all 75 districts with vend count, revenue, missing coordinate count, and submission status — loaded from a lightweight aggregate query, never from raw shop rows.
+- District drill-down: click a district to load its shop table (paginated, IndexedDB-cached after first fetch).
+- D1-backed search across all districts (Section 3.11) — results cached per query hash.
+- CSV export: per-district or full-state (full-state is a file download, not a UI table).
+- Audit log viewer: read-only, last 45 days of DEO activity.
+- Circle/sector registration status per district.
+- Bulk DEO provisioning via Excel upload (SheetJS in-browser parse → `bulk-provision` API).
 
 **Admin Cannot (Phase 1):**
-- Edit, correct, or delete any vend records — Phase 1 data is DEO-submitted and read-only from the admin side.
+- View all 30,000 shop records in a single UI table. District-level pagination is enforced.
+- Edit, correct, or delete any vend records — Phase 1 data is DEO-submitted and read-only from admin.
 - Trigger re-uploads or corrections on a DEO's behalf.
 - Access DEO session tokens or Clerk credential details.
 
@@ -739,9 +799,11 @@ The schema is implemented in Drizzle ORM targeting Cloudflare D1 (SQLite). The d
 
 ### 5.1 Design Rationale
 
-Strict relational foreign keys at this stage (e.g., a `thanas` reference table that `phase1_raw_collection` must satisfy) would create upload blockers. District offices use legacy spreadsheets with minor naming inconsistencies — "Gomti Nagar" vs "Gomatinagar" vs "GOMTINAGAR" — that cannot be pre-predicted and pre-seeded. By accepting Thana names as free text and indexing them for fast lookups, Phase 1 completes without DEO friction. Phase 2's data cleaning pass resolves canonical names before relational constraints are enforced.
+**Phase 1 collection table is flat and denormalized:** Strict relational foreign keys on `phase1_raw_collection` (e.g., a `thanas` reference table) would create upload blockers. District offices use legacy spreadsheets with minor naming inconsistencies — "Gomti Nagar" vs "Gomatinagar" vs "GOMTINAGAR" — that cannot be pre-predicted and pre-seeded. By accepting Thana names as free text and indexing them for fast lookups, Phase 1 completes without DEO friction. Phase 2's data cleaning pass resolves canonical names before relational constraints are enforced.
 
-Revenue fields are stored as individual integers (in Indian Rupees, paise-truncated) rather than a JSON blob to allow direct SQL-level aggregation: `SUM(license_fee_lf)`, `SUM(mgr_amount)` etc. without application-layer parsing.
+**Exception — the `districts` table (Section 5.3):** District names are standardized (set by the department, not by DEO free-text input) and will not have the variation problem that Thana names have. A `districts` reference table is therefore safe and useful: it stores DEO metadata, expected vend counts, and submission status in a 75-row table, keeping that metadata out of the 30,000-row shop table. All other tables (`phase1_raw_collection`, `district_circles_sectors`, `audit_log`) reference `districts.name` as a text soft-reference rather than a FK — maintaining upload flexibility while the district registry remains the single source of truth for district metadata.
+
+**Revenue fields are stored individually** (integers, INR, paise-truncated) rather than as a JSON blob, to allow direct SQL-level aggregation: `SUM(license_fee_lf)`, `SUM(mgr_amount)`, etc. — without application-layer parsing.
 
 ### 5.2 Drizzle ORM Schema
 
@@ -795,7 +857,43 @@ export const phase1RawCollection = sqliteTable('phase1_raw_collection', {
 }));
 ```
 
-### 5.3 Circle/Sector Reference Table
+### 5.3 Districts Reference Table
+
+The `districts` table is the authoritative registry of all 75 districts and their associated DEO. It is a small, stable table (75 rows for the state of UP) populated once during the admin bulk-provision step before the upload campaign begins.
+
+This table serves two purposes:
+1. **District metadata store** — DEO name, email, identifier, division, and expected vend count in one place, never duplicated into the 30,000-row shop table.
+2. **Admin portal query root** — the default admin dashboard queries `districts` with aggregate joins on `phase1_raw_collection`. District metadata lookups never touch shop rows directly.
+
+```typescript
+export const districts = sqliteTable('districts', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+
+  name: text('name').notNull().unique(),          // e.g. 'Lucknow', 'Kanpur Nagar'
+  division: text('division'),                      // e.g. 'Lucknow Division' (18 divisions in UP)
+
+  // DEO identity — sourced from department and loaded via admin bulk-provision
+  deoName: text('deo_name'),
+  deoEmail: text('deo_email').unique(),            // Clerk account email
+  deoId: text('deo_id'),                          // Dept-assigned identifier → uploaded_by_deo
+
+  expectedVendCount: integer('expected_vend_count'), // for "X of Y" progress metrics
+
+  // Submission lifecycle
+  status: text('status').default('pending').notNull(), // 'pending' | 'in_progress' | 'submitted'
+  submittedAt: integer('submitted_at', { mode: 'timestamp' }),
+
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+
+}, (table) => ({
+  nameIdx: index('dist_name_idx').on(table.name),
+  emailIdx: index('dist_email_idx').on(table.deoEmail),
+}));
+```
+
+The `district_name` field in `phase1_raw_collection`, `district_circles_sectors`, and `audit_log` all reference `districts.name` as a text soft-reference (not a FK constraint). This is consistent with the Phase 1 flexibility rationale in Section 5.1 — enforcing a FK would block shop inserts if a district row was missing, adding an unnecessary failure mode during the upload campaign.
+
+### 5.5 Circle/Sector Reference Table
 
 The `district_circles_sectors` table stores the circles and sectors registered by each DEO before the upload campaign. It is a lightweight reference table — its rows are created by the DEO through the Circle/Sector Management UI and are then used to populate dropdowns, pre-label templates, and enforce the completeness gate at submission.
 
@@ -812,9 +910,9 @@ export const districtCirclesSectors = sqliteTable('district_circles_sectors', {
 }));
 ```
 
-The `circle_sector_name` field in `phase1_raw_collection` (Section 5.2) references a value from this table by name (not by FK, for the same flexibility rationale as Thana names — see Section 5.1). The Worker validates that the `circleSectorName` on each uploaded chunk matches a registered unit for the DEO's district before inserting.
+The `circle_sector_name` field in `phase1_raw_collection` (Section 5.2) references a value from this table by name (not by FK, consistent with the flexibility rationale in Section 5.1). The Worker validates that the `circleSectorName` on each uploaded chunk matches a registered unit for the DEO's district before inserting.
 
-### 5.4 Audit Log Table
+### 5.6 Audit Log Table
 
 Every significant event in the system — DEO login, session revocation, upload chunk, district submission, circle/sector registration — is recorded here. Clerk webhook events and application-level events both write to this table. Records are purged after 45 days by the Cron Trigger defined in Section 3.7.
 
@@ -844,7 +942,7 @@ export const auditLog = sqliteTable('audit_log', {
 }));
 ```
 
-### 5.5 Schema Notes & Constraints
+### 5.7 Schema Notes & Constraints
 
 **`shopType` enum enforcement:** Drizzle ORM on SQLite does not enforce CHECK constraints via the ORM layer by default. The Worker validation layer (Section 3.4) enforces the enum at runtime. A migration file will include an explicit `CHECK (shop_type IN (...))` constraint for defense-in-depth.
 
@@ -892,7 +990,8 @@ M-5: Dashboard, Testing & DEO Handoff     [Week 5-6]
 - [ ] `public/_headers` committed with full CSP, `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy`, `Permissions-Policy`.
 - [ ] `public/manifest.json` committed with PWA metadata (name, icons, display: standalone, theme color).
 - [ ] Service Worker skeleton (`public/sw.js`) committed: app shell cache strategy stubbed, registered in `_document.tsx`.
-- [ ] `_document.tsx` stubbed with CDN `<link>` and `<script>` tags for DaisyUI and Tailwind Play CDN (with SRI attribute placeholders).
+- [ ] `_document.tsx` stubbed with CDN `<link>` and `<script>` tags for DaisyUI, Tailwind Play CDN, Dexie.js (with SRI placeholders).
+- [ ] Admin portal `_document.tsx` stubbed with DaisyUI, Tailwind Play CDN, Dexie.js, and SheetJS CDN tags (SheetJS needed for bulk DEO provision upload in admin).
 
 **Exit criterion:** `wrangler deploy --dry-run` passes on CI. `GET /healthz` returns `200 OK`. CI fails if any CDN tag is missing an `integrity` attribute. PWA manifest validates in Chrome DevTools Lighthouse.
 
@@ -904,16 +1003,16 @@ M-5: Dashboard, Testing & DEO Handoff     [Week 5-6]
 
 **Deliverables:**
 
-- [ ] Drizzle schema file (`packages/schema/src/phase1.ts`) finalized per Sections 5.2, 5.3, and 5.4 (`phase1_raw_collection`, `district_circles_sectors`, `audit_log`).
-- [ ] Migration file generated and applied to `phase1-dev` and `phase1-prod` — covers all three tables.
+- [ ] Drizzle schema file (`packages/schema/src/phase1.ts`) finalized per Sections 5.2–5.7 — all four tables: `phase1_raw_collection`, `districts`, `district_circles_sectors`, `audit_log`.
+- [ ] Migration file generated and applied to `phase1-dev` and `phase1-prod` — covers all four tables.
 - [ ] SQLite `CHECK` constraint for `shop_type` added to migration.
-- [ ] Hono Worker skeleton: `/api/upload/chunk`, `/api/districts/:district/units` (GET + POST), `/api/webhooks/clerk` (POST — Clerk event receiver), `/api/healthz`, CORS configured for Pages preview domains.
-- [ ] Clerk webhook Worker route implemented: validates SVIX signature, writes `session.created` / `session.ended` / `session.revoked` events to `audit_log`.
-- [ ] Cron Trigger Worker function implemented: deletes `audit_log` rows older than 45 days.
-- [ ] Admin Worker route skeleton `/api/admin/*` with Clerk `admin` role guard middleware stub.
-- [ ] Worker unit tests for: revenue recomputation logic, SRI hash validation helper, Clerk role guard.
+- [ ] Hono Worker skeleton: `/api/upload/chunk`, `/api/districts`, `/api/districts/:district/units` (GET + POST), `/api/webhooks/clerk`, `/api/healthz`, CORS configured for Pages preview domains.
+- [ ] Admin Worker skeleton: `/api/admin/districts` (GET), `/api/admin/districts/:district/shops` (GET, paginated), `/api/admin/bulk-provision` (POST), all guarded by Clerk `admin` role middleware.
+- [ ] Clerk webhook Worker route: validates SVIX signature, writes auth events to `audit_log`, updates `districts.status` on `district_submitted` events.
+- [ ] Cron Trigger Worker function: deletes `audit_log` rows older than 45 days.
+- [ ] Worker unit tests: revenue recomputation, SRI hash validation helper, Clerk role guard, `districts.status` state machine.
 
-**Exit criterion:** All three D1 tables exist with correct column names. Clerk webhook fires and a test event appears in `audit_log`. Cron Trigger purge function deletes test records older than 45 days in local dev.
+**Exit criterion:** All four D1 tables exist with correct column names. Clerk webhook fires and a test event appears in `audit_log`. Cron Trigger purge deletes test records in local dev. `GET /api/admin/districts` returns an empty array (no data yet) with correct schema.
 
 ---
 
@@ -1012,12 +1111,15 @@ M-5: Dashboard, Testing & DEO Handoff     [Week 5-6]
 **Deliverables:**
 
 - [ ] Admin portal (`apps/admin`) fully functional:
-  - State-wide dashboard: total vends, per-district progress, missing coordinate counts, revenue by district and shop type.
-  - D1-backed search across all districts with pagination (Section 3.11).
-  - CSV export of full or filtered D1 dataset streamed from Worker.
-  - Audit log viewer: read-only table of last 45 days of DEO activity.
-  - Circle/sector pre-registration status per district.
-- [ ] DEO accounts provisioned in Clerk from department email list using management API script (run once).
+  - Default view: district summary list (75 rows, aggregate query only — no shop rows loaded).
+  - District drill-down: click district → paginated shop table loads for that district only (IndexedDB-cached after first fetch, stale-while-revalidate).
+  - District search/filter: search within a viewed district's IndexedDB-cached rows, or trigger a new D1 query for a different district.
+  - Cross-district D1 search (Section 3.11) — query params, paginated, results cached by query hash.
+  - Per-district CSV export (streamed). Full-state CSV export available in Export section (not default UI).
+  - Audit log viewer: read-only, paginated, last 45 days.
+  - Bulk DEO provisioning: admin uploads Excel (SheetJS parse in-browser) → previews → submits to `/api/admin/bulk-provision` → Clerk accounts created + `districts` rows upserted.
+  - IndexedDB district cache with 1-hour TTL and manual refresh.
+- [ ] DEO accounts provisioned in Clerk via admin bulk-provision flow (using the department-supplied DEO email list).
 - [ ] End-to-end test suite (Playwright):
   - Happy path: login via magic link → register circle/sector → download template → upload Inspector Excel → verify → submit, for each of the 5 shop types.
   - Multi-file district submission: register 2 circles, upload separate Excels, verify grouped view, complete submission.
@@ -1117,7 +1219,10 @@ The following require department action before engineering can proceed past M-1:
 | SRI | Subresource Integrity. A browser security mechanism that verifies CDN-served assets against a cryptographic hash before executing them. All CDN assets in this project include SRI attributes. |
 | CSP | Content Security Policy. An HTTP header that restricts which scripts, styles, and connections the browser allows. Declared in `public/_headers` for Cloudflare Pages. |
 | Audit Log | The `audit_log` D1 table. Records every DEO login, session event, upload chunk, and district submission. Purged after 45 days by Cron Trigger. |
-| Admin Portal | The separate `apps/admin` application deployed on its own Cloudflare Pages domain. Read-only access to all district data; used by HQ/department administration. |
+| Admin Portal | The separate `apps/admin` application deployed on its own Cloudflare Pages domain. Read-only access to all district data; used by HQ/department administration. Loads data district-by-district; full-state table view is not available in the UI. |
+| Districts Table | The `districts` D1 reference table. 75 rows, one per UP district. Stores DEO name, email, identifier, division, expected vend count, and submission status. The admin dashboard queries this table for metadata; shop rows are loaded separately on demand. |
+| Admin District Cache | An IndexedDB Dexie store (`admin_district_cache`) in the admin portal. Caches district shop data after first fetch (1-hour TTL, stale-while-revalidate). Reduces repeat D1 reads for districts the admin has already reviewed. |
+| Bulk Provision | A one-time admin operation: upload a DEO Excel file (SheetJS parse in-browser) → preview → submit to `/api/admin/bulk-provision` → 75 Clerk accounts created + `districts` rows upserted. Idempotent. |
 | D1 | Cloudflare D1. Serverless SQLite database at the edge. |
 | Workers | Cloudflare Workers. Serverless TypeScript runtime. 10ms CPU limit per request. |
 | `db.batch()` | D1 API for executing multiple SQL statements in a single transaction. Used to minimize write operation count against the free tier quota. |

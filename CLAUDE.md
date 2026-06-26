@@ -68,11 +68,18 @@ When files for any app or package do not exist yet, do not create them speculati
 - **No `unsafe-inline` or `unsafe-eval` in CSP.** The CSP in `public/_headers` must never include these directives.
 - **One active session per DEO.** A second login invalidates all previous sessions. Clerk configuration enforces this.
 
+### Admin Data Loading
+- The admin portal default view **never loads shop rows**. The district summary list is built from an aggregate query (`COUNT`, `SUM`) over `phase1_raw_collection` grouped by `district_name` — no row-level data.
+- Shop rows are loaded **only when an admin drills into a specific district**. The route is `GET /api/admin/districts/:district/shops` (paginated, 50 rows/page).
+- Full-state UI table (all 30K shops in one view) is not a supported operation. The only full-state operation is a streamed CSV export via `GET /api/admin/export/all`.
+- After a district is queried, its data is cached in admin IndexedDB (`admin_district_cache`, 1-hour TTL). Subsequent views serve from cache while a background refresh checks for updates.
+
 ### Cloudflare Free Tier
 - The Worker must never perform CPU-heavy work. Excel parsing, DMS-to-DD conversion, and revenue calculation all happen **in the browser**.
 - Batch inserts use `db.batch()`. Never issue individual `INSERT` calls in a loop.
 - Upload chunks are 500 rows per POST request. Do not increase this without re-evaluating D1 write quota.
 - Dashboard queries must use indexed columns only: `district_name`, `thana_name`, `shop_id`. Full table scans are not acceptable in production.
+- The `districts` reference table (75 rows) may be queried freely — it is metadata-only and never contains shop data.
 
 ### CDN-First — Bundle Contains Only App Logic
 - DaisyUI, Tailwind Play CDN, SheetJS, and Dexie.js are all loaded from jsDelivr CDN at runtime. They are never installed as npm dependencies or bundled into the Next.js output.
@@ -137,7 +144,13 @@ These are the canonical formulas. Encode them as named constants, never as magic
 
 ## Drizzle Schema Location
 
-The canonical schema is in `packages/schema/src/phase1.ts`. When the schema file does not yet exist, refer to [roadmap.md Section 5.2](roadmap.md#52-drizzle-orm-schema) for the exact definition. Do not modify the schema without updating `roadmap.md` Section 5 as well.
+The canonical schema is in `packages/schema/src/phase1.ts`. The schema contains four tables:
+- `phase1_raw_collection` — all shop records (Section 5.2)
+- `districts` — district registry with DEO metadata (Section 5.3)
+- `district_circles_sectors` — circles/sectors per district (Section 5.5)
+- `audit_log` — 45-day rolling event log (Section 5.6)
+
+When schema files do not yet exist, refer to [roadmap.md Section 5](roadmap.md#5-phase-1-database-schema) for exact definitions. Do not modify the schema without updating `roadmap.md` Section 5 as well.
 
 ---
 
