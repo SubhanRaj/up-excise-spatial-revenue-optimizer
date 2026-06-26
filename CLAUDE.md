@@ -24,8 +24,11 @@
 ```
 up-excise-spatial-revenue-optimizer/
 ├── apps/
-│   ├── web/          # Next.js frontend (DEO portal) — Cloudflare Pages
-│   ├── admin/        # Next.js frontend (Admin/HQ portal) — Cloudflare Pages
+│   ├── web/          # Next.js frontend — single app, route groups for DEO and Admin/HQ
+│   │   └── app/
+│   │       ├── (deo)/    # DEO portal routes — middleware enforces role: 'deo'
+│   │       ├── (admin)/  # Admin/HQ portal routes — middleware enforces role: 'admin'
+│   │       └── login/    # Only public route
 │   └── worker/       # Hono backend — Cloudflare Workers
 ├── packages/
 │   └── schema/       # Shared Drizzle ORM schema (D1/SQLite)
@@ -43,7 +46,7 @@ When files for any app or package do not exist yet, do not create them speculati
 
 | Layer | Technology | Notes |
 |---|---|---|
-| Frontend | Next.js (App Router) | Deployed to Cloudflare Pages. Static-first. Two apps: `web` (DEO) and `admin` (HQ). |
+| Frontend | Next.js (App Router) | Single app (`apps/web`). Route groups `(deo)` and `(admin)` separate DEO and HQ routes. One Cloudflare Pages deployment. Domain TBD. |
 | Backend | Cloudflare Workers + Hono | Serverless edge. 10ms CPU limit per request — enforce this hard. |
 | Database | Cloudflare D1 (SQLite) | Use `db.batch()` for all multi-row writes. |
 | ORM | Drizzle ORM | D1 adapter. Schema lives in `packages/schema`. |
@@ -53,8 +56,10 @@ When files for any app or package do not exist yet, do not create them speculati
 | Excel Parsing | SheetJS (`xlsx`) | Loaded from jsDelivr CDN dynamically on upload page (`ssr: false`). Never bundled. |
 | Local Cache | Dexie.js (IndexedDB) | Loaded from jsDelivr CDN. Offline-first staging layer. Rows carry `status: 'pending' | 'uploaded' | 'error'`. |
 | PWA / Offline | Service Worker + Background Sync | DEO portal only. App shell + CDN asset cache. Transparent upload retry on reconnect. |
-| Charts | Chart.js | Admin portal only. jsDelivr CDN. Direct `useEffect` imperative API — no React wrapper. |
-| Maps | Leaflet.js + CartoDB tiles | Admin portal only. jsDelivr CDN. UP district choropleth. No API key. GeoJSON at `apps/admin/public/geodata/`. |
+| Modal Alerts | SweetAlert2 | Loaded from jsDelivr CDN. Used for all modal alerts, confirmation dialogs, and prompts. Replaces all native `alert()`/`confirm()` calls. Never bundled. |
+| Toast Notifications | Notyf | Loaded from jsDelivr CDN. Side flash notifications (success, error, warning). ~3KB, vanilla JS. Never bundled. (Sonner requires React bundling — excluded.) |
+| Charts | Chart.js | Admin/HQ route group only. jsDelivr CDN. Direct `useEffect` imperative API — no React wrapper. |
+| Maps | Leaflet.js + CartoDB tiles | Admin/HQ route group only. jsDelivr CDN. UP district choropleth. No API key. GeoJSON at `apps/web/public/geodata/`. |
 | Scheduled Tasks | Cloudflare Cron Triggers | Daily audit log purge. Defined in `wrangler.toml`. |
 | Testing | Vitest (unit) + Playwright (E2E) | Revenue calculator and coordinate converter must have unit tests. |
 
@@ -63,7 +68,7 @@ When files for any app or package do not exist yet, do not create them speculati
 ## Hard Constraints — Never Violate These
 
 ### Auth Facade — No Public Pages
-- **Every route in both portals is behind auth.** Clerk's `clerkMiddleware` in `middleware.ts` redirects unauthenticated requests to `/login`. There is no landing page, no public home, no visitor-facing content.
+- **Every route is behind auth.** A single `apps/web/middleware.ts` uses Clerk's `clerkMiddleware` to redirect unauthenticated requests to `/login`. There is no landing page, no public home, no visitor-facing content.
 - **Only two public routes exist:** `/login` and `/api/webhooks/clerk`. Everything else requires a valid Clerk session.
 - Do not add any public-facing route, page, or layout without this being an explicit milestone requirement.
 
@@ -89,7 +94,7 @@ When files for any app or package do not exist yet, do not create them speculati
 - The `districts` reference table (75 rows) may be queried freely — it is metadata-only and never contains shop data.
 
 ### CDN-First — Bundle Contains Only App Logic
-- DaisyUI, Tailwind Play CDN, SheetJS, and Dexie.js are all loaded from jsDelivr CDN at runtime. They are never installed as npm dependencies or bundled into the Next.js output.
+- DaisyUI, Tailwind Play CDN, SheetJS, Dexie.js, SweetAlert2, and Notyf are all loaded from jsDelivr CDN at runtime. They are never installed as npm dependencies or bundled into the Next.js output.
 - The Next.js bundle contains: React, Next.js App Router runtime, Clerk frontend SDK, and app-specific TypeScript components. Nothing else.
 - This keeps Cloudflare Pages bandwidth usage minimal — only app logic is served from CF; all library assets come from jsDelivr.
 
@@ -97,7 +102,7 @@ When files for any app or package do not exist yet, do not create them speculati
 - IndexedDB writes happen synchronously with every user action. The network upload is always secondary. Data is never at risk from a connectivity event.
 - Connection loss, network change, tab close, or device sleep must never trigger a logout or IndexedDB clear. The only session expiry is Clerk's 24-hour clock.
 - Session expiry must not destroy IndexedDB data. The DEO re-authenticates and resumes with all staged data intact.
-- Minimum supported viewport is **768px**. No small-screen mobile layouts. Do not write `sm:` or `xs:` responsive prefixes in DEO or Admin portal layouts.
+- Minimum supported viewport is **768px**. No small-screen mobile layouts. Do not write `sm:` or `xs:` responsive prefixes in any layout.
 
 ### Data Language
 - All data fields — shop names, Thana names, district names, DEO identifiers — are **English only**. No Hindi, Devanagari, Urdu, or any other script. Enforce this with input validation in the UI.
@@ -169,11 +174,8 @@ These commands will apply once the monorepo is scaffolded (Milestone M-0). Do no
 # Install dependencies
 pnpm install
 
-# Run DEO portal dev server
+# Run the portal dev server (serves both DEO and Admin route groups)
 pnpm --filter web dev
-
-# Run Admin portal dev server
-pnpm --filter admin dev
 
 # Run Wrangler local dev (Worker + D1)
 pnpm --filter worker dev

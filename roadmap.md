@@ -385,7 +385,7 @@ Both portals have zero publicly accessible pages except `/login`. Clerk's `clerk
 The only public routes are `/login` and `/api/webhooks/clerk` (which authenticates itself via SVIX signature). There is no landing page, no public home — navigating to `/` unauthenticated redirects to `/login` immediately.
 
 ```typescript
-// apps/web/middleware.ts  (identical pattern for apps/admin/middleware.ts)
+// apps/web/middleware.ts
 import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
 
 const isPublic = createRouteMatcher(['/login(.*)', '/api/webhooks/clerk(.*)']);
@@ -485,20 +485,22 @@ Both are loaded in `<head>` via `_document.tsx` with SRI attributes. Tailwind is
 
 > **Why Tailwind Play CDN instead of build-time?** The Next.js bundle (React + app logic) is the only asset Cloudflare Pages serves. Removing PostCSS + Tailwind from the build pipeline keeps the bundle exclusively application code. Bandwidth cost for the Tailwind CDN script is borne by jsDelivr, not by Cloudflare.
 
-**Data & Visualization Libraries — Loaded from CDN:**
+**Data, UI Feedback & Visualization Libraries — Loaded from CDN:**
 
-| Library | CDN Source | Portals | Load Strategy |
+| Library | CDN Source | Route Groups | Load Strategy |
 |---|---|---|---|
 | SheetJS (`xlsx`) | `cdn.jsdelivr.net/npm/xlsx@x/dist/xlsx.full.min.js` | DEO + Admin | Dynamic inject on upload page mount (`ssr: false`) — loads only when needed |
-| Dexie.js | `cdn.jsdelivr.net/npm/dexie@x/dist/dexie.min.js` | DEO + Admin | `<script>` in `_document.tsx` — loaded on all pages; Service Worker caches after first load |
-| Chart.js | `cdn.jsdelivr.net/npm/chart.js@x/dist/chart.umd.min.js` | Admin only | `<script>` in admin `_document.tsx` — loaded on all admin pages; ~60KB gzip |
-| Leaflet.js | `cdn.jsdelivr.net/npm/leaflet@x/dist/leaflet.js` + `leaflet.css` | Admin only | `<script>` + `<link>` in admin `_document.tsx`; ~39KB JS + ~5KB CSS |
+| Dexie.js | `cdn.jsdelivr.net/npm/dexie@x/dist/dexie.min.js` | DEO + Admin | `<script>` in root `layout.tsx` — loaded on all pages; Service Worker caches after first load |
+| SweetAlert2 | `cdn.jsdelivr.net/npm/sweetalert2@x/dist/sweetalert2.all.min.js` | DEO + Admin | `<script>` in root `layout.tsx` — used across both route groups for all modal alerts, confirms, and prompts. Replaces all native `alert()`/`confirm()`. |
+| Notyf | `cdn.jsdelivr.net/npm/notyf@x/notyf.min.js` + `notyf.min.css` | DEO + Admin | `<script>` + `<link>` in root `layout.tsx`. ~3KB JS. Side flash notifications (success, error, warning). Vanilla JS, no framework dependency. Official site: https://carlosroso.com/notyf/ |
+| Chart.js | `cdn.jsdelivr.net/npm/chart.js@x/dist/chart.umd.min.js` | Admin only | `<script>` in root `layout.tsx` — guarded by route group; ~60KB gzip |
+| Leaflet.js | `cdn.jsdelivr.net/npm/leaflet@x/dist/leaflet.js` + `leaflet.css` | Admin only | `<script>` + `<link>` in root `layout.tsx`; ~39KB JS + ~5KB CSS |
 
-**What ships in the Next.js bundles:**
+**What ships in the Next.js bundle:**
 - React + Next.js App Router runtime
 - Clerk frontend SDK (React components for auth UI)
 - App-specific TypeScript components and logic
-- No CSS frameworks, no chart libraries, no map libraries, no data libraries, no Excel parsers
+- No CSS frameworks, no chart libraries, no map libraries, no data libraries, no Excel parsers, no alert/toast libraries
 
 **SRI Pin Workflow (for library version upgrades):**
 ```bash
@@ -532,7 +534,7 @@ The DEO portal is a full PWA. Installed on an iPad or Android tablet, it loads f
 ```
 
 **Service Worker Responsibilities:**
-- **App shell caching:** On install, pre-caches the Next.js static HTML, JS bundle, and all CDN assets (DaisyUI CSS, Tailwind CDN script, Dexie.js, SheetJS). After first load, the entire app and all its dependencies run offline.
+- **App shell caching:** On install, pre-caches the Next.js static HTML, JS bundle, and all CDN assets (DaisyUI CSS, Tailwind CDN script, Dexie.js, SheetJS, SweetAlert2, Notyf). After first load, the entire app and all its dependencies run offline.
 - **Offline detection:** Posts `{ type: 'connectivity', online: boolean }` messages to the active page. The connection status indicator reacts to these messages.
 - **Background Sync:** When a chunk upload fails due to connectivity loss, the chunk payload is written to an IndexedDB queue and registered with the Background Sync API (`sync.register('upload-queue')`). On connectivity restoration, the Service Worker retries all queued chunks sequentially. No DEO action is required.
 - **Cache invalidation:** Service Worker version is tied to the Next.js build hash. On deployment, the new Service Worker installs and takes over, replacing the cached app shell.
@@ -609,7 +611,7 @@ Searchable fields:
 Results render inline in the verification table. Zero Worker calls.
 
 **Admin/HQ Search (Server-Side, D1):**
-Admin users access the separate admin portal. Search queries go to `GET /api/admin/search` (Worker, guarded by Clerk `admin` role):
+Admin users access the `(admin)` route group. Search queries go to `GET /api/admin/search` (Worker, guarded by Clerk `admin` role middleware):
 
 | Parameter | Type | Description |
 |---|---|---|
@@ -624,15 +626,24 @@ Free-text `LIKE` requires a column scan on `shop_name`. Acceptable at 30,000 row
 
 ---
 
-### 3.12 Admin/HQ Portal Separation
+### 3.12 Admin/HQ Portal — Route Group Architecture
 
-The admin portal is a **separate application** from the DEO portal. It shares `packages/schema` but has its own deployment, auth scope, and Worker route namespace.
+The DEO portal and Admin/HQ portal are **route groups within a single Next.js application** (`apps/web`). There is one Cloudflare Pages deployment, one build pipeline, and one `middleware.ts`. The domain configuration (custom subdomain vs. Cloudflare Pages default domain) is a deployment-time decision, not an architecture decision — it will be determined when the domain is confirmed.
 
-| Concern | DEO Portal | Admin Portal |
+```
+apps/web/app/
+├── (deo)/      # All DEO-facing routes — middleware enforces role: 'deo'
+├── (admin)/    # All Admin/HQ routes  — middleware enforces role: 'admin'
+└── login/      # Public — the only unauthenticated entry point
+```
+
+The middleware reads `publicMetadata.role` from the Clerk session and enforces route group access. A `deo` user hitting any `(admin)` route is redirected; an `admin` user hitting a `(deo)` route is also redirected. Both groups share the same Clerk project and the same Worker endpoint.
+
+| Concern | DEO route group `(deo)` | Admin route group `(admin)` |
 |---|---|---|
-| App | `apps/web` | `apps/admin` |
-| Deployment | Cloudflare Pages — DEO domain | Cloudflare Pages — Admin domain |
-| Auth | Clerk — `publicMetadata.role: 'deo'` | Clerk — `publicMetadata.role: 'admin'` |
+| App | `apps/web/app/(deo)/` | `apps/web/app/(admin)/` |
+| Deployment | Single Cloudflare Pages project | Same project, same deployment |
+| Auth | `publicMetadata.role: 'deo'` | `publicMetadata.role: 'admin'` |
 | Worker routes | `/api/*` | `/api/admin/*` |
 | Data access | Own district only (scoped by Clerk `districtName` claim) | All 75 districts, read-only |
 
@@ -695,9 +706,9 @@ Charts use Chart.js direct imperative API via `useEffect` — no React wrapper l
 A live choropleth map of all 75 UP districts. The primary at-a-glance view for HQ to monitor the upload campaign.
 
 **GeoJSON boundary data:**
-- Stored at `apps/admin/public/geodata/up-districts.geojson` — simplified UP district polygons (~200–400KB).
+- Stored at `apps/web/public/geodata/up-districts.geojson` — simplified UP district polygons (~200–400KB).
 - Sourced from a public dataset (GADM or Datameet India GIS) and simplified to appropriate precision.
-- District name mismatches between the GeoJSON source and `districts.name` are resolved via `apps/admin/src/lib/district-name-map.ts`.
+- District name mismatches between the GeoJSON source and `districts.name` are resolved via `apps/web/src/lib/district-name-map.ts`.
 
 **Map tiles:** CartoDB Positron — no API key required, neutral background:
 ```
@@ -1113,19 +1124,18 @@ M-5: Dashboard, Testing & DEO Handoff     [Week 5-6]
 
 **Deliverables:**
 
-- [ ] Monorepo structure initialized (`apps/web`, `apps/admin`, `apps/worker`, `packages/schema`).
+- [ ] Monorepo structure initialized (`apps/web`, `apps/worker`, `packages/schema`). Route groups `(deo)` and `(admin)` stubbed inside `apps/web/app/`.
 - [ ] `wrangler.toml` configured for Cloudflare Pages + Workers + D1 binding + Cron Trigger (`0 2 * * *` for audit log purge).
 - [ ] Drizzle ORM configured with D1 adapter.
 - [ ] GitHub Actions CI pipeline: type-check, lint, Wrangler dry-run deploy, and SRI attribute presence check on every PR.
-- [ ] Cloudflare Pages projects created: DEO portal + Admin portal; preview deploys enabled on both.
+- [ ] Single Cloudflare Pages project created for `apps/web`; preview deploys enabled. Domain configuration (custom subdomain vs. Pages default) deferred — TBD.
 - [ ] D1 database provisioned (`phase1-dev` and `phase1-prod`).
 - [ ] All secrets (Clerk secret key, Clerk webhook signing secret) stored in Cloudflare Workers Secrets — not in `wrangler.toml` or source.
 - [ ] Clerk project created: magic-link auth enabled, single-session enforcement configured, `publicMetadata.role` set to `'deo'` or `'admin'` for each provisioned user (no Clerk Organizations — free tier caps orgs at 20 members).
 - [ ] `public/_headers` committed with full CSP, `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy`, `Permissions-Policy`.
 - [ ] `public/manifest.json` committed with PWA metadata (name, icons, display: standalone, theme color).
 - [ ] Service Worker skeleton (`public/sw.js`) committed: app shell cache strategy stubbed, registered in `_document.tsx`.
-- [ ] `_document.tsx` stubbed with CDN `<link>` and `<script>` tags for DaisyUI, Tailwind Play CDN, Dexie.js (with SRI placeholders).
-- [ ] Admin portal `_document.tsx` stubbed with DaisyUI, Tailwind Play CDN, Dexie.js, and SheetJS CDN tags (SheetJS needed for bulk DEO provision upload in admin).
+- [ ] Root `layout.tsx` stubbed with CDN `<link>` and `<script>` tags (all with SRI placeholders) for: DaisyUI CSS, Tailwind Play CDN, Dexie.js, SweetAlert2, Notyf JS + CSS. SheetJS is excluded from root layout (dynamic inject on upload pages only). Chart.js and Leaflet.js tags are in the `(admin)` layout, not the root.
 
 **Exit criterion:** `wrangler deploy --dry-run` passes on CI. `GET /healthz` returns `200 OK`. CI fails if any CDN tag is missing an `integrity` attribute. PWA manifest validates in Chrome DevTools Lighthouse.
 
@@ -1200,7 +1210,7 @@ M-5: Dashboard, Testing & DEO Handoff     [Week 5-6]
 - [ ] Shop type field toggling: financial inputs show/hide based on `shopType` and `hasCl5cc`.
 - [ ] Completeness gate: district submit button disabled until all registered units have at least one verified file. Per-unit status summary panel displayed.
 - [ ] Session recovery: on page load, IndexedDB is read first; staged data and UI state are restored regardless of network.
-- [ ] Service Worker fully implemented: app shell cache, CDN asset cache (DaisyUI, Tailwind CDN, Dexie.js, SheetJS), offline detection message relay.
+- [ ] Service Worker fully implemented: app shell cache, CDN asset cache (DaisyUI, Tailwind CDN, Dexie.js, SweetAlert2, Notyf, SheetJS), offline detection message relay.
 - [ ] Background Sync registered on failed chunk uploads; retries transparently on reconnect.
 - [ ] Dark/light mode toggle (DaisyUI themes); `localStorage` persistence; inline `<head>` script to apply theme before first paint.
 - [ ] User preferences (theme, page size) read and written to `localStorage` on every change.
@@ -1247,10 +1257,10 @@ M-5: Dashboard, Testing & DEO Handoff     [Week 5-6]
 
 **Deliverables:**
 
-- [ ] Both portals (`apps/web` and `apps/admin`) have `middleware.ts` using `clerkMiddleware` — all routes are auth-protected; only `/login` and `/api/webhooks/clerk` are public. No landing page, no public home.
-- [ ] Admin portal (`apps/admin`) fully functional:
+- [ ] `apps/web/middleware.ts` using `clerkMiddleware` — all routes are auth-protected; only `/login` and `/api/webhooks/clerk` are public. Middleware reads `publicMetadata.role` and redirects on route group mismatch. No landing page, no public home.
+- [ ] Admin/HQ route group (`apps/web/app/(admin)/`) fully functional:
   - Default view: district summary list (75 rows, aggregate query only — no shop rows loaded).
-  - Interactive UP district choropleth map (Leaflet.js + CartoDB tiles): districts colour-coded by submission status and coverage; hover tooltip; click-to-drill-down. GeoJSON at `public/geodata/up-districts.geojson`. Map polls `GET /api/admin/map-data` every 5 minutes.
+  - Interactive UP district choropleth map (Leaflet.js + CartoDB tiles): districts colour-coded by submission status and coverage; hover tooltip; click-to-drill-down. GeoJSON at `apps/web/public/geodata/up-districts.geojson`. Map polls `GET /api/admin/map-data` every 5 minutes.
   - Summary charts (Chart.js): submission progress doughnut, revenue horizontal bar (top 20), shop type pie, upload stacked bar, cumulative uploads line chart.
   - District drill-down: paginated shop table (IndexedDB-cached, stale-while-revalidate).
   - Cross-district D1 search, paginated, results cached by query hash.
@@ -1334,8 +1344,10 @@ The following require department action before engineering can proceed past M-1:
 | Local Persistence | Dexie.js (IndexedDB) | Loaded from jsDelivr CDN; offline-first staging layer for all DEO-entered data |
 | Offline / PWA | Service Worker + Background Sync | App shell cache, CDN asset cache, transparent upload retry on reconnect |
 | Scheduled Tasks | Cloudflare Cron Triggers | Daily audit log purge at 45-day threshold; defined in `wrangler.toml` |
-| Charts | Chart.js | Admin portal only. Loaded from jsDelivr CDN (~60KB gzip). Doughnut, bar, pie, and line charts for the HQ dashboard. |
-| Maps | Leaflet.js + CartoDB tiles | Admin portal only. Loaded from jsDelivr CDN (~39KB JS + 5KB CSS). Interactive UP district choropleth. No API key required. |
+| Modal Alerts | SweetAlert2 | Loaded from jsDelivr CDN. All modal alerts, confirmation dialogs, and prompts. Replaces native `alert()`/`confirm()`. |
+| Toast Notifications | Notyf | Loaded from jsDelivr CDN (~3KB). Side flash notifications (success, error, warning). Vanilla JS — no framework dependency. Sonner excluded — requires React bundling. |
+| Charts | Chart.js | Admin/HQ route group only. Loaded from jsDelivr CDN (~60KB gzip). Doughnut, bar, pie, and line charts for the HQ dashboard. |
+| Maps | Leaflet.js + CartoDB tiles | Admin/HQ route group only. Loaded from jsDelivr CDN (~39KB JS + 5KB CSS). Interactive UP district choropleth. No API key required. |
 | Coordinate Conversion | Custom utility | DMS-to-DD is a 3-line formula; no library needed |
 | Testing | Vitest + Playwright | Unit tests for business logic; E2E for full upload and auth flows |
 
@@ -1360,12 +1372,12 @@ The following require department action before engineering can proceed past M-1:
 | SRI | Subresource Integrity. A browser security mechanism that verifies CDN-served assets against a cryptographic hash before executing them. All CDN assets in this project include SRI attributes. |
 | CSP | Content Security Policy. An HTTP header that restricts which scripts, styles, and connections the browser allows. Declared in `public/_headers` for Cloudflare Pages. |
 | Audit Log | The `audit_log` D1 table. Records every DEO login, session event, upload chunk, and district submission. Purged after 45 days by Cron Trigger. |
-| Admin Portal | The separate `apps/admin` application deployed on its own Cloudflare Pages domain. Read-only access to all district data; used by HQ/department administration. Loads data district-by-district; full-state table view is not available in the UI. |
+| Admin Portal | The `(admin)` route group inside `apps/web`. Same Cloudflare Pages deployment as the DEO portal. Read-only access to all district data; used by HQ/department administration. Loads data district-by-district; full-state table view is not available in the UI. |
 | Districts Table | The `districts` D1 reference table. 75 rows, one per UP district. Stores DEO name, email, identifier, division, expected vend count, and submission status. The admin dashboard queries this table for metadata; shop rows are loaded separately on demand. |
-| Admin District Cache | An IndexedDB Dexie store (`admin_district_cache`) in the admin portal. Caches district shop data after first fetch (1-hour TTL, stale-while-revalidate). Reduces repeat D1 reads for districts the admin has already reviewed. |
+| Admin District Cache | An IndexedDB Dexie store (`admin_district_cache`) in the admin route group. Caches district shop data after first fetch (1-hour TTL, stale-while-revalidate). Reduces repeat D1 reads for districts the admin has already reviewed. |
 | Bulk Provision | A one-time admin operation: upload a DEO Excel file (SheetJS parse in-browser) → preview → submit to `/api/admin/bulk-provision` → 75 Clerk accounts created + `districts` rows upserted. Idempotent. |
 | Choropleth | A map where geographic areas are shaded based on a data variable. In this system, UP districts are coloured by submission status and vend coverage. Rendered with Leaflet.js. |
-| Auth Facade | The rule that every page in both portals is protected by Clerk's `clerkMiddleware`. Only `/login` and the Clerk webhook endpoint are publicly accessible. There are no visitor-facing or marketing pages. |
+| Auth Facade | The rule that every page in the app is protected by Clerk's `clerkMiddleware` in `apps/web/middleware.ts`. Only `/login` and the Clerk webhook endpoint are publicly accessible. There are no visitor-facing or marketing pages. |
 | `map-data` | The `GET /api/admin/map-data` Worker route. Returns 75 aggregate district rows (status, vendCount, totalRevenue, expectedVendCount). Powers both the Leaflet choropleth and the Chart.js dashboard charts in a single request. |
 | D1 | Cloudflare D1. Serverless SQLite database at the edge. |
 | Workers | Cloudflare Workers. Serverless TypeScript runtime. 10ms CPU limit per request. |

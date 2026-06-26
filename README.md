@@ -28,8 +28,11 @@ Each DEO pre-registers their district's circles and sectors in the portal, distr
 ```
 up-excise-spatial-revenue-optimizer/
 ├── apps/
-│   ├── web/          # Next.js — DEO portal (Cloudflare Pages)
-│   ├── admin/        # Next.js — Admin/HQ portal (Cloudflare Pages, separate deployment)
+│   ├── web/          # Next.js — single app, DEO and Admin/HQ as route groups
+│   │   └── app/
+│   │       ├── (deo)/    # DEO portal routes
+│   │       ├── (admin)/  # Admin/HQ portal routes
+│   │       └── login/    # Only public route
 │   └── worker/       # Hono backend — Cloudflare Workers
 ├── packages/
 │   └── schema/       # Shared Drizzle ORM schema (D1/SQLite)
@@ -45,7 +48,7 @@ up-excise-spatial-revenue-optimizer/
 
 | Layer | Technology | Notes |
 |---|---|---|
-| Frontend | Next.js (App Router) | Two apps: DEO portal (`apps/web`) and Admin portal (`apps/admin`). Deployed to Cloudflare Pages. |
+| Frontend | Next.js (App Router) | Single app (`apps/web`). `(deo)` and `(admin)` route groups. One Cloudflare Pages deployment. Domain TBD. |
 | Backend | Cloudflare Workers + Hono | Serverless edge. 10ms CPU limit. All heavy compute stays in the browser. |
 | Database | Cloudflare D1 (SQLite) | `db.batch()` for all multi-row writes. |
 | ORM | Drizzle ORM | D1 adapter. Schema in `packages/schema/src/phase1.ts`. |
@@ -55,6 +58,10 @@ up-excise-spatial-revenue-optimizer/
 | Excel Parsing | SheetJS (`xlsx`) | Loaded from jsDelivr CDN dynamically on upload page. Never bundled. |
 | Local Cache | Dexie.js (IndexedDB) | Loaded from jsDelivr CDN. Offline-first staging. Rows carry `status: 'pending' \| 'uploaded' \| 'error'`. |
 | PWA / Offline | Service Worker + Background Sync | App shell + CDN asset cache. Upload retry on reconnect. |
+| Modal Alerts | SweetAlert2 | Loaded from jsDelivr CDN. All modal alerts, confirms, and prompts. Replaces native `alert()`/`confirm()`. Never bundled. |
+| Toast Notifications | Notyf | Loaded from jsDelivr CDN (~3KB). Side flash notifications. Vanilla JS. Never bundled. |
+| Charts | Chart.js | Admin/HQ route group. Loaded from jsDelivr CDN. |
+| Maps | Leaflet.js + CartoDB tiles | Admin/HQ route group. UP district choropleth. No API key. |
 | Scheduled Tasks | Cloudflare Cron Triggers | Daily 45-day audit log purge. |
 | Testing | Vitest + Playwright | Unit tests for business logic. E2E for upload, auth, and offline flows. |
 
@@ -148,7 +155,7 @@ The DEO portal is a full Progressive Web App installable on iPad or Android tabl
 
 ## Admin / HQ Portal
 
-A separate application (`apps/admin`) deployed on its own Cloudflare Pages domain. Admin users carry `publicMetadata.role: 'admin'` in Clerk — no separate Clerk organization (free tier caps orgs at 20 members). Read-only access to all district data.
+The `(admin)` route group inside `apps/web` — same Cloudflare Pages deployment as the DEO portal. Admin users carry `publicMetadata.role: 'admin'` in Clerk — no separate Clerk organization (free tier caps orgs at 20 members, incompatible with 75 DEOs). Read-only access to all district data.
 
 **Loading model — district-by-district, never full-state by default:**
 - Default view: 75-row district summary list (aggregate counts from D1 — no shop rows loaded).
@@ -160,7 +167,7 @@ A separate application (`apps/admin`) deployed on its own Cloudflare Pages domai
 - Hover tooltip: district name, DEO, submission status, vend count, total revenue.
 - Click a district: navigates to that district's shop drill-down.
 - Auto-refreshes every 5 minutes from `GET /api/admin/map-data`.
-- GeoJSON district boundaries stored as a static asset at `apps/admin/public/geodata/up-districts.geojson`.
+- GeoJSON district boundaries stored as a static asset at `apps/web/public/geodata/up-districts.geojson`.
 
 **Summary Charts (Chart.js, jsDelivr CDN):**
 - Submission progress doughnut, revenue horizontal bar (top 20), shop type pie, upload stacked bar (actual vs expected), cumulative upload timeline.
