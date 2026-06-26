@@ -52,13 +52,20 @@ When files for any app or package do not exist yet, do not create them speculati
 | CSS Utilities | Tailwind Play CDN | Loaded from CDN. No PostCSS build step. The Next.js bundle contains only app logic. |
 | Excel Parsing | SheetJS (`xlsx`) | Loaded from jsDelivr CDN dynamically on upload page (`ssr: false`). Never bundled. |
 | Local Cache | Dexie.js (IndexedDB) | Loaded from jsDelivr CDN. Offline-first staging layer. Rows carry `status: 'pending' | 'uploaded' | 'error'`. |
-| PWA / Offline | Service Worker + Background Sync | App shell + CDN asset cache. Transparent upload retry on reconnect. |
+| PWA / Offline | Service Worker + Background Sync | DEO portal only. App shell + CDN asset cache. Transparent upload retry on reconnect. |
+| Charts | Chart.js | Admin portal only. jsDelivr CDN. Direct `useEffect` imperative API — no React wrapper. |
+| Maps | Leaflet.js + CartoDB tiles | Admin portal only. jsDelivr CDN. UP district choropleth. No API key. GeoJSON at `apps/admin/public/geodata/`. |
 | Scheduled Tasks | Cloudflare Cron Triggers | Daily audit log purge. Defined in `wrangler.toml`. |
 | Testing | Vitest (unit) + Playwright (E2E) | Revenue calculator and coordinate converter must have unit tests. |
 
 ---
 
 ## Hard Constraints — Never Violate These
+
+### Auth Facade — No Public Pages
+- **Every route in both portals is behind auth.** Clerk's `clerkMiddleware` in `middleware.ts` redirects unauthenticated requests to `/login`. There is no landing page, no public home, no visitor-facing content.
+- **Only two public routes exist:** `/login` and `/api/webhooks/clerk`. Everything else requires a valid Clerk session.
+- Do not add any public-facing route, page, or layout without this being an explicit milestone requirement.
 
 ### Security
 - **No data in URL query parameters.** All mutations use HTTP POST with JSON body. GET endpoints return only read-only reference data. No sensitive field ever appears in a URL.

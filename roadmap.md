@@ -299,6 +299,7 @@ The Worker is built with [Hono](https://hono.dev/) — a lightweight, TypeScript
 | `/api/admin/search` | `GET` | Cross-district search with query params (Section 3.11) |
 | `/api/admin/bulk-provision` | `POST` | Receives parsed DEO Excel data; provisions Clerk accounts + inserts `districts` rows |
 | `/api/admin/audit-log` | `GET` | Paginated audit log for admin viewer (last 45 days) |
+| `/api/admin/map-data` | `GET` | All 75 districts with `{ name, status, vendCount, totalRevenue, expectedVendCount }` — single lightweight call that drives both the choropleth map and the summary charts. Aggregates `phase1_raw_collection` grouped by `district_name`, joined with `districts` metadata. No shop row data returned. |
 
 **Worker validation checklist (enforced before any D1 write):**
 
@@ -378,6 +379,68 @@ Cloudflare built-in rate limiting applied to Worker routes:
 
 **Provider:** Clerk. Chosen for: magic-link/OTP support, single-session enforcement, webhook event emission, and Cloudflare Workers SDK compatibility.
 
+**No Public Pages — Auth Facade Covers Everything:**
+Both portals have zero publicly accessible pages except `/login`. Clerk's `clerkMiddleware` in `middleware.ts` intercepts every request — no valid session → redirect to `/login`.
+
+The only public routes are `/login` and `/api/webhooks/clerk` (which authenticates itself via SVIX signature). There is no landing page, no public home — navigating to `/` unauthenticated redirects to `/login` immediately.
+
+```typescript
+// apps/web/middleware.ts  (identical pattern for apps/admin/middleware.ts)
+import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
+
+const isPublic = createRouteMatcher(['/login(.*)', '/api/webhooks/clerk(.*)']);
+
+export default clerkMiddleware((auth, req) => {
+  if (!isPublic(req)) auth().protect();
+});
+
+export const config = { matcher: ['/((?!_next|.*\\..*).*)'] };
+```
+
+**Role Model — User Metadata, Not Clerk Organizations:**
+
+Clerk's free tier limits organizations to 20 members maximum. With 75 DEOs, a Clerk Organization for the DEO role would immediately exceed this cap. Roles are therefore implemented as Clerk **user `publicMetadata`**, not as organization membership:
+
+```json
+// DEO user publicMetadata
+{ "role": "deo", "districtName": "Lucknow" }
+
+// Admin user publicMetadata
+{ "role": "admin" }
+```
+
+The Worker reads `auth().sessionClaims.publicMetadata` to guard routes and scope data access. No Clerk Organizations are created or used in Phase 1.
+
+**Clerk Free Tier — Confirmed Limits vs. This Project:**
+
+| Limit | Free Tier | Our Usage | Status |
+|---|---|---|---|
+| Monthly Active Users | 50,000 | ~80 (75 DEOs + admins) | ✅ Well within |
+| Magic link auth | Available, no published rate limit | 1 login/session per DEO | ✅ Fine |
+| Webhooks | Available | Session events → `audit_log` | ✅ Fine |
+| Session duration (configurable) | Fixed 7-day max — cannot configure in dashboard | Want 24h | ⚠️ See below |
+| Organizations | Max 20 members/org | N/A — using metadata roles | ✅ Avoided |
+| Clerk dashboard log retention | 1 day | N/A — we write to D1 audit_log | ✅ Not a concern |
+
+**24-Hour Session Enforcement (Application-Level):**
+
+The Clerk free tier does not allow configuring session duration below 7 days via the dashboard. We enforce 24-hour sessions at the **application level** in middleware, not via Clerk's session settings:
+
+```typescript
+// In clerkMiddleware — runs on every protected request
+const { sessionClaims } = auth();
+const sessionAge = Date.now() - new Date(sessionClaims.iat * 1000).getTime();
+const MAX_SESSION_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+if (sessionAge > MAX_SESSION_MS) {
+  // Revoke via Clerk management API, then redirect to /login
+  await clerkClient.sessions.revokeSession(auth().sessionId);
+  return NextResponse.redirect(new URL('/login', req.url));
+}
+```
+
+This achieves 24-hour sessions without a paid Clerk plan. If the department requires strict session-duration configuration at the Clerk level (e.g., for compliance audit), upgrading to Clerk Pro (~$25/month) enables this in the dashboard.
+
 **Passwordless Magic-Link Flow:**
 1. DEO navigates to the portal login page and enters their email address.
 2. Clerk sends a unique, single-use magic link to that email. The link expires in 10 minutes if unused.
@@ -422,18 +485,20 @@ Both are loaded in `<head>` via `_document.tsx` with SRI attributes. Tailwind is
 
 > **Why Tailwind Play CDN instead of build-time?** The Next.js bundle (React + app logic) is the only asset Cloudflare Pages serves. Removing PostCSS + Tailwind from the build pipeline keeps the bundle exclusively application code. Bandwidth cost for the Tailwind CDN script is borne by jsDelivr, not by Cloudflare.
 
-**Data Layer Libraries — Loaded from CDN:**
+**Data & Visualization Libraries — Loaded from CDN:**
 
-| Library | CDN Source | Load Strategy |
-|---|---|---|
-| SheetJS (`xlsx`) | `cdn.jsdelivr.net/npm/xlsx@x/dist/xlsx.full.min.js` | Dynamically injected on upload page mount (`ssr: false`) — loads only when the DEO reaches the upload screen |
-| Dexie.js | `cdn.jsdelivr.net/npm/dexie@x/dist/dexie.min.js` | `<script>` tag in `_document.tsx` — loaded on every DEO page; cached by Service Worker after first load |
+| Library | CDN Source | Portals | Load Strategy |
+|---|---|---|---|
+| SheetJS (`xlsx`) | `cdn.jsdelivr.net/npm/xlsx@x/dist/xlsx.full.min.js` | DEO + Admin | Dynamic inject on upload page mount (`ssr: false`) — loads only when needed |
+| Dexie.js | `cdn.jsdelivr.net/npm/dexie@x/dist/dexie.min.js` | DEO + Admin | `<script>` in `_document.tsx` — loaded on all pages; Service Worker caches after first load |
+| Chart.js | `cdn.jsdelivr.net/npm/chart.js@x/dist/chart.umd.min.js` | Admin only | `<script>` in admin `_document.tsx` — loaded on all admin pages; ~60KB gzip |
+| Leaflet.js | `cdn.jsdelivr.net/npm/leaflet@x/dist/leaflet.js` + `leaflet.css` | Admin only | `<script>` + `<link>` in admin `_document.tsx`; ~39KB JS + ~5KB CSS |
 
-**What ships in the Next.js bundle:**
+**What ships in the Next.js bundles:**
 - React + Next.js App Router runtime
-- App-specific TypeScript components and logic
 - Clerk frontend SDK (React components for auth UI)
-- No CSS frameworks, no data libraries, no Excel parsers
+- App-specific TypeScript components and logic
+- No CSS frameworks, no chart libraries, no map libraries, no data libraries, no Excel parsers
 
 **SRI Pin Workflow (for library version upgrades):**
 ```bash
@@ -567,7 +632,7 @@ The admin portal is a **separate application** from the DEO portal. It shares `p
 |---|---|---|
 | App | `apps/web` | `apps/admin` |
 | Deployment | Cloudflare Pages — DEO domain | Cloudflare Pages — Admin domain |
-| Auth | Clerk — `deo` role | Clerk — `admin` role, separate Clerk organization |
+| Auth | Clerk — `publicMetadata.role: 'deo'` | Clerk — `publicMetadata.role: 'admin'` |
 | Worker routes | `/api/*` | `/api/admin/*` |
 | Data access | Own district only (scoped by Clerk `districtName` claim) | All 75 districts, read-only |
 
@@ -611,18 +676,60 @@ SheetJS parses the file in-browser. The parsed array is previewed in the UI for 
 
 This operation is idempotent — re-running it on an already-provisioned system updates district metadata without creating duplicate Clerk accounts.
 
-**Admin Capabilities (Phase 1):**
-- District summary dashboard: all 75 districts with vend count, revenue, missing coordinate count, and submission status — loaded from a lightweight aggregate query, never from raw shop rows.
-- District drill-down: click a district to load its shop table (paginated, IndexedDB-cached after first fetch).
-- D1-backed search across all districts (Section 3.11) — results cached per query hash.
-- CSV export: per-district or full-state (full-state is a file download, not a UI table).
-- Audit log viewer: read-only, last 45 days of DEO activity.
-- Circle/sector registration status per district.
-- Bulk DEO provisioning via Excel upload (SheetJS in-browser parse → `bulk-provision` API).
+**Admin Dashboard — Charts (Chart.js via jsDelivr CDN):**
+
+All charts are powered by a single call to `GET /api/admin/map-data`, which returns 75 district-level aggregate rows. No shop rows are loaded for charting.
+
+| Chart | Type | Data Source |
+|---|---|---|
+| Submission progress | Doughnut | `submitted` vs `in_progress` vs `pending` district count |
+| Revenue by district (top 20) | Horizontal bar | `totalRevenue` per district, sorted descending |
+| Shop type distribution | Pie | `COUNT(*)` per `shop_type` across submitted districts |
+| Upload progress by district | Stacked bar | `vendCount` vs `expectedVendCount` per district |
+| Cumulative uploads over time | Line | Daily `district_submitted` event count from `audit_log` |
+
+Charts use Chart.js direct imperative API via `useEffect` — no React wrapper library. Instances are destroyed and re-created on data refresh to prevent memory leaks.
+
+**Admin Dashboard — Interactive UP District Map (Leaflet.js via jsDelivr CDN):**
+
+A live choropleth map of all 75 UP districts. The primary at-a-glance view for HQ to monitor the upload campaign.
+
+**GeoJSON boundary data:**
+- Stored at `apps/admin/public/geodata/up-districts.geojson` — simplified UP district polygons (~200–400KB).
+- Sourced from a public dataset (GADM or Datameet India GIS) and simplified to appropriate precision.
+- District name mismatches between the GeoJSON source and `districts.name` are resolved via `apps/admin/src/lib/district-name-map.ts`.
+
+**Map tiles:** CartoDB Positron — no API key required, neutral background:
+```
+https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png
+```
+
+**Choropleth colour scheme:**
+| District Status | Fill | Meaning |
+|---|---|---|
+| `pending` | `#d1d5db` grey | No data uploaded |
+| `in_progress` | `#fbbf24` amber | Some uploads, not yet submitted |
+| `submitted` | gradient `#86efac` → `#15803d` | Submitted — gradient intensity = `vendCount / expectedVendCount` (light = low coverage, dark = full coverage) |
+
+**Map interactions:**
+- **Hover:** boundary highlights; tooltip shows district name, DEO name, status, vend count, total revenue.
+- **Click:** navigates to district drill-down (loads that district's shop table from D1/IndexedDB cache).
+- **Legend:** Leaflet control, bottom-right.
+- **Zoom:** bounded to UP state extent on load; free zoom thereafter.
+- **Auto-refresh:** map data polls `GET /api/admin/map-data` every 5 minutes while the dashboard is open. Last-refreshed timestamp shown below the map.
+
+**Admin Capabilities (Phase 1) — Summary:**
+- Interactive UP district choropleth map — live status, vend counts, revenue on hover; click to drill down.
+- Summary charts — submission progress doughnut, revenue bar, shop type pie, district upload stacked bar, cumulative timeline.
+- District drill-down: paginated shop table (IndexedDB-cached, stale-while-revalidate).
+- Cross-district D1 search, paginated, results cached per query hash.
+- CSV export: per-district (streamed) and full-state (file download, not UI table).
+- Audit log viewer — last 45 days.
+- Bulk DEO provisioning via Excel upload (SheetJS in-browser → preview → submit).
 
 **Admin Cannot (Phase 1):**
 - View all 30,000 shop records in a single UI table. District-level pagination is enforced.
-- Edit, correct, or delete any vend records — Phase 1 data is DEO-submitted and read-only from admin.
+- Edit, correct, or delete any vend records — Phase 1 data is read-only from admin.
 - Trigger re-uploads or corrections on a DEO's behalf.
 - Access DEO session tokens or Clerk credential details.
 
@@ -801,7 +908,9 @@ The schema is implemented in Drizzle ORM targeting Cloudflare D1 (SQLite). The d
 
 **Phase 1 collection table is flat and denormalized:** Strict relational foreign keys on `phase1_raw_collection` (e.g., a `thanas` reference table) would create upload blockers. District offices use legacy spreadsheets with minor naming inconsistencies — "Gomti Nagar" vs "Gomatinagar" vs "GOMTINAGAR" — that cannot be pre-predicted and pre-seeded. By accepting Thana names as free text and indexing them for fast lookups, Phase 1 completes without DEO friction. Phase 2's data cleaning pass resolves canonical names before relational constraints are enforced.
 
-**Exception — the `districts` table (Section 5.3):** District names are standardized (set by the department, not by DEO free-text input) and will not have the variation problem that Thana names have. A `districts` reference table is therefore safe and useful: it stores DEO metadata, expected vend counts, and submission status in a 75-row table, keeping that metadata out of the 30,000-row shop table. All other tables (`phase1_raw_collection`, `district_circles_sectors`, `audit_log`) reference `districts.name` as a text soft-reference rather than a FK — maintaining upload flexibility while the district registry remains the single source of truth for district metadata.
+**Exception — the `districts` table (Section 5.3):** District names are standardized (set by the department, not by DEO free-text input) and will not have the variation problem that Thana names have. A `districts` reference table is therefore safe and useful: it stores DEO metadata, expected vend counts, submission status, and geographic bounding box in a 75-row table, keeping that metadata out of the 30,000-row shop table. All other tables (`phase1_raw_collection`, `district_circles_sectors`, `audit_log`) reference `districts.name` as a text soft-reference rather than a FK — maintaining upload flexibility while the district registry remains the single source of truth for district metadata.
+
+**District bounding box as a worker-side coordinate sanity check:** The `districts` table stores four `REAL` columns (`bbox_min_lat`, `bbox_max_lat`, `bbox_min_lon`, `bbox_max_lon`) derived from the UP GeoJSON file during admin bulk-provision. The Worker performs a fast four-number comparison on every uploaded shop coordinate — if the coordinate is outside the uploading DEO's district bounding box, it attaches a warning to the response but does **not** reject the row. Full polygon precision is enforced in the browser (point-in-polygon against the GeoJSON geometry) before the DEO submits, so by the time a chunk reaches the Worker the browser has already flagged genuine anomalies. The bbox check is a server-side backstop, not a gate.
 
 **Revenue fields are stored individually** (integers, INR, paise-truncated) rather than as a JSON blob, to allow direct SQL-level aggregation: `SUM(license_fee_lf)`, `SUM(mgr_amount)`, etc. — without application-layer parsing.
 
@@ -879,6 +988,14 @@ export const districts = sqliteTable('districts', {
 
   expectedVendCount: integer('expected_vend_count'), // for "X of Y" progress metrics
 
+  // District geographic bounding box — populated from GeoJSON during bulk-provision
+  // Used by the Worker for a fast sanity check: are uploaded coordinates in this district?
+  // Four number comparisons — no polygon math, no CPU concern.
+  bboxMinLat: real('bbox_min_lat'),
+  bboxMaxLat: real('bbox_max_lat'),
+  bboxMinLon: real('bbox_min_lon'),
+  bboxMaxLon: real('bbox_max_lon'),
+
   // Submission lifecycle
   status: text('status').default('pending').notNull(), // 'pending' | 'in_progress' | 'submitted'
   submittedAt: integer('submitted_at', { mode: 'timestamp' }),
@@ -892,6 +1009,23 @@ export const districts = sqliteTable('districts', {
 ```
 
 The `district_name` field in `phase1_raw_collection`, `district_circles_sectors`, and `audit_log` all reference `districts.name` as a text soft-reference (not a FK constraint). This is consistent with the Phase 1 flexibility rationale in Section 5.1 — enforcing a FK would block shop inserts if a district row was missing, adding an unnecessary failure mode during the upload campaign.
+
+**District-Level Coordinate Boundary Validation:**
+
+The bounding box columns (`bbox_min_lat`, `bbox_max_lat`, `bbox_min_lon`, `bbox_max_lon`) enable a two-layer coordinate boundary check:
+
+| Layer | Where | Check | On Mismatch |
+|---|---|---|---|
+| UP state bounding box | Worker (always) | Is coord inside UP? (`23.8–30.4°N`, `77.1–84.6°E`) | **Hard rejection** — coordinate is outside UP entirely |
+| District bounding box | Worker (when bbox populated) | Is coord inside the uploading DEO's district? | **Warning only** — flagged in response, row is not rejected |
+| Full district polygon | Browser (GeoJSON) | Precise point-in-polygon check | **Warning shown in verification UI** — DEO can review before submitting |
+
+District bbox validation is a **warning, not a rejection**, because:
+1. Simplified GeoJSON boundaries have imprecision near borders — a shop physically on a district border may appear outside the bbox.
+2. Some shops (e.g., a composite shop on a district boundary road) may legitimately have coordinates that straddle a geometric district line.
+3. The DEO, who knows their district, is the authoritative source — the system flags anomalies but trusts the human.
+
+The bbox is populated during the admin bulk-provision step: for each district, the Worker (or a build script) computes `Math.min/max` over all polygon coordinate pairs in `up-districts.geojson` and stores the result. This is done once, not on every upload.
 
 ### 5.5 Circle/Sector Reference Table
 
@@ -986,7 +1120,7 @@ M-5: Dashboard, Testing & DEO Handoff     [Week 5-6]
 - [ ] Cloudflare Pages projects created: DEO portal + Admin portal; preview deploys enabled on both.
 - [ ] D1 database provisioned (`phase1-dev` and `phase1-prod`).
 - [ ] All secrets (Clerk secret key, Clerk webhook signing secret) stored in Cloudflare Workers Secrets — not in `wrangler.toml` or source.
-- [ ] Clerk project created: magic-link auth enabled, single-session enforcement configured, `deo` and `admin` roles defined, separate Clerk organization for admin.
+- [ ] Clerk project created: magic-link auth enabled, single-session enforcement configured, `publicMetadata.role` set to `'deo'` or `'admin'` for each provisioned user (no Clerk Organizations — free tier caps orgs at 20 members).
 - [ ] `public/_headers` committed with full CSP, `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy`, `Permissions-Policy`.
 - [ ] `public/manifest.json` committed with PWA metadata (name, icons, display: standalone, theme color).
 - [ ] Service Worker skeleton (`public/sw.js`) committed: app shell cache strategy stubbed, registered in `_document.tsx`.
@@ -1003,8 +1137,8 @@ M-5: Dashboard, Testing & DEO Handoff     [Week 5-6]
 
 **Deliverables:**
 
-- [ ] Drizzle schema file (`packages/schema/src/phase1.ts`) finalized per Sections 5.2–5.7 — all four tables: `phase1_raw_collection`, `districts`, `district_circles_sectors`, `audit_log`.
-- [ ] Migration file generated and applied to `phase1-dev` and `phase1-prod` — covers all four tables.
+- [ ] Drizzle schema file (`packages/schema/src/phase1.ts`) finalized per Sections 5.2–5.7 — all four tables: `phase1_raw_collection`, `districts`, `district_circles_sectors`, `audit_log`. The `districts` table includes the four `bbox_*` bounding box columns (nullable `REAL`).
+- [ ] Migration file generated and applied to `phase1-dev` and `phase1-prod` — covers all four tables including bbox columns.
 - [ ] SQLite `CHECK` constraint for `shop_type` added to migration.
 - [ ] Hono Worker skeleton: `/api/upload/chunk`, `/api/districts`, `/api/districts/:district/units` (GET + POST), `/api/webhooks/clerk`, `/api/healthz`, CORS configured for Pages preview domains.
 - [ ] Admin Worker skeleton: `/api/admin/districts` (GET), `/api/admin/districts/:district/shops` (GET, paginated), `/api/admin/bulk-provision` (POST), all guarded by Clerk `admin` role middleware.
@@ -1034,8 +1168,11 @@ M-5: Dashboard, Testing & DEO Handoff     [Week 5-6]
 - [ ] Row-level validation function implemented: checks required fields, enum values, cross-field constraints (e.g., `hasCl5cc = true` requires `shopType = COUNTRY_LIQUOR`).
 - [ ] Standardized base Excel template (`.xlsx`) created and version-controlled in `docs/templates/`. This is the blank canonical layout.
 - [ ] Per-circle/sector template generation: Worker route `/api/districts/:district/units/:unitId/template` returns the base template with district name and circle/sector name pre-filled in designated header cells.
+- [ ] District bounding box populated during admin bulk-provision: for each district row in `up-districts.geojson`, compute `Math.min/max` over all polygon coordinate pairs and write the four `bbox_*` values to the `districts` row via `POST /api/admin/bulk-provision`.
+- [ ] Worker upload chunk handler reads the DEO's district row from `districts`, checks uploaded shop coordinates against `bbox_*` columns, and appends a `coordinateWarning` field to any row that falls outside the district bbox. The row is inserted regardless — this is a warning, not a rejection.
+- [ ] Browser verification UI reads `coordinateWarning` from the upload response and highlights affected rows with an amber warning pill before the DEO proceeds to district-level submission.
 
-**Exit criterion:** A test Excel file with 100 rows covering all shop types and both DMS/DD input formats parses correctly in a Storybook/JSDOM test. Revenue totals match expected values. Coordinate conversions match reference values to 4 decimal places. A generated per-circle/sector template downloads with correct pre-filled headers.
+**Exit criterion:** A test Excel file with 100 rows covering all shop types and both DMS/DD input formats parses correctly in a Storybook/JSDOM test. Revenue totals match expected values. Coordinate conversions match reference values to 4 decimal places. A generated per-circle/sector template downloads with correct pre-filled headers. A shop row with coordinates outside the district bbox returns `coordinateWarning` in the upload response without being rejected.
 
 ---
 
@@ -1110,16 +1247,18 @@ M-5: Dashboard, Testing & DEO Handoff     [Week 5-6]
 
 **Deliverables:**
 
+- [ ] Both portals (`apps/web` and `apps/admin`) have `middleware.ts` using `clerkMiddleware` — all routes are auth-protected; only `/login` and `/api/webhooks/clerk` are public. No landing page, no public home.
 - [ ] Admin portal (`apps/admin`) fully functional:
   - Default view: district summary list (75 rows, aggregate query only — no shop rows loaded).
-  - District drill-down: click district → paginated shop table loads for that district only (IndexedDB-cached after first fetch, stale-while-revalidate).
-  - District search/filter: search within a viewed district's IndexedDB-cached rows, or trigger a new D1 query for a different district.
-  - Cross-district D1 search (Section 3.11) — query params, paginated, results cached by query hash.
-  - Per-district CSV export (streamed). Full-state CSV export available in Export section (not default UI).
+  - Interactive UP district choropleth map (Leaflet.js + CartoDB tiles): districts colour-coded by submission status and coverage; hover tooltip; click-to-drill-down. GeoJSON at `public/geodata/up-districts.geojson`. Map polls `GET /api/admin/map-data` every 5 minutes.
+  - Summary charts (Chart.js): submission progress doughnut, revenue horizontal bar (top 20), shop type pie, upload stacked bar, cumulative uploads line chart.
+  - District drill-down: paginated shop table (IndexedDB-cached, stale-while-revalidate).
+  - Cross-district D1 search, paginated, results cached by query hash.
+  - Per-district CSV export (streamed). Full-state CSV export in Export section (file download, not UI table).
   - Audit log viewer: read-only, paginated, last 45 days.
-  - Bulk DEO provisioning: admin uploads Excel (SheetJS parse in-browser) → previews → submits to `/api/admin/bulk-provision` → Clerk accounts created + `districts` rows upserted.
+  - Bulk DEO provisioning: admin uploads Excel (SheetJS in-browser parse) → preview → `bulk-provision` API → Clerk accounts + `districts` rows upserted.
   - IndexedDB district cache with 1-hour TTL and manual refresh.
-- [ ] DEO accounts provisioned in Clerk via admin bulk-provision flow (using the department-supplied DEO email list).
+- [ ] DEO accounts provisioned in Clerk via admin bulk-provision flow.
 - [ ] End-to-end test suite (Playwright):
   - Happy path: login via magic link → register circle/sector → download template → upload Inspector Excel → verify → submit, for each of the 5 shop types.
   - Multi-file district submission: register 2 circles, upload separate Excels, verify grouped view, complete submission.
@@ -1195,6 +1334,8 @@ The following require department action before engineering can proceed past M-1:
 | Local Persistence | Dexie.js (IndexedDB) | Loaded from jsDelivr CDN; offline-first staging layer for all DEO-entered data |
 | Offline / PWA | Service Worker + Background Sync | App shell cache, CDN asset cache, transparent upload retry on reconnect |
 | Scheduled Tasks | Cloudflare Cron Triggers | Daily audit log purge at 45-day threshold; defined in `wrangler.toml` |
+| Charts | Chart.js | Admin portal only. Loaded from jsDelivr CDN (~60KB gzip). Doughnut, bar, pie, and line charts for the HQ dashboard. |
+| Maps | Leaflet.js + CartoDB tiles | Admin portal only. Loaded from jsDelivr CDN (~39KB JS + 5KB CSS). Interactive UP district choropleth. No API key required. |
 | Coordinate Conversion | Custom utility | DMS-to-DD is a 3-line formula; no library needed |
 | Testing | Vitest + Playwright | Unit tests for business logic; E2E for full upload and auth flows |
 
@@ -1223,6 +1364,9 @@ The following require department action before engineering can proceed past M-1:
 | Districts Table | The `districts` D1 reference table. 75 rows, one per UP district. Stores DEO name, email, identifier, division, expected vend count, and submission status. The admin dashboard queries this table for metadata; shop rows are loaded separately on demand. |
 | Admin District Cache | An IndexedDB Dexie store (`admin_district_cache`) in the admin portal. Caches district shop data after first fetch (1-hour TTL, stale-while-revalidate). Reduces repeat D1 reads for districts the admin has already reviewed. |
 | Bulk Provision | A one-time admin operation: upload a DEO Excel file (SheetJS parse in-browser) → preview → submit to `/api/admin/bulk-provision` → 75 Clerk accounts created + `districts` rows upserted. Idempotent. |
+| Choropleth | A map where geographic areas are shaded based on a data variable. In this system, UP districts are coloured by submission status and vend coverage. Rendered with Leaflet.js. |
+| Auth Facade | The rule that every page in both portals is protected by Clerk's `clerkMiddleware`. Only `/login` and the Clerk webhook endpoint are publicly accessible. There are no visitor-facing or marketing pages. |
+| `map-data` | The `GET /api/admin/map-data` Worker route. Returns 75 aggregate district rows (status, vendCount, totalRevenue, expectedVendCount). Powers both the Leaflet choropleth and the Chart.js dashboard charts in a single request. |
 | D1 | Cloudflare D1. Serverless SQLite database at the edge. |
 | Workers | Cloudflare Workers. Serverless TypeScript runtime. 10ms CPU limit per request. |
 | `db.batch()` | D1 API for executing multiple SQL statements in a single transaction. Used to minimize write operation count against the free tier quota. |

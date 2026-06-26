@@ -116,6 +116,8 @@ up-excise-spatial-revenue-optimizer/
 
 **Accounts:** Created by the system administrator from the department-supplied DEO email list before the upload campaign. No self-registration.
 
+**No public pages:** Every route in both portals is protected by Clerk's `clerkMiddleware`. Unauthenticated requests redirect to `/login`. There is no public home, no landing page. Only `/login` and the Clerk webhook endpoint are accessible without a session.
+
 **Audit trail:** Every login, logout, session revocation, upload chunk, and district submission is written to the `audit_log` D1 table. Records are retained for 45 days, then automatically purged by a Cloudflare Cron Trigger.
 
 ---
@@ -146,20 +148,31 @@ The DEO portal is a full Progressive Web App installable on iPad or Android tabl
 
 ## Admin / HQ Portal
 
-A separate application (`apps/admin`) deployed on its own Cloudflare Pages domain with a separate Clerk `admin` organization. Read-only access to all district data.
+A separate application (`apps/admin`) deployed on its own Cloudflare Pages domain. Admin users carry `publicMetadata.role: 'admin'` in Clerk — no separate Clerk organization (free tier caps orgs at 20 members). Read-only access to all district data.
 
 **Loading model — district-by-district, never full-state by default:**
 - Default view: 75-row district summary list (aggregate counts from D1 — no shop rows loaded).
 - District drill-down: admin clicks a district → that district's shops load (paginated, 50/page) and are cached in admin IndexedDB for 1 hour.
 - Full-state shop table in the UI: **not supported**. Full-state data is a streamed CSV download only (available in the Export section).
 
+**Interactive UP District Map (Leaflet.js, jsDelivr CDN — no API key):**
+- Choropleth of all 75 UP districts. Colour coding: grey = pending, amber = in progress, green gradient = submitted (intensity scales with coverage %).
+- Hover tooltip: district name, DEO, submission status, vend count, total revenue.
+- Click a district: navigates to that district's shop drill-down.
+- Auto-refreshes every 5 minutes from `GET /api/admin/map-data`.
+- GeoJSON district boundaries stored as a static asset at `apps/admin/public/geodata/up-districts.geojson`.
+
+**Summary Charts (Chart.js, jsDelivr CDN):**
+- Submission progress doughnut, revenue horizontal bar (top 20), shop type pie, upload stacked bar (actual vs expected), cumulative upload timeline.
+- All charts powered by the same `GET /api/admin/map-data` response — 75 aggregate rows, zero shop rows.
+
 **Capabilities:**
-- District summary dashboard with revenue, vend count, missing coordinates, submission status.
-- District drill-down with IndexedDB-cached shop table (stale-while-revalidate, 1-hour TTL).
-- Cross-district D1 search (paginated, search-cache per query).
-- Per-district CSV export + full-state CSV export (file download, not UI table).
-- Audit log viewer — last 45 days of DEO login and upload activity.
-- **Bulk DEO provisioning** — admin uploads a DEO Excel (SheetJS parse in-browser), previews the 75 rows, confirms → 75 Clerk accounts created + `districts` table populated. Idempotent re-runs.
+- Live choropleth map + 5 summary charts on the dashboard.
+- District drill-down: paginated shop table (IndexedDB-cached, stale-while-revalidate, 1-hour TTL).
+- Cross-district D1 search, paginated, results cached per query hash.
+- Per-district CSV export (streamed). Full-state CSV export (file download only — not a UI table).
+- Audit log viewer — last 45 days.
+- **Bulk DEO provisioning** — admin uploads a DEO Excel (SheetJS in-browser parse) → preview 75 rows → confirm → Clerk accounts created + `districts` table populated. Idempotent.
 
 **Separate `districts` reference table:**
 A 75-row D1 table storing district metadata: DEO name, email, identifier, division, expected vend count, and submission status. The admin dashboard queries this table for metadata without touching the 30,000-row shop table.
