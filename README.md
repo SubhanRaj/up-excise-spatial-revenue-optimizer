@@ -19,7 +19,7 @@ This system is a **two-phase initiative** to correct that at scale.
 
 > Phase 2 is entirely dependent on Phase 1 data quality. Every schema decision and validation rule in Phase 1 must anticipate Phase 2's spatial and financial computations.
 
-Each DEO pre-registers their district's circles and sectors in the portal, distributes per-circle/sector Excel templates to individual Inspectors, and uploads the filled files one by one. The UI groups data by circle/sector for review, but the final submission to HQ is always at the district level — HQ never sees individual circle/sector breakdowns.
+Each DEO pre-registers their district's circles and sectors in the portal, downloads a single district-wide Excel template, distributes blank copies to Inspectors, collects and consolidates the filled sections into one file, and uploads it. The UI groups data by circle/sector (read from a column in the Excel) for review, but the final submission to HQ is always at the district level — HQ never sees individual circle/sector breakdowns.
 
 ---
 
@@ -157,10 +157,10 @@ The DEO portal is a full Progressive Web App installable on iPad or Android tabl
 
 The `(admin)` route group inside `apps/web` — same Cloudflare Pages deployment as the DEO portal. Admin users carry `publicMetadata.role: 'admin'` in Clerk — no separate Clerk organization (free tier caps orgs at 20 members, incompatible with 75 DEOs). Read-only access to all district data.
 
-**Loading model — district-by-district, never full-state by default:**
-- Default view: 75-row district summary list (aggregate counts from D1 — no shop rows loaded).
-- District drill-down: admin clicks a district → that district's shops load (paginated, 50/page) and are cached in admin IndexedDB for 1 hour.
-- Full-state shop table in the UI: **not supported**. Full-state data is a streamed CSV download only (available in the Export section).
+**Loading model:**
+- Default view: 75-row district summary list (name, vend count, total annual revenue, status) + an "All State" totals row at the bottom. Served from aggregate query + admin IndexedDB cache (15-min TTL) — no shop rows loaded.
+- District drill-down: admin clicks a district → all shops for that district load (100/page) and are cached in admin IndexedDB for 1 hour. D1 is queried once per district per TTL window.
+- Full-state shop table in the UI: **not supported**. Full-state data is a chunked `.xlsx` Excel download only ("Download Full State Data" in the Export section).
 
 **Interactive UP District Map (Leaflet.js, jsDelivr CDN — no API key):**
 - Choropleth of all 75 UP districts. Colour coding: grey = pending, amber = in progress, green gradient = submitted (intensity scales with coverage %).
@@ -210,16 +210,18 @@ CL5CC is **not a separate shop type** — it is `COUNTRY_LIQUOR` with `has_cl5cc
 
 ### Revenue Formulas
 
-| Shop Type | `has_cl5cc` | Formula |
+All values are **annual figures in Indian Rupees**, stored as whole-rupee integers (no paise). Full figures only — e.g., `10000000` for one crore. UI formatting (lakhs/crores) is a rendering concern.
+
+| Shop Type | `has_cl5cc` | Annual Revenue Formula |
 |---|---|---|
-| `MODEL_SHOP` | false | `license_fee_lf + mgr_amount` |
-| `COMPOSITE_SHOP` | false | `license_fee_lf + mgr_amount` |
+| `MODEL_SHOP` | false | `license_fee_lf + mgr_amount + premises_consideration_fee` |
+| `COMPOSITE_SHOP` | false | `composite_lf_fl + composite_lf_beer + composite_mgr_fl + composite_mgr_beer` |
 | `PRV` | false | `license_fee_lf + mgr_amount` |
 | `BHANG_SHOP` | false | `license_fee_lf + (mgq_quantity × BHANG_MGQ_MULTIPLIER)` |
 | `COUNTRY_LIQUOR` | false | `basic_license_fee_blf + consideration_fee` |
 | `COUNTRY_LIQUOR` | **true** | `basic_license_fee_blf + consideration_fee + special_beer_lf + special_beer_mgr` |
 
-`BHANG_MGQ_MULTIPLIER = 20` — defined as a named constant. Never hardcoded inline.
+`BHANG_MGQ_MULTIPLIER = ₹20 per unit` — a per-unit price in Indian Rupees, not a dimensionless number. Defined as a named constant. Never hardcoded inline.
 
 The browser computes `total_revenue` and sends it with the row. The Worker independently recomputes it. Mismatch → row rejected.
 
@@ -242,7 +244,7 @@ All fields — shop names, Thana names, district names, DEO identifiers — are 
 
 ### Financial Values
 
-All financial fields are integers in Indian Rupees (paise-truncated). No floats for money.
+All financial fields are whole-rupee integers in Indian Rupees (no paise). No floats for money. Store full figures — `10000000` not `1 crore`. UI formatting is a rendering concern only.
 
 ---
 

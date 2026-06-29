@@ -785,7 +785,7 @@ https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png
 
 The five retail vend categories, their active financial fields, and their revenue calculation formulas:
 
-> **All monetary revenue figures in this section are annual values (per license year) and are stored in Indian Rupees, paise-truncated (integer).** Every field named below represents an annual charge unless the field description explicitly states otherwise.
+> **All monetary revenue figures in this section are annual values (per license year) and are stored in Indian Rupees as whole-rupee integers (no paise).** Figures are stored as complete values — e.g., ₹1,00,00,000 is stored as `10000000`. No abbreviation or unit scaling is applied in the database; UI formatting (lakhs, crores) is a rendering concern only. Every field named below represents an annual charge unless the field description explicitly states otherwise.
 
 #### MODEL_SHOP
 
@@ -952,7 +952,7 @@ The schema is implemented in Drizzle ORM targeting Cloudflare D1 (SQLite). The d
 
 **District bounding box as a worker-side coordinate sanity check:** The `districts` table stores four `REAL` columns (`bbox_min_lat`, `bbox_max_lat`, `bbox_min_lon`, `bbox_max_lon`) derived from the UP GeoJSON file during admin bulk-provision. The Worker performs a fast four-number comparison on every uploaded shop coordinate — if the coordinate is outside the uploading DEO's district bounding box, it attaches a warning to the response but does **not** reject the row. Full polygon precision is enforced in the browser (point-in-polygon against the GeoJSON geometry) before the DEO submits, so by the time a chunk reaches the Worker the browser has already flagged genuine anomalies. The bbox check is a server-side backstop, not a gate.
 
-**Revenue fields are stored individually** (integers, INR, paise-truncated) rather than as a JSON blob, to allow direct SQL-level aggregation: `SUM(license_fee_lf)`, `SUM(mgr_amount)`, etc. — without application-layer parsing.
+**Revenue fields are stored individually** (integers, INR, whole rupees — no paise) rather than as a JSON blob, to allow direct SQL-level aggregation: `SUM(license_fee_lf)`, `SUM(mgr_amount)`, etc. — without application-layer parsing. Figures are stored as full integers (e.g., `10000000` for one crore). All display formatting (lakhs, crores) is a UI rendering concern only.
 
 ### 5.2 Drizzle ORM Schema
 
@@ -982,7 +982,7 @@ export const phase1RawCollection = sqliteTable('phase1_raw_collection', {
   latitudeDecimal: real('latitude_decimal'),
   longitudeDecimal: real('longitude_decimal'),
 
-  // Isolated Financial Variable Tracking (INR, paise-truncated; all values are annual figures)
+  // Isolated Financial Variable Tracking (INR, whole rupees, no paise; all values are annual figures; stored as full integers — e.g. 10000000 for one crore)
   licenseFeeLf: integer('license_fee_lf').default(0),           // MODEL_SHOP, PRV, BHANG_SHOP; COMPOSITE_SHOP stores compositeLfFl + compositeLfBeer here
   premisesConsiderationFee: integer('premises_consideration_fee').default(0), // MODEL_SHOP only
   basicLicenseFeeBlf: integer('basic_license_fee_blf').default(0), // COUNTRY_LIQUOR (standard & CL5CC)
