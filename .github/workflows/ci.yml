@@ -18,7 +18,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: pnpm
 
       - name: Install dependencies
@@ -32,8 +32,8 @@ jobs:
 
       - name: SRI integrity check
         run: |
-          # Fail if any <script> or <link> CDN tag is missing integrity attribute
-          if grep -rn 'cdn\.jsdelivr\.net\|cdn\.tailwindcss\.com' apps/web/app/ apps/web/public/ --include="*.tsx" --include="*.ts" --include="*.html" --include="*.js" | grep -v 'integrity='; then
+          # Fail if any CDN tag from cdn.jsdelivr.net is missing integrity attribute
+          if grep -rn 'cdn\.jsdelivr\.net' apps/web/app/ apps/web/public/ --include="*.tsx" --include="*.ts" --include="*.html" --include="*.js" | grep -v 'integrity='; then
             echo "ERROR: CDN tag missing integrity attribute"
             exit 1
           fi

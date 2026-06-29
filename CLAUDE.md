@@ -51,6 +51,8 @@ When files for any app or package do not exist yet, do not create them speculati
 
 | Layer | Technology | Version / URL |
 |---|---|---|
+| Runtime | Node.js | **v24** — local and CI both. Do not use v20 or v22. |
+| Package manager | pnpm | v11, monorepo workspace |
 | Frontend framework | Next.js App Router | `next@15` — single app at `apps/web` |
 | Frontend deploy adapter | `@opennextjs/cloudflare` | latest — builds Next.js as a Cloudflare Worker (NOT Pages) |
 | Backend framework | Hono on Cloudflare Workers | `apps/worker` — 10ms CPU cap, no exceptions |

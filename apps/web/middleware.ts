@@ -16,10 +16,8 @@ export default clerkMiddleware(async (auth, req) => {
   // ponytail: 24h enforced app-side via iat claim
   if (sessionClaims?.iat) {
     const age = Date.now() - sessionClaims.iat * 1000;
-    if (age > MAX_SESSION_MS) {
-      loginUrl.searchParams.set('redirect_url', req.url);
-      return NextResponse.redirect(loginUrl);
-    }
+    // ponytail: no ?redirect_url= — matches CLAUDE.md constraint (no data in URL params)
+    if (age > MAX_SESSION_MS) return NextResponse.redirect(loginUrl);
   }
 
   const role = (sessionClaims?.publicMetadata as { role?: string } | undefined)?.role;

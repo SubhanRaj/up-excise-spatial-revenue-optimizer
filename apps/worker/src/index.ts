@@ -10,7 +10,7 @@ import { handleCron } from './routes/cron.js';
 const app = new Hono<HonoEnv>();
 
 app.use('*', cors({
-  origin: ['https://excise-portal.pages.dev', 'http://localhost:3000'],
+  origin: ['https://up-excise-portal.shubhanraj2002.workers.dev', 'http://localhost:3000'],
   allowMethods: ['GET', 'POST', 'OPTIONS'],
   allowHeaders: ['Content-Type', 'Authorization'],
 }));
