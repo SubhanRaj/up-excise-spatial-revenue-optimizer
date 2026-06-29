@@ -1,13 +1,14 @@
 export const dynamic = 'force-dynamic';
 
-import { currentUser } from '@clerk/nextjs/server';
+import { auth } from '@clerk/nextjs/server';
 import { redirect } from 'next/navigation';
 
 export default async function RootPage() {
-  const user = await currentUser();
-  if (!user) redirect('/login');
+  // auth() parses the JWT locally — no Clerk backend API call, works on CF edge
+  const { userId, sessionClaims } = await auth();
+  if (!userId) redirect('/login');
 
-  const role = (user.publicMetadata as { role?: string }).role;
+  const role = (sessionClaims?.publicMetadata as { role?: string } | undefined)?.role;
   if (role === 'admin') redirect('/admin');
   redirect('/home');
 }

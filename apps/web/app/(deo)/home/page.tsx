@@ -1,19 +1,20 @@
 export const dynamic = 'force-dynamic';
 
-import { currentUser } from '@clerk/nextjs/server';
+import { auth } from '@clerk/nextjs/server';
 import { redirect } from 'next/navigation';
 
 export default async function DeoDashboard() {
-  const user = await currentUser();
-  if (!user) redirect('/login');
+  // auth() parses JWT locally — no Clerk backend API call, works on CF edge
+  const { userId, sessionClaims } = await auth();
+  if (!userId) redirect('/login');
 
-  const meta = user.publicMetadata as { role?: string; districtName?: string };
-  const district = meta.districtName ?? 'Unknown District';
+  const meta = sessionClaims?.publicMetadata as { role?: string; districtName?: string } | undefined;
+  const district = meta?.districtName ?? 'Unknown District';
 
   return (
     <div className="space-y-6">
       <div className="card bg-base-100 shadow p-6">
-        <h2 className="text-xl font-bold mb-1">Welcome, {user.firstName ?? user.emailAddresses[0]?.emailAddress}</h2>
+        <h2 className="text-xl font-bold mb-1">Welcome</h2>
         <p className="text-base-content/70">District: <strong>{district}</strong></p>
       </div>
 
