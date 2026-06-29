@@ -1,10 +1,9 @@
 'use client';
 
-import { useClerk } from '@clerk/nextjs';
+import { SignOutButton } from '@clerk/nextjs';
 import { ThemeToggle } from '../_components/ThemeToggle';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  const { signOut } = useClerk();
 
   return (
     <div className="min-h-screen bg-base-200">
@@ -30,12 +29,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <a href="/admin/audit" className="btn btn-ghost btn-sm">Audit</a>
           <a href="/admin/export" className="btn btn-ghost btn-sm">Export</a>
           <ThemeToggle />
-          <button
-            onClick={() => signOut({ redirectUrl: '/login' })}
-            className="btn btn-error btn-sm btn-outline ml-1"
-          >
-            Sign out
-          </button>
+          <SignOutButton redirectUrl="/login">
+            <button className="btn btn-error btn-sm btn-outline ml-1">Sign out</button>
+          </SignOutButton>
         </div>
       </nav>
       <main className="container mx-auto px-4 py-8 md:px-8">{children}</main>

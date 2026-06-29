@@ -25,7 +25,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daisyui@5.6.3/daisyui.css" />
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/notyf@3.10.0/notyf.min.css" />
 
-        <script src="https://cdn.jsdelivr.net/npm/tailwindcss@4.3.2/dist/lib.min.js" />
+        <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4" />
         <script src="https://cdn.jsdelivr.net/npm/dexie@4.0.10/dist/dexie.min.js" />
         <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.14.5/dist/sweetalert2.all.min.js" />
         <script src="https://cdn.jsdelivr.net/npm/notyf@3.10.0/notyf.min.js" />
