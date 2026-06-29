@@ -8,12 +8,12 @@ const MAX_SESSION_MS = 24 * 60 * 60 * 1000; // ponytail: 24h enforced app-side; 
 export default clerkMiddleware(async (auth, req) => {
   if (isPublic(req)) return NextResponse.next();
 
-  await auth.protect();
-
-  const { sessionClaims } = await auth();
+  const { userId, sessionClaims } = await auth();
   const loginUrl = new URL('/login', req.url);
 
-  // Enforce 24-hour session window at application level
+  if (!userId) return NextResponse.redirect(loginUrl);
+
+  // ponytail: 24h enforced app-side via iat claim
   if (sessionClaims?.iat) {
     const age = Date.now() - sessionClaims.iat * 1000;
     if (age > MAX_SESSION_MS) {
