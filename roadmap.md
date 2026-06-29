@@ -132,15 +132,15 @@ This constraint is enforced at the UI level with input validation and is documen
 
 ### 2.6 DEO Identity & Accountability
 
-The District Excise Officer (DEO) is the most senior excise post at the district level. They oversee all Excise Inspectors across every circle and sector in their district. In the context of this system, the DEO is the sole authenticated portal user for their district — they receive Inspector-filled Excel files, upload and verify them, and are the single entity that commits data to D1 for their district.
+The District Excise Officer (DEO) is the most senior excise post at the district level. They oversee all Excise Inspectors across every circle and sector in their district. In the context of this system, the DEO is the sole authenticated portal user for their district — they download the district Excel template, distribute it to Inspectors, collect and consolidate the completed sections into a single district file, upload and verify it through the portal, and are the single entity that commits data to D1 for their district.
 
 Every record written to D1 carries `uploadedByDeo` — a non-nullable string identifier for the submitting DEO. This is an audit tag, not an authentication mechanism. DEO identifiers will be assigned by the department and distributed alongside portal credentials.
 
 ---
 
-### 2.7 Circle/Sector Pre-Registration & Inspector-Level Upload Delegation
+### 2.7 Circle/Sector Pre-Registration & Delegated Data Collection
 
-A district typically comprises multiple circles and sectors, each overseen by an individual Excise Inspector. The system supports a **delegated upload model** that keeps the DEO as the sole submitting authority while enabling per-circle/sector data collection by Inspectors. All data for a district is consolidated into and uploaded as **a single district-level Excel file** — there is no per-circle/sector file.
+A district typically comprises multiple circles and sectors, each overseen by an individual Excise Inspector. The system supports a **delegated data collection model**: Inspectors fill in their portions of a standardised Excel template and hand the completed sections back to the DEO, who consolidates everything into one district file and uploads it. The DEO is always the sole portal user and the sole entity that submits data — Inspectors have no portal access and perform no upload. All data for a district is uploaded as **a single consolidated district-level Excel file** — there is no per-circle/sector file.
 
 **Workflow:**
 
