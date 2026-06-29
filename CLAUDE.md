@@ -68,13 +68,16 @@ When files for any app or package do not exist yet, do not create them speculati
 ## Hard Constraints — Never Violate These
 
 ### Auth Facade — No Public Pages
-- **Every route is behind auth.** A single `apps/web/middleware.ts` uses Clerk's `clerkMiddleware` to redirect unauthenticated requests to `/login`. There is no landing page, no public home, no visitor-facing content.
+- **Every route is behind auth.** A single `apps/web/middleware.ts` uses Clerk's `clerkMiddleware` with a manual `const { userId } = await auth()` check — unauthenticated users are redirected to `/login` with no `?redirect_url=` query param.
 - **Only two public routes exist:** `/login` and `/api/webhooks/clerk`. Everything else requires a valid Clerk session.
+- **Do not use `auth.protect()`** — it appends `?redirect_url=<current_url>` to every redirect, creating messy URLs and potential infinite redirect loops. Use the manual `userId` check pattern already in `middleware.ts`.
+- **`NEXT_PUBLIC_CLERK_SIGN_IN_URL=/login`** must be set at build time. Without it, Clerk's default redirects go to `/sign-in` (not a public route), causing an infinite redirect loop.
 - Do not add any public-facing route, page, or layout without this being an explicit milestone requirement.
 
 ### Security
 - **No data in URL query parameters.** All mutations use HTTP POST with JSON body. GET endpoints return only read-only reference data. No sensitive field ever appears in a URL.
 - **No secrets in source.** All API keys, Clerk secret keys, and webhook signing secrets live in Cloudflare Workers Secrets. Only the Clerk publishable key (safe by design) is in the frontend environment.
+- **`CLERK_SECRET_KEY` must be set on BOTH Workers** — `up-excise-spatial-revenue-optimizer` (API Worker, for route guards and webhook verification) and `up-excise-portal` (portal Worker, for `clerkMiddleware` server-side session validation). Missing it on the portal causes 500 errors on every page load.
 - **SRI on every CDN asset.** Every CDN-loaded `<script>` and `<link>` must have `integrity` and `crossorigin="anonymous"`. CI blocks merge if any CDN tag is missing these. No exceptions.
 - **Session credentials stay in Clerk cookies.** HttpOnly, Secure, SameSite=Strict. They never touch `localStorage`, `sessionStorage`, or IndexedDB.
 - **No `unsafe-inline` or `unsafe-eval` in CSP.** The CSP in `public/_headers` must never include these directives.
@@ -180,8 +183,6 @@ When schema files do not yet exist, refer to [roadmap.md Section 5](roadmap.md#5
 
 ## Development Commands
 
-These commands will apply once the monorepo is scaffolded (Milestone M-0). Do not run them before the relevant milestone is active.
-
 ```bash
 # Install dependencies
 pnpm install
@@ -189,14 +190,14 @@ pnpm install
 # Run the portal dev server (serves both DEO and Admin route groups)
 pnpm --filter web dev
 
-# Run Wrangler local dev (Worker + D1)
+# Run Wrangler local dev (Hono API Worker + D1)
 pnpm --filter worker dev
 
-# Apply D1 migrations (dev)
-wrangler d1 migrations apply phase1-dev --local
+# Apply D1 migrations (local dev)
+pnpm --filter worker exec wrangler d1 migrations apply up-excise-spatial-revenue-optimizer-dev --local
 
 # Apply D1 migrations (prod)
-wrangler d1 migrations apply phase1-prod
+pnpm --filter worker exec wrangler d1 migrations apply up-excise-spatial-revenue-optimizer-prod
 
 # Run unit tests
 pnpm test
@@ -207,8 +208,21 @@ pnpm --filter web test:e2e
 # Type-check all packages
 pnpm typecheck
 
-# Dry-run deploy (CI check)
-wrangler deploy --dry-run
+# Build portal as Cloudflare Worker (output: apps/web/.open-next/)
+cd apps/web && npx @opennextjs/cloudflare build
+
+# Deploy portal Worker
+cd apps/web && npx @opennextjs/cloudflare deploy
+
+# Deploy API Worker
+pnpm --filter worker exec wrangler deploy
+
+# Set secrets on portal Worker (required: CLERK_SECRET_KEY)
+npx wrangler secret put CLERK_SECRET_KEY --name up-excise-portal
+
+# Set secrets on API Worker
+pnpm --filter worker exec wrangler secret put CLERK_SECRET_KEY
+pnpm --filter worker exec wrangler secret put CLERK_WEBHOOK_SIGNING_SECRET
 ```
 
 ---

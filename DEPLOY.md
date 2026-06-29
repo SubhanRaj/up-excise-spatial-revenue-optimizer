@@ -17,6 +17,7 @@
 Browser
   │
   ├── loads UI from  up-excise-portal.*.workers.dev          (Next.js via @opennextjs/cloudflare)
+  │     unauthenticated → /login   (clean redirect, no ?redirect_url= query param)
   │
   ├── auth via Clerk magic-link (email)
   │
@@ -25,7 +26,13 @@ Browser
                           └── Cloudflare D1 database
 ```
 
-Both are Cloudflare Workers. No Pages. No other hosting.
+Both are Cloudflare Workers. No Cloudflare Pages. No other hosting.
+
+**Route structure:**
+- `/login` — public, unauthenticated entry point (Clerk `<SignIn />`)
+- `/` — root redirector: reads Clerk role, sends `admin` → `/admin`, everyone else → `/home`
+- `/home` — DEO portal (role: `deo`)
+- `/admin` — Admin/HQ portal (role: `admin`)
 
 ---
 
@@ -35,33 +42,50 @@ Go to your GitHub repo → Settings → Secrets and variables → Actions → Ne
 
 | Secret Name | Where to get it | Notes |
 |---|---|---|
-| `CLOUDFLARE_API_TOKEN` | [CF Dashboard → My Profile → API Tokens](https://dash.cloudflare.com/profile/api-tokens) → Create Token → "Edit Cloudflare Workers" template | Required for `wrangler deploy` in CI |
-| `CLOUDFLARE_ACCOUNT_ID` | CF Dashboard → right sidebar shows Account ID | `4d93d751987b8d9ff101445570e72711` |
-| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Clerk Dashboard → API Keys | Starts with `pk_test_` or `pk_live_` |
+| `CLOUDFLARE_API_TOKEN` | CF Dashboard → My Profile → API Tokens → Create Token → "Edit Cloudflare Workers" template | Required for `wrangler deploy` in CI |
+| `CLOUDFLARE_ACCOUNT_ID` | CF Dashboard → right sidebar | `4d93d751987b8d9ff101445570e72711` |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Clerk Dashboard → API Keys | Starts with `pk_live_` |
 
-Once these 3 secrets are set, every push to `main` auto-deploys both Workers.
+All 3 are already set. Every push to `main` auto-deploys both Workers via `.github/workflows/deploy.yml`.
 
 ---
 
-## Worker Secrets (already set, update when keys rotate)
+## Worker Secrets
 
-These are set via `wrangler secret put` and never go in any file:
+Set via `wrangler secret put` — never in any file or `wrangler.toml`.
+
+### API Worker (`up-excise-spatial-revenue-optimizer`)
 
 ```bash
-# Set from apps/worker/ directory
 pnpm --filter worker exec wrangler secret put CLERK_SECRET_KEY
 pnpm --filter worker exec wrangler secret put CLERK_WEBHOOK_SIGNING_SECRET
 ```
 
+Already set. Update only when keys rotate.
+
+### Portal Worker (`up-excise-portal`)
+
+```bash
+# From apps/web/ directory (or use --name flag from anywhere)
+npx wrangler secret put CLERK_SECRET_KEY --name up-excise-portal
+```
+
+`CLERK_SECRET_KEY` is required by the Next.js Clerk middleware (`clerkMiddleware` in `middleware.ts`) for server-side session validation. Must be set on **both** Workers — the portal for middleware auth, the API Worker for route guards and webhook verification.
+
+Already set. Update when the key rotates.
+
 ---
 
-## Clerk Webhook Setup (complete this to enable audit log)
+## Clerk Webhook (already configured)
 
-1. Go to [Clerk Dashboard](https://dashboard.clerk.com) → Webhooks → Add Endpoint
-2. URL: `https://up-excise-spatial-revenue-optimizer.shubhanraj2002.workers.dev/api/webhooks/clerk`
-3. Select events: `session.created`, `session.ended`, `session.revoked`, `user.updated`, `user.created`
-4. Copy the signing secret (`whsec_...`)
-5. Run: `pnpm --filter worker exec wrangler secret put CLERK_WEBHOOK_SIGNING_SECRET`
+- **URL:** `https://up-excise-spatial-revenue-optimizer.shubhanraj2002.workers.dev/api/webhooks/clerk`
+- **Events:** `session.created`, `session.ended`, `session.revoked`, `user.updated`, `user.created`
+- **Signing secret:** Set via `wrangler secret put CLERK_WEBHOOK_SIGNING_SECRET` on the API Worker
+
+To update the signing secret after rotating it in Clerk Dashboard:
+```bash
+pnpm --filter worker exec wrangler secret put CLERK_WEBHOOK_SIGNING_SECRET
+```
 
 ---
 
@@ -81,13 +105,45 @@ pnpm --filter worker dev
 pnpm --filter web dev
 ```
 
-Fill in `apps/worker/.dev.vars` and `apps/web/.env.local` with your keys (see example files).
+### Required local env files
+
+**`apps/worker/.dev.vars`** (gitignored):
+```
+CLERK_SECRET_KEY=sk_live_...
+CLERK_WEBHOOK_SIGNING_SECRET=whsec_...
+ENVIRONMENT=development
+```
+
+**`apps/web/.env.local`** (gitignored):
+```
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_live_...
+NEXT_PUBLIC_CLERK_SIGN_IN_URL=/login
+NEXT_PUBLIC_WORKER_URL=http://localhost:8787
+CLERK_SECRET_KEY=sk_live_...
+```
+
+`NEXT_PUBLIC_CLERK_SIGN_IN_URL=/login` is critical — without it Clerk redirects unauthenticated requests to `/sign-in` (Clerk default), which is not a public route and causes an infinite redirect loop.
+
+---
+
+## Manual Deploy (without CI)
+
+```bash
+# Deploy API Worker
+pnpm --filter worker exec wrangler deploy
+
+# Build + deploy portal Worker
+cd apps/web
+npx @opennextjs/cloudflare build
+npx @opennextjs/cloudflare deploy
+```
 
 ---
 
 ## Admin Account
 
 `shubhanraj2002@gmail.com` is provisioned as admin.
-To log in: visit the portal URL → enter your email → check inbox for magic link.
 
-To add more admins, use the Admin Portal → Provision page, or via Clerk Dashboard → Users → Edit public metadata → set `{ "role": "admin" }`.
+To log in: visit the portal URL → enter your email → check inbox for magic link → lands on `/admin`.
+
+To add more admins: Clerk Dashboard → Users → find user → Edit public metadata → set `{ "role": "admin" }`.
