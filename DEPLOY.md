@@ -177,7 +177,7 @@ npx @opennextjs/cloudflare deploy
 | Email | Role | District | Notes |
 |---|---|---|---|
 | `shubhanraj2002@gmail.com` | `admin` | — | HQ/headquarters account, lands on `/admin` |
-| `claudeupexcise@gmail.com` | `deo` | Demo District | Demo DEO account for testing the DEO portal |
+| `deodemo+clerk_test@up-excise.dev` | `deo` | Demo District | Clerk test account — no real email sent, use code `424242` |
 
 To log in: visit portal URL → enter email → check inbox for magic link.
 
