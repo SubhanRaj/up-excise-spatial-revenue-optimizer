@@ -44,24 +44,48 @@ When files for any app or package do not exist yet, do not create them speculati
 
 ## Technology Stack
 
-| Layer | Technology | Notes |
+> **Read this table before touching any dependency, CDN tag, or version number.**
+> Every version here is pinned and deliberate. Do not substitute, upgrade, or replace without updating this table.
+
+### Core Infrastructure
+
+| Layer | Technology | Version / URL |
 |---|---|---|
-| Frontend | Next.js (App Router) + `@opennextjs/cloudflare` | Single app (`apps/web`). Route groups `(deo)` and `(admin)` separate DEO and HQ routes. Deployed as a Cloudflare Worker (not Pages) via OpenNext adapter. Live: `up-excise-portal.shubhanraj2002.workers.dev` |
-| Backend | Cloudflare Workers + Hono | Serverless edge API. 10ms CPU limit per request — enforce this hard. Live: `up-excise-spatial-revenue-optimizer.shubhanraj2002.workers.dev` |
-| Database | Cloudflare D1 (SQLite) | Use `db.batch()` for all multi-row writes. |
-| ORM | Drizzle ORM | D1 adapter. Schema lives in `packages/schema`. |
-| Authentication | Clerk | Passwordless magic-link. Single active session per user. Webhook → `audit_log`. |
-| UI Components | DaisyUI | Loaded from jsDelivr CDN. Tailwind CSS plugin — zero JS runtime. Never bundled into Next.js output. |
-| CSS Utilities | Tailwind CSS v4 (`@tailwindcss/browser`) | Loaded from jsDelivr CDN. Browser-native runtime, compatible with DaisyUI 5. No PostCSS build step. The Next.js bundle contains only app logic. |
-| Excel Parsing | SheetJS (`xlsx`) | Loaded from jsDelivr CDN dynamically on upload page (`ssr: false`). Never bundled. |
-| Local Cache | Dexie.js (IndexedDB) | Loaded from jsDelivr CDN. Offline-first staging layer. Rows carry `status: 'pending' | 'uploaded' | 'error'`. |
-| PWA / Offline | Service Worker + Background Sync | DEO portal only. App shell + CDN asset cache. Transparent upload retry on reconnect. |
-| Modal Alerts | SweetAlert2 | Loaded from jsDelivr CDN. Used for all modal alerts, confirmation dialogs, and prompts. Replaces all native `alert()`/`confirm()` calls. Never bundled. |
-| Toast Notifications | Notyf | Loaded from jsDelivr CDN. Side flash notifications (success, error, warning). ~3KB, vanilla JS. Never bundled. (Sonner requires React bundling — excluded.) |
-| Charts | Chart.js | Admin/HQ route group only. jsDelivr CDN. Direct `useEffect` imperative API — no React wrapper. |
-| Maps | Leaflet.js + CartoDB tiles | Admin/HQ route group only. jsDelivr CDN. UP district choropleth. No API key. GeoJSON at `apps/web/public/geodata/`. |
-| Scheduled Tasks | Cloudflare Cron Triggers | Daily audit log purge. Defined in `wrangler.toml`. |
-| Testing | Vitest (unit) + Playwright (E2E) | Revenue calculator and coordinate converter must have unit tests. |
+| Frontend framework | Next.js App Router | `next@15` — single app at `apps/web` |
+| Frontend deploy adapter | `@opennextjs/cloudflare` | latest — builds Next.js as a Cloudflare Worker (NOT Pages) |
+| Backend framework | Hono on Cloudflare Workers | `apps/worker` — 10ms CPU cap, no exceptions |
+| Database | Cloudflare D1 (SQLite) | `db.batch()` for all multi-row writes |
+| ORM | Drizzle ORM | D1 adapter, schema at `packages/schema/src/phase1.ts` |
+| Authentication | Clerk | Magic-link only, dev instance (`pk_test_*`), no passwords |
+| Scheduled tasks | Cloudflare Cron Triggers | daily audit purge, `wrangler.toml` |
+| Testing | Vitest + Playwright | unit tests for revenue calc + coord converter |
+
+### Frontend CDN Stack (loaded at runtime, never bundled)
+
+> All CDN assets are loaded in `apps/web/app/layout.tsx`. Never install these as npm packages.
+
+| Library | Version | CDN URL | Used in |
+|---|---|---|---|
+| **DaisyUI** | **5.6.3** | `https://cdn.jsdelivr.net/npm/daisyui@5.6.3/daisyui.css` | All pages |
+| **Tailwind CSS** | **v4** (`@tailwindcss/browser`) | `https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4` | All pages |
+| **Dexie.js** | 4.0.10 | `https://cdn.jsdelivr.net/npm/dexie@4.0.10/dist/dexie.min.js` | DEO portal |
+| **SweetAlert2** | 11.14.5 | `https://cdn.jsdelivr.net/npm/sweetalert2@11.14.5/dist/sweetalert2.all.min.js` | All pages |
+| **Notyf** (JS + CSS) | 3.10.0 | `https://cdn.jsdelivr.net/npm/notyf@3.10.0/notyf.min.{js,css}` | All pages |
+| **SheetJS** (`xlsx`) | latest | loaded dynamically on upload page only (`ssr: false`) | DEO upload |
+| **Chart.js** | latest | `https://cdn.jsdelivr.net/npm/chart.js` | Admin only |
+| **Leaflet.js** | latest | `https://cdn.jsdelivr.net/npm/leaflet` | Admin only |
+
+**Critical version constraints:**
+- **DaisyUI 5 requires Tailwind v4.** Never pair DaisyUI 5 with Tailwind v3. They use incompatible layer architectures. `cdn.tailwindcss.com` serves Tailwind v3 — do not use that URL.
+- **DaisyUI themes** must be built-in names: `light` or `dark`. Custom names silently produce no styling.
+- **Tailwind utilities** (`flex`, `text-center`, `p-4`, etc.) come from the Tailwind v4 CDN script. DaisyUI color utilities (`bg-base-200`, `text-primary`) come from the DaisyUI CSS file.
+
+### Icons & Fonts
+
+| Layer | Technology | How to use |
+|---|---|---|
+| Icons | Tabler Icons | Inline SVG paths from [tabler.io/icons](https://tabler.io/icons). No icon libraries, no emoji as icons, ever. |
+| Font | Inter (Google Fonts) | `<link>` in root `layout.tsx`. Never bundle. |
 
 ---
 
@@ -101,26 +125,15 @@ When files for any app or package do not exist yet, do not create them speculati
 - Dashboard queries must use indexed columns only: `district_name`, `thana_name`, `shop_id`. Full table scans are not acceptable in production.
 - The `districts` reference table (75 rows) may be queried freely — it is metadata-only and never contains shop data.
 
-### CDN Version Compatibility
-- **DaisyUI 5 requires Tailwind CSS v4.** Never pair DaisyUI 5 with Tailwind v3 — they use different layer architectures and DaisyUI 5's utilities reference Tailwind v4 CSS custom property names (`--color-base-200`, etc.).
-- The browser CDN for Tailwind v4 is `@tailwindcss/browser` from jsDelivr. The old `cdn.tailwindcss.com` URL serves Tailwind v3. Do not use versioned `cdn.tailwindcss.com/<version>` URLs — they serve v3.
-- Before adding or updating any CDN library, verify version compatibility with the other CDN libraries in `apps/web/app/layout.tsx`.
-
-### Icons & Typography
-- **Icons: Tabler Icons only.** Use inline SVG paths copied from [tabler.io/icons](https://tabler.io/icons). No emoji as icons — ever. No icon font libraries. No `react-icons` or similar packages.
-- **Font: Google Fonts (Inter).** Load via `<link>` in root `layout.tsx` with `display=swap`. Never bundle fonts into the Next.js output.
-- All existing emoji usage in UI components must be replaced with the equivalent Tabler icon SVG.
-
 ### CDN-First — Bundle Contains Only App Logic
-- DaisyUI, Tailwind Play CDN, SheetJS, Dexie.js, SweetAlert2, and Notyf are all loaded from jsDelivr CDN at runtime. They are never installed as npm dependencies or bundled into the Next.js output.
+- DaisyUI, Tailwind v4 browser CDN, SheetJS, Dexie.js, SweetAlert2, and Notyf are all loaded from jsDelivr CDN at runtime. Never install these as npm dependencies or bundle them into the Next.js output.
 - The Next.js bundle contains: React, Next.js App Router runtime, Clerk frontend SDK, and app-specific TypeScript components. Nothing else.
-- This keeps Cloudflare Pages bandwidth usage minimal — only app logic is served from CF; all library assets come from jsDelivr.
 
 ### PWA & Offline
 - IndexedDB writes happen synchronously with every user action. The network upload is always secondary. Data is never at risk from a connectivity event.
 - Connection loss, network change, tab close, or device sleep must never trigger a logout or IndexedDB clear. The only session expiry is Clerk's 24-hour clock.
 - Session expiry must not destroy IndexedDB data. The DEO re-authenticates and resumes with all staged data intact.
-- The Service Worker pre-caches all CDN assets on install: DaisyUI, Tailwind Play CDN, Dexie.js, SweetAlert2, Notyf, SheetJS. After first load the entire app runs offline with no network dependency.
+- The Service Worker pre-caches all CDN assets on install: DaisyUI, Tailwind v4 browser CDN, Dexie.js, SweetAlert2, Notyf, SheetJS. After first load the entire app runs offline with no network dependency.
 - Minimum supported viewport is **768px**. No small-screen mobile layouts. Do not write `sm:` or `xs:` responsive prefixes in any layout.
 
 ### Data Language
