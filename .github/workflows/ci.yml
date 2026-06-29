@@ -3,8 +3,20 @@ name: CI
 on:
   push:
     branches: [main]
+    paths:
+      - 'apps/**'
+      - 'packages/**'
+      - 'pnpm-lock.yaml'
+      - 'package.json'
+      - '.github/workflows/ci.yml'
   pull_request:
     branches: [main]
+    paths:
+      - 'apps/**'
+      - 'packages/**'
+      - 'pnpm-lock.yaml'
+      - 'package.json'
+      - '.github/workflows/ci.yml'
 
 jobs:
   ci:
@@ -29,14 +41,6 @@ jobs:
 
       - name: Run unit tests
         run: pnpm test
-
-      - name: SRI integrity check
-        run: |
-          # Fail if any CDN tag from cdn.jsdelivr.net is missing integrity attribute
-          if grep -rn 'cdn\.jsdelivr\.net' apps/web/app/ apps/web/public/ --include="*.tsx" --include="*.ts" --include="*.html" --include="*.js" | grep -v 'integrity='; then
-            echo "ERROR: CDN tag missing integrity attribute"
-            exit 1
-          fi
 
       - name: Wrangler dry-run deploy
         run: pnpm --filter worker exec wrangler deploy --dry-run

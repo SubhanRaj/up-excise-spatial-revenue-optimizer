@@ -82,6 +82,12 @@ When files for any app or package do not exist yet, do not create them speculati
 - **DaisyUI themes** must be built-in names: `light` or `dark`. Custom names silently produce no styling.
 - **Tailwind utilities** (`flex`, `text-center`, `p-4`, etc.) come from the Tailwind v4 CDN script. DaisyUI color utilities (`bg-base-200`, `text-primary`) come from the DaisyUI CSS file.
 
+**Theme system (dark/light mode, no flash):**
+- An inline `<script>` in `apps/web/app/layout.tsx` runs before first paint: reads `localStorage.getItem('theme')` and sets `data-theme` on `<html>`. This eliminates the white flash on dark-mode load.
+- `data-theme` must only ever be set on `<html>` — **never on child `<div>` elements**. A `data-theme` attribute on any descendant overrides the root and breaks the anti-flash script.
+- The `ThemeToggle` component (`app/_components/ThemeToggle.tsx`) is the only place that writes `data-theme` and `localStorage`. Toggle by setting `document.documentElement.setAttribute('data-theme', ...)`.
+- Valid values: `light` and `dark` only.
+
 ### Icons & Fonts
 
 | Layer | Technology | How to use |
@@ -99,6 +105,8 @@ When files for any app or package do not exist yet, do not create them speculati
 - **Do not use `auth.protect()`** — it appends `?redirect_url=<current_url>` to every redirect, creating messy URLs and potential infinite redirect loops. Use the manual `userId` check pattern already in `middleware.ts`.
 - **`NEXT_PUBLIC_CLERK_SIGN_IN_URL=/login`** must be set at build time. Without it, Clerk's default redirects go to `/sign-in` (not a public route), causing an infinite redirect loop.
 - Do not add any public-facing route, page, or layout without this being an explicit milestone requirement.
+- **Always use `auth()` from `@clerk/nextjs/server`, never `currentUser()`.** `currentUser()` makes a Clerk backend API call that fails silently on Cloudflare Workers edge runtime, returning `null` and causing a redirect loop. `auth()` parses the JWT locally from the session cookie with no network call.
+- **Sign-out is always client-side:** `useClerk().signOut({ redirectUrl: '/login' })`. There is no `/api/auth/signout` server route — calling it returns 404.
 
 ### Security
 - **No data in URL query parameters.** All mutations use HTTP POST with JSON body. GET endpoints return only read-only reference data. No sensitive field ever appears in a URL.

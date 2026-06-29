@@ -30,27 +30,35 @@ Both are Cloudflare Workers. No Cloudflare Pages. No other hosting.
 
 **Route structure:**
 - `/login` — public, unauthenticated entry point (Clerk `<SignIn routing="hash" />`)
-- `/` — root redirector: reads Clerk role, sends `admin` → `/admin`, everyone else → `/home`
+- `/` — root redirector: reads Clerk role from JWT, sends `admin` → `/admin`, everyone else → `/home`
 - `/home` — DEO portal (role: `deo`)
 - `/admin` — Admin/HQ portal (role: `admin`)
+
+**Auth pattern:**
+- All pages use `auth()` from `@clerk/nextjs/server` — parses JWT locally, no Clerk backend API call. Works on CF edge.
+- Never use `currentUser()` — it makes a Clerk API call that is unreliable on CF Workers edge runtime.
+- Sign-out is client-side: `useClerk().signOut({ redirectUrl: '/login' })`. There is no `/api/auth/signout` route.
+- `middleware.ts` uses manual `userId` check (not `auth.protect()`) to avoid `?redirect_url=` appended to redirect URLs.
 
 ---
 
 ## CI/CD — GitHub Actions
 
-### When deploys run
+### When runs trigger
 
-Deploys only trigger when source files change — docs and config-only pushes skip deploy entirely.
+Both CI and Deploy only trigger when source files change. Docs/config-only pushes skip both entirely.
 
 | Trigger | CI (typecheck + tests) | Deploy |
 |---|---|---|
 | Push to `main` — source files changed | ✅ runs | ✅ runs |
-| Push to `main` — docs/config only | ✅ runs | skipped |
+| Push to `main` — docs/config only | skipped | skipped |
 | Manual dispatch → `both` | — | deploys portal + worker |
 | Manual dispatch → `portal` | — | deploys portal only |
 | Manual dispatch → `worker` | — | deploys worker only |
 
-Source paths that trigger deploy: `apps/web/**`, `apps/worker/**`, `packages/schema/src/**`.
+**Source paths that trigger CI:** `apps/**`, `packages/**`, `pnpm-lock.yaml`, `package.json`, `.github/workflows/ci.yml`
+
+**Source paths that trigger Deploy:** `apps/web/app/**`, `apps/web/public/**`, `apps/web/package.json`, `apps/web/wrangler.jsonc`, `apps/web/open-next.config.ts`, `apps/worker/src/**`, `apps/worker/package.json`, `apps/worker/wrangler.toml`, `packages/schema/src/**`
 
 **To manually trigger a deploy:** GitHub → Actions → Deploy → Run workflow → choose target.
 
@@ -103,6 +111,17 @@ npx wrangler secret put CLERK_SECRET_KEY --name up-excise-portal
 - URL: `https://up-excise-spatial-revenue-optimizer.shubhanraj2002.workers.dev/api/webhooks/clerk`
 - Events: `session.created`, `session.ended`, `session.revoked`, `user.updated`, `user.created`
 - Signing secret: set via `wrangler secret put CLERK_WEBHOOK_SIGNING_SECRET` on the API Worker
+
+---
+
+## Theme System
+
+Dark/light mode is implemented without any React state at the root level to avoid flash on load:
+
+1. An inline `<script>` in `apps/web/app/layout.tsx` runs before first paint, reads `localStorage.getItem('theme')`, and sets `data-theme` on `<html>`. This eliminates the flash.
+2. The `ThemeToggle` client component (`app/_components/ThemeToggle.tsx`) toggles `data-theme` on `document.documentElement` and writes to `localStorage`.
+3. `data-theme` must only ever be set on `<html>` — never on child `<div>` elements, as that overrides the root and breaks the anti-flash script.
+4. Valid theme values: `light` and `dark` only. These are DaisyUI 5 built-in names. Custom names produce no styling.
 
 ---
 
