@@ -1,8 +1,8 @@
 'use client';
 
-import { normalizeCoordinates } from './coordinates.js';
-import { computeRevenue } from './revenue.js';
-import type { StagedRow } from './types.js';
+import { normalizeCoordinates } from './coordinates';
+import { computeRevenue } from './revenue';
+import type { StagedRow } from './types';
 
 /** Column name → Phase1Row field mapping for the standardized DEO Excel template. */
 const COL_MAP: Record<string, keyof StagedRow> = {

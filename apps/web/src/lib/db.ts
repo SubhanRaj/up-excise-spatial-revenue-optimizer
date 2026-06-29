@@ -20,7 +20,7 @@ interface DexieInstance {
   transaction<T>(mode: 'rw', tables: DexieTable<unknown>[], fn: () => Promise<T>): Promise<T>;
 }
 
-import type { StagedRow } from './types.js';
+import type { StagedRow } from './types';
 
 let _db: DexieInstance | null = null;
 

@@ -1,5 +1,5 @@
 import { BHANG_MGQ_MULTIPLIER, ON_PREMISES_CONSUMPTION_FEE } from '@excise/schema';
-import type { Phase1RowInput } from './types.js';
+import type { Phase1RowInput } from './types';
 
 /** Browser-side revenue computation — Worker recomputes independently for dual-verification. */
 export function computeRevenue(r: Phase1RowInput): number {

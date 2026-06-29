@@ -1,6 +1,6 @@
 import { SHOP_TYPES, UP_BBOX } from '@excise/schema';
-import type { Phase1RowInput } from './types.js';
-import { computeRevenue } from './revenue.js';
+import type { Phase1RowInput } from './types';
+import { computeRevenue } from './revenue';
 
 export interface RowError {
   field: string;

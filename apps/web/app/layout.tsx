@@ -1,10 +1,13 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { ClerkProvider } from '@clerk/nextjs';
 
 export const metadata: Metadata = {
   title: 'UP Excise Portal',
   description: 'State Excise Portal — Spatial & Revenue Optimization System',
   manifest: '/manifest.json',
+};
+
+export const viewport: Viewport = {
   themeColor: '#1d4ed8',
 };
 
