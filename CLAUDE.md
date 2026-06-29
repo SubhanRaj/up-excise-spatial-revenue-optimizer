@@ -46,8 +46,8 @@ When files for any app or package do not exist yet, do not create them speculati
 
 | Layer | Technology | Notes |
 |---|---|---|
-| Frontend | Next.js (App Router) | Single app (`apps/web`). Route groups `(deo)` and `(admin)` separate DEO and HQ routes. One Cloudflare Pages deployment. Domain TBD. |
-| Backend | Cloudflare Workers + Hono | Serverless edge. 10ms CPU limit per request — enforce this hard. |
+| Frontend | Next.js (App Router) + `@opennextjs/cloudflare` | Single app (`apps/web`). Route groups `(deo)` and `(admin)` separate DEO and HQ routes. Deployed as a Cloudflare Worker (not Pages) via OpenNext adapter. Live: `up-excise-portal.shubhanraj2002.workers.dev` |
+| Backend | Cloudflare Workers + Hono | Serverless edge API. 10ms CPU limit per request — enforce this hard. Live: `up-excise-spatial-revenue-optimizer.shubhanraj2002.workers.dev` |
 | Database | Cloudflare D1 (SQLite) | Use `db.batch()` for all multi-row writes. |
 | ORM | Drizzle ORM | D1 adapter. Schema lives in `packages/schema`. |
 | Authentication | Clerk | Passwordless magic-link. Single active session per user. Webhook → `audit_log`. |
@@ -219,12 +219,12 @@ Track which milestone is currently active. Update this table as milestones are c
 
 | Milestone | Status | Notes |
 |---|---|---|
-| M-0: Foundation & Repo Setup | Not Started | |
-| M-1: Schema, Migrations & Worker Skeleton | Not Started | |
-| M-2: Excel Ingestion & Coordinate Engine | Not Started | Blocked: DEO Excel template not yet finalized |
-| M-3: Verification UI & IndexedDB | Not Started | |
-| M-4: Worker Batch API & D1 Integration | Not Started | Blocked: upsert strategy decision pending |
-| M-5: Dashboard, Testing & DEO Handoff | Not Started | |
+| M-0: Foundation & Repo Setup | **Completed** | pnpm workspace, CI/CD, wrangler config, D1 databases created and migrated |
+| M-1: Schema, Migrations & Worker Skeleton | **Completed** | Drizzle schema (4 tables), 2 migrations applied to dev + prod D1, Hono Worker skeleton deployed |
+| M-2: Excel Ingestion & Coordinate Engine | **Completed** | SheetJS parser, DMS→DD converter, revenue formulas, UP bbox validation |
+| M-3: Verification UI & IndexedDB | **Completed** | DEO verify page, Dexie.js offline staging, Service Worker + Background Sync PWA |
+| M-4: Worker Batch API & D1 Integration | **Completed** | Batch upload, dual-verification, atomic db.batch()/db.transaction() writes |
+| M-5: Dashboard, Testing & DEO Handoff | **Completed** | Admin choropleth map, Chart.js analytics, audit log, CSV export, 12/12 unit tests passing |
 
 See [roadmap.md Section 6](roadmap.md#6-development-milestones--action-plan) for full milestone specs, entry/exit criteria, and deliverable checklists.
 

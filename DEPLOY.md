@@ -1,75 +1,93 @@
 # Deployment Guide — UP Excise Portal
 
-> Fill in your credentials below and share this file with Claude to complete deployment.
-> **NEVER commit this file with real values filled in — keep it as a template only.**
+## Live URLs
+
+| Service | URL | Status |
+|---|---|---|
+| **Portal (Next.js)** | https://up-excise-portal.shubhanraj2002.workers.dev | ✅ Live |
+| **API Worker (Hono)** | https://up-excise-spatial-revenue-optimizer.shubhanraj2002.workers.dev | ✅ Live |
+| **D1 Dev DB** | `up-excise-spatial-revenue-optimizer-dev` (`587198fb-4541-41c6-9cde-29088729ed45`) | ✅ Migrated |
+| **D1 Prod DB** | `up-excise-spatial-revenue-optimizer-prod` (`2955ce2d-8459-45b4-89f4-04afc9e42488`) | ✅ Migrated |
 
 ---
 
-## Credentials Needed
-
-### 1. Clerk (Authentication)
-Go to [clerk.com](https://clerk.com) → Your App → API Keys
+## Architecture
 
 ```
-NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_live_REPLACE_ME
-CLERK_SECRET_KEY=sk_live_REPLACE_ME
+Browser
+  │
+  ├── loads UI from  up-excise-portal.*.workers.dev          (Next.js via @opennextjs/cloudflare)
+  │
+  ├── auth via Clerk magic-link (email)
+  │
+  └── API calls → up-excise-spatial-revenue-optimizer.*.workers.dev  (Hono API Worker)
+                          │
+                          └── Cloudflare D1 database
 ```
 
-Go to Clerk → Webhooks → Add Endpoint:
-- URL: `https://up-excise-spatial-revenue-optimizer.<YOUR_CF_ACCOUNT>.workers.dev/api/webhooks/clerk`
-- Select events: `session.created`, `session.ended`, `session.revoked`, `user.updated`, `user.created`
-- Copy the signing secret:
+Both are Cloudflare Workers. No Pages. No other hosting.
 
+---
+
+## GitHub Actions Secrets Required
+
+Go to your GitHub repo → Settings → Secrets and variables → Actions → New repository secret.
+
+| Secret Name | Where to get it | Notes |
+|---|---|---|
+| `CLOUDFLARE_API_TOKEN` | [CF Dashboard → My Profile → API Tokens](https://dash.cloudflare.com/profile/api-tokens) → Create Token → "Edit Cloudflare Workers" template | Required for `wrangler deploy` in CI |
+| `CLOUDFLARE_ACCOUNT_ID` | CF Dashboard → right sidebar shows Account ID | `4d93d751987b8d9ff101445570e72711` |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Clerk Dashboard → API Keys | Starts with `pk_test_` or `pk_live_` |
+
+Once these 3 secrets are set, every push to `main` auto-deploys both Workers.
+
+---
+
+## Worker Secrets (already set, update when keys rotate)
+
+These are set via `wrangler secret put` and never go in any file:
+
+```bash
+# Set from apps/worker/ directory
+pnpm --filter worker exec wrangler secret put CLERK_SECRET_KEY
+pnpm --filter worker exec wrangler secret put CLERK_WEBHOOK_SIGNING_SECRET
 ```
-CLERK_WEBHOOK_SIGNING_SECRET=whsec_REPLACE_ME
+
+---
+
+## Clerk Webhook Setup (complete this to enable audit log)
+
+1. Go to [Clerk Dashboard](https://dashboard.clerk.com) → Webhooks → Add Endpoint
+2. URL: `https://up-excise-spatial-revenue-optimizer.shubhanraj2002.workers.dev/api/webhooks/clerk`
+3. Select events: `session.created`, `session.ended`, `session.revoked`, `user.updated`, `user.created`
+4. Copy the signing secret (`whsec_...`)
+5. Run: `pnpm --filter worker exec wrangler secret put CLERK_WEBHOOK_SIGNING_SECRET`
+
+---
+
+## Local Development
+
+```bash
+# Install dependencies
+pnpm install
+
+# Apply DB migrations locally
+pnpm --filter worker exec wrangler d1 migrations apply up-excise-spatial-revenue-optimizer-dev --local
+
+# Terminal 1 — Hono API on :8787
+pnpm --filter worker dev
+
+# Terminal 2 — Next.js on :3000
+pnpm --filter web dev
 ```
 
-### 2. Cloudflare (already set up — just verify login)
-Run: `wrangler whoami`
+Fill in `apps/worker/.dev.vars` and `apps/web/.env.local` with your keys (see example files).
 
 ---
 
-## Deployment Checklist
+## Admin Account
 
-Claude will run these once you provide credentials above:
+`shubhanraj2002@gmail.com` is provisioned as admin.
+To log in: visit the portal URL → enter your email → check inbox for magic link.
 
-- [ ] `wrangler secret put CLERK_SECRET_KEY`
-- [ ] `wrangler secret put CLERK_WEBHOOK_SIGNING_SECRET`
-- [ ] `wrangler deploy` → Worker goes live, get Worker URL
-- [ ] Cloudflare Pages deployment → Frontend goes live, get Pages URL
-- [ ] Update Clerk allowed origins with Pages URL
-- [ ] Update Clerk webhook URL with Worker URL
-
----
-
-## What is already done (no action needed)
-
-- [x] Cloudflare D1 databases created:
-  - Dev: `up-excise-spatial-revenue-optimizer-dev` (ID: `587198fb-4541-41c6-9cde-29088729ed45`)
-  - Prod: `up-excise-spatial-revenue-optimizer-prod` (ID: `2955ce2d-8459-45b4-89f4-04afc9e42488`)
-- [x] Both databases migrated (4 tables, all indexes)
-- [x] All 6 milestones code-complete and typechecked
-- [x] 12/12 unit tests passing
-
----
-
-## Post-Deployment: Create Admin Account
-
-After deployment, create the first admin account via Clerk dashboard:
-1. Clerk Dashboard → Users → Create user → enter your email
-2. Clerk Dashboard → Users → click the user → Edit public metadata:
-   ```json
-   { "role": "admin" }
-   ```
-3. Send magic link → login at your Pages URL
-
----
-
-## Environment Variables for Cloudflare Pages
-
-Set these in Cloudflare Dashboard → Pages → your project → Settings → Environment Variables:
-
-| Variable | Value |
-|---|---|
-| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | `pk_live_...` from Clerk |
-| `NEXT_PUBLIC_WORKER_URL` | Worker URL (e.g. `https://up-excise-spatial-revenue-optimizer.YOUR_CF_SUBDOMAIN.workers.dev`) |
+To add more admins, use the Admin Portal → Provision page, or via Clerk Dashboard → Users → Edit public metadata → set `{ "role": "admin" }`.

@@ -26,8 +26,10 @@ lerna-debug.log*
 
 # ─── Next.js ─────────────────────────────────────────────────────────────────
 apps/web/.next/
+apps/web/.open-next/
 apps/web/out/
-apps/web/.next/cache/
+apps/web/.next/
+apps/web/.open-next/cache/
 
 # Next.js build output
 .next/

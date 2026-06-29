@@ -1,9 +1,8 @@
 import type { NextConfig } from 'next';
 
 const config: NextConfig = {
-  // DaisyUI, Tailwind, Dexie, SweetAlert2, Notyf, SheetJS, Chart.js, Leaflet
-  // are all loaded from jsDelivr CDN — never bundled here.
-  serverExternalPackages: [],
+  // Required by @opennextjs/cloudflare — tells Next.js to build for the CF Workers runtime
+  // All SSR, API routes, and middleware run inside the Worker via OpenNext
 };
 
 export default config;
