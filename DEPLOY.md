@@ -172,10 +172,17 @@ npx @opennextjs/cloudflare deploy
 
 ---
 
-## Admin Account
+## Test Accounts
 
-`shubhanraj2002@gmail.com` is provisioned as admin.
+| Email | Role | District | Notes |
+|---|---|---|---|
+| `shubhanraj2002@gmail.com` | `admin` | — | HQ/headquarters account, lands on `/admin` |
+| `claudeupexcise@gmail.com` | `deo` | Demo District | Demo DEO account for testing the DEO portal |
 
-To log in: visit portal URL → enter email → check inbox for magic link → lands on `/admin`.
+To log in: visit portal URL → enter email → check inbox for magic link.
 
-To add more admins: Clerk Dashboard → Users → find user → Edit public metadata → `{ "role": "admin" }`.
+To add more admins: `clerk api /users/<user_id>/metadata -X PATCH -d '{"public_metadata": {"role": "admin"}}'`
+
+To provision a real DEO: same command with `{"role": "deo", "districtName": "<district>"}`.
+
+**Note:** `tailwindcss@4.3.2/dist/lib.min.js` is the Node PostCSS plugin — it does NOT work in a browser. The browser CDN that scans the DOM and generates CSS at runtime is `@tailwindcss/browser@4` from jsDelivr. Never swap these.
