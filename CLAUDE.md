@@ -81,10 +81,10 @@ When files for any app or package do not exist yet, do not create them speculati
 - **One active session per DEO.** A second login invalidates all previous sessions. Clerk configuration enforces this.
 
 ### Admin Data Loading
-- The admin portal default view **never loads shop rows**. The district summary list is built from an aggregate query (`COUNT`, `SUM`) over `phase1_raw_collection` grouped by `district_name` — no row-level data.
-- Shop rows are loaded **only when an admin drills into a specific district**. The route is `GET /api/admin/districts/:district/shops` (paginated, 50 rows/page).
-- Full-state UI table (all 30K shops in one view) is not a supported operation. The only full-state operation is a streamed CSV export via `GET /api/admin/export/all`.
-- After a district is queried, its data is cached in admin IndexedDB (`admin_district_cache`, 1-hour TTL). Subsequent views serve from cache while a background refresh checks for updates.
+- The admin portal default view **never loads shop rows**. The district summary list is 75 aggregate rows (name, vend count, total annual revenue, status) plus an "All State" totals row at the bottom. Built from `COUNT`/`SUM` aggregates — no row-level data.
+- The state totals aggregate is **pre-computed server-side** on each `district_submitted` event and **cached in admin IndexedDB** (`admin_state_totals`, 15-min TTL). The summary page never runs a fresh full-table aggregate within the TTL window.
+- Shop rows are loaded **only when an admin drills into a specific district**. The route is `GET /api/admin/districts/:district/shops` (paginated, 100 rows/page). All pages for that district are cached in admin IndexedDB (`admin_district_cache`, 1-hour TTL).
+- Full-state UI table (~30K shops in one view) is **not a supported operation**. The only full-state path is `GET /api/admin/export/all` — a chunked `.xlsx` Excel file download. It triggers a file download, never a UI render.
 
 ### Cloudflare Free Tier
 - The Worker must never perform CPU-heavy work. Excel parsing, DMS-to-DD conversion, and revenue calculation all happen **in the browser**.
@@ -140,18 +140,20 @@ No other values are accepted. The Worker validates this on every inbound row.
 
 ## Revenue Formulas
 
-These are the canonical formulas. Encode them as named constants, never as magic numbers.
+These are the canonical formulas. All values are **annual figures in Indian Rupees**. Encode constants as named values, never as magic numbers.
 
-| Shop Type | `has_cl5cc` | Formula |
+| Shop Type | `has_cl5cc` | Annual Revenue Formula |
 |---|---|---|
-| `MODEL_SHOP` | false | `license_fee_lf + mgr_amount` |
-| `COMPOSITE_SHOP` | false | `license_fee_lf + mgr_amount` |
+| `MODEL_SHOP` | false | `license_fee_lf + mgr_amount + premises_consideration_fee` |
+| `COMPOSITE_SHOP` | false | `composite_lf_fl + composite_lf_beer + composite_mgr_fl + composite_mgr_beer` |
 | `PRV` | false | `license_fee_lf + mgr_amount` |
 | `BHANG_SHOP` | false | `license_fee_lf + (mgq_quantity × BHANG_MGQ_MULTIPLIER)` |
 | `COUNTRY_LIQUOR` | false | `basic_license_fee_blf + consideration_fee` |
 | `COUNTRY_LIQUOR` | **true** | `basic_license_fee_blf + consideration_fee + special_beer_lf + special_beer_mgr` |
 
-`BHANG_MGQ_MULTIPLIER = 20` — define this as a named constant in `packages/schema` or a shared constants file. Do not hardcode `20` inline anywhere.
+`BHANG_MGQ_MULTIPLIER = ₹20 per unit` — this is a **per-unit price in Indian Rupees**, not a dimensionless number. `mgq_quantity` is the count of MGQ units; multiplying by ₹20/unit yields the annual INR contribution. Define as a named constant in `packages/schema` or a shared constants file. Do not hardcode `20` inline anywhere.
+
+For `COMPOSITE_SHOP`: `license_fee_lf` stores `composite_lf_fl + composite_lf_beer` and `mgr_amount` stores `composite_mgr_fl + composite_mgr_beer` as computed totals for cross-type SQL aggregation. The four sub-component fields are the source of truth. The Worker validates both sub-component sums before insert.
 
 ---
 

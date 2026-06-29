@@ -140,25 +140,27 @@ Every record written to D1 carries `uploadedByDeo` — a non-nullable string ide
 
 ### 2.7 Circle/Sector Pre-Registration & Inspector-Level Upload Delegation
 
-A district typically comprises multiple circles and sectors, each overseen by an individual Excise Inspector. Requiring the DEO to compile a single monolithic district-wide Excel file is operationally impractical at scale. The system supports a **delegated upload model** that keeps the DEO as the sole submitting authority while enabling per-circle/sector data collection by Inspectors.
+A district typically comprises multiple circles and sectors, each overseen by an individual Excise Inspector. The system supports a **delegated upload model** that keeps the DEO as the sole submitting authority while enabling per-circle/sector data collection by Inspectors. All data for a district is consolidated into and uploaded as **a single district-level Excel file** — there is no per-circle/sector file.
 
 **Workflow:**
 
 1. **Pre-registration:** The DEO logs into the portal and registers all circles and sectors in their district (e.g., "Circle 1", "Sector A", "Sector B") through the Circle/Sector Management UI. These are stored in D1 in the `district_circles_sectors` table, scoped to the DEO's district.
 
-2. **Template generation:** For each registered unit, the portal generates a pre-labeled Excel template (`.xlsx`) with the district name and circle/sector name pre-filled in the header. The DEO downloads and distributes each template to the respective Inspector.
+2. **Template generation:** The portal generates **one district-wide Excel template** (`.xlsx`) with the district name pre-filled in the header and a `circle_sector_name` column included for every data row. There is one template per district — not one per circle/sector. The DEO downloads this single template and distributes blank copies to each Inspector.
 
-3. **Inspector fill:** Each Inspector fills the template with shop details for their jurisdiction only. They return the completed file to the DEO. Inspectors have no portal access — all portal interactions are the DEO's responsibility.
+3. **Inspector fill:** Each Inspector fills their section of the template with shop details for their jurisdiction, entering their circle/sector name in the `circle_sector_name` column on every row they add. They return the completed section to the DEO. Inspectors have no portal access — all portal interactions are the DEO's responsibility.
 
-4. **Per-unit upload:** The DEO uploads each returned Excel file individually. On upload, the DEO selects the corresponding circle/sector from a dropdown (pre-populated from the registered units). The system parses the file, tags all rows with that circle/sector, and writes them to IndexedDB.
+4. **DEO consolidation:** The DEO collects all returned Inspector sections and consolidates them into the single district Excel file — each row already carries its `circle_sector_name` tag from step 3.
 
-5. **Grouped verification UI:** The staging interface organizes rows in tabs or collapsible sections by circle/sector. The DEO reviews each unit's data independently — correcting coordinates, removing invalid adjacency pills, verifying revenue totals.
+5. **Single district upload:** The DEO uploads the consolidated district Excel file to the portal. The system parses all rows in-browser (SheetJS), reads the `circle_sector_name` value from each row, and writes the full dataset to IndexedDB in one operation.
 
-6. **Collective district submission:** The final submit action batches all staged rows across all circle/sector uploads and transmits them to the Worker as a single district submission. The Worker treats the district as one atomic unit — individual circle/sector boundaries are metadata tags on the rows, not separate submission events.
+6. **Grouped verification UI:** The staging interface organizes rows in tabs or collapsible sections by circle/sector (grouped by `circle_sector_name` column values). The DEO reviews each unit's data independently — correcting coordinates, removing invalid adjacency pills, verifying revenue totals.
+
+7. **Collective district submission:** The final submit action batches all staged rows and transmits them to the Worker as a single district submission. The Worker treats the district as one atomic unit — individual circle/sector boundaries are metadata tags on the rows, not separate submission events.
 
 **HQ-level view:** At the headquarters dashboard, data is aggregated and displayed at the **district level only**. Circles and sectors are available as a drill-down dimension within the DEO's portal view but are not surfaced at the state-level summary. HQ sees: "Lucknow — 587 vends — ₹X total revenue."
 
-**Completeness gate:** The submission button is active only when every registered circle/sector for the district has at least one uploaded and verified file. Partial district submissions are blocked — the Phase 2 optimization baseline cannot be built on incomplete district data.
+**Completeness gate:** The submission button is active only when every registered circle/sector for the district has at least one verified row present in the staged IndexedDB dataset. The system checks the `circle_sector_name` distribution across all staged rows against the registered unit list — a registered unit with zero staged rows blocks submission. Partial district submissions are blocked — the Phase 2 optimization baseline cannot be built on incomplete district data.
 
 ---
 
@@ -284,7 +286,7 @@ The Worker is built with [Hono](https://hono.dev/) — a lightweight, TypeScript
 | `/api/districts` | `GET` | Returns district list for DEO dropdown (reads from `districts` table) |
 | `/api/districts/:district/units` | `POST` | DEO registers a new circle or sector |
 | `/api/districts/:district/units` | `GET` | Lists all circles/sectors registered for a district |
-| `/api/districts/:district/units/:unitId/template` | `GET` | Returns a pre-labeled Excel template for a circle/sector |
+| `/api/districts/:district/template` | `GET` | Returns the single district-wide Excel template (`.xlsx`) with district name pre-filled and `circle_sector_name` column included |
 | `/api/webhooks/clerk` | `POST` | Receives Clerk session events; validates SVIX signature; writes to `audit_log` |
 | `/api/healthz` | `GET` | Health probe — returns `200 OK` with no body. Used by CI dry-run and uptime checks. |
 
@@ -292,11 +294,11 @@ The Worker is built with [Hono](https://hono.dev/) — a lightweight, TypeScript
 
 | Route | Method | Purpose |
 |---|---|---|
-| `/api/admin/districts` | `GET` | All 75 districts with summary stats (vend count, revenue, status) — lightweight aggregate; never loads shop rows |
+| `/api/admin/districts` | `GET` | All 75 districts with summary stats (vend count, annual revenue, status) + top-level `stateTotals: { totalVendCount, totalRevenue }` — lightweight aggregate; never loads shop rows |
 | `/api/admin/districts/:district` | `GET` | Single district: DEO info, circles/sectors, submission status, revenue totals |
-| `/api/admin/districts/:district/shops` | `GET` | Paginated shop rows for one district (50/page default). Never returns all districts in one call. |
+| `/api/admin/districts/:district/shops` | `GET` | Paginated shop rows for one district (100/page). All pages cached in admin IndexedDB after first fetch. Never returns data across districts in one call. |
 | `/api/admin/districts/:district/export` | `GET` | Streams all shop rows for one district as CSV |
-| `/api/admin/export/all` | `GET` | Streams the entire `phase1_raw_collection` as CSV. Edge-case route; not exposed in the default UI. |
+| `/api/admin/export/all` | `GET` | Streams the entire `phase1_raw_collection` as a chunked `.xlsx` Excel download. Full-state data path — triggers a file download only, never a UI table. |
 | `/api/admin/search` | `GET` | Cross-district search with query params (Section 3.11) |
 | `/api/admin/bulk-provision` | `POST` | Receives parsed DEO Excel data; provisions Clerk accounts + inserts `districts` rows |
 | `/api/admin/audit-log` | `GET` | Paginated audit log for admin viewer (last 45 days) |
@@ -648,24 +650,31 @@ The middleware reads `publicMetadata.role` from the Clerk session and enforces r
 | Worker routes | `/api/*` | `/api/admin/*` |
 | Data access | Own district only (scoped by Clerk `districtName` claim) | All 75 districts, read-only |
 
-**Admin Data Loading — District-by-District, Never Full State by Default:**
+**Admin Data Loading — District Summary List with State Totals:**
 
-The admin portal's default view is a **district summary list** — 75 rows from the `districts` table joined with aggregate counts from `phase1_raw_collection` (`COUNT(*)`, `SUM(total_revenue)`, etc. grouped by `district_name`). No individual shop rows are fetched for this view.
+The admin portal's default view is a **district summary list** — 75 rows showing each district's name, vend count, total annual revenue, and submission status. Beneath the list is an **"All State" totals row** showing cumulative vend count and cumulative total annual revenue across all submitted districts.
 
-When an admin clicks a district, the portal fetches that district's shop data from `/api/admin/districts/:district/shops` (paginated, 50 rows/page) and renders it in a table. This is the only time shop rows are loaded.
+The `GET /api/admin/districts` response includes both the 75 district rows and a top-level `stateTotals: { totalVendCount, totalRevenue }` object. This aggregate is pre-computed server-side on every `district_submitted` audit event (the Worker updates a lightweight running total) so the response never runs a full-table scan. On the client, the summary list and state totals are cached in admin IndexedDB (`admin_state_totals` store) with a 15-minute TTL. Page loads within the TTL window serve from IndexedDB without a D1 query.
 
-Viewing the entire state as a single UI table is an **unsupported operation** — the data volume makes it meaningless in a browser table. The supported path for full-state data is the CSV export (`/api/admin/export/all`), which streams from D1 directly to a file download. The route exists but is not exposed as a button in the default UI — it is available via the "Export" section only.
+No individual shop rows are ever fetched for the summary list view. Every number is a `COUNT` or `SUM` aggregate — the list is always O(75) rows regardless of how many shops exist in the state.
 
-**Admin Route Group — IndexedDB (Dexie.js) District Cache:**
+**District Drill-Down — Full District Load, Cached:**
 
-Dexie.js is loaded from jsDelivr CDN in the root `layout.tsx` and is therefore available in both route groups. In the `(admin)` route group, after an admin queries a district's shop data, the results are written to an IndexedDB store (`admin_district_cache`) keyed by district name.
+When an admin clicks a district, the portal fetches all shop rows for that district from `/api/admin/districts/:district/shops` (100 rows/page) and renders them in a table. All pages for that district are progressively written to the admin IndexedDB (`admin_district_cache`) keyed by district name. On subsequent visits to the same district within the TTL, cached rows are served immediately while a background request checks for updates (stale-while-revalidate). A district with 500 shops loads in approximately 5 paginated requests; the cache means D1 is only queried once per TTL window per district.
+
+Viewing all ~30,000 shop records in a single UI table is an **unsupported operation**. The only full-state data path is the Excel download (`/api/admin/export/all`), which streams the entire `phase1_raw_collection` as a chunked `.xlsx` file download — never rendered in the browser UI. The "Download Full State Data" button in the Export section triggers this route.
+
+**Admin Route Group — IndexedDB (Dexie.js) Cache:**
+
+Dexie.js is loaded from jsDelivr CDN in the root `layout.tsx` and is therefore available in both route groups. The `(admin)` route group maintains three Dexie stores:
 
 | Dexie Store | Key | Contents | TTL |
 |---|---|---|---|
-| `admin_district_cache` | `districtName` | `{ rows: Phase1Row[], fetchedAt: timestamp, page: number }` | 1 hour (configurable) |
+| `admin_state_totals` | `'state'` | `{ totalVendCount: number, totalRevenue: number, fetchedAt: timestamp }` | 15 min |
+| `admin_district_cache` | `districtName` | `{ rows: Phase1Row[], totalCount: number, fetchedAt: timestamp }` | 1 hour |
 | `admin_search_cache` | `queryHash` | Last 10 search result pages | Session only |
 
-On subsequent visits to the same district, the cache is served immediately while a background refresh checks for newer data. If no changes exist (Worker compares `COUNT(*)` or a district `updatedAt` field), the cache is reused. This avoids redundant D1 reads for districts the admin has already reviewed.
+The state totals are pre-computed on each `district_submitted` event (the Worker increments a running aggregate), so `GET /api/admin/districts` never triggers a full-table scan in production. The Dexie stores are client-side mirrors of the server-side aggregates.
 
 **Admin Route Group — SheetJS Bulk DEO Provisioning:**
 
@@ -731,16 +740,17 @@ https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png
 - **Auto-refresh:** map data polls `GET /api/admin/map-data` every 5 minutes while the dashboard is open. Last-refreshed timestamp shown below the map.
 
 **Admin Capabilities (Phase 1) — Summary:**
+- District summary list: 75 rows (name, vend count, total annual revenue, status) + "All State" totals row at the bottom. Served from IndexedDB within 15-min TTL; D1 not queried within that window.
 - Interactive UP district choropleth map — live status, vend counts, revenue on hover; click to drill down.
 - Summary charts — submission progress doughnut, revenue bar, shop type pie, district upload stacked bar, cumulative timeline.
-- District drill-down: paginated shop table (IndexedDB-cached, stale-while-revalidate).
+- District drill-down: full district shop table (100 rows/page, all pages cached in admin IndexedDB, stale-while-revalidate).
 - Cross-district D1 search, paginated, results cached per query hash.
-- CSV export: per-district (streamed) and full-state (file download, not UI table).
+- CSV export per-district (streamed). Full-state data: "Download Full State Data" triggers chunked `.xlsx` file download — no UI table.
 - Audit log viewer — last 45 days.
 - Bulk DEO provisioning via Excel upload (SheetJS in-browser → preview → submit).
 
 **Admin Cannot (Phase 1):**
-- View all 30,000 shop records in a single UI table. District-level pagination is enforced.
+- View all ~30,000 shop records in a single browser UI table. Full-state data is available only as a file download.
 - Edit, correct, or delete any vend records — Phase 1 data is read-only from admin.
 - Trigger re-uploads or corrections on a DEO's behalf.
 - Access DEO session tokens or Clerk credential details.
@@ -775,33 +785,44 @@ https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png
 
 The five retail vend categories, their active financial fields, and their revenue calculation formulas:
 
+> **All monetary revenue figures in this section are annual values (per license year) and are stored in Indian Rupees, paise-truncated (integer).** Every field named below represents an annual charge unless the field description explicitly states otherwise.
+
 #### MODEL_SHOP
 
 | Field | Active? | Description |
 |---|---|---|
 | `licenseFeeLf` | Yes | Annual license fee paid to the department |
-| `mgrAmount` | Yes | Minimum guaranteed revenue commitment |
+| `mgrAmount` | Yes | Annual minimum guaranteed revenue commitment |
+| `premisesConsiderationFee` | Yes | Annual premises consideration fee for the shop location |
 | All other financial fields | No (default 0) | Not applicable to this shop type |
 
-**Revenue formula:**
+**Revenue formula (annual total):**
 ```
-totalRevenue = licenseFeeLf + mgrAmount
+totalRevenue = licenseFeeLf + mgrAmount + premisesConsiderationFee
 ```
 
 ---
 
 #### COMPOSITE_SHOP
 
+A Composite Shop holds a combined Foreign Liquor (FL) and Beer license. Its revenue has four distinct annual components — two license fee sub-components and two MGR sub-components — that are tracked individually in the database.
+
 | Field | Active? | Description |
 |---|---|---|
-| `licenseFeeLf` | Yes | Annual license fee |
-| `mgrAmount` | Yes | Minimum guaranteed revenue commitment |
+| `compositeLfFl` | Yes | Annual license fee for the Foreign Liquor component |
+| `compositeLfBeer` | Yes | Annual license fee for the Beer component |
+| `compositeMgrFl` | Yes | Annual Minimum Guaranteed Revenue — Foreign Liquor |
+| `compositeMgrBeer` | Yes | Annual Minimum Guaranteed Revenue — Beer |
+| `licenseFeeLf` | Computed | Stored as `compositeLfFl + compositeLfBeer`; used for cross-type LF aggregation in SQL |
+| `mgrAmount` | Computed | Stored as `compositeMgrFl + compositeMgrBeer`; used for cross-type MGR aggregation in SQL |
 | All other financial fields | No (default 0) | Not applicable |
 
-**Revenue formula:**
+**Revenue formula (annual total):**
 ```
-totalRevenue = licenseFeeLf + mgrAmount
+totalRevenue = compositeLfFl + compositeLfBeer + compositeMgrFl + compositeMgrBeer
 ```
+
+**Storage note:** `licenseFeeLf` and `mgrAmount` are stored as the respective component sums to support uniform cross-shop-type SQL aggregation (e.g., `SUM(license_fee_lf)` across all types). The Worker validates `compositeLfFl + compositeLfBeer = licenseFeeLf` and `compositeMgrFl + compositeMgrBeer = mgrAmount` before any D1 write. The four sub-component fields are the authoritative source; the stored totals are derived.
 
 ---
 
@@ -828,12 +849,12 @@ totalRevenue = licenseFeeLf + mgrAmount
 | `mgqQuantity` | Yes | Minimum guaranteed quantity (units) |
 | All other financial fields | No (default 0) | Not applicable |
 
-**Revenue formula:**
+**Revenue formula (annual total):**
 ```
-totalRevenue = licenseFeeLf + (mgqQuantity × 20)
+totalRevenue = licenseFeeLf + (mgqQuantity × BHANG_MGQ_MULTIPLIER)
 ```
 
-The multiplier `20` represents the per-unit value applied to the minimum guaranteed quantity. This value is encoded as a named constant in the application and must not be hardcoded as a magic number in implementation.
+`BHANG_MGQ_MULTIPLIER = ₹20 per unit` — this is a **per-unit price in Indian Rupees** (₹20 for each unit of minimum guaranteed quantity), not a dimensionless multiplier. `mgqQuantity` is the number of MGQ units; multiplying by ₹20/unit converts it to an annual INR contribution. This constant must be defined as a named value in the shared constants file and must never be inlined as the magic number `20`. DEO training materials must make clear that Inspectors enter the unit quantity, not a rupee amount.
 
 ---
 
@@ -873,14 +894,16 @@ totalRevenue = basicLicenseFeeBlf + considerationFee + specialBeerLf + specialBe
 
 ### 4.4 Complete Revenue Dispatch Table (Quick Reference)
 
-| Shop Type | `hasCl5cc` | Formula |
+All values are **annual figures in Indian Rupees**.
+
+| Shop Type | `hasCl5cc` | Annual Revenue Formula |
 |---|---|---|
-| `MODEL_SHOP` | false | `LF + MGR` |
-| `COMPOSITE_SHOP` | false | `LF + MGR` |
-| `PRV` | false | `LF + MGR` |
-| `BHANG_SHOP` | false | `LF + (MGQ × 20)` |
+| `MODEL_SHOP` | false | `LF + Annual MGR + Premises Consideration Fee` |
+| `COMPOSITE_SHOP` | false | `LF (FL) + LF (Beer) + Annual MGR FL + Annual MGR Beer` |
+| `PRV` | false | `LF + Annual MGR` |
+| `BHANG_SHOP` | false | `LF + (MGQ units × ₹20/unit)` |
 | `COUNTRY_LIQUOR` | false | `BLF + Consideration Fee` |
-| `COUNTRY_LIQUOR` | **true** | `BLF + Consideration Fee + Special Beer LF + Special Beer MGR` |
+| `COUNTRY_LIQUOR` | **true** | `BLF + Consideration Fee + Special Beer LF + Special Beer Annual MGR` |
 
 ### 4.5 Data Classification Summary
 
@@ -900,13 +923,18 @@ totalRevenue = basicLicenseFeeBlf + considerationFee + specialBeerLf + specialBe
 | Latitude (DD) | `latitude_decimal` | Real | Yes | null |
 | Longitude (DD) | `longitude_decimal` | Real | Yes | null |
 | License Fee (LF) | `license_fee_lf` | Integer | Yes | 0 |
+| Premises Consideration Fee | `premises_consideration_fee` | Integer | Yes | 0 |
 | Basic License Fee (BLF) | `basic_license_fee_blf` | Integer | Yes | 0 |
 | MGR Amount | `mgr_amount` | Integer | Yes | 0 |
+| Composite LF — Foreign Liquor | `composite_lf_fl` | Integer | Yes | 0 |
+| Composite LF — Beer | `composite_lf_beer` | Integer | Yes | 0 |
+| Composite MGR — Foreign Liquor | `composite_mgr_fl` | Integer | Yes | 0 |
+| Composite MGR — Beer | `composite_mgr_beer` | Integer | Yes | 0 |
 | MGQ Quantity | `mgq_quantity` | Integer | Yes | 0 |
 | Consideration Fee | `consideration_fee` | Integer | Yes | 0 |
 | Special Beer LF | `special_beer_lf` | Integer | Yes | 0 |
-| Special Beer MGR | `special_beer_mgr` | Integer | Yes | 0 |
-| Total Revenue | `total_revenue` | Integer | No | 0 |
+| Special Beer Annual MGR | `special_beer_mgr` | Integer | Yes | 0 |
+| Total Revenue (Annual) | `total_revenue` | Integer | No | 0 |
 | Uploaded By DEO | `uploaded_by_deo` | Text | No | — |
 | Created At | `created_at` | Integer (Timestamp) | No | — |
 
@@ -954,16 +982,21 @@ export const phase1RawCollection = sqliteTable('phase1_raw_collection', {
   latitudeDecimal: real('latitude_decimal'),
   longitudeDecimal: real('longitude_decimal'),
 
-  // Isolated Financial Variable Tracking (INR, paise-truncated)
-  licenseFeeLf: integer('license_fee_lf').default(0),           // MODEL_SHOP, COMPOSITE_SHOP, PRV, BHANG_SHOP
+  // Isolated Financial Variable Tracking (INR, paise-truncated; all values are annual figures)
+  licenseFeeLf: integer('license_fee_lf').default(0),           // MODEL_SHOP, PRV, BHANG_SHOP; COMPOSITE_SHOP stores compositeLfFl + compositeLfBeer here
+  premisesConsiderationFee: integer('premises_consideration_fee').default(0), // MODEL_SHOP only
   basicLicenseFeeBlf: integer('basic_license_fee_blf').default(0), // COUNTRY_LIQUOR (standard & CL5CC)
-  mgrAmount: integer('mgr_amount').default(0),                   // MODEL_SHOP, COMPOSITE_SHOP, PRV
-  mgqQuantity: integer('mgq_quantity').default(0),               // BHANG_SHOP (units, not INR)
+  mgrAmount: integer('mgr_amount').default(0),                   // MODEL_SHOP, PRV; COMPOSITE_SHOP stores compositeMgrFl + compositeMgrBeer here
+  compositeLfFl: integer('composite_lf_fl').default(0),         // COMPOSITE_SHOP: annual LF for Foreign Liquor component
+  compositeLfBeer: integer('composite_lf_beer').default(0),     // COMPOSITE_SHOP: annual LF for Beer component
+  compositeMgrFl: integer('composite_mgr_fl').default(0),       // COMPOSITE_SHOP: annual MGR for Foreign Liquor
+  compositeMgrBeer: integer('composite_mgr_beer').default(0),   // COMPOSITE_SHOP: annual MGR for Beer
+  mgqQuantity: integer('mgq_quantity').default(0),               // BHANG_SHOP (units, not INR — multiplied by BHANG_MGQ_MULTIPLIER = ₹20/unit)
   considerationFee: integer('consideration_fee').default(0),     // COUNTRY_LIQUOR (standard & CL5CC)
   specialBeerLf: integer('special_beer_lf').default(0),         // COUNTRY_LIQUOR + hasCl5cc only
-  specialBeerMgr: integer('special_beer_mgr').default(0),       // COUNTRY_LIQUOR + hasCl5cc only
+  specialBeerMgr: integer('special_beer_mgr').default(0),       // COUNTRY_LIQUOR + hasCl5cc only; annual MGR for beer
 
-  // Aggregated Verification Field — computed by application, validated by Worker
+  // Annual total — computed by browser, independently recomputed and validated by Worker before insert
   totalRevenue: integer('total_revenue').notNull().default(0),
 
   // Operational Audit Tracking
@@ -1094,7 +1127,11 @@ export const auditLog = sqliteTable('audit_log', {
 
 **`totalRevenue` dual-verification:** This field is computed by the browser using the formulas in Section 4.3, transmitted with the row, and then **independently recomputed by the Worker** before insert. If the values differ by more than a tolerance of 0 (exact match required), the Worker rejects the row. This prevents silent data corruption from formula bugs in the frontend that could compromise Phase 2 revenue analysis.
 
-**`mgqQuantity` is units, not INR:** For `BHANG_SHOP`, `mgqQuantity` stores the number of units (quantity), not a rupee value. The `× 20` multiplier in the formula converts it to INR for `totalRevenue`. This distinction must be documented in the DEO training materials so the correct value is entered.
+**`mgqQuantity` is units, not INR:** For `BHANG_SHOP`, `mgqQuantity` stores the number of MGQ units (quantity), not a rupee amount. `BHANG_MGQ_MULTIPLIER = ₹20 per unit` — this is a per-unit price in Indian Rupees, not a dimensionless constant. Multiplying units × ₹20/unit produces the annual INR contribution to `totalRevenue`. DEO training materials must make clear that Inspectors enter the unit quantity (e.g., 50 units), not a pre-calculated rupee value.
+
+**COMPOSITE_SHOP sub-components and stored totals:** For `COMPOSITE_SHOP`, the DEO enters four values (`compositeLfFl`, `compositeLfBeer`, `compositeMgrFl`, `compositeMgrBeer`). The Worker validates two additional constraints before insert: `compositeLfFl + compositeLfBeer = licenseFeeLf` and `compositeMgrFl + compositeMgrBeer = mgrAmount`. The stored totals (`licenseFeeLf`, `mgrAmount`) exist to allow uniform cross-type SQL aggregation (e.g., `SUM(license_fee_lf)` across all shop types). The four sub-component fields are the source of truth for COMPOSITE_SHOP revenue.
+
+**`premisesConsiderationFee` is MODEL_SHOP only:** This field must be 0 for all other shop types. The Worker enforces this constraint — a non-zero `premisesConsiderationFee` on a non-MODEL_SHOP row is rejected.
 
 **Coordinate nullability:** Both DMS and DD coordinate pairs are nullable. Not all vends in legacy records have coordinates. Phase 1 does not block uploads on missing coordinates — it surfaces them in a "missing coordinates" dashboard view so the department can prioritize ground-truth verification in Phase 2.
 
@@ -1177,8 +1214,8 @@ M-5: Dashboard, Testing & DEO Handoff     [Week 5-6]
   - Returns structured result: `{ latitudeDecimal, longitudeDecimal, warning?: string }`.
 - [ ] Revenue calculator implemented and unit-tested for all six formula variants (Section 4.4).
 - [ ] Row-level validation function implemented: checks required fields, enum values, cross-field constraints (e.g., `hasCl5cc = true` requires `shopType = COUNTRY_LIQUOR`).
-- [ ] Standardized base Excel template (`.xlsx`) created and version-controlled in `docs/templates/`. This is the blank canonical layout.
-- [ ] Per-circle/sector template generation: Worker route `/api/districts/:district/units/:unitId/template` returns the base template with district name and circle/sector name pre-filled in designated header cells.
+- [ ] Standardized district Excel template (`.xlsx`) created and version-controlled in `docs/templates/`. The template has one row per shop, includes a `circle_sector_name` column for per-row tagging, and pre-fills the district name in a designated header cell.
+- [ ] Single district template generation: Worker route `GET /api/districts/:district/template` returns the template with the district name pre-filled. One file per district — no per-unit variants.
 - [ ] District bounding box populated during admin bulk-provision: for each district row in `up-districts.geojson`, compute `Math.min/max` over all polygon coordinate pairs and write the four `bbox_*` values to the `districts` row via `POST /api/admin/bulk-provision`.
 - [ ] Worker upload chunk handler reads the DEO's district row from `districts`, checks uploaded shop coordinates against `bbox_*` columns, and appends a `coordinateWarning` field to any row that falls outside the district bbox. The row is inserted regardless — this is a warning, not a rejection.
 - [ ] Browser verification UI reads `coordinateWarning` from the upload response and highlights affected rows with an amber warning pill before the DEO proceeds to district-level submission.
@@ -1196,8 +1233,8 @@ M-5: Dashboard, Testing & DEO Handoff     [Week 5-6]
 - [ ] Clerk magic-link auth integrated in DEO portal login page. Post-auth redirect to verification UI. Unauthenticated routes redirect to login.
 - [ ] Single-session enforcement verified: authenticating in Browser B invalidates the session in Browser A.
 - [ ] Dexie.js configured: `phase1_staging` IndexedDB table mirrors the schema. Each row carries `status: 'pending' | 'uploaded' | 'error'` and `circleSectorName`.
-- [ ] Circle/Sector Management UI: DEO creates and lists circles/sectors, downloads pre-labeled Excel templates per unit.
-- [ ] File upload component: DEO selects a registered circle/sector, uploads Inspector-filled Excel — drag-and-drop + click-to-upload, triggers SheetJS parse (loaded from jsDelivr CDN dynamically), writes to IndexedDB tagged with the selected unit.
+- [ ] Circle/Sector Management UI: DEO creates and lists circles/sectors for their district. A "Download District Template" button fetches the single district-wide Excel from `GET /api/districts/:district/template`.
+- [ ] File upload component: DEO uploads the single consolidated district Excel file — drag-and-drop + click-to-upload, triggers SheetJS parse (loaded from jsDelivr CDN dynamically), reads `circle_sector_name` column from each row, writes all rows to IndexedDB tagged with their respective unit.
 - [ ] Parse progress indicator (parsing 5,000 rows can take 1–2 seconds; shown as a DaisyUI progress bar).
 - [ ] Verification table component — grouped by circle/sector (DaisyUI tab or collapse components):
   - Paginated display (user-preference rows per page: 25/50/100).
@@ -1209,7 +1246,7 @@ M-5: Dashboard, Testing & DEO Handoff     [Week 5-6]
   - Cross-district pills highlighted red; must be removed before the row is marked clean.
   - Deletion updates `adjacentThanasRaw` in IndexedDB immediately.
 - [ ] Shop type field toggling: financial inputs show/hide based on `shopType` and `hasCl5cc`.
-- [ ] Completeness gate: district submit button disabled until all registered units have at least one verified file. Per-unit status summary panel displayed.
+- [ ] Completeness gate: district submit button disabled until all registered circles/sectors have at least one verified row in the IndexedDB staging data (checked by comparing registered unit names against `circleSectorName` values across all staged rows). Per-unit row-count summary panel displayed.
 - [ ] Session recovery: on page load, IndexedDB is read first; staged data and UI state are restored regardless of network.
 - [ ] Service Worker fully implemented: app shell cache, CDN asset cache (DaisyUI, Tailwind CDN, Dexie.js, SweetAlert2, Notyf, SheetJS), offline detection message relay.
 - [ ] Background Sync registered on failed chunk uploads; retries transparently on reconnect.
