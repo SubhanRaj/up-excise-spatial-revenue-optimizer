@@ -11,13 +11,14 @@ export default function LoginPage() {
           Department of Excise, Government of Uttar Pradesh
         </p>
         <SignIn
+          routing="hash"
+          fallbackRedirectUrl="/"
           appearance={{
             elements: {
               rootBox: 'w-full',
               card: 'shadow-none p-0',
             },
           }}
-          redirectUrl="/"
         />
       </div>
     </main>
