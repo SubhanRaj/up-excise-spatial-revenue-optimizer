@@ -69,7 +69,7 @@ When files for any app or package do not exist yet, do not create them speculati
 | Library | Version | CDN URL | Used in |
 |---|---|---|---|
 | **DaisyUI** | **5.6.3** | `https://cdn.jsdelivr.net/npm/daisyui@5.6.3/daisyui.css` | All pages |
-| **Tailwind CSS** | **v4** (`@tailwindcss/browser`) | `https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4` | All pages |
+| **Tailwind CSS** | **v4** | `https://cdn.jsdelivr.net/npm/tailwindcss@4.3.2/dist/lib.min.js` | All pages |
 | **Dexie.js** | 4.0.10 | `https://cdn.jsdelivr.net/npm/dexie@4.0.10/dist/dexie.min.js` | DEO portal |
 | **SweetAlert2** | 11.14.5 | `https://cdn.jsdelivr.net/npm/sweetalert2@11.14.5/dist/sweetalert2.all.min.js` | All pages |
 | **Notyf** (JS + CSS) | 3.10.0 | `https://cdn.jsdelivr.net/npm/notyf@3.10.0/notyf.min.{js,css}` | All pages |
