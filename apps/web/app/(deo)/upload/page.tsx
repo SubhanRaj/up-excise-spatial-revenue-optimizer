@@ -88,14 +88,18 @@ export default function UploadPage() {
 
         {status === 'done' && (
           <div className="alert alert-success mt-4" role="alert" aria-live="polite">
-            ✅ Parsed and staged <strong>{rowCount}</strong> rows.{' '}
+            {/* tabler:circle-check */}
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><path d="m9 12 2 2 4-4"/></svg>
+            Parsed and staged <strong>{rowCount}</strong> rows.{' '}
             <a href="/verify" className="link font-semibold">Go to Verify →</a>
           </div>
         )}
 
         {status === 'error' && (
           <div className="alert alert-error mt-4" role="alert" aria-live="assertive">
-            ❌ Failed to parse file. Check the format and try again.
+            {/* tabler:circle-x */}
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><path d="m10 10 4 4m0-4-4 4"/></svg>
+            Failed to parse file. Check the format and try again.
           </div>
         )}
       </div>

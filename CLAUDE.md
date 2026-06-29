@@ -103,6 +103,11 @@ When files for any app or package do not exist yet, do not create them speculati
 - Dashboard queries must use indexed columns only: `district_name`, `thana_name`, `shop_id`. Full table scans are not acceptable in production.
 - The `districts` reference table (75 rows) may be queried freely — it is metadata-only and never contains shop data.
 
+### Icons & Typography
+- **Icons: Tabler Icons only.** Use inline SVG paths copied from [tabler.io/icons](https://tabler.io/icons). No emoji as icons — ever. No icon font libraries. No `react-icons` or similar packages.
+- **Font: Google Fonts (Inter).** Load via `<link>` in root `layout.tsx` with `display=swap`. Never bundle fonts into the Next.js output.
+- All existing emoji usage in UI components must be replaced with the equivalent Tabler icon SVG.
+
 ### CDN-First — Bundle Contains Only App Logic
 - DaisyUI, Tailwind Play CDN, SheetJS, Dexie.js, SweetAlert2, and Notyf are all loaded from jsDelivr CDN at runtime. They are never installed as npm dependencies or bundled into the Next.js output.
 - The Next.js bundle contains: React, Next.js App Router runtime, Clerk frontend SDK, and app-specific TypeScript components. Nothing else.

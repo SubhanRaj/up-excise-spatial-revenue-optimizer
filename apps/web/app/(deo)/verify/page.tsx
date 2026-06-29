@@ -286,7 +286,13 @@ export default function VerifyPage() {
                           title={row.coordinateWarning ?? 'Valid coordinates'}
                           aria-label={row.coordinateWarning ? `Warning: ${row.coordinateWarning}` : 'Valid coordinates'}
                         >
-                          {row.coordinateWarning ? '⚠️' : '✅'} {row.latitudeDecimal.toFixed(4)}, {row.longitudeDecimal!.toFixed(4)}
+                          {row.coordinateWarning
+                            ? /* tabler:alert-triangle */
+                              <svg xmlns="http://www.w3.org/2000/svg" className="inline w-4 h-4 mr-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                            : /* tabler:circle-check */
+                              <svg xmlns="http://www.w3.org/2000/svg" className="inline w-4 h-4 mr-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><path d="m9 12 2 2 4-4"/></svg>
+                          }
+                          {row.latitudeDecimal.toFixed(4)}, {row.longitudeDecimal!.toFixed(4)}
                         </span>
                       ) : (
                         <span className="text-xs text-base-content/40" aria-label="No coordinates">—</span>
