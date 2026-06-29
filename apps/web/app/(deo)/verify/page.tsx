@@ -342,7 +342,7 @@ export default function VerifyPage() {
           aria-disabled={!canSubmit}
           title={!canSubmit ? 'All registered units must have at least one row before submission' : ''}
         >
-          {uploading ? <span className="loading loading-spinner" /> : '🚀 Submit District'}
+          {uploading ? <span className="loading loading-spinner" /> : 'Submit District'}
         </button>
         {!canSubmit && units.length > 0 && (
           <p className="text-sm text-warning" role="alert">

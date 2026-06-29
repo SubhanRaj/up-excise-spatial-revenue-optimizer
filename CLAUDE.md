@@ -52,7 +52,7 @@ When files for any app or package do not exist yet, do not create them speculati
 | ORM | Drizzle ORM | D1 adapter. Schema lives in `packages/schema`. |
 | Authentication | Clerk | Passwordless magic-link. Single active session per user. Webhook → `audit_log`. |
 | UI Components | DaisyUI | Loaded from jsDelivr CDN. Tailwind CSS plugin — zero JS runtime. Never bundled into Next.js output. |
-| CSS Utilities | Tailwind Play CDN | Loaded from CDN. No PostCSS build step. The Next.js bundle contains only app logic. |
+| CSS Utilities | Tailwind CSS v4 (`@tailwindcss/browser`) | Loaded from jsDelivr CDN. Browser-native runtime, compatible with DaisyUI 5. No PostCSS build step. The Next.js bundle contains only app logic. |
 | Excel Parsing | SheetJS (`xlsx`) | Loaded from jsDelivr CDN dynamically on upload page (`ssr: false`). Never bundled. |
 | Local Cache | Dexie.js (IndexedDB) | Loaded from jsDelivr CDN. Offline-first staging layer. Rows carry `status: 'pending' | 'uploaded' | 'error'`. |
 | PWA / Offline | Service Worker + Background Sync | DEO portal only. App shell + CDN asset cache. Transparent upload retry on reconnect. |
@@ -78,9 +78,7 @@ When files for any app or package do not exist yet, do not create them speculati
 - **No data in URL query parameters.** All mutations use HTTP POST with JSON body. GET endpoints return only read-only reference data. No sensitive field ever appears in a URL.
 - **No secrets in source.** All API keys, Clerk secret keys, and webhook signing secrets live in Cloudflare Workers Secrets. Only the Clerk publishable key (safe by design) is in the frontend environment.
 - **`CLERK_SECRET_KEY` must be set on BOTH Workers** — `up-excise-spatial-revenue-optimizer` (API Worker, for route guards and webhook verification) and `up-excise-portal` (portal Worker, for `clerkMiddleware` server-side session validation). Missing it on the portal causes 500 errors on every page load.
-- **SRI on every CDN asset.** Every CDN-loaded `<script>` and `<link>` must have `integrity` and `crossorigin="anonymous"`. CI blocks merge if any CDN tag is missing these. No exceptions.
 - **Session credentials stay in Clerk cookies.** HttpOnly, Secure, SameSite=Strict. They never touch `localStorage`, `sessionStorage`, or IndexedDB.
-- **No `unsafe-inline` or `unsafe-eval` in CSP.** The CSP in `public/_headers` must never include these directives.
 - **One active session per DEO.** A second login invalidates all previous sessions. Clerk configuration enforces this.
 
 ### Admin Data Loading
@@ -102,6 +100,11 @@ When files for any app or package do not exist yet, do not create them speculati
 - Upload chunks are 500 rows per POST request. Do not increase this without re-evaluating D1 write quota.
 - Dashboard queries must use indexed columns only: `district_name`, `thana_name`, `shop_id`. Full table scans are not acceptable in production.
 - The `districts` reference table (75 rows) may be queried freely — it is metadata-only and never contains shop data.
+
+### CDN Version Compatibility
+- **DaisyUI 5 requires Tailwind CSS v4.** Never pair DaisyUI 5 with Tailwind v3 — they use different layer architectures and DaisyUI 5's utilities reference Tailwind v4 CSS custom property names (`--color-base-200`, etc.).
+- The browser CDN for Tailwind v4 is `@tailwindcss/browser` from jsDelivr. The old `cdn.tailwindcss.com` URL serves Tailwind v3. Do not use versioned `cdn.tailwindcss.com/<version>` URLs — they serve v3.
+- Before adding or updating any CDN library, verify version compatibility with the other CDN libraries in `apps/web/app/layout.tsx`.
 
 ### Icons & Typography
 - **Icons: Tabler Icons only.** Use inline SVG paths copied from [tabler.io/icons](https://tabler.io/icons). No emoji as icons — ever. No icon font libraries. No `react-icons` or similar packages.

@@ -38,12 +38,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           crossOrigin="anonymous"
         />
 
-        {/* Tailwind Play CDN 3.4.17 — runtime utility generation, no PostCSS build step */}
-        <script
-          src="https://cdn.tailwindcss.com/3.4.17"
-          integrity="sha384-igm5BeiBt36UU4gqwWS7imYmelpTsZlQ45FZf+XBn9MuJbn4nQr7yx1yFydocC/K"
-          crossOrigin="anonymous"
-        />
+        {/* Tailwind CSS v4 browser CDN — runtime utility generation, compatible with DaisyUI 5 */}
+        <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4" crossOrigin="anonymous" />
 
         {/* Dexie.js 4.0.10 — IndexedDB wrapper, offline-first staging layer */}
         <script

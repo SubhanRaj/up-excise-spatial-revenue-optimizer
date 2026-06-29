@@ -65,7 +65,8 @@ export default function UploadPage() {
             if (f) void handleFile(f);
           }}
         >
-          <span className="text-5xl" aria-hidden>📂</span>
+          {/* tabler:folder-open */}
+          <svg xmlns="http://www.w3.org/2000/svg" className="w-12 h-12 text-base-content/40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 19l2-7h13l-2 7H5z"/><path d="M5 19H3a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h4l3 3h7a2 2 0 0 1 2 2v1"/></svg>
           <span className="font-medium">Drop your district .xlsx file here or click to browse</span>
           <span className="text-sm text-base-content/60">One consolidated file per district</span>
           <input
