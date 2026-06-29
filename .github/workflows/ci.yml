@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Type check
+        run: pnpm typecheck
+
+      - name: Run unit tests
+        run: pnpm test
+
+      - name: SRI integrity check
+        run: |
+          # Fail if any <script> or <link> CDN tag is missing integrity attribute
+          if grep -rn 'cdn\.jsdelivr\.net\|cdn\.tailwindcss\.com' apps/web/app/ apps/web/public/ --include="*.tsx" --include="*.ts" --include="*.html" --include="*.js" | grep -v 'integrity='; then
+            echo "ERROR: CDN tag missing integrity attribute"
+            exit 1
+          fi
+
+      - name: Wrangler dry-run deploy
+        run: pnpm --filter worker exec wrangler deploy --dry-run
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

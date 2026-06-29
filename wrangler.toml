@@ -1,0 +1,28 @@
+name = "up-excise-spatial-revenue-optimizer"
+main = "apps/worker/src/index.ts"
+compatibility_date = "2025-06-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Secrets — set via `wrangler secret put`, NEVER in this file:
+#   wrangler secret put CLERK_SECRET_KEY
+#   wrangler secret put CLERK_WEBHOOK_SIGNING_SECRET
+# These are accessed in Worker code as env.CLERK_SECRET_KEY etc.
+
+[[d1_databases]]
+binding = "DB"
+database_name = "up-excise-spatial-revenue-optimizer-dev"
+database_id = "587198fb-4541-41c6-9cde-29088729ed45"
+
+[triggers]
+crons = ["0 2 * * *"]  # Daily audit log purge at 02:00 UTC
+
+[vars]
+ENVIRONMENT = "development"
+
+[env.production]
+name = "up-excise-spatial-revenue-optimizer"
+
+[[env.production.d1_databases]]
+binding = "DB"
+database_name = "up-excise-spatial-revenue-optimizer-prod"
+database_id = "2955ce2d-8459-45b4-89f4-04afc9e42488"

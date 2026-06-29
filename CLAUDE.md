@@ -86,6 +86,13 @@ When files for any app or package do not exist yet, do not create them speculati
 - Shop rows are loaded **only when an admin drills into a specific district**. The route is `GET /api/admin/districts/:district/shops` (paginated, 100 rows/page). All pages for that district are cached in admin IndexedDB (`admin_district_cache`, 1-hour TTL).
 - Full-state UI table (~30K shops in one view) is **not a supported operation**. The only full-state path is `GET /api/admin/export/all` — a chunked `.xlsx` Excel file download. It triggers a file download, never a UI render.
 
+### Database Writes — Always Atomic
+- Any Worker route that performs **two or more related writes** (e.g., insert row + insert audit log, update status + insert audit log) must wrap them in a single atomic operation.
+- Use `db.batch([stmt1, stmt2, ...])` when all statements are inserts/upserts and can be built upfront — batch is preferred for chunk uploads (revenue rows + audit log in one round-trip).
+- Use `db.transaction(async (tx) => { ... })` when statements depend on prior reads or contain conditional logic (unit registration, district submission).
+- Never leave two related writes as separate `await` calls — if the second fails, the first cannot be rolled back and the database is left inconsistent.
+- External I/O (Clerk API calls in bulk-provision) cannot participate in a D1 transaction. Write DB state first, then call external APIs; on API failure, log the error in the result but do not roll back the already-committed DB row.
+
 ### Cloudflare Free Tier
 - The Worker must never perform CPU-heavy work. Excel parsing, DMS-to-DD conversion, and revenue calculation all happen **in the browser**.
 - Batch inserts use `db.batch()`. Never issue individual `INSERT` calls in a loop.
@@ -144,7 +151,7 @@ These are the canonical formulas. All values are **annual figures in Indian Rupe
 
 | Shop Type | `has_cl5cc` | Annual Revenue Formula |
 |---|---|---|
-| `MODEL_SHOP` | false | `license_fee_lf + mgr_amount + premises_consideration_fee` |
+| `MODEL_SHOP` | false | `license_fee_lf + mgr_amount + ON_PREMISES_CONSUMPTION_FEE` |
 | `COMPOSITE_SHOP` | false | `composite_lf_fl + composite_lf_beer + composite_mgr_fl + composite_mgr_beer` |
 | `PRV` | false | `license_fee_lf + mgr_amount` |
 | `BHANG_SHOP` | false | `license_fee_lf + (mgq_quantity × BHANG_MGQ_MULTIPLIER)` |
@@ -152,6 +159,8 @@ These are the canonical formulas. All values are **annual figures in Indian Rupe
 | `COUNTRY_LIQUOR` | **true** | `basic_license_fee_blf + consideration_fee + special_beer_lf + special_beer_mgr` |
 
 `BHANG_MGQ_MULTIPLIER = ₹20 per unit` — this is a **per-unit price in Indian Rupees**, not a dimensionless number. `mgq_quantity` is the count of MGQ units; multiplying by ₹20/unit yields the annual INR contribution. Define as a named constant in `packages/schema` or a shared constants file. Do not hardcode `20` inline anywhere.
+
+`ON_PREMISES_CONSUMPTION_FEE = ₹3,00,000` — fixed annual On Premises Consumption Fee applied to all `MODEL_SHOP` licences. This is a department-set constant, **not a per-shop variable field**. It is defined in `packages/schema/src/constants.ts` and baked directly into the revenue formula. There is no `on_premises_consumption_fee` column in the database or field in the Excel template.
 
 For `COMPOSITE_SHOP`: `license_fee_lf` stores `composite_lf_fl + composite_lf_beer` and `mgr_amount` stores `composite_mgr_fl + composite_mgr_beer` as computed totals for cross-type SQL aggregation. The four sub-component fields are the source of truth. The Worker validates both sub-component sums before insert.
 
