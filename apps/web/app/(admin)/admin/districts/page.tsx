@@ -74,7 +74,7 @@ export default function DistrictsPage() {
       <div className="flex items-center gap-3 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">All Districts</h1>
-          <p className="text-sm text-base-content/50 mt-0.5">75 UP districts — click any row to drill into shop records</p>
+          <p className="text-sm text-base-content/50 mt-0.5">Complete registry of all 75 Uttar Pradesh districts. Select a district to view its shop-level records.</p>
         </div>
         <div className="ml-auto">
           <HelpPanel pageKey="admin_districts_list" title="All Districts">
@@ -183,7 +183,6 @@ export default function DistrictsPage() {
                     </td>
                     <td>
                       <div className="text-xs font-medium">{d.deoName ?? <span className="text-base-content/30">—</span>}</div>
-                      {d.deoEmail && <div className="text-[11px] text-base-content/40 font-mono">{d.deoEmail}</div>}
                     </td>
                     <td className="font-mono text-[11px] text-base-content/50 whitespace-nowrap">
                       {d.centerLat != null && d.centerLon != null

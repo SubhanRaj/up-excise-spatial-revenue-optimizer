@@ -41,7 +41,7 @@ up-excise-spatial-revenue-optimizer/
 │           └── api/      # 19 Next.js Route Handlers (same Worker)
 ├── packages/
 │   └── schema/       # Shared Drizzle ORM schema (D1/SQLite)
-├── migrations/       # D1 SQL migration files (0001–0003)
+├── migrations/       # D1 SQL migration files (single consolidated 0001_initial.sql)
 ├── docs/
 │   └── templates/    # Standardized DEO Excel upload templates
 ├── roadmap.md        # Engineering master document
@@ -123,10 +123,16 @@ up-excise-spatial-revenue-optimizer/
 **Districts page (`/admin/districts`):**
 - Full 75-district sortable table with search, division filter, and status filter
 - Summary chips (shown count, submitted, total vends, total revenue)
+- Read-only — district/DEO master data editing lives on the District Master page
 
 **Divisions (`/admin/divisions` and `/admin/divisions/[division]`):**
 - 18 division cards with progress bars; each card opens a division detail page
 - Division detail: summary stats (districts, submitted, vends, revenue) + districts table sorted by revenue
+
+**District Master (`/admin/provision`):**
+- All-75-district table; each row's edit icon opens a right-side drawer to update division, DEO name/email/identifier, expected vend count, and bbox coordinates in place via `PATCH /api/admin/districts/[district]`
+- Bulk Excel provisioning retained below the table for initial campaign setup — `generateProvisionTemplate()` pre-fills District Name and Division from the live district list
+- The only place district/DEO master data can be edited; `districts` and `districts/[district]` pages remain read-only
 
 **District detail (`/admin/districts/[district]`):**
 - All `phase1_raw_collection` fields: shop ID, name, circle/sector, thana, adjacent thanas (flex-wrap pills), type + CL5CC sub-badge, coordinates, revenue
@@ -141,7 +147,7 @@ up-excise-spatial-revenue-optimizer/
 **Navigation:**
 - Navbar search: live dropdown across all 75 districts and 18 divisions, keyboard navigation (↑↓ / Enter / Escape)
 - Breadcrumbs: all segments are clickable links — Overview → Districts/Divisions → current page
-- Nav links: Overview, Districts, Divisions, Provision, Audit, Export
+- Nav links: Overview, Districts, Divisions, District Master, Audit, Export
 
 **Shared UI:**
 - `HelpPanel` on every page — balloon popover with background blur (`backdrop-blur-[2px]`), auto-flips on/off-screen, scrollable content, closes on Escape or outside click
@@ -210,6 +216,9 @@ pnpm --filter web dev
 # Apply D1 migrations (prod)
 npx wrangler d1 migrations apply up-excise-spatial-revenue-optimizer-prod --remote
 
+# Seed the 75 districts + 18 divisions + bbox (idempotent, safe to re-run)
+pnpm seed:districts
+
 # Run unit tests
 pnpm test
 
@@ -241,6 +250,7 @@ See [DEPLOY.md](DEPLOY.md) for secrets, CI/CD, and account management.
 | M-7: Admin Portal UI Overhaul | **Completed** |
 | M-8: Admin Portal Navigation & Divisions | **Completed** |
 | M-9: SPA Navigation Parity & Polish | **Completed** |
+| M-10: District Master & Migration Consolidation | **Completed** |
 
 See [roadmap.md](roadmap.md) for full specs, entry/exit criteria, and deliverable checklists.
 

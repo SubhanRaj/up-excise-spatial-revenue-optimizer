@@ -86,9 +86,14 @@ npx wrangler d1 migrations apply up-excise-spatial-revenue-optimizer-prod --remo
 ```
 
 Applied migrations:
-- `0001_initial.sql` — phase1_raw_collection, districts, district_circles_sectors, audit_log
-- `0002_drop_premises_consideration_fee.sql` — no-op placeholder
-- `0003_auth.sql` — auth_users, auth_magic_links, auth_sessions
+- `0001_initial.sql` — single consolidated migration: phase1_raw_collection, districts, district_circles_sectors, audit_log, auth_users, auth_magic_links, auth_sessions (all 7 tables, matches `packages/schema` exactly)
+
+Note: wrangler tracks applied migrations by **filename**, not content. If `0001_initial.sql` is ever edited in place again (rather than adding a new numbered file), `migrations apply` will report "No migrations to apply!" even though the SQL changed — force-apply with `npx wrangler d1 execute up-excise-spatial-revenue-optimizer-prod --remote --file=migrations/0001_initial.sql` instead.
+
+After migrating, seed the district reference data (idempotent, safe to re-run):
+```bash
+pnpm seed:districts   # all 75 districts + 18 divisions + bbox, from up-districts.geojson
+```
 
 ---
 
@@ -121,7 +126,7 @@ INSERT INTO auth_users (email, name, role, deo_id, district_name)
 VALUES ('deo@example.gov.in', 'DEO Name', 'deo', 'DEO-XXX-001', 'District Name');
 ```
 
-Or use `POST /api/admin/bulk-provision` with an Excel file (admin portal → Provision page).
+Or use the admin portal's **District Master** page (`/admin/provision`) — either the per-district edit drawer (`PATCH /api/admin/districts/[district]`) for a single DEO, or bulk Excel upload (`POST /api/admin/bulk-provision`) for many at once.
 
 ---
 

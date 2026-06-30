@@ -22,9 +22,9 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // ─── Config ────────────────────────────────────────────────────────────────
 const DISTRICT       = 'Demo District';
-const DIVISION       = 'Lucknow Division';
+const DIVISION       = 'Lucknow'; // bare name — must match the real 75 districts' division strings exactly
 const DEO_NAME       = 'Demo DEO Officer';
-const DEO_EMAIL      = 'deodemo+clerk_test@up-excise.dev';
+const DEO_EMAIL      = 'shubhanraj2002+deo@gmail.com';
 const DEO_ID         = 'DEO-DEMO-001';
 const EXP_VEND_COUNT = 1500;
 
@@ -186,6 +186,7 @@ function sqlTruncate(): string {
     `DELETE FROM district_circles_sectors WHERE district_name = '${esc(DISTRICT)}';`,
     `DELETE FROM districts WHERE name = '${esc(DISTRICT)}';`,
     `DELETE FROM audit_log WHERE district_name = '${esc(DISTRICT)}';`,
+    `DELETE FROM auth_users WHERE email = '${esc(DEO_EMAIL)}';`,
   ].join('\n');
 }
 
@@ -195,6 +196,7 @@ function sqlResetAll(): string {
     'DELETE FROM district_circles_sectors;',
     'DELETE FROM districts;',
     'DELETE FROM audit_log;',
+    `DELETE FROM auth_users WHERE role = 'deo';`,
   ].join('\n');
 }
 
@@ -206,6 +208,9 @@ function sqlSeed(shops: Shop[]): string {
     '',
     '-- Demo District row (status submitted so HQ dashboard shows it)',
     `INSERT INTO districts (name, division, deo_name, deo_email, deo_id, expected_vend_count, status, created_at) VALUES ('${esc(DISTRICT)}', '${esc(DIVISION)}', '${esc(DEO_NAME)}', '${esc(DEO_EMAIL)}', '${esc(DEO_ID)}', ${EXP_VEND_COUNT}, 'submitted', ${now});`,
+    '',
+    '-- Demo DEO login account (magic-link auth requires an auth_users row)',
+    `INSERT INTO auth_users (email, name, role, deo_id, district_name) VALUES ('${esc(DEO_EMAIL)}', '${esc(DEO_NAME)}', 'deo', '${esc(DEO_ID)}', '${esc(DISTRICT)}') ON CONFLICT(email) DO UPDATE SET name=excluded.name, deo_id=excluded.deo_id, district_name=excluded.district_name;`,
     '',
     '-- Circles and sectors',
   ];
@@ -275,7 +280,7 @@ function runSQL(sql: string, local: boolean) {
   writeFileSync(tmp, sql, 'utf-8');
   // --remote targets prod D1; --local targets the local dev D1
   const locationFlag = local ? '--local' : '--remote';
-  const cmd = `pnpm --filter worker exec wrangler d1 execute ${DB_NAME} ${locationFlag} --file="${tmp}"`;
+  const cmd = `pnpm --filter web exec wrangler d1 execute ${DB_NAME} ${locationFlag} --file="${tmp}"`;
   console.log(`Running: ${cmd}`);
   execSync(cmd, { stdio: 'inherit', cwd: join(__dirname, '..') });
 }

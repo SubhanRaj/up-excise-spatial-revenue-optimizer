@@ -20,3 +20,13 @@ export const UP_BBOX = {
   minLon: 77.1,
   maxLon: 84.6,
 } as const;
+
+/** UP's 18 administrative divisions (mandals). Verified against Wikipedia's
+ * "Administrative divisions of Uttar Pradesh". Bare names — no "Division" suffix.
+ * Single source of truth for the District Master edit drawer dropdown and
+ * scripts/seed-districts.ts. */
+export const UP_DIVISIONS = [
+  'Agra', 'Aligarh', 'Ayodhya', 'Azamgarh', 'Bareilly', 'Basti', 'Chitrakoot',
+  'Devipatan', 'Gorakhpur', 'Jhansi', 'Kanpur', 'Lucknow', 'Meerut', 'Moradabad',
+  'Prayagraj', 'Saharanpur', 'Varanasi', 'Vindhyachal',
+] as const;

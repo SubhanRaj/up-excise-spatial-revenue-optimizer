@@ -192,25 +192,36 @@ export async function generateTemplate(districtName: string, units: string[]): P
   return new Blob([out as ArrayBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
 }
 
+interface ProvisionTemplateRow {
+  districtName: string; division?: string | null;
+  deoName?: string | null; deoEmail?: string | null; deoId?: string | null;
+  expectedVendCount?: number | null;
+}
+
 /**
  * Generates the DEO provision Excel template for admin bulk-provision upload.
- * Sheet 1 "DEO List": headers only — admin fills in the 75 rows.
+ * Sheet 1 "DEO List": District Name + Division pre-filled from the District Master
+ * table (single source of truth — see /admin/provision) so the admin only has to
+ * fill in the DEO columns. Pass an empty array for a fully blank template.
  * Sheet 2 "Column Guide": description of every column.
  */
-export async function generateProvisionTemplate(): Promise<Blob> {
+export async function generateProvisionTemplate(rows: ProvisionTemplateRow[] = []): Promise<Blob> {
   const headers = ['District Name', 'Division', 'DEO Name', 'DEO Email', 'DEO Identifier', 'Expected Vend Count'];
+  const body = rows.map((r) => [
+    r.districtName, r.division ?? '', r.deoName ?? '', r.deoEmail ?? '', r.deoId ?? '', r.expectedVendCount ?? '',
+  ]);
 
   const guide: unknown[][] = [
     ['Column', 'Description', 'Notes'],
     ['District Name', 'Canonical district name — must be unique and consistent with the portal', 'Used as primary key. 75 rows total for UP.'],
-    ['Division', 'Administrative division (18 divisions in UP)', 'e.g. "Lucknow Division"'],
+    ['Division', 'Administrative division (18 divisions in UP)', 'Bare division name, e.g. "Lucknow" — no "Division" suffix. Must match districts.division exactly for grouping to work.'],
     ['DEO Name', 'Full name of the District Excise Officer', 'For display in the admin portal only'],
-    ['DEO Email', 'Department-issued email address for this DEO', 'Used to create Clerk account. Must be unique across all 75 rows.'],
+    ['DEO Email', 'Department-issued email address for this DEO', 'Used to create the portal login account (magic-link auth). Must be unique across all 75 rows.'],
     ['DEO Identifier', 'Department-assigned alphanumeric ID for this DEO', 'Stored on every shop record as uploaded_by_deo. Must be unique.'],
     ['Expected Vend Count', 'Approximate number of retail vends in the district', 'Used for "X of Y uploaded" progress display in the portal'],
   ];
 
-  const ws = XLSX.utils.aoa_to_sheet([headers]);
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...body]);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'DEO List');
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(guide), 'Column Guide');

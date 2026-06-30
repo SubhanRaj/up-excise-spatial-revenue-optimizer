@@ -109,7 +109,7 @@ When files for any app or package do not exist yet, do not create them speculati
 | `/admin/districts/[district]` | `app/(admin)/admin/districts/[district]/page.tsx` | `admin` |
 | `/admin/divisions` | `app/(admin)/admin/divisions/page.tsx` | `admin` |
 | `/admin/divisions/[division]` | `app/(admin)/admin/divisions/[division]/page.tsx` | `admin` |
-| `/admin/provision` | `app/(admin)/admin/provision/page.tsx` | `admin` |
+| `/admin/provision` | `app/(admin)/admin/provision/page.tsx` | `admin` — nav label "District Master"; URL/file path unchanged, only the displayed label was renamed |
 | `/admin/audit` | `app/(admin)/admin/audit/page.tsx` | `admin` |
 | `/admin/export` | `app/(admin)/admin/export/page.tsx` | `admin` |
 
@@ -149,6 +149,7 @@ All API routes are Next.js Route Handlers inside the single `up-excise-spatial-r
 |---|---|---|
 | `GET` | `/api/admin/districts` | `api/admin/districts/route.ts` — 75-row aggregate |
 | `GET` | `/api/admin/districts/[district]` | `api/admin/districts/[district]/route.ts` |
+| `PATCH` | `/api/admin/districts/[district]` | `api/admin/districts/[district]/route.ts` — District Master inline edit (division, DEO identity, expected vend count, bbox); atomic `db.transaction`, syncs `auth_users` |
 | `GET` | `/api/admin/districts/[district]/shops` | `api/admin/districts/[district]/shops/route.ts` |
 | `GET` | `/api/admin/districts/[district]/export` | `api/admin/districts/[district]/export/route.ts` |
 | `GET` | `/api/admin/export/all` | `api/admin/export/all/route.ts` |
@@ -281,9 +282,9 @@ Do not fetch `/api/auth/session` directly from page components — always go thr
 - The state totals aggregate is **pre-computed server-side** on each `district_submitted` event and **cached in admin IndexedDB** (`admin_state_totals`, 15-min TTL). The summary page never runs a fresh full-table aggregate within the TTL window.
 
 **Districts page (`/admin/districts`):**
-- Full 75-district table. Fetches from the same `GET /api/admin/districts` endpoint (75 aggregate rows — no shop data). The endpoint also returns `deoEmail` and a bbox-midpoint `centerLat`/`centerLon` per district (computed server-side from `districts.bboxMinLat/MaxLat/MinLon/MaxLon`).
-- Client-side search (matches district, division, DEO name, DEO email), division filter, status filter, and sortable columns. No additional API calls.
-- DEO name/email and coordinates are **read-only display fields** — there is no edit UI. DEO identity is set exclusively via `POST /api/admin/bulk-provision` (the provisioning Excel); the portal does not expose an inline-edit path for these fields.
+- Full 75-district table. Fetches from the same `GET /api/admin/districts` endpoint (75 aggregate rows — no shop data). The endpoint also returns `deoEmail`, `deoId`, and a bbox-midpoint `centerLat`/`centerLon` per district (computed server-side from `districts.bboxMinLat/MaxLat/MinLon/MaxLon`).
+- Client-side search (matches district, division, DEO name, DEO email — `deoEmail` is matched but not rendered, see below), division filter, status filter, and sortable columns. No additional API calls.
+- **Read-only view.** DEO name, email, and coordinates are displayed for browsing only — there is no edit UI on this page. The DEO email column itself is **not rendered** (only DEO name) to keep the table uncluttered; all district/DEO editing happens on the District Master page (`/admin/provision`), described below.
 - Division badge in each row links to `/admin/divisions/[division]`.
 
 **Divisions page (`/admin/divisions`):**
@@ -291,6 +292,12 @@ Do not fetch `/api/auth/session` directly from page components — always go thr
 
 **Division detail page (`/admin/divisions/[division]`):**
 - Fetches `GET /api/admin/districts`, filters client-side by division. Shows districts in that division as a sortable table.
+
+**District Master page (`/admin/provision`, nav label "District Master"):**
+- Single page for both inline editing and bulk Excel provisioning of the 75-row `districts` table.
+- **Inline edit:** the page fetches `GET /api/admin/districts` and renders all 75 districts in a table. Clicking the edit icon on a row opens a right-side drawer (`EditDrawer`) with fields: Division (`<select>` populated from `UP_DIVISIONS` in `packages/schema/src/constants.ts`), DEO Name, DEO Email, DEO Identifier, Expected Vend Count, and the four bbox coordinates (Min/Max Lat, Min/Max Lon). Saving calls `PATCH /api/admin/districts/[district]`, which atomically updates `districts` and syncs the corresponding `auth_users` row (deletes the old email's row if the email changed, upserts the new one) — see the PATCH route entry in the API table above.
+- **Bulk Excel provisioning** (`POST /api/admin/bulk-provision`) remains available below the table for initial campaign setup or large batches. `downloadTemplate()` calls `generateProvisionTemplate()` (in `apps/web/src/lib/excel.ts`) with the live district list, so the downloaded `.xlsx` arrives with District Name and Division pre-filled for all 75 rows — the admin only has to fill in the DEO columns.
+- This is the **only** place district master data (division, DEO identity, expected vend count, bbox) can be edited. Minor corrections no longer require a full Excel re-upload.
 
 **District detail page (`/admin/districts/[district]`):**
 - The "Division" stat card links to `/admin/divisions/[division]`.
@@ -433,7 +440,7 @@ The canonical schema is split across two files in `packages/schema/src/`:
 - `district_circles_sectors` — circles/sectors per district (Section 5.4)
 - `audit_log` — 45-day rolling event log (Section 5.5)
 
-**`auth.ts`** — auth tables (migration `0003_auth.sql`):
+**`auth.ts`** — auth tables (all 7 tables, including these, live in the single consolidated `migrations/0001_initial.sql`):
 - `auth_users` — email, name, role ('deo'|'admin'), deoId, districtName
 - `auth_magic_links` — tokenHash, expiresAt, used flag, rate-limit support
 - `auth_sessions` — id=sha256(rawId), userId FK, expiresAt (24h)
@@ -453,6 +460,14 @@ pnpm --filter web dev
 
 # Apply D1 migrations (run after adding new migration files)
 wrangler d1 migrations apply up-excise-spatial-revenue-optimizer-prod
+# Note: wrangler tracks applied migrations by filename, not content. If a migration file
+# that's already marked applied is edited in place (rather than adding a new file), the
+# above command reports "No migrations to apply!" even though the SQL changed. Force-apply
+# with: wrangler d1 execute up-excise-spatial-revenue-optimizer-prod --remote --file=migrations/0001_initial.sql
+
+# Seed the districts master table (all 75 UP districts + 18 divisions + bbox; re-run if
+# the GeoJSON or division mapping ever changes — safe to re-run, upserts by district name)
+pnpm seed:districts
 
 # Run unit tests
 pnpm test
@@ -485,7 +500,7 @@ Track which milestone is currently active. Update this table as milestones are c
 | Milestone | Status | Notes |
 |---|---|---|
 | M-0: Foundation & Repo Setup | **Completed** | pnpm workspace, CI/CD, wrangler config, D1 databases created and migrated |
-| M-1: Schema, Migrations & Worker Skeleton | **Completed** | Drizzle schema (4 tables), 2 migrations applied to dev + prod D1, initial worker skeleton |
+| M-1: Schema, Migrations & Worker Skeleton | **Completed** | Drizzle schema (4 tables), 2 migrations applied to dev + prod D1, initial worker skeleton (migrations later consolidated into a single file — see M-10) |
 | M-2: Excel Ingestion & Coordinate Engine | **Completed** | SheetJS parser, DMS→DD converter, revenue formulas, UP bbox validation |
 | M-3: Verification UI & IndexedDB | **Completed** | DEO verify page, Dexie.js offline staging, Service Worker + Background Sync PWA |
 | M-4: Worker Batch API & D1 Integration | **Completed** | Batch upload, dual-verification, atomic db.batch()/db.transaction() writes |
@@ -493,7 +508,8 @@ Track which milestone is currently active. Update this table as milestones are c
 | M-6: Auth Migration + Single Worker | **Completed** | Custom HMAC magic-link auth; Resend email; D1 sessions; all API routes merged into one CF Worker (`up-excise-spatial-revenue-optimizer-web`); no external auth provider |
 | M-7: Admin Portal UI Overhaul | **Completed** | District detail: all fields, client-side sort/filter/search/group-collapse/pagination, full type labels, CL5CC filter, circle/sector filter, revenue breakdown; HelpPanel balloon on all pages; ViewPrefsPanel FAB; GeoJSON map replaced with 75-district OSM source; government colour palette; district name labels on map |
 | M-8: Admin Portal Navigation & Divisions | **Completed** | /admin/districts page (full 75-district table); /admin/divisions page (18 division cards); /admin/divisions/[division] detail page; clickable breadcrumbs; functional nav search dropdown (districts + divisions, keyboard nav); overview top-10 by revenue + divisions grid; map full-width; charts side-by-side |
-| M-9: SPA Navigation Parity & Polish | **Completed** | Full `<a>`→`<Link>`/`router.push()` migration across both portals (admin districts/divisions/overview, DEO home action cards, Leaflet map click handler); DEO layout rewritten to match admin layout (logo links home, `<Link>` nav, `ThemeToggle` removed in favour of the global `ViewPrefsPanel`); navbar brand/logo links to the portal home on both layouts; HelpPanel viewport-overflow auto-flip + scrollable content + z-index raised above Leaflet panes; districts table shows DEO email and bbox-midpoint coordinates (read-only — provisioning Excel is the sole update path, no inline-edit UI); district detail "Division" stat links to its division page; dark-mode anti-flash script and `ViewPrefsPanel` now correctly resolve and live-track `'system'` preference; DEO home page stat cards (`HomeStats.tsx`) now read live counts from Dexie/IndexedDB and the units API instead of static placeholders; admin overview map enlarged (660px) with a clearer title; district map labels CSS specificity fixed |
+| M-9: SPA Navigation Parity & Polish | **Completed** | Full `<a>`→`<Link>`/`router.push()` migration across both portals (admin districts/divisions/overview, DEO home action cards, Leaflet map click handler); DEO layout rewritten to match admin layout (logo links home, `<Link>` nav, `ThemeToggle` removed in favour of the global `ViewPrefsPanel`); navbar brand/logo links to the portal home on both layouts; HelpPanel viewport-overflow auto-flip + scrollable content + z-index raised above Leaflet panes; districts table shows bbox-midpoint coordinates (read-only); district detail "Division" stat links to its division page; dark-mode anti-flash script and `ViewPrefsPanel` now correctly resolve and live-track `'system'` preference; DEO home page stat cards (`HomeStats.tsx`) now read live counts from Dexie/IndexedDB and the units API instead of static placeholders; admin overview map enlarged (660px) with a clearer title; district map labels CSS specificity fixed |
+| M-10: District Master & Migration Consolidation | **Completed** | Migrations consolidated from 3 files (`0001_initial.sql` + `0002_drop_premises_consideration_fee.sql` + `0003_auth.sql`) into a single `0001_initial.sql` matching `packages/schema` exactly (all 7 tables), reapplied to prod via `wrangler d1 execute` (filename-based migration tracking made `migrations apply` a no-op); `scripts/seed-districts.ts` (`pnpm seed:districts`) seeds the real 75 UP districts + 18 divisions + bbox into `districts` (sourced from OSM GeoJSON + Wikipedia, cross-verified) — previously only the schema columns existed, never the data; `UP_DIVISIONS` constant added to `packages/schema/src/constants.ts`; new `PATCH /api/admin/districts/[district]` endpoint (atomic, syncs `auth_users`); `/admin/provision` renamed to "District Master" in nav and rebuilt with an all-75-district table, a right-side edit drawer (division dropdown, DEO name/email/identifier, expected vend count, bbox) wired to the PATCH endpoint, and the existing bulk-Excel-provision flow retained below it with `generateProvisionTemplate()` now pre-filling District Name + Division from the live district list; `/admin/districts` table DEO email column removed (search still matches on email, just not displayed) and subtitle wording professionalized; demo DEO test account changed from a fake `clerk_test@up-excise.dev` address to a real `+deo` Gmail alias, and `seed-demo.ts` now also inserts the matching `auth_users` row (previously the demo DEO could never actually log in) |
 
 See [roadmap.md Section 6](roadmap.md#6-development-milestones--action-plan) for full milestone specs, entry/exit criteria, and deliverable checklists.
 
