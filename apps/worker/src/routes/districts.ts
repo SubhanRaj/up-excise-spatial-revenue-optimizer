@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { drizzle } from 'drizzle-orm/d1';
-import { eq, count, sum } from 'drizzle-orm';
+import { asc, eq, count, sum } from 'drizzle-orm';
 import { districts, districtCirclesSectors, phase1RawCollection, auditLog } from '@excise/schema';
 import type { HonoEnv } from '../types.js';
 import { requireRole } from '../middleware/auth.js';
@@ -98,6 +98,19 @@ districtsRouter.get('/:district/status', requireRole('deo'), async (c) => {
   const uploadedMap = Object.fromEntries(uploaded.map((u) => [u.circleSectorName, u.rowCount]));
   const summary = units.map((u) => ({ name: u.name, rowCount: uploadedMap[u.name] ?? 0 }));
   return c.json({ units: summary, canSubmit: summary.every((s) => s.rowCount > 0) });
+});
+
+districtsRouter.get('/:district/shops', requireRole('deo'), async (c) => {
+  const district = c.req.param('district')!;
+  const db = drizzle(c.env.DB);
+  const rows = await db
+    .select()
+    .from(phase1RawCollection)
+    .where(eq(phase1RawCollection.districtName, district))
+    .orderBy(asc(phase1RawCollection.circleSectorName), asc(phase1RawCollection.shopId))
+    .all();
+
+  return c.json({ rows });
 });
 
 districtsRouter.post('/:district/submit', requireRole('deo'), async (c) => {

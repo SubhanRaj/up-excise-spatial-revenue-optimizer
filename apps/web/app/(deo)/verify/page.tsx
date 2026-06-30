@@ -16,10 +16,11 @@ function formatInr(n: number): string {
   return `₹${n.toLocaleString('en-IN')}`;
 }
 
-function PillList({ raw, districtThanas, onChange }: {
+function PillList({ raw, districtThanas, onChange, readOnly = false }: {
   raw: string | null;
   districtThanas: Set<string>;
   onChange: (newRaw: string) => void;
+  readOnly?: boolean;
 }) {
   const pills = raw ? raw.split(',').map((s) => s.trim()).filter(Boolean) : [];
 
@@ -39,11 +40,13 @@ function PillList({ raw, districtThanas, onChange }: {
             title={isCross ? 'Cross-district adjacency — must be removed' : p}
           >
             {p}
-            <button
-              className="ml-1 text-xs font-bold hover:opacity-70"
-              aria-label={`Remove ${p}`}
-              onClick={() => remove(p)}
-            >×</button>
+            {!readOnly && (
+              <button
+                className="ml-1 text-xs font-bold hover:opacity-70"
+                aria-label={`Remove ${p}`}
+                onClick={() => remove(p)}
+              >×</button>
+            )}
           </span>
         );
       })}
@@ -68,22 +71,67 @@ export default function VerifyPage() {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [searchQ, setSearchQ] = useState('');
+  const [viewMode, setViewMode] = useState<'staged' | 'uploaded'>('staged');
+  const [uploadedRows, setUploadedRows] = useState<StagedRow[]>([]);
+  const [uploadedLoading, setUploadedLoading] = useState(false);
+  const [uploadedError, setUploadedError] = useState<string | null>(null);
+
+  const loadUploadedRows = useCallback(async (): Promise<StagedRow[]> => {
+    if (!district) return [];
+    setUploadedLoading(true);
+    setUploadedError(null);
+    try {
+      const token = await getToken();
+      const res = await fetch(`${WORKER}/api/districts/${encodeURIComponent(district)}/shops`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json() as { rows: StagedRow[] };
+      const mapped = data.rows.map((row) => ({ ...row, status: 'uploaded' as const }));
+      setUploadedRows(mapped);
+      const unitNames = [...new Set(mapped.map((r) => r.circleSectorName))].filter(Boolean);
+      setUnits(unitNames);
+      setActiveUnit((prev) => prev || unitNames[0] || '');
+      return mapped;
+    } catch {
+      setUploadedError('Unable to load uploaded district data right now.');
+      setUploadedRows([]);
+      setUnits([]);
+      return [];
+    } finally {
+      setUploadedLoading(false);
+    }
+  }, [district, getToken]);
 
   const loadRows = useCallback(async () => {
     const all = await stagingDb.getAll();
     setRows(all);
     const unitNames = [...new Set(all.map((r) => r.circleSectorName))].filter(Boolean);
     setUnits(unitNames);
-    if (!activeUnit && unitNames.length > 0) setActiveUnit(unitNames[0]!);
-  }, [activeUnit]);
+    setActiveUnit((prev) => prev || unitNames[0] || '');
+  }, []);
 
   useEffect(() => { void loadRows(); }, [loadRows]);
 
+  // ponytail: one-shot auto-switch — runs once when district is known, avoids infinite viewMode toggle
+  useEffect(() => {
+    if (!district) return;
+    stagingDb.getAll().then((all) => {
+      if (all.length === 0) {
+        setViewMode('uploaded');
+        void loadUploadedRows();
+      }
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [district]);
+
   // All Thana names within this district's staged data — used for cross-district pill check
-  const districtThanas = useMemo(() => new Set(rows.map((r) => r.thanaName)), [rows]);
+  const districtThanas = useMemo(() => new Set((viewMode === 'uploaded' ? uploadedRows : rows).map((r) => r.thanaName)), [rows, uploadedRows, viewMode]);
+
+  const visibleRows = viewMode === 'uploaded' ? uploadedRows : rows;
 
   const unitRows = useMemo(() => {
-    let filtered = rows.filter((r) => r.circleSectorName === activeUnit);
+    let filtered = visibleRows.filter((r) => r.circleSectorName === activeUnit);
     if (searchQ) {
       const q = searchQ.toLowerCase();
       filtered = filtered.filter(
@@ -91,15 +139,16 @@ export default function VerifyPage() {
       );
     }
     return filtered;
-  }, [rows, activeUnit, searchQ]);
+  }, [visibleRows, activeUnit, searchQ]);
 
   const paged = useMemo(() => unitRows.slice((page - 1) * pageSize, page * pageSize), [unitRows, page, pageSize]);
   const totalPages = Math.ceil(unitRows.length / pageSize);
 
-  const canSubmit = units.length > 0 && units.every((u) => rows.some((r) => r.circleSectorName === u && r.status !== 'error'));
+  const canSubmit = viewMode === 'staged' && units.length > 0 && units.every((u) => rows.some((r) => r.circleSectorName === u && r.status !== 'error'));
 
   async function updateRow(id: number | undefined, changes: Partial<StagedRow>) {
     if (id == null) return;
+    if (viewMode === 'uploaded') return;
     if ('adjacentThanasRaw' in changes || 'totalRevenue' in changes) {
       // Recompute revenue if financial fields changed
       const row = rows.find((r) => r.id === id);
@@ -193,10 +242,10 @@ export default function VerifyPage() {
     setUploading(false);
   }
 
-  const unitSummary = units.map((u) => ({
+  const unitSummary = [...new Set(visibleRows.map((r) => r.circleSectorName))].filter(Boolean).map((u) => ({
     name: u,
-    count: rows.filter((r) => r.circleSectorName === u).length,
-    uploaded: rows.filter((r) => r.circleSectorName === u && r.status === 'uploaded').length,
+    count: visibleRows.filter((r) => r.circleSectorName === u).length,
+    uploaded: visibleRows.filter((r) => r.circleSectorName === u && r.status === 'uploaded').length,
   }));
 
   return (
@@ -206,13 +255,25 @@ export default function VerifyPage() {
           <h2 className="text-xl font-bold">Verify &amp; Submit — {district}</h2>
           <HelpPanel pageKey="verify" title="Verification — How to review and submit">
             <p><strong>Unit tabs</strong> — Click a unit card to switch between circles/sectors. Each card shows how many rows have been uploaded. All units must have at least one row before submission is allowed.</p>
+            <p><strong>View mode</strong> — Switch between <em>Staged Data</em> (your local upload queue) and <em>Uploaded Data</em> (read-only district rows loaded from D1). Demo DEO data appears in the uploaded view if nothing has been staged locally yet.</p>
             <p><strong>Adjacent Thana pills</strong> — Thana names in the &quot;Adjacent Thanas&quot; column are shown as pills. <span className="text-error font-semibold">Red pills</span> indicate cross-district adjacency — these must be removed (click ×) before the row can be submitted. Same-district Thanas show as outlined pills.</p>
             <p><strong>Coordinates</strong> — A <span className="text-warning">⚠ warning icon</span> means the coordinate is outside the UP bounding box. A <span className="text-success">✓ icon</span> means valid. Review warnings before submitting — they are not blocked, but should be verified.</p>
             <p><strong>Revenue column</strong> — Calculated automatically from the financial fields. If a value looks wrong, go back to the Excel file and re-upload a corrected version.</p>
             <p><strong>Submit District</strong> — The button activates only when all registered units have at least one row with no errors. Clicking it uploads all pending rows and marks the district as submitted to headquarters.</p>
           </HelpPanel>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap justify-end">
+          <div className="join">
+            <button className={`join-item btn btn-sm ${viewMode === 'staged' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setViewMode('staged')} disabled={rows.length === 0}>
+              Staged Data
+            </button>
+            <button className={`join-item btn btn-sm ${viewMode === 'uploaded' ? 'btn-primary' : 'btn-outline'}`} onClick={async () => {
+              setViewMode('uploaded');
+              if (uploadedRows.length === 0 && !uploadedLoading) await loadUploadedRows();
+            }}>
+              Uploaded Data
+            </button>
+          </div>
           <input
             className="input input-bordered input-sm w-48"
             placeholder="Search shop name / ID / Thana"
@@ -251,9 +312,14 @@ export default function VerifyPage() {
             {u.count === 0 && <span className="badge badge-error badge-xs mt-1">No data</span>}
           </div>
         ))}
-        {units.length === 0 && (
+        {visibleRows.length === 0 && viewMode === 'staged' && (
           <div className="col-span-4 text-base-content/60 text-sm">
             No staged data. <a href="/upload" className="link">Upload a file first.</a>
+          </div>
+        )}
+        {visibleRows.length === 0 && viewMode === 'uploaded' && (
+          <div className="col-span-4 text-base-content/60 text-sm">
+            {uploadedLoading ? 'Loading uploaded district data…' : uploadedError ?? 'No uploaded district rows found.'}
           </div>
         )}
       </div>
@@ -262,7 +328,7 @@ export default function VerifyPage() {
       {paged.length > 0 && (
         <>
           <div className="overflow-x-auto card bg-base-100 shadow">
-            <table className="table table-sm" role="grid" aria-label={`Verification table for ${activeUnit}`}>
+            <table className="table table-sm" role="grid" aria-label={`${viewMode === 'uploaded' ? 'Uploaded district data' : 'Verification'} table for ${activeUnit}`}>
               <thead>
                 <tr>
                   <th>Shop ID</th><th>Shop Name</th><th>Thana</th><th>Type</th>
@@ -274,12 +340,16 @@ export default function VerifyPage() {
                   <tr key={row.id} role="row" className={row.status === 'error' ? 'bg-error/10' : ''}>
                     <td role="gridcell" className="font-mono text-xs">{row.shopId}</td>
                     <td role="gridcell">
-                      <input
-                        className="input input-ghost input-xs w-full min-w-32"
-                        value={row.shopName}
-                        aria-label={`Shop name for ${row.shopId}`}
-                        onChange={(e) => updateRow(row.id, { shopName: e.target.value })}
-                      />
+                      {viewMode === 'uploaded' ? (
+                        <span className="text-sm">{row.shopName}</span>
+                      ) : (
+                        <input
+                          className="input input-ghost input-xs w-full min-w-32"
+                          value={row.shopName}
+                          aria-label={`Shop name for ${row.shopId}`}
+                          onChange={(e) => updateRow(row.id, { shopName: e.target.value })}
+                        />
+                      )}
                     </td>
                     <td role="gridcell" className="text-xs">{row.thanaName}</td>
                     <td role="gridcell"><span className="badge badge-xs badge-outline">{row.shopType}</span></td>
@@ -288,6 +358,7 @@ export default function VerifyPage() {
                         raw={row.adjacentThanasRaw}
                         districtThanas={districtThanas}
                         onChange={(newRaw) => updateRow(row.id, { adjacentThanasRaw: newRaw })}
+                        readOnly={viewMode === 'uploaded'}
                       />
                     </td>
                     <td role="gridcell">

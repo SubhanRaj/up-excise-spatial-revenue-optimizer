@@ -140,6 +140,7 @@ Base URL: `https://up-excise-spatial-revenue-optimizer.shubhanraj2002.workers.de
 | `POST` | `/api/districts/:district/units` | `routes/districts.ts` — register circle/sector |
 | `GET` | `/api/districts/:district/template` | `routes/districts.ts` — Excel template download |
 | `GET` | `/api/districts/:district/status` | `routes/districts.ts` — upload progress |
+| `GET` | `/api/districts/:district/shops` | `routes/districts.ts` — all shops for district (verify uploaded view) |
 | `POST` | `/api/districts/:district/submit` | `routes/districts.ts` — mark district submitted |
 
 **Admin (`role: admin`):**
