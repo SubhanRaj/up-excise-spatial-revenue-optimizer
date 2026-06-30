@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSession } from '@/hooks/useSession';
 import HelpPanel from '@/app/_components/HelpPanel';
 const MAP_POLL_MS = 5 * 60 * 1000;
@@ -60,7 +60,6 @@ export default function AdminPage() {
   const [mapData, setMapData] = useState<MapRow[]>([]);
   const [apiError, setApiError] = useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
-  const [search, setSearch] = useState('');
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstance = useRef<LeafletMap | null>(null);
@@ -203,9 +202,23 @@ export default function AdminPage() {
     }
   }, [data]);
 
-  const filtered = (data?.districts ?? []).filter((d) =>
-    !search || d.name.toLowerCase().includes(search.toLowerCase())
-  );
+  const top10 = useMemo(() =>
+    [...(data?.districts ?? [])].sort((a, b) => b.totalRevenue - a.totalRevenue).slice(0, 10),
+    [data]);
+
+  const divisions = useMemo(() => {
+    const map = new Map<string, { count: number; submitted: number; vends: number; revenue: number }>();
+    for (const d of (data?.districts ?? [])) {
+      if (!d.division) continue;
+      const e = map.get(d.division) ?? { count: 0, submitted: 0, vends: 0, revenue: 0 };
+      e.count++;
+      if (d.status === 'submitted') e.submitted++;
+      e.vends += d.vendCount;
+      e.revenue += d.totalRevenue;
+      map.set(d.division, e);
+    }
+    return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b)).map(([name, s]) => ({ name, ...s }));
+  }, [data]);
 
   return (
     <div className="space-y-6">
@@ -275,28 +288,61 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {/* District summary table */}
+      {/* Divisions grid */}
+      {divisions.length > 0 && (
+        <div className="card bg-base-100 shadow p-4">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold">Divisions</h3>
+            <span className="text-xs text-base-content/40">{divisions.length} divisions · click to view districts</span>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+            {divisions.map((div) => (
+              <a
+                key={div.name}
+                href={`/admin/divisions/${encodeURIComponent(div.name)}`}
+                className="rounded-lg border border-base-200 p-3 hover:border-primary hover:bg-base-50 transition-colors cursor-pointer group"
+              >
+                <p className="text-xs font-semibold text-base-content/70 group-hover:text-primary transition-colors truncate">{div.name}</p>
+                <p className="text-[11px] text-base-content/40 mt-0.5">{div.count} districts</p>
+                <div className="mt-2 flex items-center gap-1.5">
+                  <span className={`badge badge-xs ${div.submitted === div.count ? 'badge-success' : div.submitted > 0 ? 'badge-warning' : 'badge-ghost'}`}>
+                    {div.submitted}/{div.count}
+                  </span>
+                  <span className="text-[11px] text-base-content/40 tabular-nums">{formatInr(div.revenue)}</span>
+                </div>
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Top-10 district table */}
       <div className="card bg-base-100 shadow p-4">
         <div className="flex justify-between items-center mb-3 flex-wrap gap-2">
-          <h3 className="font-semibold">District Summary</h3>
-          <input
-            className="input input-bordered input-sm w-48"
-            placeholder="Search district"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            aria-label="Search districts"
-          />
+          <div>
+            <h3 className="font-semibold">Top 10 Districts by Revenue</h3>
+            <p className="text-xs text-base-content/40 mt-0.5">Highest revenue districts this cycle</p>
+          </div>
+          <a href="/admin/districts" className="btn btn-sm btn-outline gap-1">
+            View all 75 districts
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+          </a>
         </div>
         <div className="overflow-x-auto">
-          <table className="table table-zebra table-sm w-full" role="grid" aria-label="District summary">
+          <table className="table table-zebra table-sm w-full" role="grid" aria-label="Top 10 districts by revenue">
             <thead>
-              <tr><th>District</th><th>DEO</th><th>Status</th><th>Vends</th><th>Revenue</th><th></th></tr>
+              <tr><th>#</th><th>District</th><th>Division</th><th>Status</th><th>Vends</th><th>Revenue</th><th></th></tr>
             </thead>
             <tbody>
-              {filtered.map((d) => (
+              {top10.map((d, i) => (
                 <tr key={d.name} role="row">
+                  <td role="gridcell" className="text-base-content/40 text-xs tabular-nums w-6">{i + 1}</td>
                   <td role="gridcell" className="font-medium">{d.name}</td>
-                  <td role="gridcell" className="text-xs">{d.deoName ?? '—'}</td>
+                  <td role="gridcell">
+                    {d.division
+                      ? <a href={`/admin/divisions/${encodeURIComponent(d.division)}`} className="badge badge-xs badge-ghost hover:badge-primary transition-colors cursor-pointer">{d.division}</a>
+                      : <span className="text-base-content/30">—</span>}
+                  </td>
                   <td role="gridcell">
                     <span className={`badge badge-sm ${d.status === 'submitted' ? 'badge-success' : d.status === 'in_progress' ? 'badge-warning' : 'badge-ghost'}`}>
                       {d.status}
@@ -309,12 +355,11 @@ export default function AdminPage() {
                   </td>
                 </tr>
               ))}
-              {/* All State totals row */}
               {data && (
                 <tr className="font-bold bg-base-200" role="row">
-                  <td role="gridcell" colSpan={3}>All State</td>
-                  <td role="gridcell">{data.stateTotals.totalVendCount.toLocaleString()}</td>
-                  <td role="gridcell" className="font-mono text-xs">{formatInr(data.stateTotals.totalRevenue)}</td>
+                  <td colSpan={4}>All State</td>
+                  <td>{data.stateTotals.totalVendCount.toLocaleString()}</td>
+                  <td className="font-mono text-xs">{formatInr(data.stateTotals.totalRevenue)}</td>
                   <td />
                 </tr>
               )}
