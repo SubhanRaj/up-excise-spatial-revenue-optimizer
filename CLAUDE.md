@@ -272,7 +272,7 @@ Do not fetch `/api/auth/session` directly from page components — always go thr
 ### Admin Data Loading
 - The admin portal default view **never loads shop rows**. The district summary list is 75 aggregate rows (name, vend count, total annual revenue, status) plus an "All State" totals row at the bottom. Built from `COUNT`/`SUM` aggregates — no row-level data.
 - The state totals aggregate is **pre-computed server-side** on each `district_submitted` event and **cached in admin IndexedDB** (`admin_state_totals`, 15-min TTL). The summary page never runs a fresh full-table aggregate within the TTL window.
-- Shop rows are loaded **only when an admin drills into a specific district**. The route is `GET /api/admin/districts/:district/shops` (paginated, 100 rows/page). All pages for that district are cached in admin IndexedDB (`admin_district_cache`, 1-hour TTL).
+- Shop rows are loaded **only when an admin drills into a specific district**. The route is `GET /api/admin/districts/:district/shops` (paginated; `pageSize` accepts 10/25/50/100 or `all`, default 100, server cap 2000). All pages for that district are cached in admin IndexedDB (`admin_district_cache`, 1-hour TTL). The district detail table shows all `phase1_raw_collection` fields including circle/sector, adjacent thanas, coordinates, CL5CC flag, and a per-row revenue breakdown (collapsible `<details>` — no modal).
 - Full-state UI table (~30K shops in one view) is **not a supported operation**. The only full-state path is `GET /api/admin/export/all` — a chunked `.xlsx` Excel file download. It triggers a file download, never a UI render.
 
 ### Database Writes — Always Atomic

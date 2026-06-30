@@ -115,7 +115,7 @@ up-excise-spatial-revenue-optimizer/
 - 75-row district summary + state totals (no shop rows on default view)
 - Interactive UP choropleth map (Leaflet, district status colour-coded)
 - 5 Chart.js analytics charts (submission progress, revenue by district, shop type breakdown)
-- District drill-down: paginated shop table (100/page, IndexedDB-cached 1h)
+- District drill-down: paginated shop table (10/25/50/100/All rows per page selector, IndexedDB-cached 1h); shows all fields including circle/sector, coordinates, adjacent thanas, CL5CC, and per-row revenue breakdown (collapsible inline, no modal)
 - Full-state export: chunked `.xlsx` download (never rendered in UI)
 - Audit log viewer (last 45 days)
 - Bulk DEO provisioning via Excel upload
