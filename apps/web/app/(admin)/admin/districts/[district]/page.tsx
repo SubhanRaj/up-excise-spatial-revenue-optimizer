@@ -1,6 +1,6 @@
 'use client';
 
-import { use, useEffect, useMemo, useState } from 'react';
+import { memo, use, useEffect, useMemo, useState } from 'react';
 
 const ON_PREMISES_CONSUMPTION_FEE = 300_000;
 const BHANG_MGQ_MULTIPLIER = 20;
@@ -119,33 +119,13 @@ function RevenueCell({ s }: { s: ShopRow }) {
 }
 
 function AdjThanas({ raw }: { raw: string | null }) {
-  const [expanded, setExpanded] = useState(false);
   if (!raw) return <span className="text-base-content/30">—</span>;
   const thanas = raw.split(',').map((t) => t.trim()).filter(Boolean);
-  const visible = expanded ? thanas : thanas.slice(0, 2);
-  const rest = thanas.length - 2;
-
   return (
-    <div className="flex flex-wrap gap-1 max-w-[180px]">
-      {visible.map((t) => (
+    <div className="flex flex-wrap gap-1 min-w-[140px]">
+      {thanas.map((t) => (
         <span key={t} className="badge badge-xs badge-ghost font-normal">{t}</span>
       ))}
-      {!expanded && rest > 0 && (
-        <button
-          className="badge badge-xs badge-outline cursor-pointer hover:badge-neutral"
-          onClick={() => setExpanded(true)}
-        >
-          +{rest} more
-        </button>
-      )}
-      {expanded && rest > 0 && (
-        <button
-          className="badge badge-xs badge-outline cursor-pointer hover:badge-neutral"
-          onClick={() => setExpanded(false)}
-        >
-          show less
-        </button>
-      )}
     </div>
   );
 }
@@ -250,9 +230,14 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
     return counts;
   }, [allShops]);
 
+  const cl5ccCount = useMemo(() => allShops.filter((s) => s.hasCl5cc).length, [allShops]);
+
   const effectivePageSize = pageSize === 'all' ? filteredSorted.length || 1 : pageSize;
   const totalPages = Math.ceil(filteredSorted.length / effectivePageSize);
-  const displayRows = filteredSorted.slice((page - 1) * effectivePageSize, page * effectivePageSize);
+  const displayRows = useMemo(
+    () => filteredSorted.slice((page - 1) * effectivePageSize, page * effectivePageSize),
+    [filteredSorted, page, effectivePageSize],
+  );
 
   function handleSort(key: SortKey) {
     if (sortKey === key) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
@@ -335,7 +320,7 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
       {!loading && allShops.length > 0 && (
         <div className="bg-base-100 rounded-xl border border-base-200 p-4">
           <p className="text-[11px] uppercase tracking-widest font-medium text-base-content/40 mb-3">Shop Type Breakdown</p>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
             {SHOP_TYPES.map((t) => {
               const c = typeCounts[t];
               if (!c) return null;
@@ -354,6 +339,16 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
                 </button>
               );
             })}
+            {cl5ccCount > 0 && (
+              <div className="rounded-lg border border-base-200 p-3 text-left">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <span className="badge badge-xs badge-outline text-[10px]">CL5CC</span>
+                  <span className="text-xs font-medium text-base-content/70">CL5CC</span>
+                </div>
+                <p className="text-lg font-bold tabular-nums">{cl5ccCount}</p>
+                <p className="text-[11px] text-base-content/40">Country Liquor</p>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -535,7 +530,7 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
 }
 
 // Extracted row so JSX stays readable
-function ShopTableRow({ s }: { s: ShopRow }) {
+const ShopTableRow = memo(function ShopTableRow({ s }: { s: ShopRow }) {  // ponytail: memo prevents re-render of stable rows when toolbar state changes
   return (
     <tr className="hover:bg-base-50 border-b border-base-100 last:border-0">
       <td className="font-mono text-xs text-base-content/70 whitespace-nowrap">{s.shopId}</td>
@@ -559,4 +554,4 @@ function ShopTableRow({ s }: { s: ShopRow }) {
       <td className="text-xs text-base-content/40">{s.uploadedByDeo}</td>
     </tr>
   );
-}
+});
