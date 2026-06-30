@@ -182,7 +182,14 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
   const [sortKey, setSortKey] = useState<SortKey>('shopId');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [groupByType, setGroupByType] = useState(false);
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(SHOP_TYPES));
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => {
+    if (typeof window === 'undefined') return new Set();
+    try {
+      const stored = localStorage.getItem(`admin-group-${name}`);
+      if (stored) return new Set(JSON.parse(stored) as string[]);
+    } catch { }
+    return new Set(); // default: all collapsed
+  });
   const [groupPages, setGroupPages] = useState<Record<string, number>>({});
   const [pageSize, setPageSize] = useState<PageSizeVal>(() => {
     if (typeof window === 'undefined') return 100;
@@ -272,6 +279,22 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
   }
   function handleCircleFilter(v: string) { setCircleFilter(v); setPage(1); }
   function handlePageSize(v: PageSizeVal) { setPageSize(v); setPage(1); localStorage.setItem('admin-page-size', String(v)); }
+  function handleGroupByType(checked: boolean) {
+    setGroupByType(checked);
+    setPage(1);
+    if (checked) {
+      setTypeFilter('all'); // deselect any active type filter
+      setExpandedGroups(new Set()); // collapse all groups on enable
+    }
+  }
+  function toggleGroup(type: string) {
+    setExpandedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(type)) next.delete(type); else next.add(type);
+      try { localStorage.setItem(`admin-group-${name}`, JSON.stringify(Array.from(next))); } catch { }
+      return next;
+    });
+  }
 
   async function exportCsv() {
     const res = await fetch(`/api/admin/districts/${encodeURIComponent(name)}/export`);
@@ -443,7 +466,7 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
               type="checkbox"
               className="toggle toggle-xs toggle-info"
               checked={groupByType}
-              onChange={(e) => { setGroupByType(e.target.checked); setPage(1); }}
+              onChange={(e) => handleGroupByType(e.target.checked)}
             />
             Group by type
           </label>
@@ -540,11 +563,7 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
                       <td colSpan={skeletonCols} className="py-2 px-3">
                         <div className="flex items-center gap-3">
                           <button
-                            onClick={() => setExpandedGroups((prev) => {
-                              const next = new Set(prev);
-                              if (next.has(type)) next.delete(type); else next.add(type);
-                              return next;
-                            })}
+                            onClick={() => toggleGroup(type)}
                             className="flex items-center gap-2 hover:opacity-70 transition-opacity"
                           >
                             <span className="text-base-content/50 text-xs">{isExpanded ? '▾' : '▸'}</span>
