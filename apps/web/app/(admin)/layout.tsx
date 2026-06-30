@@ -193,11 +193,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       {/* z-[1000] — must exceed Leaflet tooltip pane (z-index 650) */}
       <nav className="navbar bg-base-100 shadow-sm px-6 sticky top-0 z-[1000]">
         <div className="flex-1 flex items-center gap-3">
-          <svg xmlns="http://www.w3.org/2000/svg" className="w-10 h-10 text-primary shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18"/><path d="M9 8h1"/><path d="M9 12h1"/><path d="M9 16h1"/><path d="M14 8h1"/><path d="M14 12h1"/><path d="M14 16h1"/><path d="M5 21V6l7-3 7 3v15"/></svg>
-          <div className="hidden md:block">
-            <div className="font-bold text-sm leading-tight">UP Excise SRO</div>
-            <div className="text-xs text-base-content/50 leading-tight">Headquarters Dashboard</div>
-          </div>
+          <Link href="/admin" className="flex items-center gap-3 group">
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-10 h-10 text-primary shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18"/><path d="M9 8h1"/><path d="M9 12h1"/><path d="M9 16h1"/><path d="M14 8h1"/><path d="M14 12h1"/><path d="M14 16h1"/><path d="M5 21V6l7-3 7 3v15"/></svg>
+            <div className="hidden md:block">
+              <div className="font-bold text-sm leading-tight group-hover:text-primary transition-colors">UP Excise SRO</div>
+              <div className="text-xs text-base-content/50 leading-tight">Headquarters Dashboard</div>
+            </div>
+          </Link>
         </div>
 
         <SearchBar />

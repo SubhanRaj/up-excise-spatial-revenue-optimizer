@@ -230,10 +230,10 @@ All API routes are same-origin Next.js Route Handlers. The browser sends the ses
 - **Tailwind utilities** (`flex`, `text-center`, `p-4`, etc.) come from the Tailwind v4 CDN script. DaisyUI color utilities (`bg-base-200`, `text-primary`) come from the DaisyUI CSS file.
 
 **Theme system (dark/light mode, no flash):**
-- An inline `<script>` in `apps/web/app/layout.tsx` runs before first paint: reads `localStorage.getItem('theme')` and sets `data-theme` on `<html>`. This eliminates the white flash on dark-mode load.
+- An inline `<script>` in `apps/web/app/layout.tsx` runs before first paint: reads `localStorage.getItem('theme')` and resolves it to `'light'`/`'dark'` via `window.matchMedia('(prefers-color-scheme:dark)')` when the stored value is `'system'` or unset (first visit), then sets `data-theme` on `<html>`. This eliminates the white flash on dark-mode/system-preference load — the very first paint already reflects the resolved theme, with no dependency on `ViewPrefsPanel` having mounted yet.
 - `data-theme` must only ever be set on `<html>` — **never on child `<div>` elements**. A `data-theme` attribute on any descendant overrides the root and breaks the anti-flash script.
-- The `ViewPrefsPanel` component (`app/_components/ViewPrefsPanel.tsx`) is the only place that writes `data-theme` and `localStorage.theme`. It supports three modes: `light`, `dark`, and `system` (reads `window.matchMedia('(prefers-color-scheme: dark)')`). Internally calls `document.documentElement.setAttribute('data-theme', resolved)` where `resolved` is always `'light'` or `'dark'`. The `ThemeToggle` component is retired — do not re-add it.
-- Valid values: `light` and `dark` only.
+- The `ViewPrefsPanel` component (`app/_components/ViewPrefsPanel.tsx`) is the only place that writes `data-theme` and `localStorage.theme`. It supports three modes: `light`, `dark`, and `system` (reads `window.matchMedia('(prefers-color-scheme: dark)')`). Internally calls `document.documentElement.setAttribute('data-theme', resolved)` where `resolved` is always `'light'` or `'dark'`. On mount it re-applies the persisted theme (not just its own button-highlight state) and attaches a `matchMedia` `change` listener that live-reapplies `'system'` resolution if the OS preference flips while `'system'` mode is active and no explicit `light`/`dark` choice has been stored. The `ThemeToggle` component is retired — do not re-add it.
+- `localStorage.theme` holds one of `'light'`, `'dark'`, or `'system'`. `data-theme` on `<html>` is always the *resolved* value — only `'light'` or `'dark'`, never `'system'`.
 
 ### Icons & Fonts
 
@@ -281,8 +281,10 @@ Do not fetch `/api/auth/session` directly from page components — always go thr
 - The state totals aggregate is **pre-computed server-side** on each `district_submitted` event and **cached in admin IndexedDB** (`admin_state_totals`, 15-min TTL). The summary page never runs a fresh full-table aggregate within the TTL window.
 
 **Districts page (`/admin/districts`):**
-- Full 75-district table. Fetches from the same `GET /api/admin/districts` endpoint (75 aggregate rows — no shop data).
-- Client-side search, division filter, status filter, and sortable columns. No additional API calls.
+- Full 75-district table. Fetches from the same `GET /api/admin/districts` endpoint (75 aggregate rows — no shop data). The endpoint also returns `deoEmail` and a bbox-midpoint `centerLat`/`centerLon` per district (computed server-side from `districts.bboxMinLat/MaxLat/MinLon/MaxLon`).
+- Client-side search (matches district, division, DEO name, DEO email), division filter, status filter, and sortable columns. No additional API calls.
+- DEO name/email and coordinates are **read-only display fields** — there is no edit UI. DEO identity is set exclusively via `POST /api/admin/bulk-provision` (the provisioning Excel); the portal does not expose an inline-edit path for these fields.
+- Division badge in each row links to `/admin/divisions/[division]`.
 
 **Divisions page (`/admin/divisions`):**
 - 18 division cards derived client-side from `GET /api/admin/districts`. Shows district count, submission progress, and revenue per division.
@@ -291,6 +293,7 @@ Do not fetch `/api/auth/session` directly from page components — always go thr
 - Fetches `GET /api/admin/districts`, filters client-side by division. Shows districts in that division as a sortable table.
 
 **District detail page (`/admin/districts/[district]`):**
+- The "Division" stat card links to `/admin/divisions/[division]`.
 - Shop rows are loaded **only here**. The single call is `GET /api/admin/districts/:district/shops?pageSize=all` — all rows for that district arrive in one response and are held in React state. All filtering, sorting, searching, grouping, and pagination happen **client-side with `useMemo`** — no additional API calls per interaction.
 - `pageSize` on the API accepts 10/25/50/100 or `all`; server cap is 2000. The selected per-page display size is persisted to `localStorage` (`admin-page-size`).
 - Shows all `phase1_raw_collection` fields: shop ID, name, circle/sector, thana, adjacent thanas (flex-wrap pills), type badge + CL5CC sub-badge, coordinates, revenue (collapsible `<details>` breakdown — no modal).
@@ -302,7 +305,7 @@ Do not fetch `/api/auth/session` directly from page components — always go thr
 - The navbar search bar (`SearchBar` component in `app/(admin)/layout.tsx`) fetches district + division names once on mount (module-level cache `searchCache`). Filters as the user types, shows a dropdown grouped by Divisions / Districts, supports keyboard navigation (↑↓, Enter, Escape). No search results page — navigates directly to the clicked district or division page.
 
 ### UI Components — Shared
-- **`HelpPanel`** (`app/_components/HelpPanel.tsx`): collapsible help triggered by an inline button. Opens as an **absolute-positioned balloon** below the trigger button (not a full-page overlay). A `fixed inset-0 backdrop-blur-[2px] bg-black/10 pointer-events-none` layer provides subtle background blur without blocking interactions. Closes on Escape key or outside click (mousedown on `document`). Balloon has a CSS caret (`-top-2 rotate-45`). `localStorage` key `help_done_{pageKey}` tracks whether the user has dismissed the badge. Present on all DEO and admin pages.
+- **`HelpPanel`** (`app/_components/HelpPanel.tsx`): collapsible help triggered by an inline button. Opens as an **absolute-positioned balloon** below the trigger button (not a full-page overlay). Flips from `left-0` to `right-0` automatically via a `useLayoutEffect` viewport-overflow check (`getBoundingClientRect().right` vs `window.innerWidth`) so the balloon never renders off-screen; the caret position follows the flip. Balloon content is scrollable (`overflow-y-auto max-h-64`) so long help text never overflows the viewport. Balloon z-index (`z-[1002]`) and its backdrop (`z-[1001]`) sit above the sticky navbar and the Leaflet map panes (tooltip pane 650, popup pane 700) so it is never hidden behind the map on the overview page. A `fixed inset-0 backdrop-blur-[2px] bg-black/10 pointer-events-none` layer provides subtle background blur without blocking interactions. Closes on Escape key or outside click (mousedown on `document`). `localStorage` key `help_done_{pageKey}` tracks whether the user has dismissed the badge. Present on all DEO and admin pages.
 - **`ViewPrefsPanel`** (`app/_components/ViewPrefsPanel.tsx`): floating FAB fixed at bottom-right on all pages. Controls theme (Light/Auto/Dark), font size (`data-font-size`: sm/base/lg), row density (`data-density`: compact/normal/spacious), and content width (`data-view-width`: normal/wide/full). Theme "Auto" resolves via `window.matchMedia('(prefers-color-scheme: dark)')`. Applies preferences as `data-*` attributes on `<html>`; corresponding CSS rules live in the global `<style>` block in `layout.tsx`. Persisted to `localStorage` key `excise-view-prefs-v1`. FAB has a `title` tooltip. The separate `ThemeToggle` component has been retired.
 
 ### Choropleth Map & GeoJSON Data
@@ -337,8 +340,9 @@ Do not fetch `/api/auth/session` directly from page components — always go thr
 - Map locked to UP: `minZoom: 6`, `maxZoom: 10`, `maxBounds: [[22.5, 76.0], [31.5, 85.5]]`, `fitBounds` to `[[23.8, 77.1], [30.4, 84.6]]`.
 - District borders: `weight: 1.5`, `color: '#334155'` (slate-700). Fill opacity: `0.65`.
 - Status fill colours: pending `#94a3b8`, in_progress `#f59e0b`, submitted `#16a34a`. Legend rendered below the map div.
-- Permanent district name labels: `bindTooltip(name, { permanent: true, direction: 'center', className: 'district-map-label' })`. CSS in `layout.tsx` global `<style>` block: transparent background, 9px bold, white text-shadow for light mode, slate text-shadow for dark mode.
+- Permanent district name labels: `bindTooltip(name, { permanent: true, direction: 'center', className: 'district-map-label' })`. CSS selector in `layout.tsx` global `<style>` block must be scoped as `.leaflet-tooltip.district-map-label` (not the bare class) to out-specificity Leaflet's own `.leaflet-tooltip` base styles (white background/border/shadow) — transparent background, 10px bold, white/slate triple text-shadow for legibility against tiles in light/dark mode respectively.
 - Clicking a district polygon navigates to `/admin/districts/[name]`.
+- On the overview page (`/admin`) the map card is taller (`height: 660`) than a standard card so the full state fits vertically without excessive zoom-out; header reads "District Status — Uttar Pradesh" with a "75 districts · click any district to view shop records" subtitle.
 
 ### Database Writes — Always Atomic
 - Any Worker route that performs **two or more related writes** (e.g., insert row + insert audit log, update status + insert audit log) must wrap them in a single atomic operation.
@@ -489,6 +493,7 @@ Track which milestone is currently active. Update this table as milestones are c
 | M-6: Auth Migration + Single Worker | **Completed** | Custom HMAC magic-link auth; Resend email; D1 sessions; all API routes merged into one CF Worker (`up-excise-spatial-revenue-optimizer-web`); no external auth provider |
 | M-7: Admin Portal UI Overhaul | **Completed** | District detail: all fields, client-side sort/filter/search/group-collapse/pagination, full type labels, CL5CC filter, circle/sector filter, revenue breakdown; HelpPanel balloon on all pages; ViewPrefsPanel FAB; GeoJSON map replaced with 75-district OSM source; government colour palette; district name labels on map |
 | M-8: Admin Portal Navigation & Divisions | **Completed** | /admin/districts page (full 75-district table); /admin/divisions page (18 division cards); /admin/divisions/[division] detail page; clickable breadcrumbs; functional nav search dropdown (districts + divisions, keyboard nav); overview top-10 by revenue + divisions grid; map full-width; charts side-by-side |
+| M-9: SPA Navigation Parity & Polish | **Completed** | Full `<a>`→`<Link>`/`router.push()` migration across both portals (admin districts/divisions/overview, DEO home action cards, Leaflet map click handler); DEO layout rewritten to match admin layout (logo links home, `<Link>` nav, `ThemeToggle` removed in favour of the global `ViewPrefsPanel`); navbar brand/logo links to the portal home on both layouts; HelpPanel viewport-overflow auto-flip + scrollable content + z-index raised above Leaflet panes; districts table shows DEO email and bbox-midpoint coordinates (read-only — provisioning Excel is the sole update path, no inline-edit UI); district detail "Division" stat links to its division page; dark-mode anti-flash script and `ViewPrefsPanel` now correctly resolve and live-track `'system'` preference; DEO home page stat cards (`HomeStats.tsx`) now read live counts from Dexie/IndexedDB and the units API instead of static placeholders; admin overview map enlarged (660px) with a clearer title; district map labels CSS specificity fixed |
 
 See [roadmap.md Section 6](roadmap.md#6-development-milestones--action-plan) for full milestone specs, entry/exit criteria, and deliverable checklists.
 

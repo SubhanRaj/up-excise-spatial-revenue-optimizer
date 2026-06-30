@@ -50,13 +50,22 @@ export default function ViewPrefsPanel() {
       }
     } catch { /* ignore */ }
 
-    // Detect current theme mode
+    // Restore theme mode and re-apply (handles refresh with system mode stored)
     try {
       const t = localStorage.getItem('theme') as ThemeMode | null;
-      if (t === 'system' || t === null) setThemeMode('system');
-      else if (t === 'dark') setThemeMode('dark');
-      else setThemeMode('light');
+      const mode: ThemeMode = t === 'dark' ? 'dark' : t === 'light' ? 'light' : 'system';
+      setThemeMode(mode);
+      applyTheme(mode);
     } catch { /* ignore */ }
+
+    // Update in real-time when OS switches light/dark while theme mode is 'system'
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    function onSystemChange() {
+      const current = localStorage.getItem('theme');
+      if (current !== 'light' && current !== 'dark') applyTheme('system');
+    }
+    mq.addEventListener('change', onSystemChange);
+    return () => mq.removeEventListener('change', onSystemChange);
   }, []);
 
   function update(patch: Partial<Prefs>) {

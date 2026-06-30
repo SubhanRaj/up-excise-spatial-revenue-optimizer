@@ -6,11 +6,12 @@ import { useRouter } from 'next/navigation';
 import HelpPanel from '@/app/_components/HelpPanel';
 
 interface DistrictRow {
-  name: string; division?: string; deoName?: string; status: string;
-  vendCount: number; totalRevenue: number;
+  name: string; division?: string; deoName?: string; deoEmail?: string; status: string;
+  vendCount: number; totalRevenue: number; centerLat?: number | null; centerLon?: number | null;
 }
 
 const fmt = (n: number) => n >= 1e7 ? `₹${(n / 1e7).toFixed(2)} Cr` : n >= 1e5 ? `₹${(n / 1e5).toFixed(2)} L` : `₹${n.toLocaleString('en-IN')}`;
+const fmtCoord = (n: number) => n.toFixed(4);
 
 type SortKey = 'name' | 'division' | 'status' | 'vendCount' | 'totalRevenue';
 
@@ -42,7 +43,7 @@ export default function DistrictsPage() {
   const rows = useMemo(() => {
     const q = search.toLowerCase();
     let out = districts.filter((d) => {
-      if (q && !d.name.toLowerCase().includes(q) && !(d.division ?? '').toLowerCase().includes(q)) return false;
+      if (q && !d.name.toLowerCase().includes(q) && !(d.division ?? '').toLowerCase().includes(q) && !(d.deoName ?? '').toLowerCase().includes(q) && !(d.deoEmail ?? '').toLowerCase().includes(q)) return false;
       if (divFilter !== 'all' && d.division !== divFilter) return false;
       if (statusFilter !== 'all' && d.status !== statusFilter) return false;
       return true;
@@ -65,6 +66,7 @@ export default function DistrictsPage() {
     revenue: rows.reduce((s, r) => s + r.totalRevenue, 0),
     submitted: rows.filter((r) => r.status === 'submitted').length,
   }), [rows]);
+
 
   return (
     <div className="space-y-5">
@@ -119,7 +121,7 @@ export default function DistrictsPage() {
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search district or division…"
+              placeholder="Search district, division, DEO name or email…"
               className="input input-sm input-bordered w-full pl-8 bg-base-100"
             />
           </div>
@@ -146,6 +148,7 @@ export default function DistrictsPage() {
                   Division <SortIcon active={sortKey === 'division'} dir={sortDir} />
                 </th>
                 <th>DEO</th>
+                <th>Coords</th>
                 <th className="cursor-pointer hover:text-base-content" onClick={() => handleSort('status')}>
                   Status <SortIcon active={sortKey === 'status'} dir={sortDir} />
                 </th>
@@ -162,13 +165,13 @@ export default function DistrictsPage() {
               {loading ? (
                 Array.from({ length: 10 }, (_, i) => (
                   <tr key={i} className="animate-pulse">
-                    {Array.from({ length: 7 }, (_, j) => (
+                    {Array.from({ length: 8 }, (_, j) => (
                       <td key={j}><div className="h-3 bg-base-300 rounded" /></td>
                     ))}
                   </tr>
                 ))
               ) : rows.length === 0 ? (
-                <tr><td colSpan={7} className="text-center py-12 text-base-content/40">No districts match your filters.</td></tr>
+                <tr><td colSpan={8} className="text-center py-12 text-base-content/40">No districts match your filters.</td></tr>
               ) : (
                 rows.map((d) => (
                   <tr key={d.name} className="hover:bg-base-50 cursor-pointer" onClick={() => router.push(`/admin/districts/${encodeURIComponent(d.name)}`)}>
@@ -178,7 +181,15 @@ export default function DistrictsPage() {
                         ? <Link href={`/admin/divisions/${encodeURIComponent(d.division)}`} onClick={(e) => e.stopPropagation()} className="badge badge-sm badge-ghost hover:badge-primary transition-colors cursor-pointer">{d.division}</Link>
                         : <span className="text-base-content/30">—</span>}
                     </td>
-                    <td className="text-xs text-base-content/60">{d.deoName ?? '—'}</td>
+                    <td>
+                      <div className="text-xs font-medium">{d.deoName ?? <span className="text-base-content/30">—</span>}</div>
+                      {d.deoEmail && <div className="text-[11px] text-base-content/40 font-mono">{d.deoEmail}</div>}
+                    </td>
+                    <td className="font-mono text-[11px] text-base-content/50 whitespace-nowrap">
+                      {d.centerLat != null && d.centerLon != null
+                        ? <>{fmtCoord(d.centerLat)}°N<br />{fmtCoord(d.centerLon)}°E</>
+                        : <span className="text-base-content/20">—</span>}
+                    </td>
                     <td>
                       <span className={`badge badge-sm ${d.status === 'submitted' ? 'badge-success' : d.status === 'in_progress' ? 'badge-warning' : 'badge-ghost'}`}>
                         {d.status}
@@ -186,7 +197,9 @@ export default function DistrictsPage() {
                     </td>
                     <td className="text-right tabular-nums">{d.vendCount.toLocaleString()}</td>
                     <td className="text-right font-mono text-xs tabular-nums">{fmt(d.totalRevenue)}</td>
-                    <td><span className="btn btn-ghost btn-xs">View →</span></td>
+                    <td>
+                      <button className="btn btn-ghost btn-xs" onClick={(e) => { e.stopPropagation(); router.push(`/admin/districts/${encodeURIComponent(d.name)}`); }}>View →</button>
+                    </td>
                   </tr>
                 ))
               )}

@@ -721,9 +721,9 @@ A live choropleth map of all 75 UP districts. The primary at-a-glance view for H
 
 **Map configuration (as built):**
 - Tiles: CartoDB (light/dark variants, switches with `data-theme` MutationObserver); no API key required.
-- Layout: full-width card (500px tall), charts rendered below in a 2-column grid.
+- Layout: full-width card (660px tall on the overview page so the full state fits vertically without excessive zoom-out), charts rendered below in a 2-column grid.
 - District borders: `weight: 1.5`, `color: '#334155'` (slate-700). Status fill colours: pending `#94a3b8`, in_progress `#f59e0b`, submitted `#16a34a`. Fill opacity `0.65`.
-- Permanent district name labels via `bindTooltip(name, { permanent: true, direction: 'center', className: 'district-map-label' })`. CSS in `layout.tsx` global style block.
+- Permanent district name labels via `bindTooltip(name, { permanent: true, direction: 'center', className: 'district-map-label' })`. CSS selector in `layout.tsx` global style block must be `.leaflet-tooltip.district-map-label` (not the bare class) to beat Leaflet's own `.leaflet-tooltip` specificity.
 - Map locked to UP bounds: `minZoom: 6`, `maxZoom: 10`, `maxBounds: [[22.5, 76.0], [31.5, 85.5]]`, `fitBounds` to `[[23.8, 77.1], [30.4, 84.6]]`.
 - Click navigates to `/admin/districts/[name]`.
 
@@ -1417,6 +1417,27 @@ M-6: Auth Migration + Single Worker       [Post-M5]         ✅ Complete
 
 ---
 
+### M-9: SPA Navigation Parity & Polish ✅ Complete
+
+**Objective:** Finish SPA-navigation parity on the DEO portal, fix HelpPanel/theme/map UX defects reported after M-8, and surface IndexedDB-backed stats that were previously dead placeholders.
+
+**Deliverables:**
+
+- [x] DEO layout (`app/(deo)/layout.tsx`) rewritten to match the admin layout: logo/brand links to `/home`, all nav items use `<Link>`, retired `ThemeToggle` removed (the global `ViewPrefsPanel` is now the single theme source on both portals), `btn-ghost` nav styling, `z-[1000]` sticky navbar.
+- [x] Admin layout brand/logo wrapped in `<Link href="/admin">` — clicking the site name/logo returns to the portal home on both portals.
+- [x] DEO home page (`app/(deo)/home/page.tsx`) action cards converted from `<a href>` to `<Link>`.
+- [x] `HelpPanel.tsx`: balloon auto-flips `left-0`→`right-0` via a `useLayoutEffect` viewport-overflow check so it never renders off-screen; content wrapped in `overflow-y-auto max-h-64` so long help text scrolls instead of overflowing; z-index raised (backdrop `z-[1001]`, balloon `z-[1002]`) above the sticky navbar and Leaflet's tooltip/popup panes (650/700) — fixes the balloon being half-hidden behind the overview map.
+- [x] Districts table (`/admin/districts`) gains DEO email and bbox-midpoint coordinate columns (`centerLat`/`centerLon`, computed server-side in `GET /api/admin/districts` from `districts.bboxMinLat/MaxLat/MinLon/MaxLon`). Fields are **read-only** — DEO identity is set exclusively via the bulk-provisioning Excel, not an inline-edit UI.
+- [x] District detail page: "Division" stat card links to `/admin/divisions/[division]`.
+- [x] Dark-mode fix: the anti-flash inline script in `layout.tsx` now resolves `localStorage.theme === 'system'`/unset via `matchMedia('(prefers-color-scheme:dark)')` before first paint (previously defaulted unconditionally to light, causing a flash to white on refresh and ignoring system preference). `ViewPrefsPanel` re-applies the resolved theme on every mount and attaches a `matchMedia` change listener so a live OS theme flip is reflected immediately when `'system'` mode is active.
+- [x] DEO home page stat cards extracted into `HomeStats.tsx` (client component) — reads live `Circles/Sectors` count from `GET /api/districts/[district]/units`, `Shops Staged` from `stagingDb.count()`, and `Shops Uploaded` from `stagingDb.getByStatus('uploaded')` instead of static `—` placeholders.
+- [x] Overview map enlarged to `height: 660` (from 500) so the full state is visible without excessive zoom-out; card header retitled "District Status — Uttar Pradesh" with a descriptive subtitle.
+- [x] District map label CSS fixed: selector scoped to `.leaflet-tooltip.district-map-label` (bare class lost the specificity battle against Leaflet's own `.leaflet-tooltip` base styles, leaving labels invisible); font-size and text-shadow layering increased for legibility.
+
+**Exit criterion:** Both portals navigate as a pure SPA with no full-page reloads; HelpPanel never clips off-screen or hides behind the map; dark mode persists correctly across refresh and respects system preference live; DEO home page reflects real local/staged/uploaded counts.
+
+---
+
 ### Timeline Summary
 
 | Milestone | Duration | Key Dependency |
@@ -1430,7 +1451,8 @@ M-6: Auth Migration + Single Worker       [Post-M5]         ✅ Complete
 | M-6: Auth Migration + Single Worker | 3 days | M-5 complete |
 | M-7: Admin Portal UI Overhaul | 5 days | M-6 complete |
 | M-8: Admin Portal Navigation & Divisions | 3 days | M-7 complete |
-| **Total** | **~50 working days** | |
+| M-9: SPA Navigation Parity & Polish | 2 days | M-8 complete |
+| **Total** | **~52 working days** | |
 
 ### Pre-Campaign Blockers
 

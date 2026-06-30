@@ -5,7 +5,6 @@ import { eq, count, sum } from 'drizzle-orm';
 import { getSession } from '@/lib/auth';
 import { districts, districtCirclesSectors, phase1RawCollection } from '@excise/schema';
 
-
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ district: string }> },

@@ -150,11 +150,13 @@ function TypeBadge({ type, cl5cc }: { type: string; cl5cc: boolean }) {
 
 // ── Stat card ─────────────────────────────────────────────────────────────────
 
-function StatCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
+function StatCard({ label, value, sub, href }: { label: string; value: string; sub?: string; href?: string }) {
   return (
     <div className="bg-base-100 rounded-xl border border-base-200 p-4 space-y-1">
       <p className="text-[11px] uppercase tracking-widest font-medium text-base-content/40">{label}</p>
-      <p className="text-xl font-bold text-base-content tabular-nums">{value}</p>
+      {href
+        ? <Link href={href} className="block text-xl font-bold text-primary tabular-nums hover:underline underline-offset-2">{value}</Link>
+        : <p className="text-xl font-bold text-base-content tabular-nums">{value}</p>}
       {sub && <p className="text-xs text-base-content/50">{sub}</p>}
     </div>
   );
@@ -369,7 +371,11 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
       ) : detail && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <StatCard label="DEO Officer" value={detail.deoName ?? '—'} />
-          <StatCard label="Division" value={detail.division ?? '—'} />
+          <StatCard
+            label="Division"
+            value={detail.division ?? '—'}
+            {...(detail.division ? { href: `/admin/divisions/${encodeURIComponent(detail.division)}` } : {})}
+          />
           <StatCard
             label="Total Vends"
             value={detail.vendCount.toLocaleString()}

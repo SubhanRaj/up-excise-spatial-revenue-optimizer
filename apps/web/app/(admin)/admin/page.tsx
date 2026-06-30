@@ -266,10 +266,13 @@ export default function AdminPage() {
       {/* Full-width map */}
       <div className="card bg-base-100 shadow p-4">
         <div className="flex justify-between items-center mb-2">
-          <h3 className="font-semibold">UP District Map</h3>
+          <div>
+            <h3 className="font-semibold">District Status — Uttar Pradesh</h3>
+            <p className="text-xs text-base-content/40 mt-0.5">75 districts · click any district to view shop records</p>
+          </div>
           {lastRefresh && <span className="text-xs text-base-content/50">Updated {lastRefresh.toLocaleTimeString()}</span>}
         </div>
-        <div id="admin-map" ref={mapRef} style={{ height: 500 }} aria-label="UP district choropleth map" role="img" />
+        <div id="admin-map" ref={mapRef} style={{ height: 660 }} aria-label="UP district status choropleth map" role="img" />
         <div className="flex gap-4 mt-2 text-xs text-base-content/60">
           {[['#94a3b8','Pending'],['#f59e0b','In Progress'],['#16a34a','Submitted']].map(([color, label]) => (
             <span key={label} className="flex items-center gap-1.5">

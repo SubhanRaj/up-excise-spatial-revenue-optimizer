@@ -15,8 +15,10 @@ export async function GET() {
 
   const [districtRows, aggregates] = await Promise.all([
     db.select({
-      name: districts.name, division: districts.division, deoName: districts.deoName,
+      name: districts.name, division: districts.division, deoName: districts.deoName, deoEmail: districts.deoEmail,
       expectedVendCount: districts.expectedVendCount, status: districts.status, submittedAt: districts.submittedAt,
+      bboxMinLat: districts.bboxMinLat, bboxMaxLat: districts.bboxMaxLat,
+      bboxMinLon: districts.bboxMinLon, bboxMaxLon: districts.bboxMaxLon,
     }).from(districts).orderBy(asc(districts.name)).all(),
     db.select({
       districtName: phase1RawCollection.districtName,
@@ -28,11 +30,16 @@ export async function GET() {
   const aggMap = Object.fromEntries(
     aggregates.map((a) => [a.districtName, { vendCount: a.vendCount, totalRevenue: Number(a.totalRevenue ?? 0) }])
   );
-  const rows = districtRows.map((d) => ({
-    ...d,
-    vendCount: aggMap[d.name]?.vendCount ?? 0,
-    totalRevenue: aggMap[d.name]?.totalRevenue ?? 0,
-  }));
+  const rows = districtRows.map((d) => {
+    const hasBox = d.bboxMinLat != null && d.bboxMaxLat != null && d.bboxMinLon != null && d.bboxMaxLon != null;
+    return {
+      ...d,
+      vendCount: aggMap[d.name]?.vendCount ?? 0,
+      totalRevenue: aggMap[d.name]?.totalRevenue ?? 0,
+      centerLat: hasBox ? ((d.bboxMinLat! + d.bboxMaxLat!) / 2) : null,
+      centerLon: hasBox ? ((d.bboxMinLon! + d.bboxMaxLon!) / 2) : null,
+    };
+  });
   const stateTotals = {
     totalVendCount: rows.reduce((s, r) => s + r.vendCount, 0),
     totalRevenue: rows.reduce((s, r) => s + r.totalRevenue, 0),

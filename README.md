@@ -144,8 +144,8 @@ up-excise-spatial-revenue-optimizer/
 - Nav links: Overview, Districts, Divisions, Provision, Audit, Export
 
 **Shared UI:**
-- `HelpPanel` on every page — balloon popover with background blur (`backdrop-blur-[2px]`), closes on Escape or outside click
-- `ViewPrefsPanel` FAB (bottom-right) — theme (Light/Auto/Dark), font size, row density, content width; all persisted to `localStorage`
+- `HelpPanel` on every page — balloon popover with background blur (`backdrop-blur-[2px]`), auto-flips on/off-screen, scrollable content, closes on Escape or outside click
+- `ViewPrefsPanel` FAB (bottom-right) — theme (Light/Auto/Dark, respects and live-tracks system preference), font size, row density, content width; all persisted to `localStorage`
 - Full-state CSV export (never rendered in UI — `/api/admin/export/all` only)
 - Audit log viewer (last 45 days, paginated)
 - Bulk DEO provisioning via Excel upload
@@ -240,6 +240,7 @@ See [DEPLOY.md](DEPLOY.md) for secrets, CI/CD, and account management.
 | M-6: Auth Migration + Single Worker | **Completed** |
 | M-7: Admin Portal UI Overhaul | **Completed** |
 | M-8: Admin Portal Navigation & Divisions | **Completed** |
+| M-9: SPA Navigation Parity & Polish | **Completed** |
 
 See [roadmap.md](roadmap.md) for full specs, entry/exit criteria, and deliverable checklists.
 
