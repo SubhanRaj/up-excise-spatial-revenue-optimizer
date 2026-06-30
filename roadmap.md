@@ -308,7 +308,7 @@ The Worker is built with [Hono](https://hono.dev/) — a lightweight, TypeScript
 |---|---|---|
 | `/api/admin/districts` | `GET` | All 75 districts with summary stats (vend count, annual revenue, status) + top-level `stateTotals: { totalVendCount, totalRevenue }` — lightweight aggregate; never loads shop rows |
 | `/api/admin/districts/:district` | `GET` | Single district: DEO info, circles/sectors, submission status, revenue totals |
-| `/api/admin/districts/:district/shops` | `GET` | Paginated shop rows for one district (100/page). All pages cached in admin IndexedDB after first fetch. Never returns data across districts in one call. |
+| `/api/admin/districts/:district/shops` | `GET` | Shop rows for one district. `pageSize` accepts 10/25/50/100 or `all`; default 100; server cap 2000. Admin UI always calls `?pageSize=all` and handles all filtering, sorting, and pagination client-side via `useMemo`. Never returns data across districts in one call. |
 | `/api/admin/districts/:district/export` | `GET` | Streams all shop rows for one district as CSV |
 | `/api/admin/export/all` | `GET` | Streams the entire `phase1_raw_collection` as a chunked `.xlsx` Excel download. Full-state data path — triggers a file download only, never a UI table. |
 | `/api/admin/search` | `GET` | Cross-district search with query params (Section 3.11) |

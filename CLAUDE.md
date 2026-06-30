@@ -272,8 +272,18 @@ Do not fetch `/api/auth/session` directly from page components — always go thr
 ### Admin Data Loading
 - The admin portal default view **never loads shop rows**. The district summary list is 75 aggregate rows (name, vend count, total annual revenue, status) plus an "All State" totals row at the bottom. Built from `COUNT`/`SUM` aggregates — no row-level data.
 - The state totals aggregate is **pre-computed server-side** on each `district_submitted` event and **cached in admin IndexedDB** (`admin_state_totals`, 15-min TTL). The summary page never runs a fresh full-table aggregate within the TTL window.
-- Shop rows are loaded **only when an admin drills into a specific district**. The route is `GET /api/admin/districts/:district/shops` (paginated; `pageSize` accepts 10/25/50/100 or `all`, default 100, server cap 2000). All pages for that district are cached in admin IndexedDB (`admin_district_cache`, 1-hour TTL). The district detail table shows all `phase1_raw_collection` fields including circle/sector, adjacent thanas, coordinates, CL5CC flag, and a per-row revenue breakdown (collapsible `<details>` — no modal).
-- Full-state UI table (~30K shops in one view) is **not a supported operation**. The only full-state path is `GET /api/admin/export/all` — a chunked `.xlsx` Excel file download. It triggers a file download, never a UI render.
+- Shop rows are loaded **only when an admin drills into a specific district**. The single call is `GET /api/admin/districts/:district/shops?pageSize=all` — all rows for that district arrive in one response and are held in React state. The detail page then does all filtering, sorting, searching, grouping, and pagination **client-side with `useMemo`** — no additional API calls per interaction. `pageSize` on the API accepts 10/25/50/100 or `all`; server cap is 2000. The selected per-page display size is persisted to `localStorage` (`admin-page-size`).
+- The district detail table shows all `phase1_raw_collection` fields: shop ID, name, circle/sector, thana, adjacent thanas (flex-wrap pills — no expand/collapse), type badge + CL5CC sub-badge, coordinates, revenue (collapsible `<details>` breakdown per fee component — no modal). Group-by-type view collapses each type group independently, with its own inner pagination using the same page-size value.
+- Type labels use full names: `Composite Shop (FL + Beer)`, `PRV (Premium Retail Vend)`. The CL5CC breakdown bar card is a clickable filter (filters `has_cl5cc = true`). A circle/sector dropdown (populated from loaded data) is also available.
+- Full-state UI table (~30K shops in one view) is **not a supported operation**. The only full-state path is `GET /api/admin/export/all` — a CSV download. It triggers a file download, never a UI render.
+
+### UI Components — Shared
+- **`HelpPanel`** (`app/_components/HelpPanel.tsx`): collapsible help triggered by an inline button. Opens as a **fixed overlay** with `backdrop-blur-sm` and dark tint — does not displace surrounding content. Closes on Escape key or backdrop click. `localStorage` key `help_done_{pageKey}` tracks whether the user has dismissed the badge. Present on all DEO and admin pages.
+- **`ViewPrefsPanel`** (`app/_components/ViewPrefsPanel.tsx`): floating FAB fixed at bottom-right on all pages. Controls font size (`data-font-size`: sm/base/lg), row density (`data-density`: compact/normal/spacious), and content width (`data-view-width`: normal/wide/full). Applies preferences as `data-*` attributes on `<html>`; corresponding CSS rules live in the global `<style>` block in `layout.tsx`. Persisted to `localStorage` key `excise-view-prefs-v1`.
+
+### Choropleth Map
+- GeoJSON file: `apps/web/public/geodata/up-districts.geojson` — 70 UP district polygons from GADM, corrected to current official names (Prayagraj, Ayodhya, Amroha, Barabanki, Bhadohi). Feature property is `district` — must match `districts.name` in D1. 5 newer districts (Hapur, Shamli, Sambhal, Amethi, Kasganj) are absent from the GADM source; their map cells are blank but drill-down works via the table.
+- Map is locked to UP: `minZoom: 6`, `maxZoom: 10`, `maxBounds` slightly larger than UP bbox. District borders: `weight: 1.5`, `color: '#334155'` (slate-700). Status fill colours: pending `#94a3b8`, in_progress `#f59e0b`, submitted `#16a34a`. Colour legend rendered below the map div.
 
 ### Database Writes — Always Atomic
 - Any Worker route that performs **two or more related writes** (e.g., insert row + insert audit log, update status + insert audit log) must wrap them in a single atomic operation.
@@ -420,8 +430,9 @@ Track which milestone is currently active. Update this table as milestones are c
 | M-2: Excel Ingestion & Coordinate Engine | **Completed** | SheetJS parser, DMS→DD converter, revenue formulas, UP bbox validation |
 | M-3: Verification UI & IndexedDB | **Completed** | DEO verify page, Dexie.js offline staging, Service Worker + Background Sync PWA |
 | M-4: Worker Batch API & D1 Integration | **Completed** | Batch upload, dual-verification, atomic db.batch()/db.transaction() writes |
-| M-5: Dashboard, Testing & DEO Handoff | **Completed** | Admin choropleth map, Chart.js analytics, audit log, CSV export, 12/12 unit tests passing |
+| M-5: Dashboard, Testing & DEO Handoff | **Completed** | Admin choropleth map (70 UP district polygons, GADM), Chart.js analytics, audit log, CSV export, 12/12 unit tests passing |
 | M-6: Auth Migration + Single Worker | **Completed** | Custom HMAC magic-link auth; Resend email; D1 sessions; all API routes merged into one CF Worker (`up-excise-spatial-revenue-optimizer-web`); no external auth provider |
+| M-7: Admin Portal UI Overhaul | **Completed** | District detail: all fields, client-side sort/filter/search/group-collapse/pagination, full type labels, CL5CC filter, circle/sector filter, revenue breakdown; HelpPanel overlay on all pages; ViewPrefsPanel FAB; UP GeoJSON map with locked bounds; government colour palette |
 
 See [roadmap.md Section 6](roadmap.md#6-development-milestones--action-plan) for full milestone specs, entry/exit criteria, and deliverable checklists.
 

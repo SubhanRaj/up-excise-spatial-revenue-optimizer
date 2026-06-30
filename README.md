@@ -113,14 +113,23 @@ up-excise-spatial-revenue-optimizer/
 ## Admin / HQ Dashboard
 
 - 75-row district summary + state totals (no shop rows on default view)
-- Interactive UP choropleth map (Leaflet, district status colour-coded)
+- UP choropleth map (Leaflet + CartoDB tiles): 70 district polygons from GADM with corrected current names (Prayagraj, Ayodhya, Amroha, Barabanki, Bhadohi); richer status colours (slate/amber/green), slate-700 district borders, locked to UP bounds (minZoom 6 / maxZoom 10), colour legend below map
 - 5 Chart.js analytics charts (submission progress, revenue by district, shop type breakdown)
-- District drill-down: client-side sort/filter/search/group, all Phase 1 fields, adjacent thanas as pills, CL5CC inline with type badge, per-row revenue breakdown (collapsible `<details>`, no modal), 10/25/50/100/All rows per page (preference persisted to localStorage)
-- Per-type + CL5CC count breakdown bar on district detail page
-- Full-state export: `.csv` download (never rendered in UI); per-district export also available from district detail page
+- District drill-down (all loaded client-side from `pageSize=all`):
+  - All `phase1_raw_collection` fields: shop ID, name, circle/sector, thana, adjacent thanas (flex-wrap pills), type + CL5CC sub-badge, coordinates, revenue
+  - Collapsible per-row revenue breakdown (`<details>/<summary>` — no modal)
+  - Full type labels: "Composite Shop (FL + Beer)", "PRV (Premium Retail Vend)"
+  - Per-type + CL5CC breakdown bar — each card clickable to filter; CL5CC filters to `has_cl5cc = true`
+  - Client-side search (shop ID / name / thana), type filter dropdown, circle/sector filter dropdown
+  - Sortable columns: shop ID, name, thana, type, revenue
+  - Group by type — collapsible per-group with independent per-group inner pagination
+  - Rows per page: 10 / 25 / 50 / 100 / All — preference persisted to `localStorage`
+  - Per-district CSV export
+- Full-state CSV export (never rendered in UI)
 - Audit log viewer (last 45 days, paginated)
 - Bulk DEO provisioning via Excel upload
-- Collapsible `HelpPanel` on every admin page (dashboard, provision, audit, export, district detail) — same component as DEO portal
+- `HelpPanel` on every admin page (dashboard, provision, audit, export, district detail) — fixed overlay with `backdrop-blur`, closes on Escape or backdrop click; does not displace content
+- `ViewPrefsPanel` FAB (bottom-right, all pages) — font size (S/M/L), row density (Compact/Normal/Spacious), content width; preferences persisted to `localStorage` and applied as `data-*` attributes on `<html>`
 
 ---
 

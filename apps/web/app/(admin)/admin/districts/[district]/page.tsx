@@ -258,8 +258,18 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
   }
 
   function handleSearch(v: string) { setSearch(v); setPage(1); }
-  function handleTypeFilter(v: string) { setTypeFilter(v); setPage(1); }
-  function handleCl5ccFilter(v: boolean) { setCl5ccFilter(v); setPage(1); }
+  function handleTypeFilter(v: string) {
+    setTypeFilter(v);
+    // CL5CC only applies within Country Liquor — clear it when switching to any other type
+    if (v !== 'all' && v !== 'COUNTRY_LIQUOR') setCl5ccFilter(false);
+    setPage(1);
+  }
+  function handleCl5ccFilter(v: boolean) {
+    setCl5ccFilter(v);
+    // Selecting CL5CC filter implicitly scopes to Country Liquor
+    if (v) setTypeFilter('COUNTRY_LIQUOR');
+    setPage(1);
+  }
   function handleCircleFilter(v: string) { setCircleFilter(v); setPage(1); }
   function handlePageSize(v: PageSizeVal) { setPageSize(v); setPage(1); localStorage.setItem('admin-page-size', String(v)); }
 
@@ -366,19 +376,24 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
                 </button>
               );
             })}
-            {cl5ccCount > 0 && (
-              <button
-                onClick={() => handleCl5ccFilter(!cl5ccFilter)}
-                className={`rounded-lg border p-3 text-left transition-colors cursor-pointer hover:bg-base-200 ${cl5ccFilter ? 'border-info bg-info/5' : 'border-base-300'}`}
-              >
-                <div className="flex items-center gap-1.5 mb-1">
-                  <span className="badge badge-xs badge-outline text-[10px]">CL5CC</span>
-                  <span className="text-xs font-medium text-base-content/70">Country Liquor w/ Beer</span>
-                </div>
-                <p className="text-lg font-bold tabular-nums">{cl5ccCount}</p>
-                <p className="text-[11px] text-base-content/40">of Country Liquor</p>
-              </button>
-            )}
+            {cl5ccCount > 0 && (() => {
+              const cl5ccDisabled = typeFilter !== 'all' && typeFilter !== 'COUNTRY_LIQUOR';
+              return (
+                <button
+                  onClick={() => !cl5ccDisabled && handleCl5ccFilter(!cl5ccFilter)}
+                  disabled={cl5ccDisabled}
+                  title={cl5ccDisabled ? 'CL5CC only applies within Country Liquor' : undefined}
+                  className={`rounded-lg border p-3 text-left transition-colors ${cl5ccDisabled ? 'opacity-30 cursor-not-allowed border-base-300' : `cursor-pointer hover:bg-base-200 ${cl5ccFilter ? 'border-info bg-info/5' : 'border-base-300'}`}`}
+                >
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <span className="badge badge-xs badge-outline text-[10px]">CL5CC</span>
+                    <span className="text-xs font-medium text-base-content/70">Country Liquor w/ Beer</span>
+                  </div>
+                  <p className="text-lg font-bold tabular-nums">{cl5ccCount}</p>
+                  <p className="text-[11px] text-base-content/40">of Country Liquor</p>
+                </button>
+              );
+            })()}
           </div>
         </div>
       )}
