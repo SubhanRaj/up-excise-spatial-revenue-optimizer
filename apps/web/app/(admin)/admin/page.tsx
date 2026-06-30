@@ -246,28 +246,32 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* Map + charts row */}
+      {/* Full-width map */}
+      <div className="card bg-base-100 shadow p-4">
+        <div className="flex justify-between items-center mb-2">
+          <h3 className="font-semibold">UP District Map</h3>
+          {lastRefresh && <span className="text-xs text-base-content/50">Updated {lastRefresh.toLocaleTimeString()}</span>}
+        </div>
+        <div id="admin-map" ref={mapRef} style={{ height: 500 }} aria-label="UP district choropleth map" role="img" />
+        <div className="flex gap-4 mt-2 text-xs text-base-content/60">
+          {[['#94a3b8','Pending'],['#f59e0b','In Progress'],['#16a34a','Submitted']].map(([color, label]) => (
+            <span key={label} className="flex items-center gap-1.5">
+              <span className="inline-block w-3 h-3 rounded-sm border border-[#334155]" style={{ background: color }} />
+              {label}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* Charts row */}
       <div className="grid md:grid-cols-2 gap-6">
         <div className="card bg-base-100 shadow p-4">
-          <div className="flex justify-between items-center mb-2">
-            <h3 className="font-semibold">UP District Map</h3>
-            {lastRefresh && <span className="text-xs text-base-content/50">Updated {lastRefresh.toLocaleTimeString()}</span>}
-          </div>
-          <div id="admin-map" ref={mapRef} style={{ height: 380 }} aria-label="UP district choropleth map" role="img" />
-          <div className="flex gap-4 mt-2 text-xs text-base-content/60">
-            {[['#94a3b8','Pending'],['#f59e0b','In Progress'],['#16a34a','Submitted']].map(([color, label]) => (
-              <span key={label} className="flex items-center gap-1.5">
-                <span className="inline-block w-3 h-3 rounded-sm border border-[#334155]" style={{ background: color }} />
-                {label}
-              </span>
-            ))}
-          </div>
+          <h3 className="font-semibold mb-3">Submission Progress</h3>
+          <canvas ref={chartRefs.doughnut} style={{ maxHeight: 160 }} aria-label="Submission status doughnut chart" />
         </div>
-        <div className="card bg-base-100 shadow p-4 flex flex-col gap-4">
-          <h3 className="font-semibold">Submission Progress</h3>
-          <canvas ref={chartRefs.doughnut} aria-label="Submission status doughnut chart" />
-          <h3 className="font-semibold mt-2">Top 20 Districts by Revenue</h3>
-          <canvas ref={chartRefs.bar} style={{ maxHeight: 200 }} aria-label="Revenue by district bar chart" />
+        <div className="card bg-base-100 shadow p-4">
+          <h3 className="font-semibold mb-3">Top 20 Districts by Revenue</h3>
+          <canvas ref={chartRefs.bar} style={{ maxHeight: 160 }} aria-label="Revenue by district bar chart" />
         </div>
       </div>
 
