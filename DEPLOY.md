@@ -1,11 +1,10 @@
-# Deployment Guide — UP Excise Portal
+# Deployment Guide — UP Excise Spatial Revenue Optimizer
 
-## Live URLs
+## Live URL
 
 | Service | URL |
 |---|---|
-| **Portal (Next.js → Cloudflare Worker)** | https://up-excise-portal.shubhanraj2002.workers.dev |
-| **API Worker (Hono → Cloudflare Worker)** | https://up-excise-spatial-revenue-optimizer.shubhanraj2002.workers.dev |
+| **Portal + API (single CF Worker)** | https://up-excise-spatial-revenue-optimizer-web.shubhanraj2002.workers.dev |
 | **D1 Database** | `up-excise-spatial-revenue-optimizer-prod` (`2955ce2d-8459-45b4-89f4-04afc9e42488`) |
 
 ---
@@ -15,134 +14,130 @@
 ```
 Browser
   │
-  ├── Portal  → up-excise-portal.shubhanraj2002.workers.dev        (Next.js / @opennextjs/cloudflare)
-  │               unauthenticated → /login
-  │               role: admin    → /admin
-  │               role: deo      → /home
-  │
-  └── API     → up-excise-spatial-revenue-optimizer.shubhanraj2002.workers.dev  (Hono)
-                    └── Cloudflare D1  (up-excise-spatial-revenue-optimizer-prod)
+  └── up-excise-spatial-revenue-optimizer-web.shubhanraj2002.workers.dev
+        │  (Single Cloudflare Worker — Next.js via @opennextjs/cloudflare)
+        │
+        ├── Pages: /login, /auth/verify, /home, /upload, /verify, /units
+        │          /admin, /admin/provision, /admin/audit, /admin/export
+        │          /admin/districts/[district]
+        │
+        ├── API:  /api/auth/verify, /api/auth/session, /api/auth/logout
+        │         /api/upload/chunk, /api/districts/**, /api/admin/**
+        │
+        └── Cloudflare D1 (up-excise-spatial-revenue-optimizer-prod)
+              phase1_raw_collection, districts, district_circles_sectors
+              auth_users, auth_magic_links, auth_sessions, audit_log
 ```
 
 ---
 
 ## CI/CD — GitHub Actions
 
-Deploys trigger automatically on push to `main` when source files change. Docs-only pushes are skipped.
+Deploys automatically on push to `main` when source files change.
 
-| Trigger | CI | Deploy |
+**Workflow:** `.github/workflows/deploy.yml`
+
+| Job | Trigger | Steps |
 |---|---|---|
-| Push to `main` — source changed | ✅ | ✅ |
-| Push to `main` — docs/config only | skipped | skipped |
-| Manual dispatch → `both` | — | portal + worker |
-| Manual dispatch → `portal` | — | portal only |
-| Manual dispatch → `worker` | — | worker only |
+| `check` | Every push to `main` | `pnpm typecheck && pnpm test` |
+| `deploy-portal` | After `check` passes | `opennextjs-cloudflare build && deploy` |
 
-**Source paths (CI):** `apps/**`, `packages/**`, `pnpm-lock.yaml`, `package.json`, `.github/workflows/ci.yml`
-
-**Source paths (Deploy):** `apps/web/app/**`, `apps/web/public/**`, `apps/web/package.json`, `apps/web/wrangler.jsonc`, `apps/web/open-next.config.ts`, `apps/worker/src/**`, `apps/worker/package.json`, `wrangler.toml`, `packages/schema/src/**`
-
-**Manual deploy:** GitHub → Actions → Deploy → Run workflow → choose target.
+**Source paths (deploy trigger):** `apps/web/app/**`, `apps/web/src/**`, `apps/web/public/**`, `apps/web/package.json`, `apps/web/wrangler.jsonc`, `packages/schema/src/**`
 
 ### GitHub Actions Secrets
 
-Repo → Settings → Secrets and variables → Actions. All three already set.
+Repo → Settings → Secrets and variables → Actions. Both already set.
 
 | Secret | Where to get it |
 |---|---|
 | `CLOUDFLARE_API_TOKEN` | CF Dashboard → My Profile → API Tokens → "Edit Cloudflare Workers" template |
-| `CLOUDFLARE_ACCOUNT_ID` | CF Dashboard → right sidebar (`4d93d751987b8d9ff101445570e72711`) |
-| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Clerk Dashboard → API Keys |
+| `CLOUDFLARE_ACCOUNT_ID` | CF Dashboard → right sidebar |
 
 ---
 
 ## Worker Secrets
 
-Set via `wrangler secret put` — never committed to files.
+Set via `wrangler secret put` — never committed to files. All confirmed set on `up-excise-spatial-revenue-optimizer-web`.
 
-**API Worker (`up-excise-spatial-revenue-optimizer`):**
+| Secret | Purpose |
+|---|---|
+| `SESSION_SECRET` | HMAC-SHA256 signing key for `excise-session` cookie |
+| `API_SECRET` | Reserved (not currently used) |
+| `RESEND_API_KEY` | Resend email delivery for magic links |
+| `RESEND_FROM_EMAIL` | Sender address (`onboarding@resend.dev` until custom domain) |
+
+To rotate a secret:
 ```bash
-pnpm --filter worker exec wrangler secret put CLERK_SECRET_KEY
-pnpm --filter worker exec wrangler secret put CLERK_WEBHOOK_SIGNING_SECRET
+echo "new-value" | npx wrangler secret put SESSION_SECRET --name up-excise-spatial-revenue-optimizer-web
 ```
 
-**Portal Worker (`up-excise-portal`):**
+---
+
+## D1 Migrations
+
+Migration files live in `migrations/` at repo root. `wrangler.jsonc` points at `../../migrations`.
+
 ```bash
-npx wrangler secret put CLERK_SECRET_KEY --name up-excise-portal
+# List applied migrations
+npx wrangler d1 migrations list up-excise-spatial-revenue-optimizer-prod --remote
+
+# Apply pending migrations
+npx wrangler d1 migrations apply up-excise-spatial-revenue-optimizer-prod --remote
 ```
 
-`CLERK_SECRET_KEY` is confirmed set on both Workers. ✓
+Applied migrations:
+- `0001_initial.sql` — phase1_raw_collection, districts, district_circles_sectors, audit_log
+- `0002_drop_premises_consideration_fee.sql` — no-op placeholder
+- `0003_auth.sql` — auth_users, auth_magic_links, auth_sessions
 
 ---
 
 ## Manual Deploy (without CI)
 
-```bash
-# API Worker
-pnpm --filter worker exec wrangler deploy
+Run from `apps/web`:
 
-# Portal Worker
+```bash
 cd apps/web
-npx @opennextjs/cloudflare build
-npx @opennextjs/cloudflare deploy
+
+# Build
+pnpm exec opennextjs-cloudflare build
+
+# Deploy
+pnpm exec opennextjs-cloudflare deploy
 ```
 
 ---
 
-## Clerk Configuration
-
-**Instance:** Development (`pk_test_*` / `sk_test_*`). Switch to production instance when the department domain is ready.
-
-| Setting | Value |
-|---|---|
-| `email_link_require_same_client` | `false` — magic link works from any device |
-| `<SignIn routing>` | `"hash"` — keeps verification at `/login#...`, no 404 at `/login/verify` |
-| `NEXT_PUBLIC_CLERK_SIGN_IN_URL` | `/login` — required; missing it causes an infinite redirect loop to `/sign-in` |
-| `allowed_origins` | `https://up-excise-portal.shubhanraj2002.workers.dev` — **required** for Clerk JS to load on the deployed portal; without it `clerk.browser.js` returns 404/CORS |
-
-**Webhook (already configured):**
-- URL: `https://up-excise-spatial-revenue-optimizer.shubhanraj2002.workers.dev/api/webhooks/clerk`
-- Events: `session.created`, `session.ended`, `session.revoked`, `user.updated`, `user.created`
-- Signing secret: `wrangler secret put CLERK_WEBHOOK_SIGNING_SECRET` on the API Worker
-
----
-
-## Accounts
+## Auth — Accounts
 
 | Email | Role | Notes |
 |---|---|---|
 | `shubhanraj2002@gmail.com` | `admin` | HQ account, lands on `/admin` |
-| `deodemo+clerk_test@up-excise.dev` | `deo` (Demo District) | Clerk test account — use code `424242`, no real email sent |
+| `shubhanraj2002+deo@gmail.com` | `deo` | Demo DEO, district: Lucknow |
 
-**Provision a DEO:**
-```bash
-clerk api /users/<user_id> -X PATCH -d '{"public_metadata": {"role": "deo", "districtName": "<district>"}}'
+**Provision a DEO** (via admin UI or direct D1 insert):
+```sql
+INSERT INTO auth_users (email, name, role, deo_id, district_name)
+VALUES ('deo@example.gov.in', 'DEO Name', 'deo', 'DEO-XXX-001', 'District Name');
 ```
 
-**Promote to admin:**
-```bash
-clerk api /users/<user_id> -X PATCH -d '{"public_metadata": {"role": "admin"}}'
-```
+Or use `POST /api/admin/bulk-provision` with an Excel file (admin portal → Provision page).
 
 ---
 
 ## Demo Data & DB Management
 
-The seed script at `scripts/seed-demo.ts` populates **Demo District** with 1500 realistic shops covering all five shop types (MODEL_SHOP × 300, COMPOSITE_SHOP × 150, PRV × 200, BHANG_SHOP × 150, COUNTRY_LIQUOR × 625, COUNTRY_LIQUOR+CL5CC × 75). It also writes the matching Excel file to `docs/templates/demo-district-data.xlsx`.
+The seed script at `scripts/seed-demo.ts` populates **Demo District** (Lucknow) with 1500 realistic shops covering all five shop types.
 
 | Command | Effect |
 |---|---|
-| `pnpm seed:demo` | Seed Demo District into **prod** D1 (idempotent — clears then re-inserts) |
-| `pnpm seed:demo -- --excel-only` | Regenerate Excel demo file only, no D1 writes |
+| `pnpm seed:demo` | Seed Demo District into prod D1 (idempotent) |
+| `pnpm seed:demo -- --excel-only` | Regenerate Excel demo file only |
 | `pnpm seed:demo -- --truncate` | Remove Demo District data from prod D1 |
-| `pnpm seed:demo -- --reset-all` | **Truncate ALL tables** — wipes every row across all districts (use before real campaign) |
-| `pnpm seed:demo -- --local` | Seed into local D1 dev DB instead of prod |
+| `pnpm seed:demo -- --reset-all` | **Truncate ALL tables** (use before real campaign) |
+| `pnpm seed:demo -- --local` | Seed into local D1 dev DB |
 
 **Excel demo file:** `docs/templates/demo-district-data.xlsx`
-- 1500 rows, all shop types, decimal-degree coordinates in Lucknow area sub-box
-- Use this file to test the DEO upload → parse → verify → submit flow end-to-end with the demo DEO account (`deodemo+clerk_test@up-excise.dev`, code `424242`)
-
-**HQ demo:** After seeding, Demo District appears in the admin dashboard with status `submitted`, full revenue totals, and all 1500 shop records browseable via the district drill-down.
 
 ---
 
@@ -151,23 +146,8 @@ The seed script at `scripts/seed-demo.ts` populates **Demo District** with 1500 
 ```bash
 pnpm install
 
-# Terminal 1 — API Worker on :8787
-pnpm --filter worker dev
-
-# Terminal 2 — Portal on :3000
+# Dev server (Next.js on :3000)
 pnpm --filter web dev
 ```
 
-**`apps/worker/.dev.vars`** (gitignored):
-```
-CLERK_SECRET_KEY=sk_test_...
-CLERK_WEBHOOK_SIGNING_SECRET=whsec_...
-```
-
-**`apps/web/.env.local`** (gitignored):
-```
-NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_...
-NEXT_PUBLIC_CLERK_SIGN_IN_URL=/login
-NEXT_PUBLIC_WORKER_URL=http://localhost:8787
-CLERK_SECRET_KEY=sk_test_...
-```
+No `.env.local` required — secrets are CF Worker Secrets, not env vars. `getCloudflareContext()` works locally via `wrangler dev` bindings. For magic links in local dev, check Resend dashboard for delivered emails.

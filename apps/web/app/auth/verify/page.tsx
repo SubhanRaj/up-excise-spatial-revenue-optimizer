@@ -1,52 +1,70 @@
-import { getCloudflareContext } from '@opennextjs/cloudflare';
-import { drizzle } from 'drizzle-orm/d1';
-import { eq, and } from 'drizzle-orm';
-import { redirect } from 'next/navigation';
-import { authMagicLinks, authUsers } from '@excise/schema';
-import { hashToken, createSession } from '@/lib/auth';
+'use client';
 
-export const dynamic = 'force-dynamic';
+import { Suspense, useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 
-export default async function VerifyPage({ searchParams }: { searchParams: Promise<{ token?: string }> }) {
-  const { token } = await searchParams;
-  if (!token) redirect('/login');
+function VerifyInner() {
+  const params = useSearchParams();
+  const token = params.get('token');
+  const [error, setError] = useState<'expired' | 'no_account' | 'missing' | null>(
+    token ? null : 'missing',
+  );
 
-  const tokenHash = await hashToken(token);
-  const { env }   = await getCloudflareContext({ async: true }) as { env: CloudflareEnv };
-  const db        = drizzle(env.DB);
+  useEffect(() => {
+    if (!token) return;
+    fetch('/api/auth/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token }),
+    })
+      .then((r) => r.json() as Promise<{ redirect?: string; error?: string }>)
+      .then((d) => {
+        if (d.redirect) {
+          // Hard navigation so cookies from the response are applied
+          window.location.href = d.redirect;
+        } else {
+          setError((d.error as typeof error) ?? 'expired');
+        }
+      })
+      .catch(() => setError('expired'));
+  }, [token]);
 
-  const link = await db.select().from(authMagicLinks)
-    .where(and(eq(authMagicLinks.tokenHash, tokenHash), eq(authMagicLinks.used, 0)))
-    .limit(1).then((r) => r[0] ?? null);
+  const messages: Record<NonNullable<typeof error>, string> = {
+    expired: 'Sign-in links expire after 15 minutes and can only be used once.',
+    no_account: 'Contact your administrator to have your account provisioned.',
+    missing: 'No sign-in token found. Please request a new magic link.',
+  };
 
-  // Always mark used to prevent reuse attempts
-  if (link) await db.update(authMagicLinks).set({ used: 1 }).where(eq(authMagicLinks.id, link.id));
-
-  if (!link || new Date(link.expiresAt) < new Date()) {
+  if (error) {
     return (
       <main className="min-h-screen flex items-center justify-center bg-base-200">
         <div className="card bg-base-100 shadow-xl p-8 w-full max-w-md text-center space-y-4">
-          <p className="text-xl font-semibold text-error">Link expired or already used</p>
-          <p className="text-sm text-base-content/60">Sign-in links expire after 15 minutes and can only be used once.</p>
+          <p className="text-xl font-semibold text-error">Link invalid or expired</p>
+          <p className="text-sm text-base-content/60">{messages[error]}</p>
           <a href="/login" className="btn btn-primary">Request a new link</a>
         </div>
       </main>
     );
   }
 
-  const user = await db.select().from(authUsers).where(eq(authUsers.email, link.email)).limit(1).then((r) => r[0] ?? null);
-  if (!user) {
-    return (
-      <main className="min-h-screen flex items-center justify-center bg-base-200">
-        <div className="card bg-base-100 shadow-xl p-8 w-full max-w-md text-center space-y-4">
-          <p className="text-xl font-semibold text-error">Account not found</p>
-          <p className="text-sm text-base-content/60">Contact your administrator to have your account provisioned.</p>
-          <a href="/login" className="btn btn-primary">Back to login</a>
-        </div>
-      </main>
-    );
-  }
+  return (
+    <main className="min-h-screen flex items-center justify-center bg-base-200">
+      <div className="card bg-base-100 shadow-xl p-8 w-full max-w-md text-center space-y-4">
+        <span className="loading loading-spinner loading-lg text-primary" />
+        <p className="text-base-content/70">Verifying your sign-in link…</p>
+      </div>
+    </main>
+  );
+}
 
-  await createSession(user.id, user.role, user.districtName ?? null);
-  redirect(user.role === 'admin' ? '/admin' : '/home');
+export default function VerifyPage() {
+  return (
+    <Suspense fallback={
+      <main className="min-h-screen flex items-center justify-center bg-base-200">
+        <span className="loading loading-spinner loading-lg text-primary" />
+      </main>
+    }>
+      <VerifyInner />
+    </Suspense>
+  );
 }

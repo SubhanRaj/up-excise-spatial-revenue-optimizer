@@ -124,6 +124,7 @@ All API routes are Next.js Route Handlers inside the single `up-excise-spatial-r
 |---|---|---|
 | `GET` | `/api/healthz` | `api/healthz/route.ts` |
 | `GET` | `/api/auth/session` | `api/auth/session/route.ts` — returns `{ deoId, role, districtName, name }` |
+| `POST` | `/api/auth/verify` | `api/auth/verify/route.ts` — verifies magic-link token, creates session, returns `{ redirect }` |
 | `POST` | `/api/auth/logout` | `api/auth/logout/route.ts` |
 
 **DEO (`role: deo`):**
@@ -169,7 +170,7 @@ All API routes are Next.js Route Handlers inside the single `up-excise-spatial-r
 | Runtime | Node.js | **v24** — local and CI both. Do not use v20 or v22. |
 | Package manager | pnpm | v11, monorepo workspace |
 | Frontend framework | Next.js App Router | `next@15` — single app at `apps/web` |
-| Frontend deploy adapter | `@opennextjs/cloudflare` | latest — builds Next.js as a Cloudflare Worker (NOT Pages) |
+| Frontend deploy adapter | `@opennextjs/cloudflare` | v1.20.1 — builds Next.js as a Cloudflare Worker (NOT Pages). **Never add `export const runtime = 'edge'`** to any file — OpenNext rejects it with a build error. CF bindings work in all server contexts without it. |
 | Database | Cloudflare D1 (SQLite) | `db.batch()` for all multi-row writes; bound to `up-excise-spatial-revenue-optimizer-web` |
 | ORM | Drizzle ORM | D1 adapter, schema at `packages/schema/src/phase1.ts` + `packages/schema/src/auth.ts` |
 | Authentication | Custom HMAC magic-link | No external auth provider. Magic links via Resend → D1 sessions → session cookie auth |
@@ -188,7 +189,8 @@ All API routes are same-origin Next.js Route Handlers. The browser sends the ses
 
 **Magic-link flow:**
 1. DEO enters email on `/login` → server action `requestMagicLink()` validates email against `auth_users`, rate-limits (3/15min), generates UUID token, stores SHA-256 hash in `auth_magic_links`, sends link via Resend.
-2. DEO clicks link → `/auth/verify?token=xxx` → server component verifies hash, marks used, creates `auth_sessions` record, sets cookies → redirects to `/home` or `/admin`.
+2. DEO clicks link → `/auth/verify?token=xxx` → **client component** shows spinner, POSTs token to `POST /api/auth/verify` → route handler verifies hash, marks used, creates `auth_sessions` record, sets cookies, returns `{ redirect }` → client does `window.location.href = redirect` to `/home` or `/admin`.
+   - **Why client component:** Next.js 15 forbids `cookies().set()` in Server Component pages. Cookie writes are only allowed in Route Handlers and Server Actions. The verify page is `'use client'`; the actual verification and session creation happen in the `/api/auth/verify` Route Handler.
 3. Client pages call `/api/auth/session` on mount → route handler verifies session cookie → returns `{ deoId, name, role, districtName }`. No token issued.
 4. Client calls all `/api/*` routes directly — session cookie authenticates automatically.
 

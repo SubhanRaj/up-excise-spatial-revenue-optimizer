@@ -177,8 +177,8 @@ Phase 1 must operate with **zero infrastructure cost**. This is not a preference
 | **Workers Request Count** | 100,000/day | Chunked batch uploads minimize request count per DEO session. |
 | **D1 Write Rows** | 100,000/day | `db.batch()` groups multiple inserts into a single transaction, dramatically reducing write operation count. |
 | **D1 Read Rows** | 5,000,000/day | Dashboard queries use indexed columns only (`districtName`, `thanaName`, `shopId`). Full table scans are prohibited in Phase 1. |
-| **Workers Bandwidth** | 10GB/month | JS bundle is app-logic only (React + Clerk + components). All libraries (DaisyUI, SheetJS, Dexie.js, etc.) are served from jsDelivr CDN — zero bandwidth cost on Cloudflare. |
-| **Workers Deployments** | Unlimited | Two Workers deployed via CI/CD on every push to `main`. |
+| **Workers Bandwidth** | 10GB/month | JS bundle is app-logic only (React + components). All libraries (DaisyUI, SheetJS, Dexie.js, etc.) are served from jsDelivr CDN — zero bandwidth cost on Cloudflare. |
+| **Workers Deployments** | Unlimited | Single Worker deployed via CI/CD on every push to `main`. |
 
 ### 3.2 System Architecture Overview
 
@@ -199,51 +199,45 @@ Phase 1 must operate with **zero infrastructure cost**. This is not a preference
 │                      └─────────────────────────────────┬──────────┘ │
 │                                                        │             │
 │   ┌────────────────────────────────────────────────────▼──────────┐ │
-│   │    Next.js App (up-excise-portal.*.workers.dev)               │ │
-│   │    Deployed as Cloudflare Worker via @opennextjs/cloudflare   │ │
-│   │  • Staged data table with inline edit capability              │ │
-│   │  • Adjacent Thana pill/tag component (intra-district only)    │ │
-│   │  • Revenue auto-calculation display per shop type             │ │
-│   │  • Coordinate validation with bounding box warning            │ │
-│   │  • Chunk progress indicator (500 rows/batch)                  │ │
-│   │  • Admin: choropleth map, Chart.js dashboard, audit log       │ │
+│   │  up-excise-spatial-revenue-optimizer-web                      │ │
+│   │  Single CF Worker (Next.js via @opennextjs/cloudflare)        │ │
+│   │                                                               │ │
+│   │  Pages (SSR):                                                 │ │
+│   │  • /login — magic-link request form                           │ │
+│   │  • /auth/verify — client component, POSTs token to API        │ │
+│   │  • /home, /upload, /verify, /units — DEO portal              │ │
+│   │  • /admin, /admin/* — HQ dashboard                           │ │
+│   │                                                               │ │
+│   │  API Route Handlers (same worker, same D1 binding):           │ │
+│   │  • POST /api/auth/verify — token verify, session create       │ │
+│   │  • POST /api/upload/chunk — 500-row batch insert (db.batch()) │ │
+│   │  • GET/POST /api/districts/[d]/units — unit registration      │ │
+│   │  • POST /api/districts/[d]/submit — district submission       │ │
+│   │  • GET /api/admin/* — aggregate queries, export, audit log    │ │
 │   └────────────────────────────────────────────────────┬──────────┘ │
 └───────────────────────────────────────────────────────┼─────────────┘
-                                                        │ HTTPS API calls
-                                                        │ Chunked JSON
-                                                        │ (500 rows/batch)
-                              ┌─────────────────────────▼──────────────┐
-                              │  Hono API Worker                       │
-                              │  up-excise-spatial-revenue-optimizer   │
-                              │  .*.workers.dev                        │
-                              │                                        │
-                              │  • Validates payload structure         │
-                              │  • Rejects cross-district adjacency    │
-                              │  • db.batch() for atomic chunk inserts │
-                              │  • db.transaction() for unit reg +     │
-                              │    district submission                  │
-                              │  • Returns chunk ACK with row counts   │
-                              └─────────────────────────┬──────────────┘
                                                         │
                               ┌─────────────────────────▼──────────────┐
                               │         Cloudflare D1 (SQLite)         │
                               │                                        │
-                              │  • phase1_raw_collection table         │
+                              │  • phase1_raw_collection               │
+                              │  • districts, district_circles_sectors │
+                              │  • auth_users, auth_magic_links,       │
+                              │    auth_sessions                       │
+                              │  • audit_log                           │
                               │  • Indexed on district, thana, shop_id │
-                              │  • Append-only during Phase 1          │
                               └────────────────────────────────────────┘
 ```
 
-**Two Workers, no Pages:**
-- `up-excise-portal` — Next.js frontend, built with `@opennextjs/cloudflare`, deployed as a Cloudflare Worker. Serves SSR pages, handles auth via Clerk middleware.
-- `up-excise-spatial-revenue-optimizer` — Hono API backend. All D1 access, revenue recomputation, dual-verification, and atomic writes happen here.
+**One Worker, no Pages, no separate API worker:**
+- `up-excise-spatial-revenue-optimizer-web` — Next.js app built with `@opennextjs/cloudflare`. All pages AND all 19 API route handlers live in this single Worker. Same-origin means the session cookie is sent automatically — no Bearer tokens, no CORS, no API secrets between frontend and backend.
 
 **Build & deploy commands (from `apps/web`):**
 ```bash
-npx @opennextjs/cloudflare build   # builds Next.js → .open-next/
-npx @opennextjs/cloudflare deploy  # deploys .open-next/ as a Worker
+pnpm exec opennextjs-cloudflare build   # builds Next.js → .open-next/
+pnpm exec opennextjs-cloudflare deploy  # deploys .open-next/ as a Worker
 ```
-CI runs both sequentially in the `deploy-portal` job. The `open-next.config.ts` in `apps/web` configures the adapter; `wrangler.jsonc` points Wrangler at `.open-next/worker.js`.
+CI runs both sequentially in the `deploy-portal` job. `wrangler.jsonc` in `apps/web` points Wrangler at `.open-next/worker.js` and declares the D1 binding.
 
 ### 3.3 The Excel Ingestion Pipeline — Step by Step
 
@@ -396,111 +390,74 @@ Cloudflare built-in rate limiting applied to Worker routes:
 
 ---
 
-### 3.7 Authentication — Clerk Magic-Link & Session Model
+### 3.7 Authentication — Custom HMAC Magic-Link (No External Provider)
 
-**Provider:** Clerk. Chosen for: magic-link/OTP support, single-session enforcement, webhook event emission, and Cloudflare Workers SDK compatibility.
+**Provider:** None. Authentication is implemented entirely in-house: HMAC-SHA256 session cookies, UUID magic-link tokens hashed in D1, and Resend for email delivery. No Clerk, no Auth.js, no third-party auth SDK.
 
-**No Public Pages — Auth Facade Covers Everything:**
-The app has zero publicly accessible pages except `/login`. Clerk's `clerkMiddleware` in `apps/web/middleware.ts` intercepts every request — no valid session → redirect to `/login`.
+**Why custom auth instead of Clerk:**
+Clerk added SDK overhead, required route changes on every update, caused constant middleware redirect issues, and its free-tier session duration was fixed at 7 days (enforcing 24h required an app-level hack). With a maximum of ~90 users (75 DEOs + ~15 admins), a few hundred lines of auth code is simpler and more reliable than an external dependency.
 
-The only public routes are `/login` and `/api/webhooks/clerk` (which authenticates itself via SVIX signature). There is no landing page, no public home — navigating to `/` unauthenticated redirects to `/login` immediately.
+**Two-Cookie Design:**
 
+1. **`excise-session`** (HttpOnly, Secure, SameSite=Lax, 24h) — `rawId.hmacSig` where `hmacSig = HMAC-SHA256(rawId, SESSION_SECRET)`. The raw ID is never stored; only `sha256(rawId)` is stored in D1 `auth_sessions`. On every request, the Worker recomputes the HMAC and compares in constant time.
+
+2. **`excise-role`** (`deo` or `admin`, client-readable) — routing hint for middleware. Not a security boundary. The real check happens in server page components via `requireAuth()` and in route handlers via `getSession()`, both of which do a full HMAC verify + D1 session lookup.
+
+**Middleware (cookie-only, no D1 on every request):**
 ```typescript
 // apps/web/middleware.ts
-import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
-import { NextResponse } from 'next/server';
+const PUBLIC = new Set(['/login', '/auth/verify']);
 
-const isPublic = createRouteMatcher(['/login(.*)', '/api/webhooks/clerk(.*)']);
-const MAX_SESSION_MS = 24 * 60 * 60 * 1000;
+export default function middleware(req: NextRequest) {
+  const { pathname } = req.nextUrl;
+  if (PUBLIC.has(pathname) || pathname.startsWith('/api/') || pathname.startsWith('/_next/'))
+    return NextResponse.next();
 
-export default clerkMiddleware(async (auth, req) => {
-  if (isPublic(req)) return NextResponse.next();
+  const sessionCookie = req.cookies.get('excise-session')?.value;
+  if (!sessionCookie) return NextResponse.redirect(new URL('/login', req.url));
 
-  const { userId, sessionClaims } = await auth();
-  const loginUrl = new URL('/login', req.url);
+  const role = req.cookies.get('excise-role')?.value;
+  if (pathname.match(/^\/admin/) && role !== 'admin') return NextResponse.redirect(new URL('/login', req.url));
+  if (pathname.match(/^\/(home|upload|verify|units)/) && role !== 'deo') return NextResponse.redirect(new URL('/login', req.url));
 
-  // Do NOT use auth().protect() — it appends ?redirect_url= which violates the no-data-in-URL rule
-  if (!userId) return NextResponse.redirect(loginUrl);
-
-  // 24h session enforced application-side via iat claim (Clerk free tier cannot configure sub-7d)
-  if (sessionClaims?.iat && Date.now() - sessionClaims.iat * 1000 > MAX_SESSION_MS)
-    return NextResponse.redirect(loginUrl);
-
-  const role = (sessionClaims?.publicMetadata as { role?: string } | undefined)?.role;
-  const path = req.nextUrl.pathname;
-  if (path.match(/^\/(home|upload|verify|units)/) && role !== 'deo') return NextResponse.redirect(loginUrl);
-  if (path.match(/^\/admin/) && role !== 'admin') return NextResponse.redirect(loginUrl);
-});
-
-export const config = { matcher: ['/((?!_next|.*\\..*).*)', '/'] };
+  return NextResponse.next();
+}
 ```
 
-**Role Model — User Metadata, Not Clerk Organizations:**
+Middleware only checks cookie presence and the role cookie — no crypto, no D1. The full HMAC verification happens in `requireAuth()` (server pages) and `getSession()` (route handlers) where D1 is available.
 
-Clerk's free tier limits organizations to 20 members maximum. With 75 DEOs, a Clerk Organization for the DEO role would immediately exceed this cap. Roles are therefore implemented as Clerk **user `publicMetadata`**, not as organization membership:
+**Magic-Link Flow:**
+1. DEO enters email on `/login` → server action `requestMagicLink()`:
+   - Validates email exists in `auth_users`
+   - Rate-limits: 3 requests per email per 15-minute window (checked via `auth_magic_links` count)
+   - Generates UUID token, stores `sha256(token)` in `auth_magic_links` with 15-minute expiry
+   - Sends link via Resend (`onboarding@resend.dev` until custom domain verified)
+2. DEO clicks link → `/auth/verify?token=xxx` (client component, shows spinner):
+   - POSTs `{ token }` to `POST /api/auth/verify` route handler
+   - Route handler verifies `sha256(token)` against D1, marks link used, looks up user, calls `createSession()`, returns `{ redirect }`
+   - Client does `window.location.href = redirect` (hard navigation to apply cookies)
+   - **Why client component:** Next.js 15 forbids `cookies().set()` in Server Component pages. Cookie writes are only permitted in Route Handlers and Server Actions.
+3. Session established: `excise-session` and `excise-role` cookies set, 24h TTL.
+4. All subsequent API calls are same-origin `fetch('/api/...')` — browser sends session cookie automatically. No Authorization header needed.
 
-```json
-// DEO user publicMetadata
-{ "role": "deo", "districtName": "Lucknow" }
-
-// Admin user publicMetadata
-{ "role": "admin" }
-```
-
-The Worker reads `auth().sessionClaims.publicMetadata` to guard routes and scope data access. No Clerk Organizations are created or used in Phase 1.
-
-**Clerk Free Tier — Confirmed Limits vs. This Project:**
-
-| Limit | Free Tier | Our Usage | Status |
-|---|---|---|---|
-| Monthly Active Users | 50,000 | ~80 (75 DEOs + admins) | ✅ Well within |
-| Magic link auth | Available, no published rate limit | 1 login/session per DEO | ✅ Fine |
-| Webhooks | Available | Session events → `audit_log` | ✅ Fine |
-| Session duration (configurable) | Fixed 7-day max — cannot configure in dashboard | Want 24h | ⚠️ See below |
-| Organizations | Max 20 members/org | N/A — using metadata roles | ✅ Avoided |
-| Clerk dashboard log retention | 1 day | N/A — we write to D1 audit_log | ✅ Not a concern |
-
-**24-Hour Session Enforcement (Application-Level):**
-
-The Clerk free tier does not allow configuring session duration below 7 days via the dashboard. We enforce 24-hour sessions at the **application level** in middleware, not via Clerk's session settings:
-
-```typescript
-// In clerkMiddleware — runs on every protected request (see actual middleware.ts above)
-const { sessionClaims } = await auth();
-const MAX_SESSION_MS = 24 * 60 * 60 * 1000;
-
-if (sessionClaims?.iat && Date.now() - sessionClaims.iat * 1000 > MAX_SESSION_MS)
-  return NextResponse.redirect(new URL('/login', req.url));
-```
-
-This achieves 24-hour sessions without a paid Clerk plan. If the department requires strict session-duration configuration at the Clerk level (e.g., for compliance audit), upgrading to Clerk Pro (~$25/month) enables this in the dashboard.
-
-**Passwordless Magic-Link Flow:**
-1. DEO navigates to the portal login page and enters their email address.
-2. Clerk sends a unique, single-use magic link to that email. The link expires in 10 minutes if unused.
-3. DEO clicks the link. Clerk authenticates the session in the same browser window. No password is set or required — ever.
-4. A 24-hour session is established. The DEO can close and reopen the browser tab within 24 hours without re-authenticating.
-
-**Single Active Session Enforcement:**
-Clerk is configured to allow exactly one active session per user at a time. If the DEO authenticates on a second device, browser, or tab, all other active sessions for that user are immediately invalidated. This prevents concurrent uploads from multiple devices that could produce duplicate or conflicting data.
-
-**Session Expiry & Data Preservation:**
-- Sessions expire after 24 hours of issue (not inactivity). On expiry, the DEO sees a re-authentication prompt.
-- IndexedDB staged data is fully preserved across re-authentication. The DEO resumes exactly where they left off after re-login.
-- Connection loss, tab close, device sleep, or network change do not trigger session expiry. Expiry is clock-based only.
+**Session Security:**
+- Token in URL is a one-time opaque UUID — consumed on first use, expires in 15 min.
+- Session cookie value `rawId.hmacSig` — HMAC verified server-side on every protected request.
+- Session hash stored in D1 — explicit deletion on logout.
+- No session data in `localStorage`, `sessionStorage`, or IndexedDB.
 
 **User Provisioning:**
-- DEO accounts are created by the system administrator before the upload campaign using Clerk's management API. No self-registration is available.
-- Each account is bound to a department-issued email address and carries a `districtName` metadata claim in Clerk, which the Worker uses to scope data access to that district only.
-- Account creation is scripted and run once during the M-5 pre-rollout phase.
+- Admin seeds `auth_users` rows directly via `POST /api/admin/bulk-provision` (Excel upload) before the campaign.
+- No self-registration. Accounts are created top-down by the system administrator.
+- DEO `districtName` in `auth_users` scopes all data access to that district only.
 
-**Audit Log — Clerk Webhook → D1:**
-Clerk emits webhook events for: `session.created`, `session.ended`, `session.revoked`, `user.updated`. A Worker endpoint (`POST /api/webhooks/clerk`) receives these events, validates the Clerk webhook signature (SVIX HMAC), and writes a record to the `audit_log` D1 table.
+**Audit Log:**
+Application-level events (upload chunk, district submission, circle/sector registration, login) are written to `audit_log` directly by route handlers on every successful operation. 45-day rolling retention (cron purge deferred — see CLAUDE.md note).
 
-Application-level events (upload chunk, district submission, circle/sector registration) are also written to `audit_log` directly by the Worker on every successful operation.
-
-**Audit Log Retention — Cron Purge:**
-A Cloudflare Cron Trigger (`0 2 * * *` — 02:00 UTC daily) runs a Worker that deletes all `audit_log` rows where `created_at < NOW - 45 days`. Defined in `wrangler.toml` under `[triggers]`. This prevents D1 from accumulating unbounded audit data.
+**Auth tables in D1** (`packages/schema/src/auth.ts`):
+- `auth_users` — email, name, role ('deo'|'admin'), deoId, districtName
+- `auth_magic_links` — tokenHash (sha256), expiresAt, used flag, createdAt (for rate-limit window)
+- `auth_sessions` — id=sha256(rawId), userId FK, expiresAt
 
 ---
 
@@ -532,9 +489,8 @@ Both are loaded in `<head>` via root `layout.tsx` with SRI attributes. Tailwind 
 
 **What ships in the Next.js bundle:**
 - React + Next.js App Router runtime
-- Clerk frontend SDK (React components for auth UI)
-- App-specific TypeScript components and logic
-- No CSS frameworks, no chart libraries, no map libraries, no data libraries, no Excel parsers, no alert/toast libraries
+- App-specific TypeScript components and logic (auth, pages, hooks)
+- No CSS frameworks, no chart libraries, no map libraries, no data libraries, no Excel parsers, no alert/toast libraries, no auth SDK
 
 **SRI Pin Workflow (for library version upgrades):**
 ```bash
@@ -1182,17 +1138,18 @@ export const auditLog = sqliteTable('audit_log', {
 
 ## 6. Development Milestones & Action Plan
 
-Phase 1 development is organized into six milestones. Each milestone has a clear entry criterion (what must be true before it starts) and exit criterion (what must be delivered before the next begins).
+Phase 1 development is organized into seven milestones. Each milestone has a clear entry criterion (what must be true before it starts) and exit criterion (what must be delivered before the next begins).
 
 ### Milestone Overview
 
 ```
-M-0: Foundation & Repo Setup              [Week 1]
-M-1: Schema, Migrations & Worker Skeleton [Week 1-2]
-M-2: Excel Ingestion & Coordinate Engine  [Week 2-3]
-M-3: Verification UI & IndexedDB Layer    [Week 3-4]
-M-4: Worker Batch API & D1 Integration    [Week 4-5]
-M-5: Dashboard, Testing & DEO Handoff     [Week 5-6]
+M-0: Foundation & Repo Setup              [Week 1]          ✅ Complete
+M-1: Schema, Migrations & Worker Skeleton [Week 1-2]        ✅ Complete
+M-2: Excel Ingestion & Coordinate Engine  [Week 2-3]        ✅ Complete
+M-3: Verification UI & IndexedDB Layer    [Week 3-4]        ✅ Complete
+M-4: Worker Batch API & D1 Integration    [Week 4-5]        ✅ Complete
+M-5: Dashboard, Testing & DEO Handoff     [Week 5-6]        ✅ Complete
+M-6: Auth Migration + Single Worker       [Post-M5]         ✅ Complete
 ```
 
 ---
@@ -1203,10 +1160,10 @@ M-5: Dashboard, Testing & DEO Handoff     [Week 5-6]
 
 **Deliverables:**
 
-- [x] Monorepo structure initialized (`apps/web`, `apps/worker`, `packages/schema`). Route groups `(deo)` and `(admin)` stubbed inside `apps/web/app/`.
-- [x] `wrangler.toml` configured for Cloudflare Pages + Workers + D1 binding + Cron Trigger (`0 2 * * *` for audit log purge).
+- [x] Monorepo structure initialized (`apps/web`, `packages/schema`). Route groups `(deo)` and `(admin)` stubbed inside `apps/web/app/`.
+- [x] `wrangler.jsonc` configured for single Cloudflare Worker + D1 binding.
 - [x] Drizzle ORM configured with D1 adapter.
-- [x] GitHub Actions CI pipeline: type-check, lint, Wrangler dry-run deploy, and SRI attribute presence check on every PR.
+- [x] GitHub Actions CI pipeline: type-check, tests, build & deploy on every push to `main`.
 - [x] Single Cloudflare Pages project created for `apps/web`; preview deploys enabled. Domain configuration (custom subdomain vs. Pages default) deferred — TBD.
 - [x] D1 database provisioned (`phase1-dev` and `phase1-prod`).
 - [x] All secrets (Clerk secret key, Clerk webhook signing secret) stored in Cloudflare Workers Secrets — not in `wrangler.toml` or source.
@@ -1380,29 +1337,54 @@ M-5: Dashboard, Testing & DEO Handoff     [Week 5-6]
 
 ---
 
+### M-6: Auth Migration + Single Worker ✅ Complete
+
+**Objective:** Remove Clerk dependency entirely; replace with custom HMAC magic-link auth. Consolidate two separate Cloudflare Workers into one.
+
+**Deliverables:**
+
+- [x] Clerk removed from all dependencies, middleware, and pages.
+- [x] Custom HMAC magic-link auth implemented: `auth_users`, `auth_magic_links`, `auth_sessions` tables in D1; Resend for email delivery; `SESSION_SECRET` HMAC for session cookie signing.
+- [x] `apps/worker` (Hono API) deleted. All 19 API route handlers migrated to Next.js Route Handlers in `apps/web/app/api/`.
+- [x] Single Worker `up-excise-spatial-revenue-optimizer-web` serves both pages and API. Same-origin eliminates Bearer tokens, CORS, and cross-worker secrets.
+- [x] `apps/web/middleware.ts` rewritten to cookie-based routing (no D1 on every request).
+- [x] `useSession()` hook simplified — no `getToken()`, no Authorization header in API calls.
+- [x] `/auth/verify` converted to client component (Next.js 15 forbids `cookies().set()` in server component pages); verification logic moved to `POST /api/auth/verify` route handler.
+- [x] Migration files at `migrations/0001–0003.sql` applied to prod D1.
+- [x] All 4 CF Worker Secrets set on `up-excise-spatial-revenue-optimizer-web`.
+- [x] Admin and demo DEO users seeded in `auth_users`.
+- [x] CLAUDE.md and roadmap.md updated to reflect new architecture.
+- [x] Deployed and live at `https://up-excise-spatial-revenue-optimizer-web.shubhanraj2002.workers.dev`.
+
+**Exit criterion:** Admin can log in via magic link, verify session, access `/admin` dashboard. DEO can log in and access `/home`.
+
+---
+
 ### Timeline Summary
 
 | Milestone | Duration | Key Dependency |
 |---|---|---|
-| M-0: Foundation & Repo Setup | 4 days | Cloudflare account access, GitHub repo, Clerk account, DEO email list from department |
+| M-0: Foundation & Repo Setup | 4 days | Cloudflare account access, GitHub repo, DEO email list from department |
 | M-1: Schema, Migrations & Worker Skeleton | 5 days | M-0 complete |
 | M-2: Excel Ingestion & Coordinate Engine | 5 days | DEO Excel template finalized with department |
 | M-3: Verification UI, Auth, PWA & IndexedDB | 10 days | M-2 complete |
 | M-4: Worker Batch API & D1 Integration | 5 days | M-3 complete |
 | M-5: Admin Portal, Testing & DEO Handoff | 10 days | M-4 complete, pilot district identified |
-| **Total** | **~39 working days** | |
+| M-6: Auth Migration + Single Worker | 3 days | M-5 complete |
+| **Total** | **~42 working days** | |
 
-### Pre-Campaign Blockers (Must Resolve Before M-2)
+### Pre-Campaign Blockers
 
-The following require department action before engineering can proceed past M-1:
+The following require department action before the upload campaign can begin:
 
-1. **DEO email addresses:** The department must supply all 75 DEO email addresses before M-0 can close. Clerk accounts are provisioned from this list. Without it, the auth system cannot be configured and no DEO can log in.
-2. **Excel template column layout:** The DEO spreadsheet format must be locked down. Column names, order, and data types must be confirmed with the department before the SheetJS column-mapping is built. Changes to the template after M-2 require code changes.
-3. **Thana master list (best-effort):** A reference list of Thana names per district, even if incomplete, is valuable for building the adjacent Thana cross-district filter. If unavailable, the filter will use a runtime check against already-uploaded Thana names for the same district.
-4. **Shop count estimates per district:** Knowing the expected vend count per district allows the dashboard to display accurate "X of Y uploaded" progress metrics.
-5. **DEO credential and identifier assignment:** The department must assign and distribute DEO portal credentials and their `uploadedByDeo` identifiers before the upload campaign begins. DEOs must also complete circle/sector pre-registration before distributing templates to Inspectors.
-6. **Circle/sector naming convention:** DEOs need a consistent naming convention for circles and sectors (e.g., "Circle 1" vs "Circle I" vs "Kotwali Circle") so that the pre-registration step produces clean, unambiguous unit names across districts.
-7. **Upsert vs. versioning decision:** If a DEO re-uploads corrected data for their district, does the system overwrite existing records or create versioned entries? This must be decided before M-4 implementation.
+1. **DEO email addresses:** All 75 DEO department emails must be provided to the administrator before accounts can be provisioned via `POST /api/admin/bulk-provision`.
+2. **Excel template column layout:** Column names, order, and data types must be confirmed before the SheetJS column-mapping is finalized.
+3. **Thana master list (best-effort):** A reference list of Thana names per district for the adjacent Thana cross-district filter. If unavailable, the filter uses a runtime check against already-uploaded Thana names.
+4. **Shop count estimates per district:** Allows the dashboard to display accurate "X of Y uploaded" progress metrics.
+5. **DEO credential and identifier assignment:** DEOs must complete circle/sector pre-registration before distributing templates to Inspectors.
+6. **Circle/sector naming convention:** Consistent naming (e.g., "Circle 1" vs "Kotwali Circle") ensures clean unit names across districts.
+7. **Upsert vs. versioning decision:** If a DEO re-uploads corrected data, does the system overwrite or version records? Resolved to upsert (`UNIQUE` constraint on `shop_id + district_name`, `ON CONFLICT DO UPDATE`).
+8. **Custom email domain:** Switch `RESEND_FROM_EMAIL` from `onboarding@resend.dev` to a verified custom domain (e.g., `noreply@up-excise.in`) before campaign launch for deliverability.
 
 ---
 
@@ -1410,22 +1392,22 @@ The following require department action before engineering can proceed past M-1:
 
 | Layer | Technology | Rationale |
 |---|---|---|
-| Frontend Framework | Next.js (App Router) + `@opennextjs/cloudflare` | SSR-first, deployed as a Cloudflare Worker (not Pages). Build: `npx @opennextjs/cloudflare build`. Deploy: `npx @opennextjs/cloudflare deploy`. Config: `open-next.config.ts` + `wrangler.jsonc` in `apps/web`. |
-| Portal Deployment | Cloudflare Workers (`up-excise-portal`) | Next.js app served as a Worker. No Cloudflare Pages. Live: `up-excise-portal.shubhanraj2002.workers.dev` |
-| Backend Runtime | Cloudflare Workers | Serverless edge compute, 0ms cold start, free tier sufficient for Phase 1 |
-| Backend Framework | Hono | Lightweight, TypeScript-first, built for Workers, minimal overhead |
+| Frontend Framework | Next.js (App Router) + `@opennextjs/cloudflare` v1.20.1 | SSR-first, deployed as a single Cloudflare Worker. Build: `pnpm exec opennextjs-cloudflare build`. Deploy: `pnpm exec opennextjs-cloudflare deploy`. `wrangler.jsonc` in `apps/web`. Note: never use `export const runtime = 'edge'` — OpenNext rejects it. |
+| Deployment | Single Cloudflare Worker (`up-excise-spatial-revenue-optimizer-web`) | All pages AND API Route Handlers in one Worker. No Cloudflare Pages. Live: `up-excise-spatial-revenue-optimizer-web.shubhanraj2002.workers.dev` |
+| API Layer | Next.js Route Handlers (`app/api/**`) | 19 route handlers in same worker as pages. Same-origin means session cookie sent automatically — no Bearer tokens, no CORS. |
 | Database | Cloudflare D1 (SQLite) | Serverless SQLite at the edge, native `db.batch()`, free tier covers Phase 1 |
 | ORM | Drizzle ORM | Type-safe, SQLite-native, generates clean migrations, zero runtime overhead |
-| Authentication | Clerk | Passwordless magic-link auth, single-session enforcement, webhook events, Cloudflare Workers SDK |
-| UI Components | DaisyUI | Tailwind CSS plugin — semantic component classes, zero JS runtime, loaded from jsDelivr CDN |
-| CSS Utilities | Tailwind Play CDN | Runtime utility class generation; loaded from CDN — no PostCSS build step, keeps portal Worker bundle pure app logic |
-| Excel Parsing | SheetJS (`xlsx`) | Loaded from jsDelivr CDN dynamically on upload page; ~900KB, never bundled |
-| Local Persistence | Dexie.js (IndexedDB) | Loaded from jsDelivr CDN; offline-first staging layer for all DEO-entered data |
+| Authentication | Custom HMAC magic-link | HMAC-SHA256 session cookies + UUID tokens hashed in D1 + Resend email. No external auth provider. Session cookie `excise-session` (HttpOnly, 24h); role cookie `excise-role` (client-readable). |
+| Email | Resend | Magic-link delivery. `onboarding@resend.dev` until custom domain verified. Key set as CF Worker Secret. |
+| UI Components | DaisyUI 5.6.3 | Requires Tailwind v4. Semantic component classes, zero JS runtime, loaded from jsDelivr CDN. |
+| CSS Utilities | Tailwind v4 Browser CDN | `@tailwindcss/browser@4` — runtime utility generation; loaded from CDN, no PostCSS build step. |
+| Excel Parsing | SheetJS (`xlsx`) 0.18.5 | Loaded from jsDelivr CDN; ~900KB, never bundled. All parsing in browser. |
+| Local Persistence | Dexie.js 4.0.10 (IndexedDB) | Loaded from jsDelivr CDN; offline-first staging layer for all DEO-entered data |
 | Offline / PWA | Service Worker + Background Sync | App shell cache, CDN asset cache, transparent upload retry on reconnect |
-| Scheduled Tasks | Cloudflare Cron Triggers | Daily audit log purge at 45-day threshold; defined in `wrangler.toml` |
-| Modal Alerts | SweetAlert2 | Loaded from jsDelivr CDN. All modal alerts, confirmation dialogs, and prompts. Replaces native `alert()`/`confirm()`. |
-| Toast Notifications | Notyf | Loaded from jsDelivr CDN (~3KB). Side flash notifications (success, error, warning). Vanilla JS — no framework dependency. Sonner excluded — requires React bundling. |
-| Charts | Chart.js | Admin/HQ route group only. Loaded from jsDelivr CDN (~60KB gzip). Doughnut, bar, pie, and line charts for the HQ dashboard. |
+| Scheduled Tasks | Deferred | Cron purge (45-day audit log) deferred — @opennextjs/cloudflare v1 does not expose `scheduled` export hook. |
+| Modal Alerts | SweetAlert2 11.14.5 | Loaded from jsDelivr CDN. All modal alerts, confirmation dialogs, and prompts. |
+| Toast Notifications | Notyf 3.10.0 | Loaded from jsDelivr CDN (~3KB). Side flash notifications. |
+| Charts | Chart.js 4.4.7 | Admin route group only. Loaded from jsDelivr CDN. |
 | Maps | Leaflet.js + CartoDB tiles | Admin/HQ route group only. Loaded from jsDelivr CDN (~39KB JS + 5KB CSS). Interactive UP district choropleth. No API key required. |
 | Coordinate Conversion | Custom utility | DMS-to-DD is a 3-line formula; no library needed |
 | Testing | Vitest + Playwright | Unit tests for business logic; E2E for full upload and auth flows |
