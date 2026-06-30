@@ -5,7 +5,6 @@ import { eq } from 'drizzle-orm';
 import { getSession } from '@/lib/auth';
 import { districts, districtCirclesSectors, phase1RawCollection, auditLog } from '@excise/schema';
 
-export const runtime = 'edge';
 
 export async function POST(
   req: NextRequest,

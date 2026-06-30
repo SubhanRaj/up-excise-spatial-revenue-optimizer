@@ -4,7 +4,6 @@ import { drizzle } from 'drizzle-orm/d1';
 import { getSession } from '@/lib/auth';
 import { phase1RawCollection } from '@excise/schema';
 
-export const runtime = 'edge';
 
 export async function GET() {
   const user = await getSession();

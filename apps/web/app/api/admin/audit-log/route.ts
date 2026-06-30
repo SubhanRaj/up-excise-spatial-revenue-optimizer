@@ -5,7 +5,6 @@ import { desc } from 'drizzle-orm';
 import { getSession } from '@/lib/auth';
 import { auditLog } from '@excise/schema';
 
-export const runtime = 'edge';
 
 const PAGE_SIZE = 100;
 

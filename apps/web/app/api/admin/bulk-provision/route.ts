@@ -4,7 +4,6 @@ import { drizzle } from 'drizzle-orm/d1';
 import { getSession } from '@/lib/auth';
 import { districts, authUsers } from '@excise/schema';
 
-export const runtime = 'edge';
 
 interface ProvisionRow {
   districtName: string; division: string; deoName: string; deoEmail: string;

@@ -11,7 +11,8 @@
     {
       "binding": "DB",
       "database_name": "up-excise-spatial-revenue-optimizer-prod",
-      "database_id": "2955ce2d-8459-45b4-89f4-04afc9e42488"
+      "database_id": "2955ce2d-8459-45b4-89f4-04afc9e42488",
+      "migrations_dir": "../../migrations"
     }
   ],
   "observability": {

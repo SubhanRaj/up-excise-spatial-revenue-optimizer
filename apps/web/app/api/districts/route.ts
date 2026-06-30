@@ -5,7 +5,6 @@ import { asc } from 'drizzle-orm';
 import { getSession } from '@/lib/auth';
 import { districts } from '@excise/schema';
 
-export const runtime = 'edge';
 
 export async function GET() {
   const user = await getSession();

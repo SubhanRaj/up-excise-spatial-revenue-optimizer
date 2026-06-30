@@ -7,7 +7,6 @@ import { validateRow } from '@/lib/validate';
 import { phase1RawCollection, districtCirclesSectors, auditLog } from '@excise/schema';
 import type { Phase1RowInput } from '@/lib/types';
 
-export const runtime = 'edge';
 
 interface ChunkBody {
   rows: Phase1RowInput[];

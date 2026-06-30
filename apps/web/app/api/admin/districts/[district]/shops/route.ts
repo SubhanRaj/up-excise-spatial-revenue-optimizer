@@ -5,7 +5,6 @@ import { eq, count } from 'drizzle-orm';
 import { getSession } from '@/lib/auth';
 import { phase1RawCollection } from '@excise/schema';
 
-export const runtime = 'edge';
 
 const PAGE_SIZE = 100;
 
