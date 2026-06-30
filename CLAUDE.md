@@ -95,6 +95,31 @@ up-excise-spatial-revenue-optimizer/
 
 When files for any app or package do not exist yet, do not create them speculatively. Create them when a milestone is actively being worked on.
 
+### Frontend Route Map — Authoritative
+
+> **Rule:** Before creating any page file, derive the URL it will produce from the directory path and confirm it matches this table. Route groups `(deo)` and `(admin)` are stripped from URLs — they are layout wrappers only.
+
+| URL | File path | Role required |
+|---|---|---|
+| `/` | `app/page.tsx` | — (redirects to `/login`) |
+| `/login` | `app/login/page.tsx` | public |
+| `/home` | `app/(deo)/home/page.tsx` | `deo` |
+| `/upload` | `app/(deo)/upload/page.tsx` | `deo` |
+| `/verify` | `app/(deo)/verify/page.tsx` | `deo` |
+| `/units` | `app/(deo)/units/page.tsx` | `deo` |
+| `/admin` | `app/(admin)/admin/page.tsx` | `admin` |
+| `/admin/provision` | `app/(admin)/admin/provision/page.tsx` | `admin` |
+| `/admin/audit` | `app/(admin)/admin/audit/page.tsx` | `admin` |
+| `/admin/export` | `app/(admin)/admin/export/page.tsx` | `admin` |
+| `/admin/districts/[district]` | `app/(admin)/admin/districts/[district]/page.tsx` | `admin` |
+
+**How Next.js App Router computes URLs from file paths:**
+- Route groups `(name)` → stripped entirely from URL
+- Folders become URL segments: `admin/provision/page.tsx` → `/admin/provision`
+- Dynamic segments `[param]` → `:param` in URL
+
+**Past blunder:** `(admin)/provision/page.tsx` was created, producing URL `/provision` — but navbar linked to `/admin/provision` → 404. The route group was stripped but `admin/` was never added to the folder. This table prevents that mistake.
+
 ---
 
 ## Technology Stack
