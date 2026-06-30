@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
+import { useAuth } from '@clerk/nextjs';
 
 const WORKER = process.env.NEXT_PUBLIC_WORKER_URL ?? '';
 
@@ -15,6 +16,7 @@ declare const XLSX: {
 };
 
 export default function ProvisionPage() {
+  const { getToken } = useAuth();
   const inputRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<ProvisionRow[]>([]);
   const [result, setResult] = useState<{ email: string; status: string }[]>([]);
@@ -38,7 +40,7 @@ export default function ProvisionPage() {
 
   async function provision() {
     setLoading(true);
-    const token = await (window as unknown as { Clerk?: { session?: { getToken: () => Promise<string> } } }).Clerk?.session?.getToken();
+    const token = await getToken();
     const res = await fetch(`${WORKER}/api/admin/bulk-provision`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -59,7 +61,9 @@ export default function ProvisionPage() {
         </p>
 
         <button className="btn btn-outline" onClick={() => inputRef.current?.click()}>
-          📂 Select DEO Excel File
+          {/* tabler:file-spreadsheet */}
+          <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z"/><path d="M8 11h8"/><path d="M8 15h8"/><path d="M11 11v8"/></svg>
+          Select DEO Excel File
         </button>
         <input ref={inputRef} type="file" accept=".xlsx" className="hidden" aria-label="Select DEO provision Excel"
           onChange={(e) => { const f = e.target.files?.[0]; if (f) void handleFile(f); }} />
@@ -80,7 +84,13 @@ export default function ProvisionPage() {
               </table>
             </div>
             <button className="btn btn-primary mt-4" onClick={provision} disabled={loading}>
-              {loading ? <span className="loading loading-spinner loading-sm" /> : `🚀 Provision ${preview.length} DEOs`}
+              {loading ? <span className="loading loading-spinner loading-sm" /> : (
+                <>
+                  {/* tabler:user-check */}
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/><path d="m16 11 2 2 4-4"/></svg>
+                  Provision {preview.length} DEOs
+                </>
+              )}
             </button>
           </>
         )}

@@ -1,6 +1,7 @@
 'use client';
 
 import { use, useEffect, useState } from 'react';
+import { useAuth } from '@clerk/nextjs';
 
 const WORKER = process.env.NEXT_PUBLIC_WORKER_URL ?? '';
 
@@ -11,6 +12,7 @@ interface DistrictDetail {
 }
 
 export default function DistrictDetailPage({ params }: { params: Promise<{ district: string }> }) {
+  const { getToken } = useAuth();
   const { district } = use(params);
   const name = decodeURIComponent(district);
   const [detail, setDetail] = useState<DistrictDetail | null>(null);
@@ -21,7 +23,7 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
 
   async function load(p: number) {
     setLoading(true);
-    const token = await (window as unknown as { Clerk?: { session?: { getToken: () => Promise<string> } } }).Clerk?.session?.getToken();
+    const token = await getToken();
     const headers = { Authorization: `Bearer ${token}` };
 
     const [d, s] = await Promise.all([
@@ -40,7 +42,7 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
   const totalPages = Math.ceil(total / 100);
 
   async function exportCsv() {
-    const token = await (window as unknown as { Clerk?: { session?: { getToken: () => Promise<string> } } }).Clerk?.session?.getToken();
+    const token = await getToken();
     const res = await fetch(`${WORKER}/api/admin/districts/${encodeURIComponent(name)}/export`, {
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -61,7 +63,11 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
             {detail.status}
           </span>
         )}
-        <button className="btn btn-sm btn-outline ml-auto" onClick={exportCsv}>⬇️ Export CSV</button>
+        <button className="btn btn-sm btn-outline ml-auto" onClick={exportCsv}>
+          {/* tabler:download */}
+          <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/><polyline points="7 11 12 16 17 11"/><line x1="12" y1="4" x2="12" y2="16"/></svg>
+          Export CSV
+        </button>
       </div>
 
       {detail && (

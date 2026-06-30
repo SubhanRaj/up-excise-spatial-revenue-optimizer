@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { useUser } from '@clerk/nextjs';
+import { useAuth, useUser } from '@clerk/nextjs';
 
 const WORKER = process.env.NEXT_PUBLIC_WORKER_URL ?? '';
 const MAP_POLL_MS = 5 * 60 * 1000;
@@ -42,6 +42,7 @@ declare global {
 }
 
 export default function AdminPage() {
+  const { getToken } = useAuth();
   const { user } = useUser();
   const [data, setData] = useState<AdminOverview | null>(null);
   const [mapData, setMapData] = useState<MapRow[]>([]);
@@ -58,7 +59,7 @@ export default function AdminPage() {
   const chartInstances = useRef<{ destroy: () => void }[]>([]);
 
   async function fetchData() {
-    const token = await (window as unknown as { Clerk?: { session?: { getToken: () => Promise<string> } } }).Clerk?.session?.getToken();
+    const token = await getToken();
     const headers = { Authorization: `Bearer ${token}` };
     const [overview, map] = await Promise.all([
       fetch(`${WORKER}/api/admin/districts`, { headers }).then((r) => r.json()) as Promise<AdminOverview>,

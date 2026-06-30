@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { useUser } from '@clerk/nextjs';
+import { useAuth, useUser } from '@clerk/nextjs';
 import { stagingDb } from '@/lib/db';
 import type { StagedRow } from '@/lib/types';
 import { computeRevenue } from '@/lib/revenue';
@@ -52,6 +52,7 @@ function PillList({ raw, districtThanas, onChange }: {
 }
 
 export default function VerifyPage() {
+  const { getToken } = useAuth();
   const { user } = useUser();
   const district = (user?.publicMetadata as { districtName?: string })?.districtName ?? '';
   const deoId = (user?.publicMetadata as { deoId?: string })?.deoId ?? user?.id ?? '';
@@ -122,7 +123,7 @@ export default function VerifyPage() {
 
     setUploading(true);
     let done = 0;
-    const token = await (window as unknown as { Clerk?: { session?: { getToken: () => Promise<string> } } }).Clerk?.session?.getToken();
+    const token = await getToken();
 
     // Group by circle/sector, then chunk each group
     for (const unit of units) {
