@@ -1,35 +1,31 @@
-import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
 
-const isPublic = createRouteMatcher(['/login(.*)', '/api/webhooks/clerk(.*)']);
+const PUBLIC = new Set(['/login', '/auth/verify']);
 
-const MAX_SESSION_MS = 24 * 60 * 60 * 1000; // ponytail: 24h enforced app-side; Clerk free tier caps at 7d
+export default function middleware(req: NextRequest) {
+  const { pathname } = req.nextUrl;
 
-export default clerkMiddleware(async (auth, req) => {
-  if (isPublic(req)) return NextResponse.next();
-
-  const { userId, sessionClaims } = await auth();
-  const loginUrl = new URL('/login', req.url);
-
-  if (!userId) return NextResponse.redirect(loginUrl);
-
-  // ponytail: 24h enforced app-side via iat claim
-  if (sessionClaims?.iat) {
-    const age = Date.now() - sessionClaims.iat * 1000;
-    // ponytail: no ?redirect_url= — matches CLAUDE.md constraint (no data in URL params)
-    if (age > MAX_SESSION_MS) return NextResponse.redirect(loginUrl);
+  // Allow public routes and Next.js internals
+  if (PUBLIC.has(pathname) || pathname.startsWith('/api/') || pathname.startsWith('/_next/')) {
+    return NextResponse.next();
   }
 
-  const role = (sessionClaims?.publicMetadata as { role?: string } | undefined)?.role;
-  const path = req.nextUrl.pathname;
+  const sessionCookie = req.cookies.get('excise-session')?.value;
+  if (!sessionCookie) {
+    return NextResponse.redirect(new URL('/login', req.url));
+  }
 
-  // Route group enforcement
-  if (path.startsWith('/(deo)') || path.match(/^\/(home|upload|verify|units)/)) {
-    if (role !== 'deo') return NextResponse.redirect(loginUrl);
+  // Route group enforcement based on role cookie (security enforced in server layouts via requireAuth)
+  const role = req.cookies.get('excise-role')?.value;
+  if (pathname.match(/^\/admin/) && role !== 'admin') {
+    return NextResponse.redirect(new URL('/login', req.url));
   }
-  if (path.startsWith('/(admin)') || path.match(/^\/(admin)/)) {
-    if (role !== 'admin') return NextResponse.redirect(loginUrl);
+  if (pathname.match(/^\/(home|upload|verify|units)/) && role !== 'deo') {
+    return NextResponse.redirect(new URL('/login', req.url));
   }
-});
+
+  return NextResponse.next();
+}
 
 export const config = { matcher: ['/((?!_next|.*\\..*).*)', '/'] };
