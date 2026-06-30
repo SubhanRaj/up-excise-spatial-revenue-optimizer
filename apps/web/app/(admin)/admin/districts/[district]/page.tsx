@@ -181,7 +181,10 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
   const [circleFilter, setCircleFilter] = useState('all');
   const [sortKey, setSortKey] = useState<SortKey>('shopId');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
-  const [groupByType, setGroupByType] = useState(false);
+  const [groupByType, setGroupByType] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return localStorage.getItem('admin-group-by-type') === 'true';
+  });
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => {
     if (typeof window === 'undefined') return new Set();
     try {
@@ -282,10 +285,9 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
   function handleGroupByType(checked: boolean) {
     setGroupByType(checked);
     setPage(1);
-    if (checked) {
-      setTypeFilter('all'); // deselect any active type filter
-      setExpandedGroups(new Set()); // collapse all groups on enable
-    }
+    try { localStorage.setItem('admin-group-by-type', String(checked)); } catch { }
+    if (checked) setTypeFilter('all'); // deselect any active type filter
+    // expandedGroups intentionally not reset — lazy-init reads localStorage, toggleGroup persists it
   }
   function toggleGroup(type: string) {
     setExpandedGroups((prev) => {

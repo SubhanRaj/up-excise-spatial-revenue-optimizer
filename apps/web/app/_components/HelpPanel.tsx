@@ -65,6 +65,8 @@ export default function HelpPanel({ pageKey, title, children }: HelpPanelProps) 
       </button>
 
       {open && (
+        <>
+          <div className="fixed inset-0 z-40 backdrop-blur-[2px] bg-black/10 pointer-events-none" aria-hidden="true" />
         <div
           className="absolute top-full left-0 z-50 mt-1 w-[min(28rem,90vw)] card bg-base-100 border border-info/20 shadow-2xl p-4 space-y-3"
           role="region"
@@ -94,6 +96,7 @@ export default function HelpPanel({ pageKey, title, children }: HelpPanelProps) 
             </button>
           )}
         </div>
+        </>
       )}
     </div>
   );
