@@ -1,5 +1,7 @@
 'use client';
 
+import HelpPanel from '@/app/_components/HelpPanel';
+
 export default function ExportPage() {
   async function downloadAll() {
     const res = await fetch('/api/admin/export/all');
@@ -12,7 +14,17 @@ export default function ExportPage() {
 
   return (
     <div className="card bg-base-100 shadow p-6 space-y-4">
-      <h2 className="text-xl font-bold">Export Data</h2>
+      <div className="flex items-start gap-3 flex-wrap">
+        <h2 className="text-xl font-bold">Export Data</h2>
+        <HelpPanel pageKey="admin_export" title="Full State Export — What you get">
+          <ul className="list-disc list-inside space-y-1">
+            <li><strong>Format</strong> — CSV file with all Phase 1 fields for every submitted shop across all 75 districts.</li>
+            <li><strong>Trigger</strong> — clicking the button starts a file download. Data is never rendered in a UI table (30K rows would be unusable).</li>
+            <li><strong>Per-district export</strong> — if you need only one district, use the "Export CSV" button on the district detail page instead.</li>
+            <li><strong>When to use</strong> — handing off Phase 1 data to the Phase 2 boundary optimisation team, or archiving for the department.</li>
+          </ul>
+        </HelpPanel>
+      </div>
       <p className="text-sm text-base-content/70">
         Downloads the full Phase 1 dataset as a CSV file. This triggers a file download only —
         full-state data is never rendered in a UI table.

@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react';
 import { generateProvisionTemplate } from '@/lib/excel';
+import HelpPanel from '@/app/_components/HelpPanel';
 
 interface ProvisionRow {
   districtName: string; division: string; deoName: string;
@@ -52,6 +53,15 @@ export default function ProvisionPage() {
 
   return (
     <div className="space-y-6">
+      <HelpPanel pageKey="admin_provision" title="Bulk DEO Provisioning — How it works">
+        <ol className="list-decimal list-inside space-y-1">
+          <li><strong>Download the template</strong> — click "Download Template" to get the Excel file with the correct columns pre-filled.</li>
+          <li><strong>Fill it in</strong> — one row per DEO: District Name, Division, DEO Name, DEO Email, DEO Identifier, Expected Vend Count.</li>
+          <li><strong>Upload the file</strong> — drag-drop or click to select. SheetJS previews the rows in-browser before anything is sent.</li>
+          <li><strong>Confirm provision</strong> — click "Provision All" to create accounts and dispatch magic-link emails to all DEOs in one request.</li>
+        </ol>
+        <p className="mt-1 text-base-content/60">DEOs who already have accounts are skipped automatically. Email failures are reported per-row without rolling back the DB write.</p>
+      </HelpPanel>
       <div className="card bg-base-100 shadow p-6">
         <h2 className="text-xl font-bold mb-2">Bulk DEO Provisioning</h2>
         <p className="text-sm text-base-content/70 mb-4">

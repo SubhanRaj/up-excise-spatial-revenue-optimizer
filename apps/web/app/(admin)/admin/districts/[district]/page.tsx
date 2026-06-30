@@ -1,6 +1,7 @@
 'use client';
 
 import { memo, use, useEffect, useMemo, useState } from 'react';
+import HelpPanel from '@/app/_components/HelpPanel';
 
 const ON_PREMISES_CONSUMPTION_FEE = 300_000;
 const BHANG_MGQ_MULTIPLIER = 20;
@@ -288,7 +289,20 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
             {detail.status === 'submitted' ? 'Submitted' : detail.status === 'in_progress' ? 'In Progress' : 'Pending'}
           </span>
         )}
-        <div className="ml-auto flex gap-2">
+        <div className="ml-auto flex gap-2 items-center">
+          <HelpPanel pageKey="admin_district_detail" title="District Detail — How to use this page">
+            <ul className="list-disc list-inside space-y-1">
+              <li><strong>All fields</strong> — every Phase 1 data field is shown: shop ID, name, circle/sector, thana, adjacent thanas, type, coordinates, and revenue.</li>
+              <li><strong>Revenue breakdown</strong> — click any revenue figure to expand the fee component breakdown for that shop.</li>
+              <li><strong>CL5CC</strong> — shown as a sub-badge under the shop type. CL5CC is Country Liquor with the special beer licence flag enabled.</li>
+              <li><strong>Search</strong> — filters by shop ID, name, or thana as you type (client-side, no extra network call).</li>
+              <li><strong>Sort</strong> — click any underlined column header to sort ascending/descending.</li>
+              <li><strong>Type filter</strong> — use the dropdown or click a type card in the breakdown bar above to filter by shop type.</li>
+              <li><strong>Group by type</strong> — toggle to cluster rows under shop type headings with per-group subtotals.</li>
+              <li><strong>Rows per page</strong> — 10 / 25 / 50 / 100 / All. Your preference is remembered across pages.</li>
+              <li><strong>Export CSV</strong> — downloads this district&apos;s shops only as a CSV file.</li>
+            </ul>
+          </HelpPanel>
           <button className="btn btn-sm btn-outline gap-2" onClick={exportCsv}>
             <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/><polyline points="7 11 12 16 17 11"/><line x1="12" y1="4" x2="12" y2="16"/></svg>
             Export CSV
@@ -300,7 +314,7 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
       {loading ? (
         <div className="grid md:grid-cols-4 gap-3 animate-pulse">
           {Array.from({ length: 4 }, (_, i) => (
-            <div key={i} className="h-20 rounded-xl bg-base-200" />
+            <div key={i} className="h-20 rounded-xl bg-base-300" />
           ))}
         </div>
       ) : detail && (
@@ -328,7 +342,7 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
                 <button
                   key={t}
                   onClick={() => handleTypeFilter(typeFilter === t ? 'all' : t)}
-                  className={`rounded-lg border p-3 text-left transition-colors cursor-pointer hover:bg-base-200 ${typeFilter === t ? 'border-info bg-info/5' : 'border-base-200'}`}
+                  className={`rounded-lg border p-3 text-left transition-colors cursor-pointer hover:bg-base-300 ${typeFilter === t ? 'border-info bg-info/5' : 'border-base-200'}`}
                 >
                   <div className="flex items-center gap-1.5 mb-1">
                     <span className={`badge badge-xs ${TYPE_BADGE[t]}`}>{' '}</span>
@@ -465,7 +479,7 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
                 Array.from({ length: 15 }, (_, i) => (
                   <tr key={i} className="animate-pulse">
                     {Array.from({ length: skeletonCols }, (_, j) => (
-                      <td key={j}><div className="h-3 bg-base-200 rounded" /></td>
+                      <td key={j}><div className="h-3 bg-base-300 rounded" /></td>
                     ))}
                   </tr>
                 ))

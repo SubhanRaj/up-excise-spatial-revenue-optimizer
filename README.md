@@ -115,10 +115,12 @@ up-excise-spatial-revenue-optimizer/
 - 75-row district summary + state totals (no shop rows on default view)
 - Interactive UP choropleth map (Leaflet, district status colour-coded)
 - 5 Chart.js analytics charts (submission progress, revenue by district, shop type breakdown)
-- District drill-down: paginated shop table (10/25/50/100/All rows per page selector, IndexedDB-cached 1h); shows all fields including circle/sector, coordinates, adjacent thanas, CL5CC, and per-row revenue breakdown (collapsible inline, no modal)
-- Full-state export: chunked `.xlsx` download (never rendered in UI)
-- Audit log viewer (last 45 days)
+- District drill-down: client-side sort/filter/search/group, all Phase 1 fields, adjacent thanas as pills, CL5CC inline with type badge, per-row revenue breakdown (collapsible `<details>`, no modal), 10/25/50/100/All rows per page (preference persisted to localStorage)
+- Per-type + CL5CC count breakdown bar on district detail page
+- Full-state export: `.csv` download (never rendered in UI); per-district export also available from district detail page
+- Audit log viewer (last 45 days, paginated)
 - Bulk DEO provisioning via Excel upload
+- Collapsible `HelpPanel` on every admin page (dashboard, provision, audit, export, district detail) — same component as DEO portal
 
 ---
 

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useSession } from '@/hooks/useSession';
+import HelpPanel from '@/app/_components/HelpPanel';
 const MAP_POLL_MS = 5 * 60 * 1000;
 
 interface DistrictRow {
@@ -203,6 +204,16 @@ export default function AdminPage() {
 
   return (
     <div className="space-y-6">
+      <HelpPanel pageKey="admin_dashboard" title="HQ Dashboard — Overview">
+        <p>This is the state-wide command view. Everything here is read-only aggregate data — no shop rows are loaded until you drill into a district.</p>
+        <ul className="list-disc list-inside space-y-1 mt-1">
+          <li><strong>Stat cards</strong> — submitted district count, total vends uploaded, and total annual revenue across the state.</li>
+          <li><strong>Choropleth map</strong> — grey = pending, amber = in progress, green = submitted. Click a district polygon to jump to its detail page.</li>
+          <li><strong>Charts</strong> — submission progress by district, revenue split, and shop type breakdown. Auto-refresh every 5 minutes.</li>
+          <li><strong>District table</strong> — 75 rows, one per district. Click any row to open the district detail view with all shop records.</li>
+          <li><strong>Search</strong> — filters the district table by name in real time.</li>
+        </ul>
+      </HelpPanel>
       {apiError && (
         <div className="alert alert-error" role="alert">
           {/* tabler:alert-circle */}

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import HelpPanel from '@/app/_components/HelpPanel';
 interface AuditRow { id: number; eventType: string; deoId: string; districtName?: string; ipAddress?: string; createdAt: number }
 
 export default function AuditPage() {
@@ -18,7 +19,17 @@ export default function AuditPage() {
 
   return (
     <div className="card bg-base-100 shadow p-6 space-y-4">
-      <h2 className="text-xl font-bold">Audit Log (last 45 days)</h2>
+      <div className="flex items-start gap-3 flex-wrap">
+        <h2 className="text-xl font-bold">Audit Log (last 45 days)</h2>
+        <HelpPanel pageKey="admin_audit" title="Audit Log — What is tracked">
+          <ul className="list-disc list-inside space-y-1">
+            <li><strong>Event types</strong> — login, magic_link_request, upload_chunk, district_submit, admin_export, bulk_provision, and more.</li>
+            <li><strong>Retention</strong> — 45 days rolling. Older rows are purged automatically.</li>
+            <li><strong>Per-page</strong> — 50 events per page. Use the pagination buttons below to browse history.</li>
+            <li><strong>IP address</strong> — the originating request IP, useful for auditing unusual login locations.</li>
+          </ul>
+        </HelpPanel>
+      </div>
       <div className="overflow-x-auto">
         <table className="table table-sm w-full" role="grid" aria-label="Audit log">
           <thead><tr><th>Event</th><th>DEO ID</th><th>District</th><th>IP</th><th>Time</th></tr></thead>
