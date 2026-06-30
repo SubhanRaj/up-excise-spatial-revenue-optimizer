@@ -36,6 +36,9 @@ const BHANG_MGQ_MULTIPLIER        = 20;
 const LAT_MIN = 26.60, LAT_MAX = 27.10;
 const LON_MIN = 80.40, LON_MAX = 81.05;
 
+const ADMIN_EMAIL = 'shubhanraj2002@gmail.com';
+const ADMIN_NAME  = 'Subhan Raj';
+
 const DB_NAME = 'up-excise-spatial-revenue-optimizer-prod';
 const EXCEL_OUT = join(__dirname, '..', 'docs', 'templates', 'demo-district-data.xlsx');
 
@@ -209,7 +212,8 @@ function sqlSeed(shops: Shop[]): string {
     '-- Demo District row (status submitted so HQ dashboard shows it)',
     `INSERT INTO districts (name, division, deo_name, deo_email, deo_id, expected_vend_count, status, created_at) VALUES ('${esc(DISTRICT)}', '${esc(DIVISION)}', '${esc(DEO_NAME)}', '${esc(DEO_EMAIL)}', '${esc(DEO_ID)}', ${EXP_VEND_COUNT}, 'submitted', ${now});`,
     '',
-    '-- Demo DEO login account (magic-link auth requires an auth_users row)',
+    '-- Portal accounts (idempotent — admin and demo DEO both restored after any migration wipe)',
+    `INSERT INTO auth_users (email, name, role) VALUES ('${esc(ADMIN_EMAIL)}', '${esc(ADMIN_NAME)}', 'admin') ON CONFLICT(email) DO UPDATE SET name=excluded.name;`,
     `INSERT INTO auth_users (email, name, role, deo_id, district_name) VALUES ('${esc(DEO_EMAIL)}', '${esc(DEO_NAME)}', 'deo', '${esc(DEO_ID)}', '${esc(DISTRICT)}') ON CONFLICT(email) DO UPDATE SET name=excluded.name, deo_id=excluded.deo_id, district_name=excluded.district_name;`,
     '',
     '-- Circles and sectors',
