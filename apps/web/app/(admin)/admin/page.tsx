@@ -19,6 +19,12 @@ const STATUS_COLORS: Record<string, string> = {
   submitted: '#15803d',
 };
 
+const UP_BOUNDS: [[number, number], [number, number]] = [[23.8, 77.1], [30.4, 84.6]];
+const TILE_URLS = {
+  light: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+  dark: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+} as const;
+
 function formatInr(n: number): string {
   if (n >= 10_000_000) return `₹${(n / 10_000_000).toFixed(2)} Cr`;
   if (n >= 100_000) return `₹${(n / 100_000).toFixed(2)} L`;
@@ -28,13 +34,19 @@ function formatInr(n: number): string {
 declare global {
   const L: {
     map: (id: string) => LeafletMap;
-    tileLayer: (url: string, opts: unknown) => { addTo: (m: LeafletMap) => void };
+    tileLayer: (url: string, opts: unknown) => LeafletLayer;
     geoJSON: (data: unknown, opts: unknown) => LeafletLayer;
     control: { layers?: unknown; attribution?: unknown } & {
       (): { addTo: (m: LeafletMap) => void };
     };
   };
-  interface LeafletMap { setView: (c: [number, number], z: number) => LeafletMap; remove: () => void }
+  interface LeafletMap {
+    setView: (c: [number, number], z: number) => LeafletMap;
+    fitBounds: (bounds: [[number, number], [number, number]], options?: { padding?: [number, number]; animate?: boolean }) => LeafletMap;
+    setMaxBounds: (bounds: [[number, number], [number, number]]) => LeafletMap;
+    invalidateSize: () => LeafletMap;
+    remove: () => void;
+  }
   interface LeafletLayer { addTo: (m: LeafletMap) => LeafletLayer; remove: () => void }
   const Chart: {
     new (ctx: CanvasRenderingContext2D, config: unknown): { destroy: () => void };
@@ -49,8 +61,10 @@ export default function AdminPage() {
   const [apiError, setApiError] = useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
   const [search, setSearch] = useState('');
+  const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstance = useRef<LeafletMap | null>(null);
+  const baseLayer = useRef<LeafletLayer | null>(null);
   const geoLayer = useRef<LeafletLayer | null>(null);
   const chartRefs = {
     doughnut: useRef<HTMLCanvasElement>(null),
@@ -84,13 +98,46 @@ export default function AdminPage() {
     return () => clearInterval(id);
   }, [user]);
 
+  useEffect(() => {
+    const syncTheme = () => {
+      setTheme(document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light');
+    };
+
+    syncTheme();
+    const observer = new MutationObserver(syncTheme);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    window.addEventListener('storage', syncTheme);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('storage', syncTheme);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!mapInstance.current || typeof L === 'undefined') return;
+
+    baseLayer.current?.remove();
+    baseLayer.current = L.tileLayer(TILE_URLS[theme], {
+      attribution: '© CartoDB',
+    }).addTo(mapInstance.current);
+  }, [theme]);
+
   // Initialize Leaflet choropleth
   useEffect(() => {
     if (!mapRef.current || mapData.length === 0 || typeof L === 'undefined') return;
-    if (mapInstance.current) { geoLayer.current?.remove(); }
-    else {
-      mapInstance.current = L.map('admin-map').setView([26.8467, 80.9462], 7);
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    if (!mapInstance.current) {
+      mapInstance.current = L.map('admin-map');
+      mapInstance.current.setMaxBounds(UP_BOUNDS);
+      mapInstance.current.fitBounds(UP_BOUNDS, { padding: [12, 12], animate: false });
+    } else {
+      geoLayer.current?.remove();
+      mapInstance.current.setMaxBounds(UP_BOUNDS);
+      mapInstance.current.fitBounds(UP_BOUNDS, { padding: [12, 12], animate: false });
+    }
+
+    if (!baseLayer.current) {
+      baseLayer.current = L.tileLayer(TILE_URLS[theme], {
         attribution: '© CartoDB',
       }).addTo(mapInstance.current);
     }
@@ -117,6 +164,8 @@ export default function AdminPage() {
             }
           },
         }).addTo(mapInstance.current!);
+        mapInstance.current!.setMaxBounds(UP_BOUNDS);
+        mapInstance.current!.fitBounds(UP_BOUNDS, { padding: [12, 12], animate: false });
       })
       .catch(() => {}); // GeoJSON not yet placed — map still loads
   }, [mapData]);

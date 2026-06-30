@@ -166,6 +166,7 @@ The `(admin)` route group inside `apps/web` — same portal Worker deployment (`
 - Hover tooltip: district name, DEO, submission status, vend count, total revenue.
 - Click a district: navigates to that district's shop drill-down.
 - Auto-refreshes every 5 minutes from `GET /api/admin/map-data`.
+- The viewport is clamped to Uttar Pradesh boundaries and the basemap follows the active light/dark theme.
 - GeoJSON district boundaries stored as a static asset at `apps/web/public/geodata/up-districts.geojson`.
 
 **Summary Charts (Chart.js, jsDelivr CDN):**
