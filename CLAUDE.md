@@ -5,6 +5,43 @@
 
 ---
 
+## Working Agreement — Read Before Every Task
+
+### Ask When Stuck. Do Not Shotgun.
+
+If you cannot solve a problem with confidence after **one attempt**, stop and ask the user. Do not cycle through multiple approaches hoping one lands. Each failed attempt wastes build minutes, can break working code, and erodes trust.
+
+**Past incident (do not repeat):** Claude loaded `cdn.tailwindcss.com` (Tailwind v3) instead of the pinned `@tailwindcss/browser@4` URL. DaisyUI 5 failed to style because it requires Tailwind v4. Instead of spotting the wrong URL and fixing it in one edit, Claude tried multiple workarounds across several sessions. The correct action: check the URL against this file, fix it, done. One edit.
+
+**Rule of thumb:**
+- **Act** when the fix is obvious and involves a small, reversible change to code.
+- **Ask** when you are uncertain which approach is correct, when the fix would touch pinned versions or infrastructure, or when a first attempt did not work and you are unsure why.
+
+This applies even in auto mode. A question asked once is far cheaper than three wrong fixes.
+
+### Infrastructure Is Fully Provisioned — Do Not Re-Verify
+
+All secrets, keys, and environment variables are confirmed set. Do not question, hedge, or add "make sure X is set" caveats about any of these:
+
+| What | Where | Status |
+|---|---|---|
+| `CLERK_SECRET_KEY` | Portal Worker (`up-excise-portal`) | ✓ Set |
+| `CLERK_SECRET_KEY` | API Worker (`up-excise-spatial-revenue-optimizer`) | ✓ Set |
+| `CLERK_WEBHOOK_SIGNING_SECRET` | API Worker | ✓ Set |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | GitHub Actions secret | ✓ Set |
+| `CLOUDFLARE_API_TOKEN` | GitHub Actions secret | ✓ Set |
+| `CLOUDFLARE_ACCOUNT_ID` | GitHub Actions secret | ✓ Set |
+| `NEXT_PUBLIC_CLERK_SIGN_IN_URL=/login` | Baked in deploy workflow | ✓ Set |
+| D1 database (`up-excise-spatial-revenue-optimizer-prod`) | Cloudflare | ✓ Migrated |
+
+If something is broken, the cause is in the code, not missing infrastructure. Look at the code first.
+
+### Pinned Versions and CDN URLs Are Deliberate
+
+Every version in the Technology Stack table is tested and pinned. Do not change any CDN URL or version number, install CDN libraries as npm packages, or suggest "let's try the latest version." If a library is not rendering correctly, compare the URL in the code against this file — the URL here is correct; the code is wrong.
+
+---
+
 ## Project Identity
 
 | Field | Value |
