@@ -1,11 +1,14 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { useUser } from '@clerk/nextjs';
+import { useAuth, useUser } from '@clerk/nextjs';
 import { stagingDb } from '@/lib/db';
 import HelpPanel from '@/app/_components/HelpPanel';
 
+const WORKER = process.env.NEXT_PUBLIC_WORKER_URL ?? '';
+
 export default function UploadPage() {
+  const { getToken } = useAuth();
   const { user } = useUser();
   const district = (user?.publicMetadata as { districtName?: string })?.districtName ?? '';
   const uploadedByDeo = (user?.publicMetadata as { deoId?: string })?.deoId ?? user?.id ?? '';
@@ -14,6 +17,20 @@ export default function UploadPage() {
   const [status, setStatus] = useState<'idle' | 'parsing' | 'done' | 'error'>('idle');
   const [rowCount, setRowCount] = useState(0);
   const [dragOver, setDragOver] = useState(false);
+
+  async function downloadTemplate() {
+    const token = await getToken();
+    const res = await fetch(`${WORKER}/api/districts/${encodeURIComponent(district)}/template`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const meta = await res.json() as { districtName: string; units: { name: string }[] };
+    const { generateTemplate } = await import('@/lib/excel');
+    const blob = await generateTemplate(meta.districtName, meta.units.map((u) => u.name));
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `${district}-template.xlsx`; a.click();
+    URL.revokeObjectURL(url);
+  }
 
   async function handleFile(file: File) {
     if (!file.name.endsWith('.xlsx')) {
@@ -58,6 +75,15 @@ export default function UploadPage() {
         <p className="text-sm text-base-content/70 mb-6">
           Upload the consolidated district Excel file. All rows are parsed in the browser — no data leaves your device until you submit on the Verify page.
         </p>
+
+        <div className="flex items-center gap-3 mb-4">
+          <button className="btn btn-outline btn-sm" onClick={downloadTemplate} aria-label="Download district Excel template">
+            {/* tabler:download */}
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/><polyline points="7 11 12 16 17 11"/><line x1="12" y1="4" x2="12" y2="16"/></svg>
+            Download District Template
+          </button>
+          <span className="text-xs text-base-content/50">or fill from the Circles page if you haven't downloaded yet</span>
+        </div>
 
         {/* Drag-and-drop upload zone */}
         <div

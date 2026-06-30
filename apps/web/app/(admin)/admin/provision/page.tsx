@@ -64,19 +64,16 @@ export default function ProvisionPage() {
           SheetJS parses the file in-browser; no data is sent until you confirm below.
         </p>
 
-        <div className="flex flex-wrap gap-3 mb-4">
-          {/* Download blank template */}
-          <button className="btn btn-outline btn-sm" onClick={downloadTemplate}>
+        <div className="flex flex-wrap gap-3 mb-4 items-center">
+          <button className="btn btn-outline btn-sm" onClick={downloadTemplate} aria-label="Download blank DEO provision template">
             {/* tabler:download */}
             <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/><polyline points="7 11 12 16 17 11"/><line x1="12" y1="4" x2="12" y2="16"/></svg>
             Download Blank Template
           </button>
-
-          {/* Upload filled file */}
-          <button className="btn btn-outline" onClick={() => inputRef.current?.click()}>
+          <button className="btn btn-primary btn-sm" onClick={() => inputRef.current?.click()} aria-label="Select filled DEO Excel file">
             {/* tabler:file-spreadsheet */}
             <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z"/><path d="M8 11h8"/><path d="M8 15h8"/><path d="M11 11v8"/></svg>
-            Select Filled DEO Excel File
+            Upload Filled DEO File
           </button>
         </div>
 

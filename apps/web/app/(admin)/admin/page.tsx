@@ -46,6 +46,7 @@ export default function AdminPage() {
   const { user } = useUser();
   const [data, setData] = useState<AdminOverview | null>(null);
   const [mapData, setMapData] = useState<MapRow[]>([]);
+  const [apiError, setApiError] = useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
   const [search, setSearch] = useState('');
   const mapRef = useRef<HTMLDivElement>(null);
@@ -60,13 +61,19 @@ export default function AdminPage() {
 
   async function fetchData() {
     const token = await getToken();
+    if (!token) { setApiError('Session not ready — refresh the page.'); return; }
     const headers = { Authorization: `Bearer ${token}` };
-    const [overview, map] = await Promise.all([
-      fetch(`${WORKER}/api/admin/districts`, { headers }).then((r) => r.json()) as Promise<AdminOverview>,
-      fetch(`${WORKER}/api/admin/map-data`, { headers }).then((r) => r.json()) as Promise<MapRow[]>,
+    const [overviewRes, mapRes] = await Promise.all([
+      fetch(`${WORKER}/api/admin/districts`, { headers }),
+      fetch(`${WORKER}/api/admin/map-data`, { headers }),
     ]);
-    setData(overview);
-    setMapData(map);
+    if (!overviewRes.ok || !mapRes.ok) {
+      setApiError(`API error ${overviewRes.status} — check your account role in Clerk.`);
+      return;
+    }
+    setData(await overviewRes.json() as AdminOverview);
+    setMapData(await mapRes.json() as MapRow[]);
+    setApiError(null);
     setLastRefresh(new Date());
   }
 
@@ -153,6 +160,14 @@ export default function AdminPage() {
 
   return (
     <div className="space-y-6">
+      {apiError && (
+        <div className="alert alert-error" role="alert">
+          {/* tabler:alert-circle */}
+          <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <span>{apiError}</span>
+          <button className="btn btn-sm btn-ghost" onClick={fetchData}>Retry</button>
+        </div>
+      )}
       {/* State totals */}
       {data && (
         <div className="grid md:grid-cols-3 gap-4">

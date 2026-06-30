@@ -13,7 +13,10 @@ export function requireRole(role: 'deo' | 'admin'): MiddlewareHandler<HonoEnv> {
     try {
       const parts = token.split('.');
       if (parts.length !== 3 || !parts[1]) throw new Error('malformed');
-      const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+      // JWT uses base64url (no padding). atob in CF Workers V8 requires standard base64 with padding.
+      const b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+      const padded = b64 + '='.repeat((4 - b64.length % 4) % 4);
+      const payload = JSON.parse(atob(padded));
 
       const meta = payload?.publicMetadata as { role?: string; districtName?: string } | undefined;
       if (meta?.role !== role) {

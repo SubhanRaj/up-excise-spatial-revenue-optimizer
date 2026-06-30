@@ -1,9 +1,23 @@
 'use client';
 
+import { usePathname } from 'next/navigation';
 import { SignOutButton } from '@clerk/nextjs';
 import { ThemeToggle } from '../_components/ThemeToggle';
 
+const ADMIN_CRUMBS: Record<string, string[]> = {
+  '/admin': ['Overview'],
+  '/admin/provision': ['Overview', 'Provision DEOs'],
+  '/admin/audit': ['Overview', 'Audit Log'],
+  '/admin/export': ['Overview', 'Export'],
+};
+
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  // Dynamic district path: /admin/districts/:district
+  const districtMatch = pathname.match(/^\/admin\/districts\/(.+)$/);
+  const crumbs: string[] = districtMatch
+    ? ['Overview', 'Districts', decodeURIComponent(districtMatch[1]!)]
+    : (ADMIN_CRUMBS[pathname] ?? []);
 
   return (
     <div className="min-h-screen bg-base-200">
@@ -34,6 +48,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </SignOutButton>
         </div>
       </nav>
+      {crumbs.length > 0 && (
+        <div className="bg-base-100 border-b border-base-200 px-6 py-2">
+          <div className="text-xs text-base-content/50 flex items-center gap-1.5">
+            {crumbs.map((c, i) => (
+              <span key={i} className="flex items-center gap-1.5">
+                {i > 0 && <span>›</span>}
+                <span className={i === crumbs.length - 1 ? 'text-base-content/80 font-medium' : ''}>{c}</span>
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
       <main className="container mx-auto px-4 py-8 md:px-8">{children}</main>
     </div>
   );
