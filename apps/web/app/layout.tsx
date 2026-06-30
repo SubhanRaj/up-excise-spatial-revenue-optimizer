@@ -22,6 +22,25 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
 
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daisyui@5.6.3/daisyui.css" />
+        {/* Government portal colour palette — navy primary, teal secondary, amber accent */}
+        <style dangerouslySetInnerHTML={{ __html: `
+          [data-theme="light"] {
+            --color-primary: oklch(38% 0.14 243);
+            --color-primary-content: oklch(97% 0.01 243);
+            --color-secondary: oklch(46% 0.12 195);
+            --color-secondary-content: oklch(97% 0.01 195);
+            --color-accent: oklch(68% 0.16 72);
+            --color-accent-content: oklch(15% 0.04 72);
+          }
+          [data-theme="dark"] {
+            --color-primary: oklch(60% 0.16 243);
+            --color-primary-content: oklch(10% 0.02 243);
+            --color-secondary: oklch(58% 0.13 195);
+            --color-secondary-content: oklch(10% 0.02 195);
+            --color-accent: oklch(72% 0.16 72);
+            --color-accent-content: oklch(15% 0.04 72);
+          }
+        `}} />
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/notyf@3.10.0/notyf.min.css" />
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
 
