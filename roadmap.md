@@ -11,7 +11,7 @@
 | **Prepared By** | Subhan Raj, CSE Engineer — SIBIN Tech Solutions |
 | **Consulting For** | Department of Excise, Government of Uttar Pradesh |
 | **Authored** | 2026-06-25 |
-| **Last Updated** | 2026-06-29 |
+| **Last Updated** | 2026-06-30 |
 | **Status** | Phase 1 Code-Complete — Deployed to Production — Pending Departmental DEO Rollout |
 
 ---
@@ -408,14 +408,31 @@ The only public routes are `/login` and `/api/webhooks/clerk` (which authenticat
 ```typescript
 // apps/web/middleware.ts
 import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
+import { NextResponse } from 'next/server';
 
 const isPublic = createRouteMatcher(['/login(.*)', '/api/webhooks/clerk(.*)']);
+const MAX_SESSION_MS = 24 * 60 * 60 * 1000;
 
-export default clerkMiddleware((auth, req) => {
-  if (!isPublic(req)) auth().protect();
+export default clerkMiddleware(async (auth, req) => {
+  if (isPublic(req)) return NextResponse.next();
+
+  const { userId, sessionClaims } = await auth();
+  const loginUrl = new URL('/login', req.url);
+
+  // Do NOT use auth().protect() — it appends ?redirect_url= which violates the no-data-in-URL rule
+  if (!userId) return NextResponse.redirect(loginUrl);
+
+  // 24h session enforced application-side via iat claim (Clerk free tier cannot configure sub-7d)
+  if (sessionClaims?.iat && Date.now() - sessionClaims.iat * 1000 > MAX_SESSION_MS)
+    return NextResponse.redirect(loginUrl);
+
+  const role = (sessionClaims?.publicMetadata as { role?: string } | undefined)?.role;
+  const path = req.nextUrl.pathname;
+  if (path.match(/^\/(home|upload|verify|units)/) && role !== 'deo') return NextResponse.redirect(loginUrl);
+  if (path.match(/^\/admin/) && role !== 'admin') return NextResponse.redirect(loginUrl);
 });
 
-export const config = { matcher: ['/((?!_next|.*\\..*).*)'] };
+export const config = { matcher: ['/((?!_next|.*\\..*).*)', '/'] };
 ```
 
 **Role Model — User Metadata, Not Clerk Organizations:**
@@ -448,16 +465,12 @@ The Worker reads `auth().sessionClaims.publicMetadata` to guard routes and scope
 The Clerk free tier does not allow configuring session duration below 7 days via the dashboard. We enforce 24-hour sessions at the **application level** in middleware, not via Clerk's session settings:
 
 ```typescript
-// In clerkMiddleware — runs on every protected request
-const { sessionClaims } = auth();
-const sessionAge = Date.now() - new Date(sessionClaims.iat * 1000).getTime();
-const MAX_SESSION_MS = 24 * 60 * 60 * 1000; // 24 hours
+// In clerkMiddleware — runs on every protected request (see actual middleware.ts above)
+const { sessionClaims } = await auth();
+const MAX_SESSION_MS = 24 * 60 * 60 * 1000;
 
-if (sessionAge > MAX_SESSION_MS) {
-  // Revoke via Clerk management API, then redirect to /login
-  await clerkClient.sessions.revokeSession(auth().sessionId);
+if (sessionClaims?.iat && Date.now() - sessionClaims.iat * 1000 > MAX_SESSION_MS)
   return NextResponse.redirect(new URL('/login', req.url));
-}
 ```
 
 This achieves 24-hour sessions without a paid Clerk plan. If the department requires strict session-duration configuration at the Clerk level (e.g., for compliance audit), upgrading to Clerk Pro (~$25/month) enables this in the dashboard.
@@ -499,12 +512,12 @@ The guiding principle is **CDN-first**: every substantial asset is loaded from j
 
 | Asset | CDN Source | Size (gzip) | Notes |
 |---|---|---|---|
-| DaisyUI CSS | `cdn.jsdelivr.net/npm/daisyui@x/dist/full.min.css` | ~25KB | Semantic component classes: `btn`, `card`, `table`, `modal`, `badge`, `drawer`, etc. |
-| Tailwind Play CDN | `cdn.tailwindcss.com` | ~50KB | Runtime utility class generation for any Tailwind utilities used in JSX. Scans rendered HTML. |
+| DaisyUI CSS | `cdn.jsdelivr.net/npm/daisyui@5.6.3/daisyui.css` | ~25KB | Semantic component classes: `btn`, `card`, `table`, `modal`, `badge`, `drawer`, etc. Requires Tailwind v4. |
+| Tailwind CSS v4 (`@tailwindcss/browser`) | `cdn.jsdelivr.net/npm/@tailwindcss/browser@4` | ~50KB | Runtime utility class generation. **Never** use `cdn.tailwindcss.com` — that serves Tailwind v3, which is incompatible with DaisyUI 5. |
 
 Both are loaded in `<head>` via root `layout.tsx` with SRI attributes. Tailwind is not processed via PostCSS at build time — no Tailwind in the build pipeline, no purge step, no PostCSS config. The Play CDN handles this at runtime.
 
-> **Why Tailwind Play CDN instead of build-time?** The portal Worker (via `@opennextjs/cloudflare`) serves only the Next.js application bundle. Removing PostCSS + Tailwind from the build pipeline keeps the bundle exclusively application code. Bandwidth cost for the Tailwind CDN script is borne by jsDelivr, not by Cloudflare Workers bandwidth.
+> **Why `@tailwindcss/browser` CDN instead of build-time?** The portal Worker (via `@opennextjs/cloudflare`) serves only the Next.js application bundle. Removing PostCSS + Tailwind from the build pipeline keeps the bundle exclusively application code. Bandwidth cost for the Tailwind CDN script is borne by jsDelivr, not by Cloudflare Workers bandwidth.
 
 **Data, UI Feedback & Visualization Libraries — Loaded from CDN:**
 
@@ -653,17 +666,20 @@ The DEO portal and Admin/HQ portal are **route groups within a single Next.js ap
 
 ```
 apps/web/app/
-├── page.tsx    # Root redirector — reads role from Clerk session, redirects to /home or /admin
+├── page.tsx    # Pure redirect → /login (server component, no auth check)
+├── login/
+│   ├── page.tsx              # Server component: auth() check → role-redirect or render LoginForm
+│   └── _components/
+│       └── LoginForm.tsx     # 'use client' — Clerk <SignIn> widget (fallbackRedirectUrl="/login")
 ├── (deo)/
 │   └── home/  # DEO home page (URL: /home) — middleware enforces role: 'deo'
 ├── (admin)/
 │   └── admin/ # Admin home page (URL: /admin) — middleware enforces role: 'admin'
-└── login/     # Public — the only unauthenticated entry point
 ```
 
-The root `page.tsx` reads the Clerk session and redirects: `role === 'admin'` → `/admin`; everything else → `/home`. The middleware reads `publicMetadata.role` and enforces route group access. A `deo` user hitting any `(admin)` route is redirected to `/login`; an `admin` hitting a `(deo)` route is also redirected. Both groups share the same Clerk project and the same API Worker endpoint.
+`page.tsx` at the root is a pure `redirect('/login')` with no auth logic. Role-based routing lives in `login/page.tsx` (a server component): it calls `auth()`, reads `publicMetadata.role` from the JWT, and redirects `admin` → `/admin` or `deo` → `/home`. If the user is authenticated but has no recognised role, it shows an "Account not provisioned" message. Unauthenticated users see the Clerk `<SignIn>` widget via `LoginForm`. The middleware reads `publicMetadata.role` and enforces route group access. A `deo` user hitting any `(admin)` route is redirected to `/login`; an `admin` hitting a `(deo)` route is also redirected. Both groups share the same Clerk project and the same API Worker endpoint.
 
-**`NEXT_PUBLIC_CLERK_SIGN_IN_URL=/login`** must be set at build time so that Clerk's `auth.protect()` redirects unauthenticated users to `/login` (not the Clerk default `/sign-in`). Set in `.env.local` for local dev and baked in via `NEXT_PUBLIC_CLERK_SIGN_IN_URL=/login` in the GitHub Actions `deploy-portal` job environment.
+**`NEXT_PUBLIC_CLERK_SIGN_IN_URL=/login`** must be set at build time so that Clerk's internal redirects use `/login` instead of the default `/sign-in`. Set in `.env.local` for local dev and baked in via the GitHub Actions `deploy-portal` job. Without it, Clerk redirects go to `/sign-in` (not a public route), causing an infinite redirect loop.
 
 | Concern | DEO route group `(deo)` | Admin route group `(admin)` |
 |---|---|---|

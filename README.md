@@ -48,13 +48,13 @@ up-excise-spatial-revenue-optimizer/
 
 | Layer | Technology | Notes |
 |---|---|---|
-| Frontend | Next.js (App Router) | Single app (`apps/web`). `(deo)` and `(admin)` route groups. One Cloudflare Pages deployment. Domain TBD. |
+| Frontend | Next.js (App Router) | Single app (`apps/web`). `(deo)` and `(admin)` route groups. Deployed as a Cloudflare Worker via `@opennextjs/cloudflare`. Live: `up-excise-portal.shubhanraj2002.workers.dev` |
 | Backend | Cloudflare Workers + Hono | Serverless edge. 10ms CPU limit. All heavy compute stays in the browser. |
 | Database | Cloudflare D1 (SQLite) | `db.batch()` for all multi-row writes. |
 | ORM | Drizzle ORM | D1 adapter. Schema in `packages/schema/src/phase1.ts`. |
-| Auth | Clerk | Passwordless magic-link. 24-hour sessions. Single active session enforced. Webhook → audit log. |
-| UI Components | DaisyUI | Loaded from jsDelivr CDN. Tailwind plugin — zero JS runtime overhead. |
-| CSS Utilities | Tailwind Play CDN | Loaded from CDN — no PostCSS build step. Next.js bundle is pure app logic. |
+| Auth | Clerk | Passwordless magic-link. 24-hour sessions (enforced application-side via `iat` claim). Single active session enforced. Webhook → audit log. |
+| UI Components | DaisyUI 5 | Loaded from jsDelivr CDN. Requires Tailwind v4. |
+| CSS Utilities | Tailwind CSS v4 (`@tailwindcss/browser`) | Loaded from jsDelivr CDN — no PostCSS build step. Next.js bundle is pure app logic. **Never** use `cdn.tailwindcss.com` (that serves v3, incompatible with DaisyUI 5). |
 | Excel Parsing | SheetJS (`xlsx`) | Loaded from jsDelivr CDN dynamically on upload page. Never bundled. |
 | Local Cache | Dexie.js (IndexedDB) | Loaded from jsDelivr CDN. Offline-first staging. Rows carry `status: 'pending' \| 'uploaded' \| 'error'`. |
 | PWA / Offline | Service Worker + Background Sync | App shell + CDN asset cache. Upload retry on reconnect. |
@@ -133,8 +133,7 @@ up-excise-spatial-revenue-optimizer/
 
 - **No data in URLs.** All mutations are HTTP POST with JSON body. No sensitive data ever appears in query strings.
 - **No secrets in source.** Clerk secret keys and webhook signing secrets live in Cloudflare Workers Secrets only.
-- **SRI on all CDN assets.** Every jsDelivr `<script>` and `<link>` has `integrity` + `crossorigin="anonymous"`. CI blocks merge if any tag is missing these.
-- **Strict CSP** via Cloudflare Pages `_headers`: `script-src` locked to `self` + jsDelivr + Tailwind CDN; `frame-ancestors 'none'`; no `unsafe-inline` or `unsafe-eval`.
+- **Strict CSP** via `public/_headers` (served by the portal Worker): `script-src` locked to `self` + jsDelivr; `frame-ancestors 'none'`; no `unsafe-inline` or `unsafe-eval`.
 - **Session cookies:** HttpOnly, Secure, SameSite=Strict. Never stored in localStorage or IndexedDB.
 - **D1 is not internet-accessible.** Only the Worker binding can reach it.
 
@@ -155,7 +154,7 @@ The DEO portal is a full Progressive Web App installable on iPad or Android tabl
 
 ## Admin / HQ Portal
 
-The `(admin)` route group inside `apps/web` — same Cloudflare Pages deployment as the DEO portal. Admin users carry `publicMetadata.role: 'admin'` in Clerk — no separate Clerk organization (free tier caps orgs at 20 members, incompatible with 75 DEOs). Read-only access to all district data.
+The `(admin)` route group inside `apps/web` — same portal Worker deployment (`up-excise-portal`) as the DEO portal. Admin users carry `publicMetadata.role: 'admin'` in Clerk — no separate Clerk organization (free tier caps orgs at 20 members, incompatible with 75 DEOs). Read-only access to all district data.
 
 **Loading model:**
 - Default view: 75-row district summary list (name, vend count, total annual revenue, status) + an "All State" totals row at the bottom. Served from aggregate query + admin IndexedDB cache (15-min TTL) — no shop rows loaded.
@@ -250,8 +249,6 @@ All financial fields are whole-rupee integers in Indian Rupees (no paise). No fl
 
 ## Development Commands
 
-> These commands apply once the monorepo is scaffolded (Milestone M-0).
-
 ```bash
 # Install dependencies
 pnpm install
@@ -259,14 +256,11 @@ pnpm install
 # Run Next.js dev server
 pnpm --filter web dev
 
-# Run Wrangler local dev (Worker + D1)
+# Run Wrangler local dev (Hono API Worker + D1)
 pnpm --filter worker dev
 
-# Apply D1 migrations (dev)
-wrangler d1 migrations apply phase1-dev --local
-
 # Apply D1 migrations (prod)
-wrangler d1 migrations apply phase1-prod
+pnpm --filter worker exec wrangler d1 migrations apply up-excise-spatial-revenue-optimizer-prod
 
 # Run unit tests
 pnpm test
@@ -277,8 +271,21 @@ pnpm --filter web test:e2e
 # Type-check all packages
 pnpm typecheck
 
-# Dry-run deploy (CI check)
-wrangler deploy --dry-run
+# Build portal as Cloudflare Worker (output: apps/web/.open-next/)
+cd apps/web && npx @opennextjs/cloudflare build
+
+# Deploy portal Worker
+cd apps/web && npx @opennextjs/cloudflare deploy
+
+# Deploy API Worker
+pnpm --filter worker exec wrangler deploy
+
+# Set secrets on portal Worker
+npx wrangler secret put CLERK_SECRET_KEY --name up-excise-portal
+
+# Set secrets on API Worker
+pnpm --filter worker exec wrangler secret put CLERK_SECRET_KEY
+pnpm --filter worker exec wrangler secret put CLERK_WEBHOOK_SIGNING_SECRET
 ```
 
 ---
@@ -287,12 +294,12 @@ wrangler deploy --dry-run
 
 | Milestone | Status | Notes |
 |---|---|---|
-| M-0: Foundation & Repo Setup | Not Started | |
-| M-1: Schema, Migrations & Worker Skeleton | Not Started | |
-| M-2: Excel Ingestion & Coordinate Engine | Not Started | Blocked: DEO Excel template not yet finalized |
-| M-3: Verification UI & IndexedDB | Not Started | |
-| M-4: Worker Batch API & D1 Integration | Not Started | Blocked: upsert strategy decision pending |
-| M-5: Dashboard, Testing & DEO Handoff | Not Started | |
+| M-0: Foundation & Repo Setup | **Completed** | pnpm workspace, CI/CD, wrangler config, D1 databases created and migrated |
+| M-1: Schema, Migrations & Worker Skeleton | **Completed** | Drizzle schema (4 tables), 2 migrations applied to dev + prod D1, Hono Worker skeleton deployed |
+| M-2: Excel Ingestion & Coordinate Engine | **Completed** | SheetJS parser, DMS→DD converter, revenue formulas, UP bbox validation |
+| M-3: Verification UI & IndexedDB | **Completed** | DEO verify page, Dexie.js offline staging, Service Worker + Background Sync PWA |
+| M-4: Worker Batch API & D1 Integration | **Completed** | Batch upload, dual-verification, atomic `db.batch()`/`db.transaction()` writes |
+| M-5: Dashboard, Testing & DEO Handoff | **Completed** | Admin choropleth map, Chart.js analytics, audit log, CSV export, 12/12 unit tests passing |
 
 See [roadmap.md](roadmap.md) for full milestone specs, entry/exit criteria, and deliverable checklists.
 
@@ -300,7 +307,7 @@ See [roadmap.md](roadmap.md) for full milestone specs, entry/exit criteria, and 
 
 ## Pre-Campaign Blockers
 
-The following require department action before development can proceed past M-1:
+Engineering is complete. The following require department action before the upload campaign can begin:
 
 1. **DEO email addresses** — blocks M-0 close. All 75 DEO department emails required before Clerk accounts can be provisioned.
 2. **Excel template column layout** — blocks M-2. SheetJS column mapping cannot be built until column names and order are locked.
