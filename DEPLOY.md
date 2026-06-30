@@ -98,6 +98,7 @@ npx @opennextjs/cloudflare deploy
 | `email_link_require_same_client` | `false` — magic link works from any device |
 | `<SignIn routing>` | `"hash"` — keeps verification at `/login#...`, no 404 at `/login/verify` |
 | `NEXT_PUBLIC_CLERK_SIGN_IN_URL` | `/login` — required; missing it causes an infinite redirect loop to `/sign-in` |
+| `allowed_origins` | `https://up-excise-portal.shubhanraj2002.workers.dev` — **required** for Clerk JS to load on the deployed portal; without it `clerk.browser.js` returns 404/CORS |
 
 **Webhook (already configured):**
 - URL: `https://up-excise-spatial-revenue-optimizer.shubhanraj2002.workers.dev/api/webhooks/clerk`
