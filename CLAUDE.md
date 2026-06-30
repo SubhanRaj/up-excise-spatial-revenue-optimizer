@@ -23,16 +23,34 @@ This applies even in auto mode. A question asked once is far cheaper than three 
 
 All secrets, keys, and environment variables are confirmed set. Do not question, hedge, or add "make sure X is set" caveats about any of these:
 
-| What | Where | Status |
+**Cloudflare Worker Secrets** (`wrangler secret put` — persisted in Cloudflare, survive redeploys):
+
+| Variable | Worker | Status |
 |---|---|---|
-| `CLERK_SECRET_KEY` | Portal Worker (`up-excise-portal`) | ✓ Set |
-| `CLERK_SECRET_KEY` | API Worker (`up-excise-spatial-revenue-optimizer`) | ✓ Set |
-| `CLERK_WEBHOOK_SIGNING_SECRET` | API Worker | ✓ Set |
-| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | GitHub Actions secret | ✓ Set |
-| `CLOUDFLARE_API_TOKEN` | GitHub Actions secret | ✓ Set |
-| `CLOUDFLARE_ACCOUNT_ID` | GitHub Actions secret | ✓ Set |
-| `NEXT_PUBLIC_CLERK_SIGN_IN_URL=/login` | Baked in deploy workflow | ✓ Set |
-| D1 database (`up-excise-spatial-revenue-optimizer-prod`) | Cloudflare | ✓ Migrated |
+| `CLERK_SECRET_KEY` | `up-excise-portal` (portal) | ✓ Set |
+| `CLERK_SECRET_KEY` | `up-excise-spatial-revenue-optimizer` (API) | ✓ Set |
+| `CLERK_WEBHOOK_SIGNING_SECRET` | `up-excise-spatial-revenue-optimizer` (API) | ✓ Set |
+
+**GitHub Actions Secrets** (repo → Settings → Secrets → Actions — used at build/deploy time):
+
+| Variable | Status |
+|---|---|
+| `CLOUDFLARE_API_TOKEN` | ✓ Set |
+| `CLOUDFLARE_ACCOUNT_ID` | ✓ Set |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | ✓ Set |
+
+**Build-time env vars** (hardcoded in `.github/workflows/deploy.yml` — not secrets):
+
+| Variable | Value | Status |
+|---|---|---|
+| `NEXT_PUBLIC_CLERK_SIGN_IN_URL` | `/login` | ✓ Set |
+| `NEXT_PUBLIC_WORKER_URL` | `https://up-excise-spatial-revenue-optimizer.shubhanraj2002.workers.dev` | ✓ Set |
+
+**Cloudflare D1:**
+
+| Database | ID | Status |
+|---|---|---|
+| `up-excise-spatial-revenue-optimizer-prod` | `2955ce2d-8459-45b4-89f4-04afc9e42488` | ✓ Migrated |
 
 If something is broken, the cause is in the code, not missing infrastructure. Look at the code first.
 
