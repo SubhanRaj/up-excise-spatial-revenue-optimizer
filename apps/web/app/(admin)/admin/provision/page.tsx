@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react';
 import { useAuth } from '@clerk/nextjs';
-import { ensureXLSX, generateProvisionTemplate } from '@/lib/excel';
+import { generateProvisionTemplate } from '@/lib/excel';
 
 const WORKER = process.env.NEXT_PUBLIC_WORKER_URL ?? '';
 
@@ -10,11 +10,6 @@ interface ProvisionRow {
   districtName: string; division: string; deoName: string;
   deoEmail: string; deoId: string; expectedVendCount: number;
 }
-
-declare const XLSX: {
-  read: (data: ArrayBuffer, opts: { type: string }) => { SheetNames: string[]; Sheets: Record<string, unknown> };
-  utils: { sheet_to_json: (ws: unknown) => Record<string, unknown>[] };
-};
 
 export default function ProvisionPage() {
   const { getToken } = useAuth();
@@ -24,7 +19,6 @@ export default function ProvisionPage() {
   const [loading, setLoading] = useState(false);
 
   async function handleFile(file: File) {
-    await ensureXLSX(); // lazy-load SheetJS if not yet loaded
     const buf = await file.arrayBuffer();
     const wb = XLSX.read(buf, { type: 'array' });
     const ws = wb.Sheets[wb.SheetNames[0]!];

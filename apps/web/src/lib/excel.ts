@@ -5,7 +5,7 @@ import { computeRevenue } from './revenue';
 import type { StagedRow } from './types';
 
 declare global {
-  // SheetJS is lazy-loaded from CDN via ensureXLSX() — never bundled.
+  // SheetJS loaded from CDN in root layout.tsx — never bundled.
   const XLSX: {
     read: (data: ArrayBuffer, opts: { type: string }) => { SheetNames: string[]; Sheets: Record<string, unknown> };
     write: (wb: unknown, opts: { type: string; bookType: string }) => ArrayBuffer;
@@ -16,21 +16,6 @@ declare global {
       book_append_sheet: (wb: unknown, ws: unknown, name: string) => void;
     };
   };
-}
-
-const XLSX_CDN = 'https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js';
-
-/** Lazily injects SheetJS from jsDelivr CDN the first time it is needed. No-op if already loaded. */
-export async function ensureXLSX(): Promise<void> {
-  if (typeof window === 'undefined') return;
-  if ((window as unknown as { XLSX?: unknown }).XLSX) return;
-  await new Promise<void>((resolve, reject) => {
-    const s = document.createElement('script');
-    s.src = XLSX_CDN;
-    s.onload = () => resolve();
-    s.onerror = () => reject(new Error('Failed to load SheetJS from CDN'));
-    document.head.appendChild(s);
-  });
 }
 
 /** Column name → StagedRow field mapping for the standardized DEO Excel template. */
@@ -76,8 +61,6 @@ export async function parseExcelFile(
   uploadedByDeo: string,
   onProgress?: (pct: number) => void,
 ): Promise<StagedRow[]> {
-  await ensureXLSX();
-
   const buf = await file.arrayBuffer();
   const wb = XLSX.read(buf, { type: 'array' });
   const ws = wb.Sheets[wb.SheetNames[0]!];
@@ -187,8 +170,6 @@ const COLUMN_GUIDE: unknown[][] = [
  * Sheet 2 "Column Guide": description of every column.
  */
 export async function generateTemplate(districtName: string, units: string[]): Promise<Blob> {
-  await ensureXLSX();
-
   const exUnit = units[0] ?? 'Circle 1';
   const exThana = 'Kotwali';
 
@@ -217,8 +198,6 @@ export async function generateTemplate(districtName: string, units: string[]): P
  * Sheet 2 "Column Guide": description of every column.
  */
 export async function generateProvisionTemplate(): Promise<Blob> {
-  await ensureXLSX();
-
   const headers = ['District Name', 'Division', 'DEO Name', 'DEO Email', 'DEO Identifier', 'Expected Vend Count'];
 
   const guide: unknown[][] = [

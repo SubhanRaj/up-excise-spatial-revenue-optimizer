@@ -4,7 +4,7 @@ const CACHE = 'excise-v1';
 const CDN_ASSETS = [
   'https://cdn.jsdelivr.net/npm/daisyui@5.6.3/daisyui.css',
   'https://cdn.jsdelivr.net/npm/notyf@3.10.0/notyf.min.css',
-  'https://cdn.tailwindcss.com/3.4.17',
+  'https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4',
   'https://cdn.jsdelivr.net/npm/dexie@4.0.10/dist/dexie.min.js',
   'https://cdn.jsdelivr.net/npm/sweetalert2@11.14.5/dist/sweetalert2.all.min.js',
   'https://cdn.jsdelivr.net/npm/notyf@3.10.0/notyf.min.js',

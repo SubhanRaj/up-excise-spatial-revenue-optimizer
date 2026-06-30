@@ -186,18 +186,18 @@ Base URL: `https://up-excise-spatial-revenue-optimizer.shubhanraj2002.workers.de
 
 ### Frontend CDN Stack (loaded at runtime, never bundled)
 
-> All CDN assets are loaded in `apps/web/app/layout.tsx`. Never install these as npm packages.
+> All CDN assets are loaded in `apps/web/app/layout.tsx` as `<script src="...">` and `<link>` tags in `<head>`. Never install these as npm packages. Never use dynamic loading — all libraries must be explicit tags in the root layout so they are available as globals on every page before React hydration.
 
 | Library | Version | CDN URL | Used in |
 |---|---|---|---|
 | **DaisyUI** | **5.6.3** | `https://cdn.jsdelivr.net/npm/daisyui@5.6.3/daisyui.css` | All pages |
 | **Tailwind CSS** | **v4** (`@tailwindcss/browser`) | `https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4` | All pages |
-| **Dexie.js** | 4.0.10 | `https://cdn.jsdelivr.net/npm/dexie@4.0.10/dist/dexie.min.js` | DEO portal |
+| **Dexie.js** | 4.0.10 | `https://cdn.jsdelivr.net/npm/dexie@4.0.10/dist/dexie.min.js` | All pages |
 | **SweetAlert2** | 11.14.5 | `https://cdn.jsdelivr.net/npm/sweetalert2@11.14.5/dist/sweetalert2.all.min.js` | All pages |
 | **Notyf** (JS + CSS) | 3.10.0 | `https://cdn.jsdelivr.net/npm/notyf@3.10.0/notyf.min.{js,css}` | All pages |
-| **SheetJS** (`xlsx`) | latest | loaded dynamically on upload page only (`ssr: false`) | DEO upload |
-| **Chart.js** | latest | `https://cdn.jsdelivr.net/npm/chart.js` | Admin only |
-| **Leaflet.js** | latest | `https://cdn.jsdelivr.net/npm/leaflet` | Admin only |
+| **SheetJS** (`xlsx`) | **0.18.5** | `https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js` | All pages |
+| **Chart.js** | **4.4.7** | `https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js` | All pages |
+| **Leaflet.js** (JS + CSS) | **1.9.4** | `https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.{js,css}` | All pages |
 
 **Critical version constraints:**
 - **DaisyUI 5 requires Tailwind v4.** Never pair DaisyUI 5 with Tailwind v3. They use incompatible layer architectures. `cdn.tailwindcss.com` serves Tailwind v3 — do not use that URL.
