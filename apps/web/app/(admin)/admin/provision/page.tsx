@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react';
 import { useAuth } from '@clerk/nextjs';
+import { ensureXLSX, generateProvisionTemplate } from '@/lib/excel';
 
 const WORKER = process.env.NEXT_PUBLIC_WORKER_URL ?? '';
 
@@ -23,6 +24,7 @@ export default function ProvisionPage() {
   const [loading, setLoading] = useState(false);
 
   async function handleFile(file: File) {
+    await ensureXLSX(); // lazy-load SheetJS if not yet loaded
     const buf = await file.arrayBuffer();
     const wb = XLSX.read(buf, { type: 'array' });
     const ws = wb.Sheets[wb.SheetNames[0]!];
@@ -36,6 +38,14 @@ export default function ProvisionPage() {
       expectedVendCount: Number(r['Expected Vend Count'] ?? 0),
     }));
     setPreview(rows);
+  }
+
+  async function downloadTemplate() {
+    const blob = await generateProvisionTemplate();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'deo-provision-template.xlsx'; a.click();
+    URL.revokeObjectURL(url);
   }
 
   async function provision() {
@@ -54,17 +64,28 @@ export default function ProvisionPage() {
   return (
     <div className="space-y-6">
       <div className="card bg-base-100 shadow p-6">
-        <h2 className="text-xl font-bold mb-4">Bulk DEO Provisioning</h2>
+        <h2 className="text-xl font-bold mb-2">Bulk DEO Provisioning</h2>
         <p className="text-sm text-base-content/70 mb-4">
-          Upload a DEO Excel file with columns: District Name, Division, DEO Name, DEO Email, DEO Identifier, Expected Vend Count.
-          SheetJS parses in-browser; no data leaves until you confirm below.
+          Upload a DEO Excel file with columns: <strong>District Name, Division, DEO Name, DEO Email, DEO Identifier, Expected Vend Count</strong>.
+          SheetJS parses the file in-browser; no data is sent until you confirm below.
         </p>
 
-        <button className="btn btn-outline" onClick={() => inputRef.current?.click()}>
-          {/* tabler:file-spreadsheet */}
-          <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z"/><path d="M8 11h8"/><path d="M8 15h8"/><path d="M11 11v8"/></svg>
-          Select DEO Excel File
-        </button>
+        <div className="flex flex-wrap gap-3 mb-4">
+          {/* Download blank template */}
+          <button className="btn btn-outline btn-sm" onClick={downloadTemplate}>
+            {/* tabler:download */}
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/><polyline points="7 11 12 16 17 11"/><line x1="12" y1="4" x2="12" y2="16"/></svg>
+            Download Blank Template
+          </button>
+
+          {/* Upload filled file */}
+          <button className="btn btn-outline" onClick={() => inputRef.current?.click()}>
+            {/* tabler:file-spreadsheet */}
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z"/><path d="M8 11h8"/><path d="M8 15h8"/><path d="M11 11v8"/></svg>
+            Select Filled DEO Excel File
+          </button>
+        </div>
+
         <input ref={inputRef} type="file" accept=".xlsx" className="hidden" aria-label="Select DEO provision Excel"
           onChange={(e) => { const f = e.target.files?.[0]; if (f) void handleFile(f); }} />
 

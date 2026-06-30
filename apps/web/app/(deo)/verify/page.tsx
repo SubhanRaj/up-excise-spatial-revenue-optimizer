@@ -5,6 +5,7 @@ import { useAuth, useUser } from '@clerk/nextjs';
 import { stagingDb } from '@/lib/db';
 import type { StagedRow } from '@/lib/types';
 import { computeRevenue } from '@/lib/revenue';
+import HelpPanel from '@/app/_components/HelpPanel';
 
 const WORKER = process.env.NEXT_PUBLIC_WORKER_URL ?? '';
 const CHUNK_SIZE = 500;
@@ -201,7 +202,16 @@ export default function VerifyPage() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-xl font-bold">Verify &amp; Submit — {district}</h2>
+        <div className="flex items-center gap-3 flex-wrap">
+          <h2 className="text-xl font-bold">Verify &amp; Submit — {district}</h2>
+          <HelpPanel pageKey="verify" title="Verification — How to review and submit">
+            <p><strong>Unit tabs</strong> — Click a unit card to switch between circles/sectors. Each card shows how many rows have been uploaded. All units must have at least one row before submission is allowed.</p>
+            <p><strong>Adjacent Thana pills</strong> — Thana names in the &quot;Adjacent Thanas&quot; column are shown as pills. <span className="text-error font-semibold">Red pills</span> indicate cross-district adjacency — these must be removed (click ×) before the row can be submitted. Same-district Thanas show as outlined pills.</p>
+            <p><strong>Coordinates</strong> — A <span className="text-warning">⚠ warning icon</span> means the coordinate is outside the UP bounding box. A <span className="text-success">✓ icon</span> means valid. Review warnings before submitting — they are not blocked, but should be verified.</p>
+            <p><strong>Revenue column</strong> — Calculated automatically from the financial fields. If a value looks wrong, go back to the Excel file and re-upload a corrected version.</p>
+            <p><strong>Submit District</strong> — The button activates only when all registered units have at least one row with no errors. Clicking it uploads all pending rows and marks the district as submitted to headquarters.</p>
+          </HelpPanel>
+        </div>
         <div className="flex gap-2">
           <input
             className="input input-bordered input-sm w-48"

@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 
 import { auth } from '@clerk/nextjs/server';
 import { redirect } from 'next/navigation';
+import HelpPanel from '@/app/_components/HelpPanel';
 
 export default async function DeoDashboard() {
   const { userId, sessionClaims } = await auth();
@@ -86,6 +87,17 @@ export default async function DeoDashboard() {
           </div>
         </a>
       </div>
+
+      {/* Help panel */}
+      <HelpPanel pageKey="home" title="Getting started — Phase 1 Data Collection Workflow">
+        <p>Your task is to submit shop data for <strong>{district}</strong> to headquarters. The workflow has three steps:</p>
+        <ol className="list-decimal list-inside space-y-1 mt-1">
+          <li><strong>Circles &amp; Sectors</strong> — Register all inspection circles and sectors, then download the district Excel template.</li>
+          <li><strong>Upload District File</strong> — Collect filled Inspector sections, consolidate into one Excel file, and upload here. Data is saved to your device automatically.</li>
+          <li><strong>Verify &amp; Submit</strong> — Review all rows, remove any invalid adjacent Thana entries (shown in red), then submit to headquarters.</li>
+        </ol>
+        <p className="mt-1">All data is saved offline first. You can work without internet — records upload automatically when connectivity is restored.</p>
+      </HelpPanel>
 
       {/* Info banner */}
       <div className="alert alert-info">

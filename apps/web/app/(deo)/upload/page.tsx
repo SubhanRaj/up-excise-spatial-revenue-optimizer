@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react';
 import { useUser } from '@clerk/nextjs';
 import { stagingDb } from '@/lib/db';
+import HelpPanel from '@/app/_components/HelpPanel';
 
 export default function UploadPage() {
   const { user } = useUser();
@@ -43,7 +44,17 @@ export default function UploadPage() {
   return (
     <div className="space-y-6">
       <div className="card bg-base-100 shadow p-6">
-        <h2 className="text-xl font-bold mb-4">Upload District Excel — {district}</h2>
+        <div className="flex items-start justify-between flex-wrap gap-2 mb-4">
+          <h2 className="text-xl font-bold">Upload District Excel — {district}</h2>
+          <HelpPanel pageKey="upload" title="Upload — What file to upload and how">
+            <p><strong>What to upload:</strong> The single consolidated district Excel file (.xlsx) your Inspectors filled using the template downloaded from the <a href="/units" className="link">Circles page</a>.</p>
+            <p><strong>Before uploading:</strong> Ensure all Inspectors have returned their filled sections and you have consolidated them into one file. Every row must have a <code>circle_sector_name</code> value matching a pre-registered unit.</p>
+            <p><strong>Column format:</strong> The first row must be the column headers (as in the downloaded template). Do not add extra rows above the headers.</p>
+            <p><strong>Coordinates:</strong> Use either DMS columns (<code>latitude_dms</code> / <code>longitude_dms</code>) or decimal degree columns (<code>latitude_decimal</code> / <code>longitude_decimal</code>) — not both. DMS takes precedence.</p>
+            <p><strong>All data stays on your device</strong> until you go to the Verify page and click Submit District. Parsing happens entirely in-browser — nothing is sent to the server during upload.</p>
+            <p><strong>Re-uploading:</strong> Uploading a new file replaces all staged data for this district. Rows already marked "uploaded" are preserved.</p>
+          </HelpPanel>
+        </div>
         <p className="text-sm text-base-content/70 mb-6">
           Upload the consolidated district Excel file. All rows are parsed in the browser — no data leaves your device until you submit on the Verify page.
         </p>
