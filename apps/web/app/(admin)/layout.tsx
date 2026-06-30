@@ -209,7 +209,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <Link href="/admin/provision" className={`btn btn-ghost btn-sm ${pathname === '/admin/provision' ? 'btn-active' : ''}`}>Provision</Link>
           <Link href="/admin/audit" className={`btn btn-ghost btn-sm ${pathname === '/admin/audit' ? 'btn-active' : ''}`}>Audit</Link>
           <Link href="/admin/export" className={`btn btn-ghost btn-sm ${pathname === '/admin/export' ? 'btn-active' : ''}`}>Export</Link>
-          <button className="btn btn-error btn-sm btn-outline ml-1" onClick={signOut}>Sign out</button>
+          <button className="btn btn-ghost btn-sm ml-1" onClick={signOut}>Sign out</button>
         </div>
       </nav>
 

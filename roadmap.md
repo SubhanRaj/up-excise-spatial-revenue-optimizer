@@ -1384,7 +1384,7 @@ M-6: Auth Migration + Single Worker       [Post-M5]         ✅ Complete
 - [x] Rows per page selector (10/25/50/100/All); preference persisted to `localStorage` (`admin-page-size`).
 - [x] Group-by-type persisted to `localStorage` (`admin-group-by-type`); per-group open/close persisted to `localStorage` (`admin-group-{districtName}`).
 - [x] `HelpPanel` balloon popover on all admin pages (dashboard, provision, audit, export, district detail). Background blur (`backdrop-blur-[2px]`), closes on Escape/outside click.
-- [x] `ViewPrefsPanel` FAB (bottom-right): font size, row density, content width; all persisted to `localStorage` (`excise-view-prefs-v1`).
+- [x] `ViewPrefsPanel` FAB (bottom-right): theme (Light/Auto/Dark — Auto resolves via `matchMedia`), font size, row density, content width; all persisted to `localStorage` (`excise-view-prefs-v1`). Separate `ThemeToggle` component retired.
 - [x] UP GeoJSON replaced: GADM 70-district source removed; OSM Overpass `admin_level=5` source provides all 75 districts. RDP-simplified to 615 KB. See GeoJSON section above.
 - [x] Map: full-width layout, CartoDB tiles with dark/light switching, locked UP bounds, slate-700 borders, status fill colours, permanent district name labels.
 - [x] Government colour palette applied across admin portal.
@@ -1403,12 +1403,17 @@ M-6: Auth Migration + Single Worker       [Post-M5]         ✅ Complete
 - [x] `/admin/divisions` — 18 division cards with submission progress bars and revenue; derived client-side from district data.
 - [x] `/admin/divisions/[division]` — division detail page: summary stats (districts, submitted, vends, revenue) + districts table sorted by revenue.
 - [x] Overview (`/admin`) updated: district table shows top-10 by revenue only with "View all 75 →" link; divisions grid added below charts.
-- [x] Admin layout (`app/(admin)/layout.tsx`): all breadcrumb segments now link-clickable (`<a>` with hover underline); nav links added for Districts and Divisions with active-state highlighting.
+- [x] Admin layout (`app/(admin)/layout.tsx`): all breadcrumb segments now link-clickable (`<Link>` with hover underline); nav links (including Sign out) use `btn-ghost` for visual consistency; active-state highlighting.
 - [x] `SearchBar` component in layout: live dropdown across districts + divisions, results grouped, keyboard nav (↑↓/Enter/Escape), clear button, module-level `searchCache` (one fetch per session). No search results page — navigates directly.
 - [x] Map layout: full-width on overview; charts below in 2-column grid; chart `maxHeight` 220px.
 - [x] District name permanent labels on choropleth (`district-map-label` CSS class in `layout.tsx` global style block).
 
-**Exit criterion:** Admin can navigate Overview → Divisions → division detail → district detail using nav links, breadcrumbs, and the search dropdown. All breadcrumbs are clickable.
+- [x] SPA navigation: all `window.location.href` and `<a href>` replaced with Next.js `<Link>` and `router.push()` across all admin pages — eliminates full-page reloads.
+- [x] Navbar `z-[1000]` to remain above Leaflet tooltip pane (z=650) — fixes content scrolling over sticky header.
+- [x] Density CSS rules use `!important` to beat DaisyUI/Tailwind specificity.
+- [x] Leaflet map district click uses `router.push()` via a stable `routerRef` to avoid stale closure inside `useEffect`.
+
+**Exit criterion:** Admin can navigate Overview → Divisions → division detail → district detail using nav links, breadcrumbs, and the search dropdown. All breadcrumbs are clickable. Navigation is full SPA (no page reloads).
 
 ---
 

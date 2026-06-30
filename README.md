@@ -145,7 +145,7 @@ up-excise-spatial-revenue-optimizer/
 
 **Shared UI:**
 - `HelpPanel` on every page — balloon popover with background blur (`backdrop-blur-[2px]`), closes on Escape or outside click
-- `ViewPrefsPanel` FAB (bottom-right) — font size, row density, content width; all persisted to `localStorage`
+- `ViewPrefsPanel` FAB (bottom-right) — theme (Light/Auto/Dark), font size, row density, content width; all persisted to `localStorage`
 - Full-state CSV export (never rendered in UI — `/api/admin/export/all` only)
 - Audit log viewer (last 45 days, paginated)
 - Bulk DEO provisioning via Excel upload

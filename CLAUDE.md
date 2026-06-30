@@ -232,7 +232,7 @@ All API routes are same-origin Next.js Route Handlers. The browser sends the ses
 **Theme system (dark/light mode, no flash):**
 - An inline `<script>` in `apps/web/app/layout.tsx` runs before first paint: reads `localStorage.getItem('theme')` and sets `data-theme` on `<html>`. This eliminates the white flash on dark-mode load.
 - `data-theme` must only ever be set on `<html>` — **never on child `<div>` elements**. A `data-theme` attribute on any descendant overrides the root and breaks the anti-flash script.
-- The `ThemeToggle` component (`app/_components/ThemeToggle.tsx`) is the only place that writes `data-theme` and `localStorage`. Toggle by setting `document.documentElement.setAttribute('data-theme', ...)`.
+- The `ViewPrefsPanel` component (`app/_components/ViewPrefsPanel.tsx`) is the only place that writes `data-theme` and `localStorage.theme`. It supports three modes: `light`, `dark`, and `system` (reads `window.matchMedia('(prefers-color-scheme: dark)')`). Internally calls `document.documentElement.setAttribute('data-theme', resolved)` where `resolved` is always `'light'` or `'dark'`. The `ThemeToggle` component is retired — do not re-add it.
 - Valid values: `light` and `dark` only.
 
 ### Icons & Fonts
@@ -303,7 +303,7 @@ Do not fetch `/api/auth/session` directly from page components — always go thr
 
 ### UI Components — Shared
 - **`HelpPanel`** (`app/_components/HelpPanel.tsx`): collapsible help triggered by an inline button. Opens as an **absolute-positioned balloon** below the trigger button (not a full-page overlay). A `fixed inset-0 backdrop-blur-[2px] bg-black/10 pointer-events-none` layer provides subtle background blur without blocking interactions. Closes on Escape key or outside click (mousedown on `document`). Balloon has a CSS caret (`-top-2 rotate-45`). `localStorage` key `help_done_{pageKey}` tracks whether the user has dismissed the badge. Present on all DEO and admin pages.
-- **`ViewPrefsPanel`** (`app/_components/ViewPrefsPanel.tsx`): floating FAB fixed at bottom-right on all pages. Controls font size (`data-font-size`: sm/base/lg), row density (`data-density`: compact/normal/spacious), and content width (`data-view-width`: normal/wide/full). Applies preferences as `data-*` attributes on `<html>`; corresponding CSS rules live in the global `<style>` block in `layout.tsx`. Persisted to `localStorage` key `excise-view-prefs-v1`.
+- **`ViewPrefsPanel`** (`app/_components/ViewPrefsPanel.tsx`): floating FAB fixed at bottom-right on all pages. Controls theme (Light/Auto/Dark), font size (`data-font-size`: sm/base/lg), row density (`data-density`: compact/normal/spacious), and content width (`data-view-width`: normal/wide/full). Theme "Auto" resolves via `window.matchMedia('(prefers-color-scheme: dark)')`. Applies preferences as `data-*` attributes on `<html>`; corresponding CSS rules live in the global `<style>` block in `layout.tsx`. Persisted to `localStorage` key `excise-view-prefs-v1`. FAB has a `title` tooltip. The separate `ThemeToggle` component has been retired.
 
 ### Choropleth Map & GeoJSON Data
 
@@ -515,7 +515,7 @@ All `localStorage` keys used by the portal, their owning component, and what the
 
 | Key | Owner | Value |
 |---|---|---|
-| `theme` | `ThemeToggle.tsx` | `'light'` \| `'dark'` — persists user's dark/light mode preference |
+| `theme` | `ViewPrefsPanel.tsx` | `'light'` \| `'dark'` \| `'system'` — persists user's theme mode; `'system'` re-evaluates OS preference on load |
 | `excise-view-prefs-v1` | `ViewPrefsPanel.tsx` | JSON: `{ fontSize, density, width }` — font size, row density, content width |
 | `help_done_{pageKey}` | `HelpPanel.tsx` | `'true'` when user has dismissed the help badge for that page |
 | `admin-page-size` | District detail page | `'10'` \| `'25'` \| `'50'` \| `'100'` \| `'all'` — persists rows-per-page selector |
