@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useSession } from '@/hooks/useSession';
 import HelpPanel from '@/app/_components/HelpPanel';
+import { useAdminDistricts } from '@/hooks/useAdminDistricts';
 const MAP_POLL_MS = 5 * 60 * 1000;
 
 interface DistrictRow {
@@ -61,7 +62,10 @@ export default function AdminPage() {
   const router = useRouter();
   const routerRef = useRef(router);
   useEffect(() => { routerRef.current = router; }, [router]);
-  const [data, setData] = useState<AdminOverview | null>(null);
+  const { districts: hookDistricts, stateTotals, loading: districtsLoading } = useAdminDistricts();
+  const data: AdminOverview | null = hookDistricts.length > 0
+    ? { districts: hookDistricts as DistrictRow[], stateTotals }
+    : null;
   const [mapData, setMapData] = useState<MapRow[]>([]);
   const [apiError, setApiError] = useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
@@ -77,24 +81,20 @@ export default function AdminPage() {
   };
   const chartInstances = useRef<{ destroy: () => void }[]>([]);
 
-  async function fetchData() {
-    const [overviewRes, mapRes] = await Promise.all([
-      fetch('/api/admin/districts'),
-      fetch('/api/admin/map-data'),
-    ]);
-    if (!overviewRes.ok || !mapRes.ok) {
+  async function fetchMapData() {
+    const mapRes = await fetch('/api/admin/map-data');
+    if (!mapRes.ok) {
       setApiError(`API error — your session may have expired, please sign in again.`);
       return;
     }
-    setData(await overviewRes.json() as AdminOverview);
     setMapData(await mapRes.json() as MapRow[]);
     setApiError(null);
     setLastRefresh(new Date());
   }
 
   useEffect(() => {
-    void fetchData();
-    const id = setInterval(fetchData, MAP_POLL_MS);
+    void fetchMapData();
+    const id = setInterval(fetchMapData, MAP_POLL_MS);
     return () => clearInterval(id);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -241,7 +241,7 @@ export default function AdminPage() {
           {/* tabler:alert-circle */}
           <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
           <span>{apiError}</span>
-          <button className="btn btn-sm btn-ghost" onClick={fetchData}>Retry</button>
+          <button className="btn btn-sm btn-ghost" onClick={fetchMapData}>Retry</button>
         </div>
       )}
       {/* State totals */}

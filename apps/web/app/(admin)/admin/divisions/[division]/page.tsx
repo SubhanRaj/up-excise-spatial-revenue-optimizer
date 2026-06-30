@@ -1,14 +1,10 @@
 'use client';
 
-import { use, useEffect, useMemo, useState } from 'react';
+import { use, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import HelpPanel from '@/app/_components/HelpPanel';
-
-interface DistrictRow {
-  name: string; division?: string; deoName?: string; status: string;
-  vendCount: number; totalRevenue: number;
-}
+import { useAdminDistricts } from '@/hooks/useAdminDistricts';
 
 const fmt = (n: number) => n >= 1e7 ? `₹${(n / 1e7).toFixed(2)} Cr` : n >= 1e5 ? `₹${(n / 1e5).toFixed(2)} L` : `₹${n.toLocaleString('en-IN')}`;
 
@@ -17,14 +13,7 @@ export default function DivisionPage({ params }: { params: Promise<{ division: s
   const divName = decodeURIComponent(division);
 
   const router = useRouter();
-  const [allDistricts, setAllDistricts] = useState<DistrictRow[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetch('/api/admin/districts')
-      .then((r) => r.json())
-      .then((d: { districts: DistrictRow[] }) => { setAllDistricts(d.districts); setLoading(false); });
-  }, []);
+  const { districts: allDistricts, loading } = useAdminDistricts();
 
   const districts = useMemo(() =>
     allDistricts.filter((d) => d.division === divName).sort((a, b) => b.totalRevenue - a.totalRevenue),

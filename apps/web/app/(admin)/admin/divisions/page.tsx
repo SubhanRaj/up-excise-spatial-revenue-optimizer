@@ -1,22 +1,14 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import Link from 'next/link';
 import HelpPanel from '@/app/_components/HelpPanel';
-
-interface DistrictRow { name: string; division?: string; status: string; vendCount: number; totalRevenue: number }
+import { useAdminDistricts } from '@/hooks/useAdminDistricts';
 
 const fmt = (n: number) => n >= 1e7 ? `₹${(n / 1e7).toFixed(2)} Cr` : n >= 1e5 ? `₹${(n / 1e5).toFixed(2)} L` : `₹${n.toLocaleString('en-IN')}`;
 
 export default function DivisionsPage() {
-  const [districts, setDistricts] = useState<DistrictRow[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetch('/api/admin/districts')
-      .then((r) => r.json())
-      .then((d: { districts: DistrictRow[] }) => { setDistricts(d.districts); setLoading(false); });
-  }, []);
+  const { districts, loading } = useAdminDistricts();
 
   const divisions = useMemo(() => {
     const map = new Map<string, { count: number; submitted: number; inProgress: number; vends: number; revenue: number; districts: string[] }>();

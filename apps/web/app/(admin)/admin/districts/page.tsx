@@ -1,14 +1,11 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import HelpPanel from '@/app/_components/HelpPanel';
-
-interface DistrictRow {
-  name: string; division?: string; deoName?: string; deoEmail?: string; status: string;
-  vendCount: number; totalRevenue: number; centerLat?: number | null; centerLon?: number | null;
-}
+import { useAdminDistricts } from '@/hooks/useAdminDistricts';
+import type { AdminDistrictRow as DistrictRow } from '@/hooks/useAdminDistricts';
 
 const fmt = (n: number) => n >= 1e7 ? `₹${(n / 1e7).toFixed(2)} Cr` : n >= 1e5 ? `₹${(n / 1e5).toFixed(2)} L` : `₹${n.toLocaleString('en-IN')}`;
 const fmtCoord = (n: number) => n.toFixed(4);
@@ -21,20 +18,13 @@ function SortIcon({ active, dir }: { active: boolean; dir: 'asc' | 'desc' }) {
 }
 
 export default function DistrictsPage() {
-  const [districts, setDistricts] = useState<DistrictRow[]>([]);
+  const { districts, loading } = useAdminDistricts();
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [divFilter, setDivFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [sortKey, setSortKey] = useState<SortKey>('name');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
-
-  useEffect(() => {
-    fetch('/api/admin/districts')
-      .then((r) => r.json())
-      .then((d: { districts: DistrictRow[] }) => { setDistricts(d.districts); setLoading(false); });
-  }, []);
 
   const divisions = useMemo(() =>
     Array.from(new Set(districts.map((d) => d.division).filter(Boolean) as string[])).sort(),

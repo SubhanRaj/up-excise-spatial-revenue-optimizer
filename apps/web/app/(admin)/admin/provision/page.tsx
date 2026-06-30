@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from 'react';
 import { UP_DIVISIONS } from '@excise/schema';
 import { generateProvisionTemplate } from '@/lib/excel';
 import HelpPanel from '@/app/_components/HelpPanel';
+import { useAdminDistricts } from '@/hooks/useAdminDistricts';
+import { adminDistrictsCache } from '@/lib/db';
 
 interface DistrictRow {
   name: string; division: string | null; deoName: string | null; deoEmail: string | null;
@@ -200,25 +202,26 @@ function EditDrawer({ district, onClose, onSaved }: { district: DistrictRow; onC
 }
 
 export default function DistrictMasterPage() {
+  const { districts: hookDistricts, loading } = useAdminDistricts();
   const [districtRows, setDistrictRows] = useState<DistrictRow[]>([]);
-  const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<DistrictRow | null>(null);
+
+  // Seed local state from hook once data arrives
+  useEffect(() => {
+    if (!loading && hookDistricts.length > 0 && districtRows.length === 0) {
+      setDistrictRows(hookDistricts as DistrictRow[]);
+    }
+  }, [loading, hookDistricts, districtRows.length]);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<{ districtName: string; division: string; deoName: string; deoEmail: string; deoId: string; expectedVendCount: number }[]>([]);
   const [result, setResult] = useState<{ email: string; status: string }[]>([]);
   const [provisioning, setProvisioning] = useState(false);
 
-  useEffect(() => {
-    fetch('/api/admin/districts').then((r) => r.json()).then((data: { districts: DistrictRow[] }) => {
-      setDistrictRows(data.districts);
-      setLoading(false);
-    });
-  }, []);
-
   function applyEdit(name: string, updated: Partial<DistrictRow>) {
     setDistrictRows((rows) => rows.map((r) => r.name === name ? { ...r, ...updated } : r));
     setEditing(null);
+    adminDistrictsCache.invalidate();
   }
 
   async function handleFile(file: File) {

@@ -96,28 +96,63 @@ interface AdminExportCache {
   fetchedAt: number;     // Unix ms — used to show staleness warning
 }
 
+interface AdminKvCache<T> {
+  key: string;
+  data: T;
+  fetchedAt: number;
+}
+
 let _adminDb: DexieInstance | null = null;
 
 function getAdminDb(): DexieInstance {
   if (!_adminDb) {
     _adminDb = makeDexie('excise-admin');
+    // version 1: export_cache only
+    // version 2: add districts_cache
     _adminDb.version(1).stores({ export_cache: 'key' });
+    _adminDb.version(2).stores({ export_cache: 'key', districts_cache: 'key' });
   }
   return _adminDb;
 }
+
+// ── Districts aggregate cache (TTL: 5 min) ─────────────────────────────────
+
+const DISTRICTS_KEY = 'districts';
+const DISTRICTS_TTL_MS = 5 * 60 * 1000;
+
+export const adminDistrictsCache = {
+  get: () =>
+    getAdminDb().table<AdminKvCache<unknown>>('districts_cache')
+      .where('key').equals(DISTRICTS_KEY).toArray()
+      .then((r) => {
+        const entry = r[0];
+        if (!entry) return null;
+        if (Date.now() - entry.fetchedAt > DISTRICTS_TTL_MS) return null; // stale
+        return entry.data;
+      }),
+
+  set: (data: unknown) =>
+    getAdminDb().table<AdminKvCache<unknown>>('districts_cache')
+      .put({ key: DISTRICTS_KEY, data, fetchedAt: Date.now() }),
+
+  invalidate: () =>
+    getAdminDb().table<AdminKvCache<unknown>>('districts_cache').clear(),
+};
+
+// ── Full-state export cache ─────────────────────────────────────────────────
 
 const EXPORT_CACHE_KEY = 'all_shops';
 
 export const adminExportCache = {
   get: () =>
-    getAdminDb().table<AdminExportCache>('export_cache')
+    getAdminDb().table<AdminKvCache<unknown[]>>('export_cache')
       .where('key').equals(EXPORT_CACHE_KEY).toArray()
       .then((r) => r[0] ?? null),
 
   set: (rows: unknown[]) =>
-    getAdminDb().table<AdminExportCache>('export_cache')
-      .put({ key: EXPORT_CACHE_KEY, rows, fetchedAt: Date.now() }),
+    getAdminDb().table<AdminKvCache<unknown[]>>('export_cache')
+      .put({ key: EXPORT_CACHE_KEY, data: rows, fetchedAt: Date.now() }),
 
   clear: () =>
-    getAdminDb().table<AdminExportCache>('export_cache').clear(),
+    getAdminDb().table<AdminKvCache<unknown[]>>('export_cache').clear(),
 };

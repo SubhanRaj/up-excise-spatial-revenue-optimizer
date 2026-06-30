@@ -23,7 +23,7 @@ export default function ExportPage() {
 
   useEffect(() => {
     adminExportCache.get().then((c) => {
-      if (c) { setCachedAt(c.fetchedAt); setRowCount(c.rows.length); }
+      if (c) { setCachedAt(c.fetchedAt); setRowCount(c.data.length); }
     });
   }, []);
 
@@ -33,7 +33,8 @@ export default function ExportPage() {
       const res = await fetch('/api/admin/export/all');
       const data = await res.json() as { rows: unknown[] };
       await adminExportCache.set(data.rows);
-      setCachedAt(Date.now());
+      const ts = Date.now();
+      setCachedAt(ts);
       setRowCount(data.rows.length);
       writeXlsx(data.rows);
     } finally {
@@ -45,7 +46,7 @@ export default function ExportPage() {
     setLoading(true);
     try {
       const c = await adminExportCache.get();
-      if (c) writeXlsx(c.rows);
+      if (c) writeXlsx(c.data);
     } finally {
       setLoading(false);
     }
