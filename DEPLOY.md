@@ -125,6 +125,26 @@ clerk api /users/<user_id> -X PATCH -d '{"public_metadata": {"role": "admin"}}'
 
 ---
 
+## Demo Data & DB Management
+
+The seed script at `scripts/seed-demo.ts` populates **Demo District** with 1500 realistic shops covering all five shop types (MODEL_SHOP × 300, COMPOSITE_SHOP × 150, PRV × 200, BHANG_SHOP × 150, COUNTRY_LIQUOR × 625, COUNTRY_LIQUOR+CL5CC × 75). It also writes the matching Excel file to `docs/templates/demo-district-data.xlsx`.
+
+| Command | Effect |
+|---|---|
+| `pnpm seed:demo` | Seed Demo District into **prod** D1 (idempotent — clears then re-inserts) |
+| `pnpm seed:demo -- --excel-only` | Regenerate Excel demo file only, no D1 writes |
+| `pnpm seed:demo -- --truncate` | Remove Demo District data from prod D1 |
+| `pnpm seed:demo -- --reset-all` | **Truncate ALL tables** — wipes every row across all districts (use before real campaign) |
+| `pnpm seed:demo -- --local` | Seed into local D1 dev DB instead of prod |
+
+**Excel demo file:** `docs/templates/demo-district-data.xlsx`
+- 1500 rows, all shop types, decimal-degree coordinates in Lucknow area sub-box
+- Use this file to test the DEO upload → parse → verify → submit flow end-to-end with the demo DEO account (`deodemo+clerk_test@up-excise.dev`, code `424242`)
+
+**HQ demo:** After seeding, Demo District appears in the admin dashboard with status `submitted`, full revenue totals, and all 1500 shop records browseable via the district drill-down.
+
+---
+
 ## Local Development
 
 ```bash
