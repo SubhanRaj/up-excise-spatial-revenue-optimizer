@@ -1,9 +1,6 @@
 'use client';
 
 import { use, useEffect, useState } from 'react';
-import { useAuth } from '@clerk/nextjs';
-
-const WORKER = process.env.NEXT_PUBLIC_WORKER_URL ?? '';
 
 interface ShopRow { id: number; shopId: string; shopName: string; thanaName: string; shopType: string; totalRevenue: number; status?: string }
 interface DistrictDetail {
@@ -12,7 +9,6 @@ interface DistrictDetail {
 }
 
 export default function DistrictDetailPage({ params }: { params: Promise<{ district: string }> }) {
-  const { getToken } = useAuth();
   const { district } = use(params);
   const name = decodeURIComponent(district);
   const [detail, setDetail] = useState<DistrictDetail | null>(null);
@@ -23,12 +19,9 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
 
   async function load(p: number) {
     setLoading(true);
-    const token = await getToken();
-    const headers = { Authorization: `Bearer ${token}` };
-
     const [d, s] = await Promise.all([
-      page === 1 ? fetch(`${WORKER}/api/admin/districts/${encodeURIComponent(name)}`, { headers }).then((r) => r.json()) : Promise.resolve(detail),
-      fetch(`${WORKER}/api/admin/districts/${encodeURIComponent(name)}/shops?page=${p}`, { headers }).then((r) => r.json()),
+      page === 1 ? fetch(`/api/admin/districts/${encodeURIComponent(name)}`).then((r) => r.json()) : Promise.resolve(detail),
+      fetch(`/api/admin/districts/${encodeURIComponent(name)}/shops?page=${p}`).then((r) => r.json()),
     ]);
     if (page === 1) setDetail(d as DistrictDetail);
     const sp = s as { rows: ShopRow[]; total: number };
@@ -42,10 +35,7 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
   const totalPages = Math.ceil(total / 100);
 
   async function exportCsv() {
-    const token = await getToken();
-    const res = await fetch(`${WORKER}/api/admin/districts/${encodeURIComponent(name)}/export`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    const res = await fetch(`/api/admin/districts/${encodeURIComponent(name)}/export`);
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');

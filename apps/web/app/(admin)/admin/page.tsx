@@ -1,9 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { useAuth, useUser } from '@clerk/nextjs';
-
-const WORKER = process.env.NEXT_PUBLIC_WORKER_URL ?? '';
+import { useSession } from '@/hooks/useSession';
 const MAP_POLL_MS = 5 * 60 * 1000;
 
 interface DistrictRow {
@@ -54,8 +52,7 @@ declare global {
 }
 
 export default function AdminPage() {
-  const { getToken } = useAuth();
-  const { user } = useUser();
+  useSession();
   const [data, setData] = useState<AdminOverview | null>(null);
   const [mapData, setMapData] = useState<MapRow[]>([]);
   const [apiError, setApiError] = useState<string | null>(null);
@@ -74,15 +71,12 @@ export default function AdminPage() {
   const chartInstances = useRef<{ destroy: () => void }[]>([]);
 
   async function fetchData() {
-    const token = await getToken();
-    if (!token) { setApiError('Session not ready — refresh the page.'); return; }
-    const headers = { Authorization: `Bearer ${token}` };
     const [overviewRes, mapRes] = await Promise.all([
-      fetch(`${WORKER}/api/admin/districts`, { headers }),
-      fetch(`${WORKER}/api/admin/map-data`, { headers }),
+      fetch('/api/admin/districts'),
+      fetch('/api/admin/map-data'),
     ]);
     if (!overviewRes.ok || !mapRes.ok) {
-      setApiError(`API error ${overviewRes.status} — check your account role in Clerk.`);
+      setApiError(`API error — your session may have expired, please sign in again.`);
       return;
     }
     setData(await overviewRes.json() as AdminOverview);
@@ -92,11 +86,11 @@ export default function AdminPage() {
   }
 
   useEffect(() => {
-    if (!user) return;
     void fetchData();
     const id = setInterval(fetchData, MAP_POLL_MS);
     return () => clearInterval(id);
-  }, [user]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     const syncTheme = () => {

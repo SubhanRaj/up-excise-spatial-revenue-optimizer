@@ -1,7 +1,6 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
-import { SignOutButton } from '@clerk/nextjs';
 import { ThemeToggle } from '../_components/ThemeToggle';
 
 const ADMIN_CRUMBS: Record<string, string[]> = {
@@ -11,9 +10,13 @@ const ADMIN_CRUMBS: Record<string, string[]> = {
   '/admin/export': ['Overview', 'Export'],
 };
 
+async function signOut() {
+  await fetch('/api/auth/logout', { method: 'POST' });
+  window.location.href = '/login';
+}
+
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  // Dynamic district path: /admin/districts/:district
   const districtMatch = pathname.match(/^\/admin\/districts\/(.+)$/);
   const crumbs: string[] = districtMatch
     ? ['Overview', 'Districts', decodeURIComponent(districtMatch[1]!)]
@@ -26,11 +29,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           {/* tabler:building-government */}
           <svg xmlns="http://www.w3.org/2000/svg" className="w-10 h-10 text-primary shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18"/><path d="M9 8h1"/><path d="M9 12h1"/><path d="M9 16h1"/><path d="M14 8h1"/><path d="M14 12h1"/><path d="M14 16h1"/><path d="M5 21V6l7-3 7 3v15"/></svg>
           <div className="hidden md:block">
-            <div className="font-bold text-sm leading-tight">UP Excise Portal</div>
+            <div className="font-bold text-sm leading-tight">UP Excise SRO</div>
             <div className="text-xs text-base-content/50 leading-tight">Headquarters Dashboard</div>
           </div>
         </div>
-        {/* District search — admin only */}
         <div className="flex-none hidden lg:flex mx-4">
           <label className="input input-sm input-bordered flex items-center gap-2 w-56">
             <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 opacity-50 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
@@ -43,9 +45,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <a href="/admin/audit" className="btn btn-ghost btn-sm">Audit</a>
           <a href="/admin/export" className="btn btn-ghost btn-sm">Export</a>
           <ThemeToggle />
-          <SignOutButton redirectUrl="/login">
-            <button className="btn btn-error btn-sm btn-outline ml-1">Sign out</button>
-          </SignOutButton>
+          <button
+            className="btn btn-error btn-sm btn-outline ml-1"
+            onClick={signOut}
+          >
+            Sign out
+          </button>
         </div>
       </nav>
       {crumbs.length > 0 && (

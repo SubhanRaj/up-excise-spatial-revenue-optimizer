@@ -1,5 +1,5 @@
 {
-  "name": "up-excise-portal",
+  "name": "up-excise-spatial-revenue-optimizer-web",
   "main": ".open-next/worker.js",
   "compatibility_date": "2025-06-01",
   "compatibility_flags": ["nodejs_compat"],
@@ -7,7 +7,16 @@
     "directory": ".open-next/assets",
     "binding": "ASSETS"
   },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "up-excise-spatial-revenue-optimizer-prod",
+      "database_id": "2955ce2d-8459-45b4-89f4-04afc9e42488"
+    }
+  ],
   "observability": {
     "enabled": true
   }
+  // Secrets (wrangler secret put --name up-excise-spatial-revenue-optimizer-web):
+  //   SESSION_SECRET, API_SECRET, RESEND_API_KEY, RESEND_FROM_EMAIL
 }

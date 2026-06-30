@@ -1,10 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { useAuth } from '@clerk/nextjs';
 import { generateProvisionTemplate } from '@/lib/excel';
-
-const WORKER = process.env.NEXT_PUBLIC_WORKER_URL ?? '';
 
 interface ProvisionRow {
   districtName: string; division: string; deoName: string;
@@ -12,7 +9,6 @@ interface ProvisionRow {
 }
 
 export default function ProvisionPage() {
-  const { getToken } = useAuth();
   const inputRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<ProvisionRow[]>([]);
   const [result, setResult] = useState<{ email: string; status: string }[]>([]);
@@ -44,10 +40,9 @@ export default function ProvisionPage() {
 
   async function provision() {
     setLoading(true);
-    const token = await getToken();
-    const res = await fetch(`${WORKER}/api/admin/bulk-provision`, {
+    const res = await fetch('/api/admin/bulk-provision', {
       method: 'POST',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ rows: preview }),
     });
     const data = await res.json() as { results: { email: string; status: string }[] };

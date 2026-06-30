@@ -1,15 +1,8 @@
 'use client';
 
-import { useAuth } from '@clerk/nextjs';
-
-const WORKER = process.env.NEXT_PUBLIC_WORKER_URL ?? '';
-
 export default function ExportPage() {
-  const { getToken } = useAuth();
-
   async function downloadAll() {
-    const token = await getToken();
-    const res = await fetch(`${WORKER}/api/admin/export/all`, { headers: { Authorization: `Bearer ${token}` } });
+    const res = await fetch('/api/admin/export/all');
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');

@@ -1,17 +1,14 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { useAuth, useUser } from '@clerk/nextjs';
+import { useSession } from '@/hooks/useSession';
 import HelpPanel from '@/app/_components/HelpPanel';
 
 interface Unit { id: number; name: string; type: string }
 
-const WORKER = process.env.NEXT_PUBLIC_WORKER_URL ?? '';
-
 export default function UnitsPage() {
-  const { getToken } = useAuth();
-  const { user } = useUser();
-  const district = (user?.publicMetadata as { districtName?: string })?.districtName ?? '';
+  const { session } = useSession();
+  const district = session?.districtName ?? '';
   const [units, setUnits] = useState<Unit[]>([]);
   const [name, setName] = useState('');
   const [type, setType] = useState<'circle' | 'sector'>('circle');
@@ -19,22 +16,18 @@ export default function UnitsPage() {
 
   const load = useCallback(async () => {
     if (!district) return;
-    const token = await getToken();
-    const res = await fetch(`${WORKER}/api/districts/${encodeURIComponent(district)}/units`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    const res = await fetch(`/api/districts/${encodeURIComponent(district)}/units`);
     if (res.ok) setUnits(await res.json());
-  }, [district, getToken]);
+  }, [district]);
 
   useEffect(() => { void load(); }, [load]);
 
   async function addUnit() {
     if (!name.trim() || !district) return;
     setLoading(true);
-    const token = await getToken();
-    await fetch(`${WORKER}/api/districts/${encodeURIComponent(district)}/units`, {
+    await fetch(`/api/districts/${encodeURIComponent(district)}/units`, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: name.trim(), type }),
     });
     setName('');
@@ -43,10 +36,7 @@ export default function UnitsPage() {
   }
 
   async function downloadTemplate() {
-    const token = await getToken();
-    const res = await fetch(`${WORKER}/api/districts/${encodeURIComponent(district)}/template`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    const res = await fetch(`/api/districts/${encodeURIComponent(district)}/template`);
     const meta = await res.json() as { districtName: string; units: Unit[]; columns: string[] };
 
     const { generateTemplate } = await import('@/lib/excel');

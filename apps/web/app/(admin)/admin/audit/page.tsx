@@ -1,25 +1,20 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useAuth } from '@clerk/nextjs';
-
-const WORKER = process.env.NEXT_PUBLIC_WORKER_URL ?? '';
 interface AuditRow { id: number; eventType: string; deoId: string; districtName?: string; ipAddress?: string; createdAt: number }
 
 export default function AuditPage() {
-  const { getToken } = useAuth();
   const [rows, setRows] = useState<AuditRow[]>([]);
   const [page, setPage] = useState(1);
 
   useEffect(() => {
     (async () => {
-      const token = await getToken();
-      const res = await fetch(`${WORKER}/api/admin/audit-log?page=${page}`, { headers: { Authorization: `Bearer ${token}` } });
+      const res = await fetch(`/api/admin/audit-log?page=${page}`);
       if (!res.ok) return;
       const data = await res.json() as { rows: AuditRow[] };
       setRows(data.rows ?? []);
     })();
-  }, [page, getToken]);
+  }, [page]);
 
   return (
     <div className="card bg-base-100 shadow p-6 space-y-4">

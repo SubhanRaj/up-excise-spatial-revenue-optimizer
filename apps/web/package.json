@@ -13,8 +13,8 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
-    "@clerk/nextjs": "^6.21.0",
     "@excise/schema": "workspace:*",
+    "drizzle-orm": "^0.44.0",
     "next": "^15.3.3",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"

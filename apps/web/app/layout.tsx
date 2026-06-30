@@ -1,8 +1,7 @@
 import type { Metadata, Viewport } from 'next';
-import { ClerkProvider } from '@clerk/nextjs';
 
 export const metadata: Metadata = {
-  title: 'UP Excise Portal',
+  title: 'UP Excise Spatial Revenue Optimizer',
   description: 'State Excise Portal — Spatial & Revenue Optimization System',
   manifest: '/manifest.json',
 };
@@ -37,7 +36,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="manifest" href="/manifest.json" />
       </head>
       <body>
-        <ClerkProvider>{children}</ClerkProvider>
+        {children}
         <script
           dangerouslySetInnerHTML={{
             __html: `if('serviceWorker' in navigator){navigator.serviceWorker.register('/sw.js');}`,

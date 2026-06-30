@@ -1,17 +1,14 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { useAuth, useUser } from '@clerk/nextjs';
+import { useSession } from '@/hooks/useSession';
 import { stagingDb } from '@/lib/db';
 import HelpPanel from '@/app/_components/HelpPanel';
 
-const WORKER = process.env.NEXT_PUBLIC_WORKER_URL ?? '';
-
 export default function UploadPage() {
-  const { getToken } = useAuth();
-  const { user } = useUser();
-  const district = (user?.publicMetadata as { districtName?: string })?.districtName ?? '';
-  const uploadedByDeo = (user?.publicMetadata as { deoId?: string })?.deoId ?? user?.id ?? '';
+  const { session } = useSession();
+  const district = session?.districtName ?? '';
+  const uploadedByDeo = session?.deoId ?? '';
   const inputRef = useRef<HTMLInputElement>(null);
   const [progress, setProgress] = useState(0);
   const [status, setStatus] = useState<'idle' | 'parsing' | 'done' | 'error'>('idle');
@@ -19,10 +16,7 @@ export default function UploadPage() {
   const [dragOver, setDragOver] = useState(false);
 
   async function downloadTemplate() {
-    const token = await getToken();
-    const res = await fetch(`${WORKER}/api/districts/${encodeURIComponent(district)}/template`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    const res = await fetch(`/api/districts/${encodeURIComponent(district)}/template`);
     const meta = await res.json() as { districtName: string; units: { name: string }[] };
     const { generateTemplate } = await import('@/lib/excel');
     const blob = await generateTemplate(meta.districtName, meta.units.map((u) => u.name));

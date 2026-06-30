@@ -1,13 +1,13 @@
 'use client';
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { useAuth, useUser } from '@clerk/nextjs';
+import { useSession } from '@/hooks/useSession';
 import { stagingDb } from '@/lib/db';
+
 import type { StagedRow } from '@/lib/types';
 import { computeRevenue } from '@/lib/revenue';
 import HelpPanel from '@/app/_components/HelpPanel';
 
-const WORKER = process.env.NEXT_PUBLIC_WORKER_URL ?? '';
 const CHUNK_SIZE = 500;
 
 function formatInr(n: number): string {
@@ -56,10 +56,9 @@ function PillList({ raw, districtThanas, onChange, readOnly = false }: {
 }
 
 export default function VerifyPage() {
-  const { getToken } = useAuth();
-  const { user } = useUser();
-  const district = (user?.publicMetadata as { districtName?: string })?.districtName ?? '';
-  const deoId = (user?.publicMetadata as { deoId?: string })?.deoId ?? user?.id ?? '';
+  const { session } = useSession();
+  const district = session?.districtName ?? '';
+  const deoId = session?.deoId ?? '';
 
   const [rows, setRows] = useState<StagedRow[]>([]);
   const [units, setUnits] = useState<string[]>([]);
@@ -81,10 +80,7 @@ export default function VerifyPage() {
     setUploadedLoading(true);
     setUploadedError(null);
     try {
-      const token = await getToken();
-      const res = await fetch(`${WORKER}/api/districts/${encodeURIComponent(district)}/shops`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await fetch(`/api/districts/${encodeURIComponent(district)}/shops`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json() as { rows: StagedRow[] };
       const mapped = data.rows.map((row) => ({ ...row, status: 'uploaded' as const }));
@@ -101,7 +97,7 @@ export default function VerifyPage() {
     } finally {
       setUploadedLoading(false);
     }
-  }, [district, getToken]);
+  }, [district]);
 
   const loadRows = useCallback(async () => {
     const all = await stagingDb.getAll();
@@ -173,7 +169,6 @@ export default function VerifyPage() {
 
     setUploading(true);
     let done = 0;
-    const token = await getToken();
 
     // Group by circle/sector, then chunk each group
     for (const unit of units) {
@@ -194,9 +189,9 @@ export default function VerifyPage() {
         };
 
         try {
-          const res = await fetch(`${WORKER}/api/upload/chunk`, {
+          const res = await fetch('/api/upload/chunk', {
             method: 'POST',
-            headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body),
           });
           const data = await res.json() as { accepted: number; rejected: Array<{ rowIndex: number; reason: string }> };
@@ -229,9 +224,9 @@ export default function VerifyPage() {
     // Finalize district submission if all uploaded
     const stillPending = await stagingDb.getByStatus('pending');
     if (stillPending.length === 0) {
-      await fetch(`${WORKER}/api/districts/${encodeURIComponent(district)}/submit`, {
+      await fetch(`/api/districts/${encodeURIComponent(district)}/submit`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: '{}',
       });
       const Swal = (window as unknown as { Swal?: { fire: (o: unknown) => Promise<void> } }).Swal;
