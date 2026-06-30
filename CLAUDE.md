@@ -95,13 +95,15 @@ up-excise-spatial-revenue-optimizer/
 
 When files for any app or package do not exist yet, do not create them speculatively. Create them when a milestone is actively being worked on.
 
-### Frontend Route Map — Authoritative
+### Route Map — Authoritative (Frontend + API)
 
-> **Rule:** Before creating any page file, derive the URL it will produce from the directory path and confirm it matches this table. Route groups `(deo)` and `(admin)` are stripped from URLs — they are layout wrappers only.
+> **Rule:** Before creating any page file, derive the URL it will produce from the directory path and confirm it matches this table. Route groups `(deo)` and `(admin)` are stripped from URLs — they are layout wrappers only. Before adding an API route to the Worker, verify it belongs in this table and does not duplicate an existing route.
 
-| URL | File path | Role required |
+#### Frontend pages (`apps/web`)
+
+| URL | File | Role |
 |---|---|---|
-| `/` | `app/page.tsx` | — (redirects to `/login`) |
+| `/` | `app/page.tsx` | — redirects to `/login` |
 | `/login` | `app/login/page.tsx` | public |
 | `/home` | `app/(deo)/home/page.tsx` | `deo` |
 | `/upload` | `app/(deo)/upload/page.tsx` | `deo` |
@@ -113,12 +115,52 @@ When files for any app or package do not exist yet, do not create them speculati
 | `/admin/export` | `app/(admin)/admin/export/page.tsx` | `admin` |
 | `/admin/districts/[district]` | `app/(admin)/admin/districts/[district]/page.tsx` | `admin` |
 
-**How Next.js App Router computes URLs from file paths:**
-- Route groups `(name)` → stripped entirely from URL
-- Folders become URL segments: `admin/provision/page.tsx` → `/admin/provision`
-- Dynamic segments `[param]` → `:param` in URL
+**How Next.js App Router derives URLs:** route groups `(name)` are stripped; every other folder becomes a URL segment; `[param]` is a dynamic segment.
 
-**Past blunder:** `(admin)/provision/page.tsx` was created, producing URL `/provision` — but navbar linked to `/admin/provision` → 404. The route group was stripped but `admin/` was never added to the folder. This table prevents that mistake.
+**Past blunder:** `(admin)/provision/page.tsx` was created, producing URL `/provision` — navbar linked to `/admin/provision` → 404. The route group was stripped but `admin/` was never added. This table prevents repeating that.
+
+#### API routes (`apps/worker` — Hono on Cloudflare Workers)
+
+Base URL: `https://up-excise-spatial-revenue-optimizer.shubhanraj2002.workers.dev`
+
+**Public:**
+
+| Method | Path | Handler |
+|---|---|---|
+| `GET` | `/api/healthz` | Health check |
+| `POST` | `/api/webhooks/clerk` | Clerk session events → `audit_log` (SVIX-verified) |
+
+**DEO (`role: deo`):**
+
+| Method | Path | Handler file |
+|---|---|---|
+| `POST` | `/api/upload/chunk` | `routes/upload.ts` — 500-row batch insert via `db.batch()` |
+| `GET` | `/api/districts` | `routes/districts.ts` — district list for DEO dropdown |
+| `GET` | `/api/districts/:district/units` | `routes/districts.ts` — list circles/sectors |
+| `POST` | `/api/districts/:district/units` | `routes/districts.ts` — register circle/sector |
+| `GET` | `/api/districts/:district/template` | `routes/districts.ts` — Excel template download |
+| `GET` | `/api/districts/:district/status` | `routes/districts.ts` — upload progress |
+| `POST` | `/api/districts/:district/submit` | `routes/districts.ts` — mark district submitted |
+
+**Admin (`role: admin`):**
+
+| Method | Path | Handler file |
+|---|---|---|
+| `GET` | `/api/admin/districts` | `routes/admin.ts` — 75-row aggregate (no shop rows) |
+| `GET` | `/api/admin/districts/:district` | `routes/admin.ts` — single district metadata + totals |
+| `GET` | `/api/admin/districts/:district/shops` | `routes/admin.ts` — paginated shop rows (100/page) |
+| `GET` | `/api/admin/districts/:district/export` | `routes/admin.ts` — CSV for one district |
+| `GET` | `/api/admin/export/all` | `routes/admin.ts` — full-state `.xlsx` download |
+| `GET` | `/api/admin/map-data` | `routes/admin.ts` — choropleth + chart data (no shop rows) |
+| `GET` | `/api/admin/search` | `routes/admin.ts` — cross-district search |
+| `POST` | `/api/admin/bulk-provision` | `routes/admin.ts` — provision DEO Clerk accounts |
+| `GET` | `/api/admin/audit-log` | `routes/admin.ts` — paginated audit log |
+
+**Scheduled (Cron Trigger — `0 2 * * *`):**
+
+| Trigger | Handler file | Action |
+|---|---|---|
+| Daily 02:00 UTC | `routes/cron.ts` | Delete `audit_log` rows older than 45 days |
 
 ---
 
