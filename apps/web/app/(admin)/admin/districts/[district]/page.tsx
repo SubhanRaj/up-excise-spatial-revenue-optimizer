@@ -1,6 +1,7 @@
 'use client';
 
 import { memo, use, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import HelpPanel from '@/app/_components/HelpPanel';
 
 const ON_PREMISES_CONSUMPTION_FEE = 300_000;
@@ -326,10 +327,10 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
 
       {/* Page header */}
       <div className="flex gap-3 items-center flex-wrap">
-        <a href="/admin" className="btn btn-outline btn-sm gap-1">
+        <Link href="/admin/districts" className="btn btn-ghost btn-sm gap-1">
           <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
           Districts
-        </a>
+        </Link>
         <span className="text-base-content/30">/</span>
         <h1 className="text-2xl font-bold tracking-tight">{name}</h1>
         {detail && (

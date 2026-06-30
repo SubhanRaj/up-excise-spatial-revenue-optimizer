@@ -43,8 +43,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           }
           [data-font-size="sm"] { font-size: 0.8125rem; }
           [data-font-size="lg"] { font-size: 0.9375rem; }
-          [data-density="compact"] .table td, [data-density="compact"] .table th { padding: 0.2rem 0.5rem; }
-          [data-density="spacious"] .table td, [data-density="spacious"] .table th { padding: 0.75rem 1rem; }
+          [data-density="compact"] .table td, [data-density="compact"] .table th { padding: 0.2rem 0.5rem !important; }
+          [data-density="spacious"] .table td, [data-density="spacious"] .table th { padding: 0.75rem 1rem !important; }
           [data-view-width="wide"] .admin-content { max-width: 100%; }
           [data-view-width="full"] .admin-content { max-width: 100%; padding-left: 0.5rem; padding-right: 0.5rem; }
           .district-map-label { background: transparent !important; border: none !important; box-shadow: none !important; font-size: 9px !important; font-weight: 700 !important; color: #1e293b !important; text-shadow: 0 0 3px #fff, 0 0 3px #fff !important; padding: 0 !important; white-space: nowrap !important; pointer-events: none !important; }

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import HelpPanel from '@/app/_components/HelpPanel';
 
 interface DistrictRow { name: string; division?: string; status: string; vendCount: number; totalRevenue: number }
@@ -54,7 +55,7 @@ export default function DivisionsPage() {
       ) : (
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
           {divisions.map((div) => (
-            <a
+            <Link
               key={div.name}
               href={`/admin/divisions/${encodeURIComponent(div.name)}`}
               className="bg-base-100 rounded-xl border border-base-200 p-5 hover:border-primary hover:shadow-md transition-all cursor-pointer group"
@@ -76,7 +77,7 @@ export default function DivisionsPage() {
                 <span className="ml-auto tabular-nums font-medium text-base-content/70">{fmt(div.revenue)}</span>
               </div>
               <p className="mt-2 text-[11px] text-base-content/30 truncate">{div.districts.slice(0, 4).join(', ')}{div.count > 4 ? ` +${div.count - 4} more` : ''}</p>
-            </a>
+            </Link>
           ))}
         </div>
       )}

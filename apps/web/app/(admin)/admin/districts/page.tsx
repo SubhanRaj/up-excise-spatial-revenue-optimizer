@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import HelpPanel from '@/app/_components/HelpPanel';
 
 interface DistrictRow {
@@ -19,6 +21,7 @@ function SortIcon({ active, dir }: { active: boolean; dir: 'asc' | 'desc' }) {
 
 export default function DistrictsPage() {
   const [districts, setDistricts] = useState<DistrictRow[]>([]);
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [divFilter, setDivFilter] = useState('all');
@@ -168,11 +171,11 @@ export default function DistrictsPage() {
                 <tr><td colSpan={7} className="text-center py-12 text-base-content/40">No districts match your filters.</td></tr>
               ) : (
                 rows.map((d) => (
-                  <tr key={d.name} className="hover:bg-base-50 cursor-pointer" onClick={() => { window.location.href = `/admin/districts/${encodeURIComponent(d.name)}`; }}>
+                  <tr key={d.name} className="hover:bg-base-50 cursor-pointer" onClick={() => router.push(`/admin/districts/${encodeURIComponent(d.name)}`)}>
                     <td className="font-medium">{d.name}</td>
                     <td>
                       {d.division
-                        ? <a href={`/admin/divisions/${encodeURIComponent(d.division)}`} onClick={(e) => e.stopPropagation()} className="badge badge-sm badge-ghost hover:badge-primary transition-colors cursor-pointer">{d.division}</a>
+                        ? <Link href={`/admin/divisions/${encodeURIComponent(d.division)}`} onClick={(e) => e.stopPropagation()} className="badge badge-sm badge-ghost hover:badge-primary transition-colors cursor-pointer">{d.division}</Link>
                         : <span className="text-base-content/30">—</span>}
                     </td>
                     <td className="text-xs text-base-content/60">{d.deoName ?? '—'}</td>

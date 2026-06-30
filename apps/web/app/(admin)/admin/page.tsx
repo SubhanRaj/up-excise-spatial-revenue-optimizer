@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useSession } from '@/hooks/useSession';
 import HelpPanel from '@/app/_components/HelpPanel';
 const MAP_POLL_MS = 5 * 60 * 1000;
@@ -56,6 +58,9 @@ declare global {
 
 export default function AdminPage() {
   useSession();
+  const router = useRouter();
+  const routerRef = useRef(router);
+  useEffect(() => { routerRef.current = router; }, [router]);
   const [data, setData] = useState<AdminOverview | null>(null);
   const [mapData, setMapData] = useState<MapRow[]>([]);
   const [apiError, setApiError] = useState<string | null>(null);
@@ -159,7 +164,7 @@ export default function AdminPage() {
             if (d) {
               // Permanent label: district name centred on polygon
               layer.bindTooltip(name, { permanent: true, direction: 'center', className: 'district-map-label' });
-              layer.on('click', () => { window.location.href = `/admin/districts/${encodeURIComponent(name)}`; });
+              layer.on('click', () => { routerRef.current.push(`/admin/districts/${encodeURIComponent(name)}`); });
             }
           },
         }).addTo(mapInstance.current!);
@@ -296,7 +301,7 @@ export default function AdminPage() {
           </div>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
             {divisions.map((div) => (
-              <a
+              <Link
                 key={div.name}
                 href={`/admin/divisions/${encodeURIComponent(div.name)}`}
                 className="rounded-lg border border-base-200 p-3 hover:border-primary hover:bg-base-50 transition-colors cursor-pointer group"
@@ -309,7 +314,7 @@ export default function AdminPage() {
                   </span>
                   <span className="text-[11px] text-base-content/40 tabular-nums">{formatInr(div.revenue)}</span>
                 </div>
-              </a>
+              </Link>
             ))}
           </div>
         </div>
@@ -322,10 +327,10 @@ export default function AdminPage() {
             <h3 className="font-semibold">Top 10 Districts by Revenue</h3>
             <p className="text-xs text-base-content/40 mt-0.5">Highest revenue districts this cycle</p>
           </div>
-          <a href="/admin/districts" className="btn btn-sm btn-outline gap-1">
+          <Link href="/admin/districts" className="btn btn-sm btn-outline gap-1">
             View all 75 districts
             <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
-          </a>
+          </Link>
         </div>
         <div className="overflow-x-auto">
           <table className="table table-zebra table-sm w-full" role="grid" aria-label="Top 10 districts by revenue">
@@ -339,7 +344,7 @@ export default function AdminPage() {
                   <td role="gridcell" className="font-medium">{d.name}</td>
                   <td role="gridcell">
                     {d.division
-                      ? <a href={`/admin/divisions/${encodeURIComponent(d.division)}`} className="badge badge-xs badge-ghost hover:badge-primary transition-colors cursor-pointer">{d.division}</a>
+                      ? <Link href={`/admin/divisions/${encodeURIComponent(d.division)}`} className="badge badge-xs badge-ghost hover:badge-primary transition-colors cursor-pointer">{d.division}</Link>
                       : <span className="text-base-content/30">—</span>}
                   </td>
                   <td role="gridcell">
@@ -350,7 +355,7 @@ export default function AdminPage() {
                   <td role="gridcell">{d.vendCount.toLocaleString()}</td>
                   <td role="gridcell" className="font-mono text-xs">{formatInr(d.totalRevenue)}</td>
                   <td role="gridcell">
-                    <a href={`/admin/districts/${encodeURIComponent(d.name)}`} className="btn btn-ghost btn-xs">View →</a>
+                    <Link href={`/admin/districts/${encodeURIComponent(d.name)}`} className="btn btn-ghost btn-xs">View →</Link>
                   </td>
                 </tr>
               ))}

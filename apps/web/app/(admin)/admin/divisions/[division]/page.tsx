@@ -1,6 +1,8 @@
 'use client';
 
 import { use, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import HelpPanel from '@/app/_components/HelpPanel';
 
 interface DistrictRow {
@@ -14,6 +16,7 @@ export default function DivisionPage({ params }: { params: Promise<{ division: s
   const { division } = use(params);
   const divName = decodeURIComponent(division);
 
+  const router = useRouter();
   const [allDistricts, setAllDistricts] = useState<DistrictRow[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -38,10 +41,10 @@ export default function DivisionPage({ params }: { params: Promise<{ division: s
     <div className="space-y-5">
       {/* Header */}
       <div className="flex gap-3 items-center flex-wrap">
-        <a href="/admin/districts" className="btn btn-outline btn-sm gap-1">
+        <Link href="/admin/districts" className="btn btn-ghost btn-sm gap-1">
           <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
           Districts
-        </a>
+        </Link>
         <span className="text-base-content/30">/</span>
         <div>
           <h1 className="text-2xl font-bold tracking-tight">{divName} Division</h1>
@@ -106,7 +109,7 @@ export default function DivisionPage({ params }: { params: Promise<{ division: s
                   <tr
                     key={d.name}
                     className="hover:bg-base-50 cursor-pointer"
-                    onClick={() => { window.location.href = `/admin/districts/${encodeURIComponent(d.name)}`; }}
+                    onClick={() => router.push(`/admin/districts/${encodeURIComponent(d.name)}`)}
                   >
                     <td className="font-medium">{d.name}</td>
                     <td className="text-xs text-base-content/60">{d.deoName ?? '—'}</td>
