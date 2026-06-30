@@ -128,7 +128,7 @@ export default function AdminPage() {
   useEffect(() => {
     if (!mapRef.current || mapData.length === 0 || typeof L === 'undefined') return;
     if (!mapInstance.current) {
-      mapInstance.current = L.map('admin-map', { minZoom: 6, maxZoom: 10 });
+      mapInstance.current = L.map('admin-map', { minZoom: 6, maxZoom: 10, zoomSnap: 0.25 });
       mapInstance.current.setMaxBounds([[22.5, 76.0], [31.5, 85.5]]);
       mapInstance.current.fitBounds(UP_BOUNDS, { padding: [20, 20], animate: false });
     } else {

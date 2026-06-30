@@ -4,6 +4,11 @@ import { memo, use, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import HelpPanel from '@/app/_components/HelpPanel';
 
+declare const XLSX: {
+  utils: { json_to_sheet: (data: unknown[]) => unknown; book_new: () => unknown; book_append_sheet: (wb: unknown, ws: unknown, name: string) => void };
+  write: (wb: unknown, opts: { type: string; bookType: string }) => unknown;
+};
+
 const ON_PREMISES_CONSUMPTION_FEE = 300_000;
 const BHANG_MGQ_MULTIPLIER = 20;
 
@@ -301,11 +306,13 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
     });
   }
 
-  async function exportCsv() {
-    const res = await fetch(`/api/admin/districts/${encodeURIComponent(name)}/export`);
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = `${name}-shops.csv`; a.click();
+  function exportXlsx() {
+    const ws = XLSX.utils.json_to_sheet(allShops);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, name.slice(0, 31));
+    const out = XLSX.write(wb, { type: 'array', bookType: 'xlsx' }) as ArrayBuffer;
+    const url = URL.createObjectURL(new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+    const a = document.createElement('a'); a.href = url; a.download = `${name}-shops.xlsx`; a.click();
     URL.revokeObjectURL(url);
   }
 
@@ -351,12 +358,12 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
               <li><strong>Type filter</strong> — use the dropdown or click a type card in the breakdown bar above to filter by shop type.</li>
               <li><strong>Group by type</strong> — toggle to cluster rows under shop type headings with per-group subtotals.</li>
               <li><strong>Rows per page</strong> — 10 / 25 / 50 / 100 / All. Your preference is remembered across pages.</li>
-              <li><strong>Export CSV</strong> — downloads this district&apos;s shops only as a CSV file.</li>
+              <li><strong>Export XLSX</strong> — downloads this district&apos;s shops as an Excel file. All columns are correctly formatted — no CSV comma-quoting issues.</li>
             </ul>
           </HelpPanel>
-          <button className="btn btn-sm btn-outline gap-2" onClick={exportCsv}>
+          <button className="btn btn-sm btn-outline gap-2" onClick={exportXlsx} disabled={allShops.length === 0}>
             <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/><polyline points="7 11 12 16 17 11"/><line x1="12" y1="4" x2="12" y2="16"/></svg>
-            Export CSV
+            Export XLSX
           </button>
         </div>
       </div>

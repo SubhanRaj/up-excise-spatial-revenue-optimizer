@@ -13,12 +13,5 @@ export async function GET() {
   const db = drizzle(env.DB);
   const rows = await db.select().from(phase1RawCollection).all();
 
-  const header = Object.keys(rows[0] ?? {}).join(',');
-  const csv = [header, ...rows.map((r) => Object.values(r).join(','))].join('\n');
-  return new Response(csv, {
-    headers: {
-      'Content-Type': 'text/csv',
-      'Content-Disposition': 'attachment; filename="phase1-all-districts.csv"',
-    },
-  });
+  return NextResponse.json({ rows });
 }

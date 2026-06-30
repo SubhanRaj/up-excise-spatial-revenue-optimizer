@@ -22,13 +22,18 @@ interface DexieInstance {
 
 import type { StagedRow } from './types';
 
+function makeDexie(name: string): DexieInstance {
+  const D = (globalThis as unknown as { Dexie: new (name: string) => DexieInstance }).Dexie;
+  return new D(name);
+}
+
+// ── DEO staging DB ──────────────────────────────────────────────────────────
+
 let _db: DexieInstance | null = null;
 
 function getDb(): DexieInstance {
   if (!_db) {
-    // ponytail: accessing window.Dexie since it's loaded from CDN
-    const D = (globalThis as unknown as { Dexie: new (name: string) => DexieInstance }).Dexie;
-    _db = new D('excise-phase1');
+    _db = makeDexie('excise-phase1');
     _db.version(1).stores({
       phase1_staging: '++id, districtName, circleSectorName, shopId, status, thanaName, shopType',
       upload_queue: '++id, chunkIndex, districtName, circleSectorName, status',
@@ -81,4 +86,38 @@ export const uploadQueue = {
 
   markDone: (id: number) =>
     getDb().table<QueuedChunk>('upload_queue').update(id, { status: 'done' }),
+};
+
+// ── Admin export cache DB ───────────────────────────────────────────────────
+
+interface AdminExportCache {
+  key: string;           // fixed key e.g. 'all_shops'
+  rows: unknown[];
+  fetchedAt: number;     // Unix ms — used to show staleness warning
+}
+
+let _adminDb: DexieInstance | null = null;
+
+function getAdminDb(): DexieInstance {
+  if (!_adminDb) {
+    _adminDb = makeDexie('excise-admin');
+    _adminDb.version(1).stores({ export_cache: 'key' });
+  }
+  return _adminDb;
+}
+
+const EXPORT_CACHE_KEY = 'all_shops';
+
+export const adminExportCache = {
+  get: () =>
+    getAdminDb().table<AdminExportCache>('export_cache')
+      .where('key').equals(EXPORT_CACHE_KEY).toArray()
+      .then((r) => r[0] ?? null),
+
+  set: (rows: unknown[]) =>
+    getAdminDb().table<AdminExportCache>('export_cache')
+      .put({ key: EXPORT_CACHE_KEY, rows, fetchedAt: Date.now() }),
+
+  clear: () =>
+    getAdminDb().table<AdminExportCache>('export_cache').clear(),
 };

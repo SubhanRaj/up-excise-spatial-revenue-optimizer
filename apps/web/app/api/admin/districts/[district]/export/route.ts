@@ -6,6 +6,8 @@ import { getSession } from '@/lib/auth';
 import { phase1RawCollection } from '@excise/schema';
 
 
+// District detail page generates XLSX client-side from already-loaded state.
+// This endpoint is kept as a JSON fallback for programmatic/API consumers.
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ district: string }> },
@@ -19,12 +21,5 @@ export async function GET(
   const rows = await db.select().from(phase1RawCollection)
     .where(eq(phase1RawCollection.districtName, district)).all();
 
-  const header = Object.keys(rows[0] ?? {}).join(',');
-  const csv = [header, ...rows.map((r) => Object.values(r).join(','))].join('\n');
-  return new Response(csv, {
-    headers: {
-      'Content-Type': 'text/csv',
-      'Content-Disposition': `attachment; filename="${district}-shops.csv"`,
-    },
-  });
+  return NextResponse.json({ rows });
 }

@@ -210,9 +210,13 @@ All API routes are same-origin Next.js Route Handlers. The browser sends the ses
 - `RESEND_API_KEY` — for magic link emails
 - `RESEND_FROM_EMAIL` — sender address (start with `onboarding@resend.dev`)
 
-### Frontend CDN Stack (loaded at runtime, never bundled)
+### Frontend CDN Stack
 
-> All CDN assets are loaded in `apps/web/app/layout.tsx` as `<script src="...">` and `<link>` tags in `<head>`. Never install these as npm packages. Never use dynamic loading — all libraries must be explicit tags in the root layout so they are available as globals on every page before React hydration.
+> All CDN assets are loaded in `apps/web/app/layout.tsx` as `<script src="...">` and `<link>` tags in `<head>`. They are available as browser globals on every page before React hydration.
+>
+> **SheetJS** is the canonical parser/writer for all spreadsheet I/O in this project — DEO Excel import, admin template download, and all data exports. CDN is the default. If the CDN is unavailable or a server-side route needs spreadsheet generation, installing `xlsx` as an npm package is acceptable — use whichever approach works best for the context, not a fixed rule. CSV is **never** acceptable for data with comma-containing fields (e.g. adjacent thanas); always use XLSX.
+>
+> UI libraries (DaisyUI, Tailwind browser CDN, Dexie, SweetAlert2, Notyf, Chart.js, Leaflet) must remain CDN-only — they are not used server-side and bundling them into the Worker would increase cold-start size without benefit.
 
 | Library | Version | CDN URL | Used in |
 |---|---|---|---|
