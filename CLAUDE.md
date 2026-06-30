@@ -53,6 +53,37 @@ Every version in the Technology Stack table is tested and pinned. Do not change 
 
 ---
 
+## Confirmed Past Mistakes — Read This Before Writing Any Code
+
+These are real mistakes Claude made in previous sessions on this project. Every one of them had the correct rule written in this file already. The failure was not reading carefully enough. Read this list before touching anything.
+
+### ❌ Mistake 1 — Wrong Tailwind CDN URL
+
+**What happened:** Used `cdn.tailwindcss.com` (Tailwind v3) instead of the pinned `@tailwindcss/browser@4` URL from jsdelivr. DaisyUI 5 broke silently.
+
+**The rule (already in this file):** `cdn.tailwindcss.com` serves Tailwind **v3**. DaisyUI 5 requires Tailwind **v4**. The only correct URL is `https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4`. Check the CDN table in "Frontend CDN Stack" — those URLs are the source of truth, not your training data.
+
+### ❌ Mistake 2 — Used CSV for exports instead of XLSX
+
+**What happened:** Several export routes and download functions were written to generate CSV. `adjacent_thanas_raw` contains comma-separated values like "Kotwali, Hazratganj" which broke every column to the right when joined with `,`.
+
+**The rule (already in this file):** **CSV is never acceptable.** All file I/O — imports, exports, templates, downloads — must use XLSX via SheetJS (`window.XLSX`). SheetJS is loaded on every page as a CDN global. Generating XLSX in-browser is three lines: `json_to_sheet` → `book_new/book_append_sheet` → `write({type:'array', bookType:'xlsx'})` → `Blob` → click. There is no excuse to use CSV.
+
+### ❌ Mistake 3 — Admin portal pages hit CF D1 directly on every render
+
+**What happened:** All five admin pages that need districts data (`/admin`, `/admin/districts`, `/admin/divisions`, `/admin/divisions/[division]`, `/admin/provision`) were calling `fetch('/api/admin/districts')` directly inside `useEffect`. Every page load, every navigation, every remount triggered a fresh D1 query. This made the admin portal feel slow ("loading 1500 pages feels slow").
+
+**The rule (already in this file):** **IndexedDB-first architecture applies to both portals — DEO and admin.** D1 is the source of truth but must never be polled on every render. The pattern is: read IndexedDB cache → if fresh (within TTL), use it → if stale/missing, fetch from API and store in IndexedDB. The `useAdminDistricts` hook (`apps/web/src/hooks/useAdminDistricts.ts`) implements this for districts data (5-min TTL, `excise-admin` Dexie DB). Use it. Do not call `fetch('/api/admin/districts')` from any page component directly.
+
+### How to avoid repeating these
+
+Before writing any code that involves:
+- A CDN `<script>` or `<link>` tag → check the exact URL in the "Frontend CDN Stack" table
+- Any file download or data export → use SheetJS XLSX, not CSV
+- Any admin page that needs districts or state data → use `useAdminDistricts` hook, not a raw fetch
+
+---
+
 ## Project Identity
 
 | Field | Value |
@@ -279,6 +310,8 @@ Do not fetch `/api/auth/session` directly from page components — always go thr
 
 ### Admin Data Loading
 
+> **IndexedDB-first applies here too.** The same architecture used for DEO data applies to the admin portal. Admin pages must never call `fetch('/api/admin/districts')` directly — they must go through the `useAdminDistricts` hook (`apps/web/src/hooks/useAdminDistricts.ts`), which serves from the `excise-admin` Dexie DB cache (5-min TTL) and only hits D1 on cache miss. This is already implemented — do not regress it.
+
 **Overview page (`/admin`):**
 - Default view **never loads shop rows**. Calls `GET /api/admin/districts` (one request, 75 aggregate rows) and `GET /api/admin/map-data`.
 - District table on the overview shows **top 10 by revenue only**, with a "View all 75 districts →" link to `/admin/districts`.
@@ -310,7 +343,7 @@ Do not fetch `/api/auth/session` directly from page components — always go thr
 - Shows all `phase1_raw_collection` fields: shop ID, name, circle/sector, thana, adjacent thanas (flex-wrap pills), type badge + CL5CC sub-badge, coordinates, revenue (collapsible `<details>` breakdown — no modal).
 - Group-by-type view collapses each type group independently with its own inner pagination. Group-by-type state persisted to `localStorage` (`admin-group-by-type`); per-group open/close persisted to `localStorage` (`admin-group-{districtName}`). Enabling group-by-type deselects any active type filter.
 - Type labels use full names: `Composite Shop (FL + Beer)`, `PRV (Premium Retail Vend)`. The CL5CC breakdown bar card filters `has_cl5cc = true` and is only active alongside Country Liquor (disabled + greyed for other types). A circle/sector dropdown is also available.
-- Full-state UI table (~30K shops in one view) is **not a supported operation**. The only full-state path is `GET /api/admin/export/all` — a CSV download.
+- Full-state UI table (~30K shops in one view) is **not a supported operation**. The only full-state path is `GET /api/admin/export/all` → XLSX download via the `/admin/export` page (data cached in `excise-admin` IndexedDB, generated in-browser by SheetJS). No CSV.
 
 **Admin nav search:**
 - The navbar search bar (`SearchBar` component in `app/(admin)/layout.tsx`) fetches district + division names once on mount (module-level cache `searchCache`). Filters as the user types, shows a dropdown grouped by Divisions / Districts, supports keyboard navigation (↑↓, Enter, Escape). No search results page — navigates directly to the clicked district or division page.
