@@ -199,7 +199,11 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
   const [sortKey, setSortKey] = useState<SortKey>('shopId');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [groupByType, setGroupByType] = useState(false);
-  const [pageSize, setPageSize] = useState<PageSizeVal>(100);
+  const [pageSize, setPageSize] = useState<PageSizeVal>(() => {
+    if (typeof window === 'undefined') return 100;
+    const s = localStorage.getItem('admin-page-size');
+    return ([10, 25, 50, 100, 'all'] as PageSizeVal[]).includes(s as PageSizeVal) ? (s as PageSizeVal) : 100;
+  });
   const [page, setPage] = useState(1);
 
   useEffect(() => {
@@ -239,8 +243,9 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
     const counts: Record<string, { count: number; revenue: number }> = {};
     for (const s of allShops) {
       if (!counts[s.shopType]) counts[s.shopType] = { count: 0, revenue: 0 };
-      counts[s.shopType].count++;
-      counts[s.shopType].revenue += s.totalRevenue;
+      const entry = counts[s.shopType]!;
+      entry.count++;
+      entry.revenue += s.totalRevenue;
     }
     return counts;
   }, [allShops]);
@@ -257,7 +262,7 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
 
   function handleSearch(v: string) { setSearch(v); setPage(1); }
   function handleTypeFilter(v: string) { setTypeFilter(v); setPage(1); }
-  function handlePageSize(v: PageSizeVal) { setPageSize(v); setPage(1); }
+  function handlePageSize(v: PageSizeVal) { setPageSize(v); setPage(1); localStorage.setItem('admin-page-size', String(v)); }
 
   async function exportCsv() {
     const res = await fetch(`/api/admin/districts/${encodeURIComponent(name)}/export`);
