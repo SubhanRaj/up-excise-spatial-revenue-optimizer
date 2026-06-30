@@ -24,7 +24,7 @@ export default clerkMiddleware(async (auth, req) => {
   const path = req.nextUrl.pathname;
 
   // Route group enforcement
-  if (path.startsWith('/(deo)') || path.match(/^\/(upload|verify|units)/)) {
+  if (path.startsWith('/(deo)') || path.match(/^\/(home|upload|verify|units)/)) {
     if (role !== 'deo') return NextResponse.redirect(loginUrl);
   }
   if (path.startsWith('/(admin)') || path.match(/^\/(admin)/)) {
