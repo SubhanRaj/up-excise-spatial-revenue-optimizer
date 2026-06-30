@@ -105,10 +105,13 @@ When files for any app or package do not exist yet, do not create them speculati
 | `/verify` | `app/(deo)/verify/page.tsx` | `deo` |
 | `/units` | `app/(deo)/units/page.tsx` | `deo` |
 | `/admin` | `app/(admin)/admin/page.tsx` | `admin` |
+| `/admin/districts` | `app/(admin)/admin/districts/page.tsx` | `admin` |
+| `/admin/districts/[district]` | `app/(admin)/admin/districts/[district]/page.tsx` | `admin` |
+| `/admin/divisions` | `app/(admin)/admin/divisions/page.tsx` | `admin` |
+| `/admin/divisions/[division]` | `app/(admin)/admin/divisions/[division]/page.tsx` | `admin` |
 | `/admin/provision` | `app/(admin)/admin/provision/page.tsx` | `admin` |
 | `/admin/audit` | `app/(admin)/admin/audit/page.tsx` | `admin` |
 | `/admin/export` | `app/(admin)/admin/export/page.tsx` | `admin` |
-| `/admin/districts/[district]` | `app/(admin)/admin/districts/[district]/page.tsx` | `admin` |
 
 **How Next.js App Router derives URLs:** route groups `(name)` are stripped; every other folder becomes a URL segment; `[param]` is a dynamic segment.
 
@@ -270,20 +273,72 @@ Do not fetch `/api/auth/session` directly from page components — always go thr
 - **Session credentials stay in cookies.** They never touch `localStorage`, `sessionStorage`, or IndexedDB.
 
 ### Admin Data Loading
-- The admin portal default view **never loads shop rows**. The district summary list is 75 aggregate rows (name, vend count, total annual revenue, status) plus an "All State" totals row at the bottom. Built from `COUNT`/`SUM` aggregates — no row-level data.
+
+**Overview page (`/admin`):**
+- Default view **never loads shop rows**. Calls `GET /api/admin/districts` (one request, 75 aggregate rows) and `GET /api/admin/map-data`.
+- District table on the overview shows **top 10 by revenue only**, with a "View all 75 districts →" link to `/admin/districts`.
+- A **divisions grid** below the charts groups districts by `division` field client-side — 18 division cards each showing district count, submission progress bar, and total revenue. Cards link to `/admin/divisions/[name]`.
 - The state totals aggregate is **pre-computed server-side** on each `district_submitted` event and **cached in admin IndexedDB** (`admin_state_totals`, 15-min TTL). The summary page never runs a fresh full-table aggregate within the TTL window.
-- Shop rows are loaded **only when an admin drills into a specific district**. The single call is `GET /api/admin/districts/:district/shops?pageSize=all` — all rows for that district arrive in one response and are held in React state. The detail page then does all filtering, sorting, searching, grouping, and pagination **client-side with `useMemo`** — no additional API calls per interaction. `pageSize` on the API accepts 10/25/50/100 or `all`; server cap is 2000. The selected per-page display size is persisted to `localStorage` (`admin-page-size`).
-- The district detail table shows all `phase1_raw_collection` fields: shop ID, name, circle/sector, thana, adjacent thanas (flex-wrap pills — no expand/collapse), type badge + CL5CC sub-badge, coordinates, revenue (collapsible `<details>` breakdown per fee component — no modal). Group-by-type view collapses each type group independently, with its own inner pagination using the same page-size value.
-- Type labels use full names: `Composite Shop (FL + Beer)`, `PRV (Premium Retail Vend)`. The CL5CC breakdown bar card is a clickable filter (filters `has_cl5cc = true`). A circle/sector dropdown (populated from loaded data) is also available.
-- Full-state UI table (~30K shops in one view) is **not a supported operation**. The only full-state path is `GET /api/admin/export/all` — a CSV download. It triggers a file download, never a UI render.
+
+**Districts page (`/admin/districts`):**
+- Full 75-district table. Fetches from the same `GET /api/admin/districts` endpoint (75 aggregate rows — no shop data).
+- Client-side search, division filter, status filter, and sortable columns. No additional API calls.
+
+**Divisions page (`/admin/divisions`):**
+- 18 division cards derived client-side from `GET /api/admin/districts`. Shows district count, submission progress, and revenue per division.
+
+**Division detail page (`/admin/divisions/[division]`):**
+- Fetches `GET /api/admin/districts`, filters client-side by division. Shows districts in that division as a sortable table.
+
+**District detail page (`/admin/districts/[district]`):**
+- Shop rows are loaded **only here**. The single call is `GET /api/admin/districts/:district/shops?pageSize=all` — all rows for that district arrive in one response and are held in React state. All filtering, sorting, searching, grouping, and pagination happen **client-side with `useMemo`** — no additional API calls per interaction.
+- `pageSize` on the API accepts 10/25/50/100 or `all`; server cap is 2000. The selected per-page display size is persisted to `localStorage` (`admin-page-size`).
+- Shows all `phase1_raw_collection` fields: shop ID, name, circle/sector, thana, adjacent thanas (flex-wrap pills), type badge + CL5CC sub-badge, coordinates, revenue (collapsible `<details>` breakdown — no modal).
+- Group-by-type view collapses each type group independently with its own inner pagination. Group-by-type state persisted to `localStorage` (`admin-group-by-type`); per-group open/close persisted to `localStorage` (`admin-group-{districtName}`). Enabling group-by-type deselects any active type filter.
+- Type labels use full names: `Composite Shop (FL + Beer)`, `PRV (Premium Retail Vend)`. The CL5CC breakdown bar card filters `has_cl5cc = true` and is only active alongside Country Liquor (disabled + greyed for other types). A circle/sector dropdown is also available.
+- Full-state UI table (~30K shops in one view) is **not a supported operation**. The only full-state path is `GET /api/admin/export/all` — a CSV download.
+
+**Admin nav search:**
+- The navbar search bar (`SearchBar` component in `app/(admin)/layout.tsx`) fetches district + division names once on mount (module-level cache `searchCache`). Filters as the user types, shows a dropdown grouped by Divisions / Districts, supports keyboard navigation (↑↓, Enter, Escape). No search results page — navigates directly to the clicked district or division page.
 
 ### UI Components — Shared
-- **`HelpPanel`** (`app/_components/HelpPanel.tsx`): collapsible help triggered by an inline button. Opens as a **fixed overlay** with `backdrop-blur-sm` and dark tint — does not displace surrounding content. Closes on Escape key or backdrop click. `localStorage` key `help_done_{pageKey}` tracks whether the user has dismissed the badge. Present on all DEO and admin pages.
+- **`HelpPanel`** (`app/_components/HelpPanel.tsx`): collapsible help triggered by an inline button. Opens as an **absolute-positioned balloon** below the trigger button (not a full-page overlay). A `fixed inset-0 backdrop-blur-[2px] bg-black/10 pointer-events-none` layer provides subtle background blur without blocking interactions. Closes on Escape key or outside click (mousedown on `document`). Balloon has a CSS caret (`-top-2 rotate-45`). `localStorage` key `help_done_{pageKey}` tracks whether the user has dismissed the badge. Present on all DEO and admin pages.
 - **`ViewPrefsPanel`** (`app/_components/ViewPrefsPanel.tsx`): floating FAB fixed at bottom-right on all pages. Controls font size (`data-font-size`: sm/base/lg), row density (`data-density`: compact/normal/spacious), and content width (`data-view-width`: normal/wide/full). Applies preferences as `data-*` attributes on `<html>`; corresponding CSS rules live in the global `<style>` block in `layout.tsx`. Persisted to `localStorage` key `excise-view-prefs-v1`.
 
-### Choropleth Map
-- GeoJSON file: `apps/web/public/geodata/up-districts.geojson` — 70 UP district polygons from GADM, corrected to current official names (Prayagraj, Ayodhya, Amroha, Barabanki, Bhadohi). Feature property is `district` — must match `districts.name` in D1. 5 newer districts (Hapur, Shamli, Sambhal, Amethi, Kasganj) are absent from the GADM source; their map cells are blank but drill-down works via the table.
-- Map is locked to UP: `minZoom: 6`, `maxZoom: 10`, `maxBounds` slightly larger than UP bbox. District borders: `weight: 1.5`, `color: '#334155'` (slate-700). Status fill colours: pending `#94a3b8`, in_progress `#f59e0b`, submitted `#16a34a`. Colour legend rendered below the map div.
+### Choropleth Map & GeoJSON Data
+
+**File:** `apps/web/public/geodata/up-districts.geojson`
+
+**Coverage:** All **75 UP districts** (complete — no missing districts).
+
+**Data source:** OpenStreetMap (OSM) via the Overpass API.
+- Query: `admin_level=5` administrative boundary relations within Uttar Pradesh state.
+- API endpoint: `https://maps.mail.ru/osm/tools/overpass/api/interpreter` (used because overpass-api.de returned 406 and overpass.kumi.systems timed out for this query).
+- Note: In OSM, UP uses `admin_level=5` for districts (tehsils/blocks are level 6). Using level 6 would return 316 elements (tehsils); level 5 returns exactly 75 elements (districts).
+- Raw Overpass output (JSON format): 8.5 MB, 368,779 coordinate points.
+
+**Processing pipeline** (ad-hoc Python script, not committed to repo):
+1. Fetched Overpass JSON containing relation members (way segments for each district boundary).
+2. Assembled closed rings from ways using a greedy chain algorithm (forward and reversed way directions handled).
+3. Converted to GeoJSON FeatureCollection with one Feature per district.
+4. Applied Ramer-Douglas-Peucker (RDP) simplification with tolerance = 0.002 degrees → reduced from 368,779 to 26,167 coordinate points.
+5. Final file size: 615 KB (down from ~8.5 MB raw).
+6. Applied name normalisations to match `districts.name` in D1:
+   - `Raebareli` → `Rae Bareli`
+   - `Sant Ravidas Nagar` → `Bhadohi`
+   - `Sharavasti` → `Shravasti`
+   - `Siddharthnagar` → `Siddharth Nagar`
+   - `Mahrajganj` → `Maharajganj`
+
+**Feature property:** `district` — must match `districts.name` in D1 exactly (case-sensitive).
+
+**Map configuration:**
+- Leaflet 1.9.4 with CartoDB tiles (light/dark variants, switches with theme).
+- Map locked to UP: `minZoom: 6`, `maxZoom: 10`, `maxBounds: [[22.5, 76.0], [31.5, 85.5]]`, `fitBounds` to `[[23.8, 77.1], [30.4, 84.6]]`.
+- District borders: `weight: 1.5`, `color: '#334155'` (slate-700). Fill opacity: `0.65`.
+- Status fill colours: pending `#94a3b8`, in_progress `#f59e0b`, submitted `#16a34a`. Legend rendered below the map div.
+- Permanent district name labels: `bindTooltip(name, { permanent: true, direction: 'center', className: 'district-map-label' })`. CSS in `layout.tsx` global `<style>` block: transparent background, 9px bold, white text-shadow for light mode, slate text-shadow for dark mode.
+- Clicking a district polygon navigates to `/admin/districts/[name]`.
 
 ### Database Writes — Always Atomic
 - Any Worker route that performs **two or more related writes** (e.g., insert row + insert audit log, update status + insert audit log) must wrap them in a single atomic operation.
@@ -430,9 +485,10 @@ Track which milestone is currently active. Update this table as milestones are c
 | M-2: Excel Ingestion & Coordinate Engine | **Completed** | SheetJS parser, DMS→DD converter, revenue formulas, UP bbox validation |
 | M-3: Verification UI & IndexedDB | **Completed** | DEO verify page, Dexie.js offline staging, Service Worker + Background Sync PWA |
 | M-4: Worker Batch API & D1 Integration | **Completed** | Batch upload, dual-verification, atomic db.batch()/db.transaction() writes |
-| M-5: Dashboard, Testing & DEO Handoff | **Completed** | Admin choropleth map (70 UP district polygons, GADM), Chart.js analytics, audit log, CSV export, 12/12 unit tests passing |
+| M-5: Dashboard, Testing & DEO Handoff | **Completed** | Admin choropleth map (initially 70 GADM polygons, later replaced), Chart.js analytics, audit log, CSV export, 12/12 unit tests passing |
 | M-6: Auth Migration + Single Worker | **Completed** | Custom HMAC magic-link auth; Resend email; D1 sessions; all API routes merged into one CF Worker (`up-excise-spatial-revenue-optimizer-web`); no external auth provider |
-| M-7: Admin Portal UI Overhaul | **Completed** | District detail: all fields, client-side sort/filter/search/group-collapse/pagination, full type labels, CL5CC filter, circle/sector filter, revenue breakdown; HelpPanel overlay on all pages; ViewPrefsPanel FAB; UP GeoJSON map with locked bounds; government colour palette |
+| M-7: Admin Portal UI Overhaul | **Completed** | District detail: all fields, client-side sort/filter/search/group-collapse/pagination, full type labels, CL5CC filter, circle/sector filter, revenue breakdown; HelpPanel balloon on all pages; ViewPrefsPanel FAB; GeoJSON map replaced with 75-district OSM source; government colour palette; district name labels on map |
+| M-8: Admin Portal Navigation & Divisions | **Completed** | /admin/districts page (full 75-district table); /admin/divisions page (18 division cards); /admin/divisions/[division] detail page; clickable breadcrumbs; functional nav search dropdown (districts + divisions, keyboard nav); overview top-10 by revenue + divisions grid; map full-width; charts side-by-side |
 
 See [roadmap.md Section 6](roadmap.md#6-development-milestones--action-plan) for full milestone specs, entry/exit criteria, and deliverable checklists.
 
@@ -450,6 +506,21 @@ The following are unresolved department-side decisions that block specific miles
 6. **Circle/sector naming convention** — DEOs need a consistent naming standard so pre-registered unit names are clean and unambiguous across all 75 districts.
 7. **Upsert vs. versioning decision** — blocks M-4. If a DEO re-uploads a district, does the system overwrite or version the records?
 8. **Custom email domain** — Resend initially sends from `onboarding@resend.dev`. Switch `RESEND_FROM_EMAIL` to a verified custom domain (e.g. `noreply@up-excise.in`) before campaign launch for deliverability.
+
+---
+
+## localStorage Keys — Authoritative Registry
+
+All `localStorage` keys used by the portal, their owning component, and what they store. Do not add new keys without updating this table.
+
+| Key | Owner | Value |
+|---|---|---|
+| `theme` | `ThemeToggle.tsx` | `'light'` \| `'dark'` — persists user's dark/light mode preference |
+| `excise-view-prefs-v1` | `ViewPrefsPanel.tsx` | JSON: `{ fontSize, density, width }` — font size, row density, content width |
+| `help_done_{pageKey}` | `HelpPanel.tsx` | `'true'` when user has dismissed the help badge for that page |
+| `admin-page-size` | District detail page | `'10'` \| `'25'` \| `'50'` \| `'100'` \| `'all'` — persists rows-per-page selector |
+| `admin-group-by-type` | District detail page | `'true'` \| `'false'` — persists group-by-type toggle state across navigation |
+| `admin-group-{districtName}` | District detail page | JSON array of open group type strings — which shop-type groups are expanded |
 
 ---
 

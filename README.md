@@ -112,24 +112,62 @@ up-excise-spatial-revenue-optimizer/
 
 ## Admin / HQ Dashboard
 
-- 75-row district summary + state totals (no shop rows on default view)
-- UP choropleth map (Leaflet + CartoDB tiles): 70 district polygons from GADM with corrected current names (Prayagraj, Ayodhya, Amroha, Barabanki, Bhadohi); richer status colours (slate/amber/green), slate-700 district borders, locked to UP bounds (minZoom 6 / maxZoom 10), colour legend below map
-- 5 Chart.js analytics charts (submission progress, revenue by district, shop type breakdown)
-- District drill-down (all loaded client-side from `pageSize=all`):
-  - All `phase1_raw_collection` fields: shop ID, name, circle/sector, thana, adjacent thanas (flex-wrap pills), type + CL5CC sub-badge, coordinates, revenue
-  - Collapsible per-row revenue breakdown (`<details>/<summary>` — no modal)
-  - Full type labels: "Composite Shop (FL + Beer)", "PRV (Premium Retail Vend)"
-  - Per-type + CL5CC breakdown bar — each card clickable to filter; CL5CC filters to `has_cl5cc = true`
-  - Client-side search (shop ID / name / thana), type filter dropdown, circle/sector filter dropdown
-  - Sortable columns: shop ID, name, thana, type, revenue
-  - Group by type — collapsible per-group with independent per-group inner pagination
-  - Rows per page: 10 / 25 / 50 / 100 / All — preference persisted to `localStorage`
-  - Per-district CSV export
-- Full-state CSV export (never rendered in UI)
+**Overview (`/admin`):**
+- Full-width UP choropleth map (500px tall, Leaflet + CartoDB tiles, dark/light-aware tiles) with permanent district name labels
+- Top 10 districts by revenue + "View all 75 →" link
+- Divisions grid: 18 division cards each showing district count, submission progress bar, and total revenue
+- 2 Chart.js charts side by side: submission progress doughnut + top-20 districts bar chart
+- State totals stat cards (submitted districts, total vends, total revenue)
+- Auto-refresh every 5 minutes; map click on district polygon → district detail page
+
+**Districts page (`/admin/districts`):**
+- Full 75-district sortable table with search, division filter, and status filter
+- Summary chips (shown count, submitted, total vends, total revenue)
+
+**Divisions (`/admin/divisions` and `/admin/divisions/[division]`):**
+- 18 division cards with progress bars; each card opens a division detail page
+- Division detail: summary stats (districts, submitted, vends, revenue) + districts table sorted by revenue
+
+**District detail (`/admin/districts/[district]`):**
+- All `phase1_raw_collection` fields: shop ID, name, circle/sector, thana, adjacent thanas (flex-wrap pills), type + CL5CC sub-badge, coordinates, revenue
+- Collapsible per-row revenue breakdown (`<details>/<summary>` — no modal)
+- Full type labels: "Composite Shop (FL + Beer)", "PRV (Premium Retail Vend)"
+- Per-type + CL5CC breakdown bar — each card clickable to filter; CL5CC only active alongside Country Liquor
+- Client-side search (shop ID / name / thana), type filter, circle/sector filter, sortable columns
+- Group by type — auto-collapses all on enable; per-group expand/collapse persisted to `localStorage`; clears type filter on enable
+- Rows per page: 10 / 25 / 50 / 100 / All — preference persisted to `localStorage`
+- Per-district CSV export
+
+**Navigation:**
+- Navbar search: live dropdown across all 75 districts and 18 divisions, keyboard navigation (↑↓ / Enter / Escape)
+- Breadcrumbs: all segments are clickable links — Overview → Districts/Divisions → current page
+- Nav links: Overview, Districts, Divisions, Provision, Audit, Export
+
+**Shared UI:**
+- `HelpPanel` on every page — balloon popover with background blur (`backdrop-blur-[2px]`), closes on Escape or outside click
+- `ViewPrefsPanel` FAB (bottom-right) — font size, row density, content width; all persisted to `localStorage`
+- Full-state CSV export (never rendered in UI — `/api/admin/export/all` only)
 - Audit log viewer (last 45 days, paginated)
 - Bulk DEO provisioning via Excel upload
-- `HelpPanel` on every admin page (dashboard, provision, audit, export, district detail) — fixed overlay with `backdrop-blur`, closes on Escape or backdrop click; does not displace content
-- `ViewPrefsPanel` FAB (bottom-right, all pages) — font size (S/M/L), row density (Compact/Normal/Spacious), content width; preferences persisted to `localStorage` and applied as `data-*` attributes on `<html>`
+
+---
+
+## Geospatial Data
+
+**File:** `apps/web/public/geodata/up-districts.geojson`
+
+**Coverage:** All 75 UP districts — complete, no gaps.
+
+**Source:** OpenStreetMap (OSM) via the Overpass API (`admin_level=5` administrative boundary relations for Uttar Pradesh). Fetched via `https://maps.mail.ru/osm/tools/overpass/api/interpreter`. OSM uses `admin_level=5` for UP districts; level 6 = tehsils (316 elements).
+
+**Processing:**
+1. Overpass JSON → closed rings assembled from OSM relation ways (greedy chain algorithm, handles reversed way directions)
+2. Ramer-Douglas-Peucker simplification: tolerance 0.002° → 26,167 points from 368,779 (615 KB from 8.5 MB raw)
+3. Name normalisations applied to match D1 district names: Raebareli → Rae Bareli, Sant Ravidas Nagar → Bhadohi, Sharavasti → Shravasti, Siddharthnagar → Siddharth Nagar, Mahrajganj → Maharajganj
+
+**Feature property:** `district` — must match `districts.name` in D1 exactly.
+
+> The processing pipeline was run ad hoc in Python and is not committed to this repo. To regenerate, query Overpass for `rel[admin_level=5][boundary=administrative]["is_in:state"="Uttar Pradesh"]`, assemble rings, apply RDP, and export as GeoJSON with a `district` property.
 
 ---
 
@@ -200,6 +238,8 @@ See [DEPLOY.md](DEPLOY.md) for secrets, CI/CD, and account management.
 | M-4: Worker Batch API & D1 Integration | **Completed** |
 | M-5: Dashboard, Testing & DEO Handoff | **Completed** |
 | M-6: Auth Migration + Single Worker | **Completed** |
+| M-7: Admin Portal UI Overhaul | **Completed** |
+| M-8: Admin Portal Navigation & Divisions | **Completed** |
 
 See [roadmap.md](roadmap.md) for full specs, entry/exit criteria, and deliverable checklists.
 

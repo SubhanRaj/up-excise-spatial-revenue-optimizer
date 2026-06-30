@@ -712,11 +712,22 @@ Charts use Chart.js direct imperative API via `useEffect` — no React wrapper l
 A live choropleth map of all 75 UP districts. The primary at-a-glance view for HQ to monitor the upload campaign.
 
 **GeoJSON boundary data:**
-- Stored at `apps/web/public/geodata/up-districts.geojson` — simplified UP district polygons (~200–400KB).
-- Sourced from a public dataset (GADM or Datameet India GIS) and simplified to appropriate precision.
-- District name mismatches between the GeoJSON source and `districts.name` are resolved via `apps/web/src/lib/district-name-map.ts`.
+- Stored at `apps/web/public/geodata/up-districts.geojson` — all 75 UP district polygons, 615 KB.
+- **Source:** OpenStreetMap (OSM) Overpass API, `admin_level=5` administrative boundary relations for Uttar Pradesh. Fetched via `https://maps.mail.ru/osm/tools/overpass/api/interpreter`. OSM uses `admin_level=5` for UP districts (level 6 = tehsils, 316 elements).
+- **Processing pipeline** (ad-hoc Python, not committed to repo): (1) fetch Overpass JSON → (2) assemble closed rings from OSM relation ways using greedy chain algorithm → (3) export GeoJSON → (4) RDP simplification with tolerance 0.002° → 26,167 points from 368,779 raw (615 KB from 8.5 MB).
+- **Name normalisations** applied to match `districts.name` in D1: Raebareli → Rae Bareli, Sant Ravidas Nagar → Bhadohi, Sharavasti → Shravasti, Siddharthnagar → Siddharth Nagar, Mahrajganj → Maharajganj.
+- **Feature property:** `district` — must match `districts.name` in D1 exactly (case-sensitive). No name-map file needed.
+- **Note:** The GADM source used in early milestones only covered 70 of 75 districts (missing Hapur, Shamli, Sambhal, Amethi, Kasganj). The OSM source covers all 75 and supersedes GADM.
 
-**Map tiles:** CartoDB Positron — no API key required, neutral background:
+**Map configuration (as built):**
+- Tiles: CartoDB (light/dark variants, switches with `data-theme` MutationObserver); no API key required.
+- Layout: full-width card (500px tall), charts rendered below in a 2-column grid.
+- District borders: `weight: 1.5`, `color: '#334155'` (slate-700). Status fill colours: pending `#94a3b8`, in_progress `#f59e0b`, submitted `#16a34a`. Fill opacity `0.65`.
+- Permanent district name labels via `bindTooltip(name, { permanent: true, direction: 'center', className: 'district-map-label' })`. CSS in `layout.tsx` global style block.
+- Map locked to UP bounds: `minZoom: 6`, `maxZoom: 10`, `maxBounds: [[22.5, 76.0], [31.5, 85.5]]`, `fitBounds` to `[[23.8, 77.1], [30.4, 84.6]]`.
+- Click navigates to `/admin/districts/[name]`.
+
+**Original spec tile URL:** CartoDB Positron — no API key required, neutral background:
 ```
 https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png
 ```
@@ -1360,6 +1371,47 @@ M-6: Auth Migration + Single Worker       [Post-M5]         ✅ Complete
 
 ---
 
+### M-7: Admin Portal UI Overhaul ✅ Complete
+
+**Objective:** Replace the placeholder admin view with a production-quality district detail interface covering all Phase 1 fields.
+
+**Deliverables:**
+
+- [x] District detail page (`/admin/districts/[district]`): all `phase1_raw_collection` fields rendered — shop ID, name, circle/sector, thana, adjacent thanas (flex-wrap pills, no expand/collapse), type badge + CL5CC sub-badge, coordinates, collapsible revenue breakdown (`<details>/<summary>`).
+- [x] Full type labels: "Composite Shop (FL + Beer)", "PRV (Premium Retail Vend)".
+- [x] Per-type breakdown bar with CL5CC card (radio-style: CL5CC only active alongside Country Liquor, disabled for other types).
+- [x] Client-side search, type filter, circle/sector filter, sortable columns, group-by-type with per-group inner pagination.
+- [x] Rows per page selector (10/25/50/100/All); preference persisted to `localStorage` (`admin-page-size`).
+- [x] Group-by-type persisted to `localStorage` (`admin-group-by-type`); per-group open/close persisted to `localStorage` (`admin-group-{districtName}`).
+- [x] `HelpPanel` balloon popover on all admin pages (dashboard, provision, audit, export, district detail). Background blur (`backdrop-blur-[2px]`), closes on Escape/outside click.
+- [x] `ViewPrefsPanel` FAB (bottom-right): font size, row density, content width; all persisted to `localStorage` (`excise-view-prefs-v1`).
+- [x] UP GeoJSON replaced: GADM 70-district source removed; OSM Overpass `admin_level=5` source provides all 75 districts. RDP-simplified to 615 KB. See GeoJSON section above.
+- [x] Map: full-width layout, CartoDB tiles with dark/light switching, locked UP bounds, slate-700 borders, status fill colours, permanent district name labels.
+- [x] Government colour palette applied across admin portal.
+
+**Exit criterion:** Admin can drill into any district and see all shop fields; filters and group-by-type work fully client-side without additional API calls.
+
+---
+
+### M-8: Admin Portal Navigation & Divisions ✅ Complete
+
+**Objective:** Add dedicated districts and divisions pages, fix navigation, make breadcrumbs clickable, and implement functional navbar search.
+
+**Deliverables:**
+
+- [x] `/admin/districts` — full 75-district sortable table with search, division filter, status filter, and summary stat chips. Fetches same `GET /api/admin/districts` endpoint; no new API route.
+- [x] `/admin/divisions` — 18 division cards with submission progress bars and revenue; derived client-side from district data.
+- [x] `/admin/divisions/[division]` — division detail page: summary stats (districts, submitted, vends, revenue) + districts table sorted by revenue.
+- [x] Overview (`/admin`) updated: district table shows top-10 by revenue only with "View all 75 →" link; divisions grid added below charts.
+- [x] Admin layout (`app/(admin)/layout.tsx`): all breadcrumb segments now link-clickable (`<a>` with hover underline); nav links added for Districts and Divisions with active-state highlighting.
+- [x] `SearchBar` component in layout: live dropdown across districts + divisions, results grouped, keyboard nav (↑↓/Enter/Escape), clear button, module-level `searchCache` (one fetch per session). No search results page — navigates directly.
+- [x] Map layout: full-width on overview; charts below in 2-column grid; chart `maxHeight` 220px.
+- [x] District name permanent labels on choropleth (`district-map-label` CSS class in `layout.tsx` global style block).
+
+**Exit criterion:** Admin can navigate Overview → Divisions → division detail → district detail using nav links, breadcrumbs, and the search dropdown. All breadcrumbs are clickable.
+
+---
+
 ### Timeline Summary
 
 | Milestone | Duration | Key Dependency |
@@ -1371,7 +1423,9 @@ M-6: Auth Migration + Single Worker       [Post-M5]         ✅ Complete
 | M-4: Worker Batch API & D1 Integration | 5 days | M-3 complete |
 | M-5: Admin Portal, Testing & DEO Handoff | 10 days | M-4 complete, pilot district identified |
 | M-6: Auth Migration + Single Worker | 3 days | M-5 complete |
-| **Total** | **~42 working days** | |
+| M-7: Admin Portal UI Overhaul | 5 days | M-6 complete |
+| M-8: Admin Portal Navigation & Divisions | 3 days | M-7 complete |
+| **Total** | **~50 working days** | |
 
 ### Pre-Campaign Blockers
 
