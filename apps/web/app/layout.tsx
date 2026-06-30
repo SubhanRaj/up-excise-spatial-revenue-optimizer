@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next';
+import ViewPrefsPanel from '@/app/_components/ViewPrefsPanel';
 
 export const metadata: Metadata = {
   title: 'UP Excise Spatial Revenue Optimizer',
@@ -40,6 +41,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             --color-accent: oklch(72% 0.16 72);
             --color-accent-content: oklch(15% 0.04 72);
           }
+          [data-font-size="sm"] { font-size: 0.8125rem; }
+          [data-font-size="lg"] { font-size: 0.9375rem; }
+          [data-density="compact"] .table td, [data-density="compact"] .table th { padding: 0.2rem 0.5rem; }
+          [data-density="spacious"] .table td, [data-density="spacious"] .table th { padding: 0.75rem 1rem; }
+          [data-view-width="wide"] .admin-content { max-width: 100%; }
+          [data-view-width="full"] .admin-content { max-width: 100%; padding-left: 0.5rem; padding-right: 0.5rem; }
         `}} />
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/notyf@3.10.0/notyf.min.css" />
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
@@ -56,6 +63,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body>
         {children}
+        <ViewPrefsPanel />
         <script
           dangerouslySetInnerHTML={{
             __html: `if('serviceWorker' in navigator){navigator.serviceWorker.register('/sw.js');}`,

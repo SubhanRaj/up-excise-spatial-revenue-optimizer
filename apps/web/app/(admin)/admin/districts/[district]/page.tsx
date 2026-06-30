@@ -41,8 +41,8 @@ const SHOP_TYPES = ['MODEL_SHOP', 'COMPOSITE_SHOP', 'PRV', 'BHANG_SHOP', 'COUNTR
 
 const TYPE_LABEL: Record<string, string> = {
   MODEL_SHOP: 'Model Shop',
-  COMPOSITE_SHOP: 'Composite',
-  PRV: 'PRV',
+  COMPOSITE_SHOP: 'Composite Shop (FL + Beer)',
+  PRV: 'PRV (Premium Retail Vend)',
   BHANG_SHOP: 'Bhang Shop',
   COUNTRY_LIQUOR: 'Country Liquor',
 };
@@ -177,9 +177,13 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
   // Toolbar state
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
+  const [cl5ccFilter, setCl5ccFilter] = useState(false);
+  const [circleFilter, setCircleFilter] = useState('all');
   const [sortKey, setSortKey] = useState<SortKey>('shopId');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [groupByType, setGroupByType] = useState(false);
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(SHOP_TYPES));
+  const [groupPages, setGroupPages] = useState<Record<string, number>>({});
   const [pageSize, setPageSize] = useState<PageSizeVal>(() => {
     if (typeof window === 'undefined') return 100;
     const s = localStorage.getItem('admin-page-size');
@@ -208,6 +212,8 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
     let rows = allShops.filter((s) => {
       if (typeFilter !== 'all' && s.shopType !== typeFilter) return false;
       if (q && !s.shopId.toLowerCase().includes(q) && !s.shopName.toLowerCase().includes(q) && !s.thanaName.toLowerCase().includes(q)) return false;
+      if (cl5ccFilter && !s.hasCl5cc) return false;
+      if (circleFilter !== 'all' && s.circleSectorName !== circleFilter) return false;
       return true;
     });
     rows = [...rows].sort((a, b) => {
@@ -218,7 +224,7 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
         : String(bv).localeCompare(String(av));
     });
     return rows;
-  }, [allShops, search, typeFilter, sortKey, sortDir]);
+  }, [allShops, search, typeFilter, cl5ccFilter, circleFilter, sortKey, sortDir]);
 
   const typeCounts = useMemo(() => {
     const counts: Record<string, { count: number; revenue: number }> = {};
@@ -232,6 +238,11 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
   }, [allShops]);
 
   const cl5ccCount = useMemo(() => allShops.filter((s) => s.hasCl5cc).length, [allShops]);
+
+  const circles = useMemo(
+    () => Array.from(new Set(allShops.map((s) => s.circleSectorName).filter(Boolean))).sort(),
+    [allShops],
+  );
 
   const effectivePageSize = pageSize === 'all' ? filteredSorted.length || 1 : pageSize;
   const totalPages = Math.ceil(filteredSorted.length / effectivePageSize);
@@ -248,6 +259,8 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
 
   function handleSearch(v: string) { setSearch(v); setPage(1); }
   function handleTypeFilter(v: string) { setTypeFilter(v); setPage(1); }
+  function handleCl5ccFilter(v: boolean) { setCl5ccFilter(v); setPage(1); }
+  function handleCircleFilter(v: string) { setCircleFilter(v); setPage(1); }
   function handlePageSize(v: PageSizeVal) { setPageSize(v); setPage(1); localStorage.setItem('admin-page-size', String(v)); }
 
   async function exportCsv() {
@@ -262,12 +275,12 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
   const grouped = useMemo(() => {
     if (!groupByType) return null;
     const map = new Map<string, ShopRow[]>();
-    for (const s of displayRows) {
+    for (const s of filteredSorted) {
       if (!map.has(s.shopType)) map.set(s.shopType, []);
       map.get(s.shopType)!.push(s);
     }
     return map;
-  }, [displayRows, groupByType]);
+  }, [filteredSorted, groupByType]);
 
   const skeletonCols = 9;
 
@@ -278,7 +291,7 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
 
       {/* Page header */}
       <div className="flex gap-3 items-center flex-wrap">
-        <a href="/admin" className="btn btn-ghost btn-sm gap-1 text-base-content/60">
+        <a href="/admin" className="btn btn-outline btn-sm gap-1">
           <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
           Districts
         </a>
@@ -354,14 +367,17 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
               );
             })}
             {cl5ccCount > 0 && (
-              <div className="rounded-lg border border-base-200 p-3 text-left">
+              <button
+                onClick={() => handleCl5ccFilter(!cl5ccFilter)}
+                className={`rounded-lg border p-3 text-left transition-colors cursor-pointer hover:bg-base-200 ${cl5ccFilter ? 'border-info bg-info/5' : 'border-base-300'}`}
+              >
                 <div className="flex items-center gap-1.5 mb-1">
                   <span className="badge badge-xs badge-outline text-[10px]">CL5CC</span>
-                  <span className="text-xs font-medium text-base-content/70">CL5CC</span>
+                  <span className="text-xs font-medium text-base-content/70">Country Liquor w/ Beer</span>
                 </div>
                 <p className="text-lg font-bold tabular-nums">{cl5ccCount}</p>
-                <p className="text-[11px] text-base-content/40">Country Liquor</p>
-              </div>
+                <p className="text-[11px] text-base-content/40">of Country Liquor</p>
+              </button>
             )}
           </div>
         </div>
@@ -380,19 +396,31 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
               value={search}
               onChange={(e) => handleSearch(e.target.value)}
               placeholder="Search shop ID, name, thana…"
-              className="input input-sm input-bordered w-full pl-8 bg-base-50"
+              className="input input-sm input-bordered w-full pl-8 bg-base-100"
             />
           </div>
 
           {/* Type filter */}
           <select
-            className="select select-sm select-bordered bg-base-50"
+            className="select select-sm select-bordered bg-base-100"
             value={typeFilter}
             onChange={(e) => handleTypeFilter(e.target.value)}
           >
             <option value="all">All Types</option>
             {SHOP_TYPES.map((t) => <option key={t} value={t}>{TYPE_LABEL[t]}</option>)}
           </select>
+
+          {/* Circle / Sector filter */}
+          {circles.length > 0 && (
+            <select
+              className="select select-sm select-bordered bg-base-100"
+              value={circleFilter}
+              onChange={(e) => handleCircleFilter(e.target.value)}
+            >
+              <option value="all">All Circles / Sectors</option>
+              {circles.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          )}
 
           {/* Group by type toggle */}
           <label className="flex items-center gap-2 cursor-pointer select-none text-sm text-base-content/70">
@@ -485,21 +513,52 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
                 ))
               ) : grouped ? (
                 // ── Grouped view ──────────────────────────────────────────────
-                Array.from(grouped.entries()).flatMap(([type, rows]) => [
-                  <tr key={`hdr-${type}`} className="bg-base-100 border-t-2 border-base-200">
-                    <td colSpan={skeletonCols} className="py-2 px-3">
-                      <div className="flex items-center gap-2">
-                        <span className={`badge badge-sm font-semibold ${TYPE_BADGE[type] ?? 'badge-ghost'}`}>
-                          {TYPE_LABEL[type] ?? type}
-                        </span>
-                        <span className="text-xs text-base-content/50">
-                          {rows.length} shops · {fmtCr(rows.reduce((s, r) => s + r.totalRevenue, 0))}
-                        </span>
-                      </div>
-                    </td>
-                  </tr>,
-                  ...rows.map((s) => <ShopTableRow key={s.id} s={s} />),
-                ])
+                Array.from(grouped.entries()).flatMap(([type, allGroupRows]) => {
+                  const isExpanded = expandedGroups.has(type);
+                  const gPage = groupPages[type] ?? 1;
+                  const gTotalPages = Math.ceil(allGroupRows.length / effectivePageSize);
+                  const gRows = allGroupRows.slice((gPage - 1) * effectivePageSize, gPage * effectivePageSize);
+                  function setGPage(p: number) { setGroupPages((prev) => ({ ...prev, [type]: p })); }
+
+                  return [
+                    <tr key={`hdr-${type}`} className="bg-base-200/60 border-t-2 border-base-300">
+                      <td colSpan={skeletonCols} className="py-2 px-3">
+                        <div className="flex items-center gap-3">
+                          <button
+                            onClick={() => setExpandedGroups((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(type)) next.delete(type); else next.add(type);
+                              return next;
+                            })}
+                            className="flex items-center gap-2 hover:opacity-70 transition-opacity"
+                          >
+                            <span className="text-base-content/50 text-xs">{isExpanded ? '▾' : '▸'}</span>
+                            <span className={`badge badge-sm font-semibold ${TYPE_BADGE[type] ?? 'badge-ghost'}`}>
+                              {TYPE_LABEL[type] ?? type}
+                            </span>
+                          </button>
+                          <span className="text-xs text-base-content/50">
+                            {allGroupRows.length} shops · {fmtCr(allGroupRows.reduce((s, r) => s + r.totalRevenue, 0))}
+                          </span>
+                        </div>
+                      </td>
+                    </tr>,
+                    ...(isExpanded ? [
+                      ...gRows.map((s) => <ShopTableRow key={s.id} s={s} />),
+                      ...(gTotalPages > 1 ? [
+                        <tr key={`pgn-${type}`}>
+                          <td colSpan={skeletonCols} className="py-1.5 px-4 bg-base-50">
+                            <div className="flex items-center gap-2 text-xs text-base-content/60">
+                              <button className="btn btn-ghost btn-xs" disabled={gPage === 1} onClick={() => setGPage(gPage - 1)}>← Prev</button>
+                              <span>Page {gPage} of {gTotalPages}</span>
+                              <button className="btn btn-ghost btn-xs" disabled={gPage >= gTotalPages} onClick={() => setGPage(gPage + 1)}>Next →</button>
+                            </div>
+                          </td>
+                        </tr>,
+                      ] : []),
+                    ] : []),
+                  ];
+                })
               ) : (
                 // ── Flat view ─────────────────────────────────────────────────
                 displayRows.length === 0

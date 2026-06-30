@@ -13,9 +13,9 @@ interface AdminOverview { districts: DistrictRow[]; stateTotals: { totalVendCoun
 interface MapRow { name: string; status: string; expectedVendCount?: number; vendCount: number; totalRevenue: number }
 
 const STATUS_COLORS: Record<string, string> = {
-  pending: '#d1d5db',
-  in_progress: '#fbbf24',
-  submitted: '#15803d',
+  pending: '#94a3b8',     // slate-400
+  in_progress: '#f59e0b', // amber-500
+  submitted: '#16a34a',   // green-600
 };
 
 const UP_BOUNDS: [[number, number], [number, number]] = [[23.8, 77.1], [30.4, 84.6]];
@@ -32,7 +32,7 @@ function formatInr(n: number): string {
 
 declare global {
   const L: {
-    map: (id: string) => LeafletMap;
+    map: (id: string, opts?: { minZoom?: number; maxZoom?: number; zoomSnap?: number }) => LeafletMap;
     tileLayer: (url: string, opts: unknown) => LeafletLayer;
     geoJSON: (data: unknown, opts: unknown) => LeafletLayer;
     control: { layers?: unknown; attribution?: unknown } & {
@@ -43,6 +43,8 @@ declare global {
     setView: (c: [number, number], z: number) => LeafletMap;
     fitBounds: (bounds: [[number, number], [number, number]], options?: { padding?: [number, number]; animate?: boolean }) => LeafletMap;
     setMaxBounds: (bounds: [[number, number], [number, number]]) => LeafletMap;
+    setMinZoom: (z: number) => LeafletMap;
+    setMaxZoom: (z: number) => LeafletMap;
     invalidateSize: () => LeafletMap;
     remove: () => void;
   }
@@ -122,13 +124,12 @@ export default function AdminPage() {
   useEffect(() => {
     if (!mapRef.current || mapData.length === 0 || typeof L === 'undefined') return;
     if (!mapInstance.current) {
-      mapInstance.current = L.map('admin-map');
-      mapInstance.current.setMaxBounds(UP_BOUNDS);
-      mapInstance.current.fitBounds(UP_BOUNDS, { padding: [12, 12], animate: false });
+      mapInstance.current = L.map('admin-map', { minZoom: 6, maxZoom: 10 });
+      mapInstance.current.setMaxBounds([[22.5, 76.0], [31.5, 85.5]]);
+      mapInstance.current.fitBounds(UP_BOUNDS, { padding: [20, 20], animate: false });
     } else {
       geoLayer.current?.remove();
-      mapInstance.current.setMaxBounds(UP_BOUNDS);
-      mapInstance.current.fitBounds(UP_BOUNDS, { padding: [12, 12], animate: false });
+      mapInstance.current.fitBounds(UP_BOUNDS, { padding: [20, 20], animate: false });
     }
 
     if (!baseLayer.current) {
@@ -146,7 +147,12 @@ export default function AdminPage() {
           style: (feature: { properties?: { district?: string } }) => {
             const name = feature?.properties?.district ?? '';
             const d = mapIndex[name];
-            return { fillColor: STATUS_COLORS[d?.status ?? 'pending'] ?? '#d1d5db', weight: 1, fillOpacity: 0.7, color: '#fff' };
+            return {
+              fillColor: STATUS_COLORS[d?.status ?? 'pending'] ?? '#94a3b8',
+              weight: 1.5,
+              color: '#334155',   // slate-700 border — visible in both light + dark
+              fillOpacity: 0.65,
+            };
           },
           onEachFeature: (feature: { properties?: { district?: string } }, layer: { bindTooltip: (h: string) => void; on: (e: string, fn: () => void) => void }) => {
             const name = feature?.properties?.district ?? '';
@@ -159,8 +165,7 @@ export default function AdminPage() {
             }
           },
         }).addTo(mapInstance.current!);
-        mapInstance.current!.setMaxBounds(UP_BOUNDS);
-        mapInstance.current!.fitBounds(UP_BOUNDS, { padding: [12, 12], animate: false });
+        mapInstance.current!.fitBounds(UP_BOUNDS, { padding: [20, 20], animate: false });
       })
       .catch(() => {}); // GeoJSON not yet placed — map still loads
   }, [mapData]);
@@ -248,7 +253,15 @@ export default function AdminPage() {
             <h3 className="font-semibold">UP District Map</h3>
             {lastRefresh && <span className="text-xs text-base-content/50">Updated {lastRefresh.toLocaleTimeString()}</span>}
           </div>
-          <div id="admin-map" ref={mapRef} style={{ height: 400 }} aria-label="UP district choropleth map" role="img" />
+          <div id="admin-map" ref={mapRef} style={{ height: 380 }} aria-label="UP district choropleth map" role="img" />
+          <div className="flex gap-4 mt-2 text-xs text-base-content/60">
+            {[['#94a3b8','Pending'],['#f59e0b','In Progress'],['#16a34a','Submitted']].map(([color, label]) => (
+              <span key={label} className="flex items-center gap-1.5">
+                <span className="inline-block w-3 h-3 rounded-sm border border-[#334155]" style={{ background: color }} />
+                {label}
+              </span>
+            ))}
+          </div>
         </div>
         <div className="card bg-base-100 shadow p-4 flex flex-col gap-4">
           <h3 className="font-semibold">Submission Progress</h3>
