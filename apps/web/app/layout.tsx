@@ -47,6 +47,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           [data-density="spacious"] .table td, [data-density="spacious"] .table th { padding: 0.75rem 1rem; }
           [data-view-width="wide"] .admin-content { max-width: 100%; }
           [data-view-width="full"] .admin-content { max-width: 100%; padding-left: 0.5rem; padding-right: 0.5rem; }
+          .district-map-label { background: transparent !important; border: none !important; box-shadow: none !important; font-size: 9px !important; font-weight: 700 !important; color: #1e293b !important; text-shadow: 0 0 3px #fff, 0 0 3px #fff !important; padding: 0 !important; white-space: nowrap !important; pointer-events: none !important; }
+          .district-map-label::before { display: none !important; }
+          [data-theme="dark"] .district-map-label { color: #f1f5f9 !important; text-shadow: 0 0 3px #0f172a, 0 0 3px #0f172a !important; }
         `}} />
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/notyf@3.10.0/notyf.min.css" />
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />

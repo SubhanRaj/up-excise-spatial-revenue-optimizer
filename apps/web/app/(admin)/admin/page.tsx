@@ -153,13 +153,12 @@ export default function AdminPage() {
               fillOpacity: 0.65,
             };
           },
-          onEachFeature: (feature: { properties?: { district?: string } }, layer: { bindTooltip: (h: string) => void; on: (e: string, fn: () => void) => void }) => {
+          onEachFeature: (feature: { properties?: { district?: string } }, layer: { bindTooltip: (h: string, opts?: Record<string, unknown>) => void; on: (e: string, fn: () => void) => void }) => {
             const name = feature?.properties?.district ?? '';
             const d = mapIndex[name];
             if (d) {
-              layer.bindTooltip(
-                `<strong>${name}</strong><br>Status: ${d.status}<br>Vends: ${d.vendCount}<br>Revenue: ${formatInr(d.totalRevenue)}`
-              );
+              // Permanent label: district name centred on polygon
+              layer.bindTooltip(name, { permanent: true, direction: 'center', className: 'district-map-label' });
               layer.on('click', () => { window.location.href = `/admin/districts/${encodeURIComponent(name)}`; });
             }
           },
@@ -280,11 +279,11 @@ export default function AdminPage() {
       <div className="grid md:grid-cols-2 gap-6">
         <div className="card bg-base-100 shadow p-4">
           <h3 className="font-semibold mb-3">Submission Progress</h3>
-          <canvas ref={chartRefs.doughnut} style={{ maxHeight: 160 }} aria-label="Submission status doughnut chart" />
+          <canvas ref={chartRefs.doughnut} style={{ maxHeight: 220 }} aria-label="Submission status doughnut chart" />
         </div>
         <div className="card bg-base-100 shadow p-4">
           <h3 className="font-semibold mb-3">Top 20 Districts by Revenue</h3>
-          <canvas ref={chartRefs.bar} style={{ maxHeight: 160 }} aria-label="Revenue by district bar chart" />
+          <canvas ref={chartRefs.bar} style={{ maxHeight: 220 }} aria-label="Revenue by district bar chart" />
         </div>
       </div>
 
