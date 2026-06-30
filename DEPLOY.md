@@ -71,7 +71,7 @@ pnpm --filter worker exec wrangler secret put CLERK_WEBHOOK_SIGNING_SECRET
 npx wrangler secret put CLERK_SECRET_KEY --name up-excise-portal
 ```
 
-`CLERK_SECRET_KEY` must be set on both Workers. Missing it on the portal causes 500 on every page load.
+`CLERK_SECRET_KEY` is confirmed set on both Workers. ✓
 
 ---
 

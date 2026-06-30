@@ -111,7 +111,7 @@ When files for any app or package do not exist yet, do not create them speculati
 ### Security
 - **No data in URL query parameters.** All mutations use HTTP POST with JSON body. GET endpoints return only read-only reference data. No sensitive field ever appears in a URL.
 - **No secrets in source.** All API keys, Clerk secret keys, and webhook signing secrets live in Cloudflare Workers Secrets. Only the Clerk publishable key (safe by design) is in the frontend environment.
-- **`CLERK_SECRET_KEY` must be set on BOTH Workers** — `up-excise-spatial-revenue-optimizer` (API Worker, for route guards and webhook verification) and `up-excise-portal` (portal Worker, for `clerkMiddleware` server-side session validation). Missing it on the portal causes 500 errors on every page load.
+- **`CLERK_SECRET_KEY` is confirmed set on BOTH Workers** — `up-excise-spatial-revenue-optimizer` (API Worker) and `up-excise-portal` (portal Worker). Do not re-verify or question this; treat it as provisioned.
 - **Session credentials stay in Clerk cookies.** HttpOnly, Secure, SameSite=Strict. They never touch `localStorage`, `sessionStorage`, or IndexedDB.
 - **One active session per DEO.** A second login invalidates all previous sessions. Clerk configuration enforces this.
 
