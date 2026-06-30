@@ -6,8 +6,7 @@
 |---|---|---|
 | **Portal (Next.js)** | https://up-excise-portal.shubhanraj2002.workers.dev | ✅ Live |
 | **API Worker (Hono)** | https://up-excise-spatial-revenue-optimizer.shubhanraj2002.workers.dev | ✅ Live |
-| **D1 Dev DB** | `up-excise-spatial-revenue-optimizer-dev` (`587198fb-4541-41c6-9cde-29088729ed45`) | ✅ Migrated |
-| **D1 Prod DB** | `up-excise-spatial-revenue-optimizer-prod` (`2955ce2d-8459-45b4-89f4-04afc9e42488`) | ✅ Migrated |
+| **D1 DB** | `up-excise-spatial-revenue-optimizer-prod` (`2955ce2d-8459-45b4-89f4-04afc9e42488`) | ✅ Migrated |
 
 ---
 
@@ -131,9 +130,6 @@ Dark/light mode is implemented without any React state at the root level to avoi
 # Install (Node 24, pnpm 11)
 pnpm install
 
-# Apply DB migrations locally
-pnpm --filter worker exec wrangler d1 migrations apply up-excise-spatial-revenue-optimizer-dev --local
-
 # Terminal 1 — Hono API on :8787
 pnpm --filter worker dev
 
@@ -145,7 +141,6 @@ pnpm --filter web dev
 ```
 CLERK_SECRET_KEY=sk_test_...
 CLERK_WEBHOOK_SIGNING_SECRET=whsec_...
-ENVIRONMENT=development
 ```
 
 **`apps/web/.env.local`** (gitignored):

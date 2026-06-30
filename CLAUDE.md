@@ -224,10 +224,7 @@ pnpm --filter web dev
 # Run Wrangler local dev (Hono API Worker + D1)
 pnpm --filter worker dev
 
-# Apply D1 migrations (local dev)
-pnpm --filter worker exec wrangler d1 migrations apply up-excise-spatial-revenue-optimizer-dev --local
-
-# Apply D1 migrations (prod)
+# Apply D1 migrations
 pnpm --filter worker exec wrangler d1 migrations apply up-excise-spatial-revenue-optimizer-prod
 
 # Run unit tests

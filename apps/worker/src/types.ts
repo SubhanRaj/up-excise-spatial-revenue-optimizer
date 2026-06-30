@@ -4,7 +4,6 @@ export interface Env {
   DB: D1Database;
   CLERK_SECRET_KEY: string;
   CLERK_WEBHOOK_SIGNING_SECRET: string;
-  ENVIRONMENT?: string;
 }
 
 export interface Variables {
