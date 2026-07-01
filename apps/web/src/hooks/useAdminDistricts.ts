@@ -24,8 +24,14 @@ let _inflight: Promise<ApiResponse> | null = null;
 async function fetchDistricts(): Promise<ApiResponse> {
   if (_inflight) return _inflight;
   _inflight = fetch('/api/admin/districts')
-    .then((r) => r.json() as Promise<ApiResponse>)
-    .then((data) => { adminDistrictsCache.set(data); return data; })
+    .then((r) => {
+      if (!r.ok) return { districts: [], stateTotals: { totalVendCount: 0, totalRevenue: 0 } } as ApiResponse;
+      return r.json() as Promise<ApiResponse>;
+    })
+    .then((data) => {
+      if (data.districts?.length) adminDistrictsCache.set(data);
+      return data;
+    })
     .finally(() => { _inflight = null; });
   return _inflight;
 }
@@ -39,8 +45,8 @@ export function useAdminDistricts() {
     adminDistrictsCache.get().then((cached) => {
       if (cached) {
         const data = cached as ApiResponse;
-        setDistricts(data.districts);
-        setStateTotals(data.stateTotals);
+        setDistricts(data.districts ?? []);
+        setStateTotals(data.stateTotals ?? { totalVendCount: 0, totalRevenue: 0 });
         setLoading(false);
         // Revalidate in background — if TTL was already OK the cache.get() returns it, so
         // we only reach here if it was fresh; no background fetch needed.
