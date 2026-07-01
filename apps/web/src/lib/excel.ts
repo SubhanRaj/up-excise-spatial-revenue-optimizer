@@ -1,5 +1,6 @@
 'use client';
 
+import JSZip from 'jszip';
 import { normalizeCoordinates } from './coordinates';
 import { computeRevenue } from './revenue';
 import type { StagedRow } from './types';
@@ -50,6 +51,59 @@ const NUM_FIELDS = new Set<keyof StagedRow>([
   'mgqQuantity', 'considerationFee', 'specialBeerLf', 'specialBeerMgr',
   'latitudeDecimal', 'longitudeDecimal',
 ]);
+
+const SHOP_TYPE_OPTIONS = ['MODEL_SHOP', 'COMPOSITE_SHOP', 'PRV', 'BHANG_SHOP', 'COUNTRY_LIQUOR'] as const;
+const CL5CC_OPTIONS = ['true', 'false'] as const;
+
+function escapeXml(value: string): string {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&apos;');
+}
+
+function buildListValidationXml(range: string, values: readonly string[], promptTitle: string, prompt: string, errorTitle: string, error: string): string {
+  const formula = `"${values.join(',')}"`;
+  return [
+    `<dataValidation type="list" allowBlank="1" showInputMessage="1" showErrorMessage="1" errorStyle="stop" promptTitle="${escapeXml(promptTitle)}" prompt="${escapeXml(prompt)}" errorTitle="${escapeXml(errorTitle)}" error="${escapeXml(error)}" sqref="${escapeXml(range)}">`,
+    `<formula1>${escapeXml(formula)}</formula1>`,
+    '</dataValidation>',
+  ].join('');
+}
+
+async function addTemplateValidations(workbookBytes: ArrayBuffer): Promise<ArrayBuffer> {
+  const zip = await JSZip.loadAsync(workbookBytes);
+  const sheet = zip.file('xl/worksheets/sheet1.xml');
+  if (!sheet) throw new Error('Generated workbook is missing the main worksheet');
+
+  const xml = await sheet.async('string');
+  const validations = [
+    buildListValidationXml(
+      'F2:F1048576',
+      SHOP_TYPE_OPTIONS,
+      'Shop type',
+      'Choose a shop type from the dropdown list.',
+      'Invalid shop type',
+      `Use one of: ${SHOP_TYPE_OPTIONS.join(', ')}`,
+    ),
+    buildListValidationXml(
+      'G2:G1048576',
+      CL5CC_OPTIONS,
+      'CL5CC',
+      'Choose true if the shop has CL5CC; otherwise choose false.',
+      'Invalid CL5CC value',
+      'Use true or false only.',
+    ),
+  ].join('');
+
+  const nextXml = xml.replace('</worksheet>', `<dataValidations count="2">${validations}</dataValidations></worksheet>`);
+  if (nextXml === xml) throw new Error('Failed to inject dropdown validations into the worksheet');
+
+  zip.file('xl/worksheets/sheet1.xml', nextXml);
+  return await zip.generateAsync({ type: 'arraybuffer' });
+}
 
 /**
  * Parses a DEO district Excel file into StagedRows.
@@ -145,8 +199,8 @@ const COLUMN_GUIDE: unknown[][] = [
   ['adjacent_thanas_raw', 'Comma-separated names of bordering Thanas in the same district', 'Optional', 'Cross-district Thanas are automatically rejected by the portal'],
   ['shop_id', 'Department-assigned license/registration ID', 'All shop types', 'Alphanumeric. Must be unique within the district'],
   ['shop_name', 'Official name of the retail vend', 'All shop types', 'English only'],
-  ['shop_type', 'Shop classification', 'All shop types', 'Exact value: MODEL_SHOP | COMPOSITE_SHOP | PRV | BHANG_SHOP | COUNTRY_LIQUOR'],
-  ['has_cl5cc', '1 = has CL5CC beer endorsement, 0 = standard', 'COUNTRY_LIQUOR only', 'Any other shop_type must have 0'],
+  ['shop_type', 'Shop classification', 'All shop types', 'Dropdown list: MODEL_SHOP | COMPOSITE_SHOP | PRV | BHANG_SHOP | COUNTRY_LIQUOR'],
+  ['has_cl5cc', 'true = has CL5CC beer endorsement, false = standard', 'COUNTRY_LIQUOR only', 'Dropdown list: true | false. Any other shop_type must use false'],
   ['latitude_dms', 'Latitude in DMS format', 'Optional', 'e.g. 26°50\'48.12"N — takes precedence over latitude_decimal if both filled'],
   ['longitude_dms', 'Longitude in DMS format', 'Optional', 'e.g. 80°56\'46.3"E — takes precedence over longitude_decimal if both filled'],
   ['latitude_decimal', 'Latitude in decimal degrees', 'Optional', 'UP range: 23.8 – 30.4. Leave blank if using DMS columns'],
@@ -175,12 +229,12 @@ export async function generateTemplate(districtName: string, units: string[]): P
 
   // One example row per shop type — Inspector can copy & modify
   const examples: unknown[][] = [
-    [exUnit, exThana, '', 'SHOP001', 'Example Model Liquor Store', 'MODEL_SHOP', 0, '', '', '', '', 100000, 0, 200000, 0, 0, 0, 0, 0, 0, 0, 0],
-    [exUnit, exThana, '', 'SHOP002', 'Example Composite Wine Shop', 'COMPOSITE_SHOP', 0, '', '', '', '', 0, 0, 0, 50000, 50000, 100000, 100000, 0, 0, 0, 0],
-    [exUnit, exThana, '', 'SHOP003', 'Example Premium Retail Vend', 'PRV', 0, '', '', '', '', 80000, 0, 150000, 0, 0, 0, 0, 0, 0, 0, 0],
-    [exUnit, exThana, '', 'SHOP004', 'Example Bhang Shop', 'BHANG_SHOP', 0, '', '', '', '', 20000, 0, 0, 0, 0, 0, 0, 500, 0, 0, 0],
-    [exUnit, exThana, '', 'SHOP005', 'Example Country Liquor Shop', 'COUNTRY_LIQUOR', 0, '', '', '', '', 0, 75000, 0, 0, 0, 0, 0, 0, 60000, 0, 0],
-    [exUnit, exThana, '', 'SHOP006', 'Example CL5CC Beer Endorsed Shop', 'COUNTRY_LIQUOR', 1, '', '', '', '', 0, 75000, 0, 0, 0, 0, 0, 0, 60000, 25000, 50000],
+    [exUnit, exThana, '', 'SHOP001', 'Example Model Liquor Store', 'MODEL_SHOP', 'false', '', '', '', '', 100000, 0, 200000, 0, 0, 0, 0, 0, 0, 0, 0],
+    [exUnit, exThana, '', 'SHOP002', 'Example Composite Wine Shop', 'COMPOSITE_SHOP', 'false', '', '', '', '', 0, 0, 0, 50000, 50000, 100000, 100000, 0, 0, 0, 0],
+    [exUnit, exThana, '', 'SHOP003', 'Example Premium Retail Vend', 'PRV', 'false', '', '', '', '', 80000, 0, 150000, 0, 0, 0, 0, 0, 0, 0, 0],
+    [exUnit, exThana, '', 'SHOP004', 'Example Bhang Shop', 'BHANG_SHOP', 'false', '', '', '', '', 20000, 0, 0, 0, 0, 0, 0, 500, 0, 0, 0],
+    [exUnit, exThana, '', 'SHOP005', 'Example Country Liquor Shop', 'COUNTRY_LIQUOR', 'false', '', '', '', '', 0, 75000, 0, 0, 0, 0, 0, 0, 60000, 0, 0],
+    [exUnit, exThana, '', 'SHOP006', 'Example CL5CC Beer Endorsed Shop', 'COUNTRY_LIQUOR', 'true', '', '', '', '', 0, 75000, 0, 0, 0, 0, 0, 0, 60000, 25000, 50000],
   ];
 
   const ws = XLSX.utils.aoa_to_sheet([TEMPLATE_HEADERS, ...examples]);
@@ -189,7 +243,8 @@ export async function generateTemplate(districtName: string, units: string[]): P
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(COLUMN_GUIDE), 'Column Guide');
 
   const out = XLSX.write(wb, { type: 'array', bookType: 'xlsx' });
-  return new Blob([out as ArrayBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const workbookBytes = await addTemplateValidations(out as ArrayBuffer);
+  return new Blob([workbookBytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
 }
 
 interface ProvisionTemplateRow {

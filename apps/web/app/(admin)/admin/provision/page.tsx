@@ -22,6 +22,18 @@ interface EditForm {
   bboxMinLat: string; bboxMaxLat: string; bboxMinLon: string; bboxMaxLon: string;
 }
 
+interface DistrictPatch {
+  division?: string;
+  deoName?: string;
+  deoEmail?: string;
+  deoId?: string;
+  expectedVendCount?: string | number | null;
+  bboxMinLat?: string | number | null;
+  bboxMaxLat?: string | number | null;
+  bboxMinLon?: string | number | null;
+  bboxMaxLon?: string | number | null;
+}
+
 function toForm(d: DistrictRow): EditForm {
   return {
     division: d.division ?? '', deoName: d.deoName ?? '', deoEmail: d.deoEmail ?? '',
@@ -66,10 +78,14 @@ function EditDrawer({ district, onClose, onSaved }: { district: DistrictRow; onC
     return Number.isFinite(parsed) ? parsed : Number.NaN;
   }
 
+  function isInvalidNumeric(value: number | undefined): boolean {
+    return value === undefined || Number.isNaN(value);
+  }
+
   async function save() {
     setSaving(true);
     setError(null);
-    const body: Record<string, string | number | undefined> = {};
+    const body: DistrictPatch = {};
 
     if (form.division.trim() !== (district.division ?? '').trim()) body.division = form.division.trim();
     if (form.deoName.trim() !== (district.deoName ?? '').trim()) body.deoName = form.deoName.trim();
@@ -82,11 +98,17 @@ function EditDrawer({ district, onClose, onSaved }: { district: DistrictRow; onC
     const bboxMinLon = parseOptionalNumber(form.bboxMinLon);
     const bboxMaxLon = parseOptionalNumber(form.bboxMaxLon);
 
-    if (form.expectedVendCount.trim() !== String(district.expectedVendCount ?? '')) body.expectedVendCount = expectedVendCount;
-    if (form.bboxMinLat.trim() !== String(district.bboxMinLat ?? '')) body.bboxMinLat = bboxMinLat;
-    if (form.bboxMaxLat.trim() !== String(district.bboxMaxLat ?? '')) body.bboxMaxLat = bboxMaxLat;
-    if (form.bboxMinLon.trim() !== String(district.bboxMinLon ?? '')) body.bboxMinLon = bboxMinLon;
-    if (form.bboxMaxLon.trim() !== String(district.bboxMaxLon ?? '')) body.bboxMaxLon = bboxMaxLon;
+    if (isInvalidNumeric(expectedVendCount) || isInvalidNumeric(bboxMinLat) || isInvalidNumeric(bboxMaxLat) || isInvalidNumeric(bboxMinLon) || isInvalidNumeric(bboxMaxLon)) {
+      setSaving(false);
+      setError('Please enter valid numeric values');
+      return;
+    }
+
+    if (expectedVendCount !== undefined && expectedVendCount !== district.expectedVendCount) body.expectedVendCount = expectedVendCount as number;
+    if (bboxMinLat !== undefined && bboxMinLat !== district.bboxMinLat) body.bboxMinLat = bboxMinLat as number;
+    if (bboxMaxLat !== undefined && bboxMaxLat !== district.bboxMaxLat) body.bboxMaxLat = bboxMaxLat as number;
+    if (bboxMinLon !== undefined && bboxMinLon !== district.bboxMinLon) body.bboxMinLon = bboxMinLon as number;
+    if (bboxMaxLon !== undefined && bboxMaxLon !== district.bboxMaxLon) body.bboxMaxLon = bboxMaxLon as number;
 
     if (Object.keys(body).length === 0) {
       setSaving(false);
@@ -107,12 +129,26 @@ function EditDrawer({ district, onClose, onSaved }: { district: DistrictRow; onC
     }
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
+    const nextDivision = body.division ?? district.division;
+    const nextDeoName = body.deoName ?? district.deoName;
+    const nextDeoEmail = body.deoEmail ?? district.deoEmail;
+    const nextDeoId = body.deoId ?? district.deoId;
+    const nextExpectedVendCount = typeof body.expectedVendCount === 'number' ? body.expectedVendCount : district.expectedVendCount;
+    const nextBboxMinLat = typeof body.bboxMinLat === 'number' ? body.bboxMinLat : district.bboxMinLat;
+    const nextBboxMaxLat = typeof body.bboxMaxLat === 'number' ? body.bboxMaxLat : district.bboxMaxLat;
+    const nextBboxMinLon = typeof body.bboxMinLon === 'number' ? body.bboxMinLon : district.bboxMinLon;
+    const nextBboxMaxLon = typeof body.bboxMaxLon === 'number' ? body.bboxMaxLon : district.bboxMaxLon;
+
     onSaved({
-      division: body.division ?? district.division,
-      deoName: form.deoName || null, deoEmail: form.deoEmail || null, deoId: form.deoId || null,
-      expectedVendCount: body.expectedVendCount ?? district.expectedVendCount,
-      bboxMinLat: body.bboxMinLat ?? district.bboxMinLat, bboxMaxLat: body.bboxMaxLat ?? district.bboxMaxLat,
-      bboxMinLon: body.bboxMinLon ?? district.bboxMinLon, bboxMaxLon: body.bboxMaxLon ?? district.bboxMaxLon,
+      division: nextDivision,
+      deoName: nextDeoName,
+      deoEmail: nextDeoEmail,
+      deoId: nextDeoId,
+      expectedVendCount: nextExpectedVendCount,
+      bboxMinLat: nextBboxMinLat,
+      bboxMaxLat: nextBboxMaxLat,
+      bboxMinLon: nextBboxMinLon,
+      bboxMaxLon: nextBboxMaxLon,
     });
   }
 
