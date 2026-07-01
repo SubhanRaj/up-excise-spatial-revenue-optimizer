@@ -6,6 +6,9 @@ import { generateProvisionTemplate } from '@/lib/excel';
 import HelpPanel from '@/app/_components/HelpPanel';
 import { useAdminDistricts } from '@/hooks/useAdminDistricts';
 import { adminDistrictsCache } from '@/lib/db';
+import { useSession } from '@/hooks/useSession';
+
+const SUPERADMIN_EMAIL = 'shubhanraj2002@gmail.com';
 
 interface DistrictRow {
   name: string; division: string | null; deoName: string | null; deoEmail: string | null;
@@ -202,9 +205,11 @@ function EditDrawer({ district, onClose, onSaved }: { district: DistrictRow; onC
 }
 
 export default function DistrictMasterPage() {
+  const { session } = useSession();
   const { districts: hookDistricts, loading } = useAdminDistricts();
   const [districtRows, setDistrictRows] = useState<DistrictRow[]>([]);
   const [editing, setEditing] = useState<DistrictRow | null>(null);
+  const [resetting, setResetting] = useState(false);
 
   // Seed local state from hook once data arrives
   useEffect(() => {
@@ -248,6 +253,15 @@ export default function DistrictMasterPage() {
     const a = document.createElement('a');
     a.href = url; a.download = 'deo-provision-template.xlsx'; a.click();
     URL.revokeObjectURL(url);
+  }
+
+  async function resetTestData() {
+    if (!confirm('This will delete ALL shop data, circles/sectors, audit log, DEO accounts, and reset all districts to pending. Your admin account is preserved. Continue?')) return;
+    setResetting(true);
+    await fetch('/api/admin/reset-test-data', { method: 'POST' });
+    adminDistrictsCache.invalidate();
+    setResetting(false);
+    window.location.reload();
   }
 
   async function provision() {
@@ -367,6 +381,24 @@ export default function DistrictMasterPage() {
           </div>
         )}
       </div>
+
+      {session?.email === SUPERADMIN_EMAIL && (
+        <div className="card bg-base-100 shadow p-6 border border-error/30">
+          <h2 className="text-xl font-bold text-error mb-1">Danger Zone</h2>
+          <p className="text-sm text-base-content/70 mb-4">
+            Deletes all shop records, circles/sectors, audit log, and DEO accounts. Resets all 75 district statuses to pending.
+            Your admin account is preserved. Use this to wipe test data before the real campaign.
+          </p>
+          <button className="btn btn-error btn-sm" onClick={resetTestData} disabled={resetting}>
+            {resetting ? <span className="loading loading-spinner loading-sm" /> : (
+              <>
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                Reset All Test Data
+              </>
+            )}
+          </button>
+        </div>
+      )}
 
       {editing && (
         <EditDrawer district={editing} onClose={() => setEditing(null)} onSaved={(updated) => applyEdit(editing.name, updated)} />

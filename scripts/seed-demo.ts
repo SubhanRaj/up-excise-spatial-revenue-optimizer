@@ -24,7 +24,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const DISTRICT       = 'Demo District';
 const DIVISION       = 'Lucknow'; // bare name — must match the real 75 districts' division strings exactly
 const DEO_NAME       = 'Demo DEO Officer';
-const DEO_EMAIL      = 'shubhanraj2002+deo@gmail.com';
+const DEO_EMAIL      = 'subhanraj2002@gmail.com';
 const DEO_ID         = 'DEO-DEMO-001';
 const EXP_VEND_COUNT = 1500;
 

@@ -1,0 +1,30 @@
+import { NextResponse } from 'next/server';
+import { getCloudflareContext } from '@opennextjs/cloudflare';
+import { drizzle } from 'drizzle-orm/d1';
+import { sql } from 'drizzle-orm';
+import { getSession } from '@/lib/auth';
+
+const SUPERADMIN_EMAIL = 'shubhanraj2002@gmail.com';
+
+export async function POST() {
+  const user = await getSession();
+  if (!user || user.role !== 'admin' || user.email !== SUPERADMIN_EMAIL) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
+  const { env } = await getCloudflareContext({ async: true }) as { env: CloudflareEnv };
+  const db = drizzle(env.DB);
+
+  // Order matters: delete sessions before users (FK), delete shop data, reset districts.
+  // Districts rows are kept; only status is reset. Admin auth_users row is preserved.
+  await db.batch([
+    db.run(sql`DELETE FROM auth_sessions WHERE user_id IN (SELECT id FROM auth_users WHERE role = 'deo')`),
+    db.run(sql`DELETE FROM auth_users WHERE role = 'deo'`),
+    db.run(sql`DELETE FROM phase1_raw_collection`),
+    db.run(sql`DELETE FROM district_circles_sectors`),
+    db.run(sql`DELETE FROM audit_log`),
+    db.run(sql`UPDATE districts SET status = 'pending', submitted_at = NULL`),
+  ]);
+
+  return NextResponse.json({ ok: true });
+}

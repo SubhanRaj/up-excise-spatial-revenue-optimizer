@@ -7,6 +7,7 @@ export interface SessionInfo {
   name: string;
   role: string;
   districtName: string | null;
+  email: string;
 }
 
 // ponytail: module-level cache — one fetch per tab, shared across all components
