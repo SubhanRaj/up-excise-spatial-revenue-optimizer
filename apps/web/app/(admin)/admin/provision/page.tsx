@@ -59,20 +59,41 @@ function EditDrawer({ district, onClose, onSaved }: { district: DistrictRow; onC
       setForm((f) => ({ ...f, [field]: e.target.value }));
   }
 
+  function parseOptionalNumber(value: string): number | undefined {
+    const trimmed = value.trim();
+    if (trimmed === '') return undefined;
+    const parsed = Number(trimmed);
+    return Number.isFinite(parsed) ? parsed : Number.NaN;
+  }
+
   async function save() {
     setSaving(true);
     setError(null);
-    const body = {
-      division: form.division || undefined,
-      deoName: form.deoName,
-      deoEmail: form.deoEmail,
-      deoId: form.deoId,
-      expectedVendCount: form.expectedVendCount === '' ? undefined : Number(form.expectedVendCount),
-      bboxMinLat: form.bboxMinLat === '' ? undefined : Number(form.bboxMinLat),
-      bboxMaxLat: form.bboxMaxLat === '' ? undefined : Number(form.bboxMaxLat),
-      bboxMinLon: form.bboxMinLon === '' ? undefined : Number(form.bboxMinLon),
-      bboxMaxLon: form.bboxMaxLon === '' ? undefined : Number(form.bboxMaxLon),
-    };
+    const body: Record<string, string | number | undefined> = {};
+
+    if (form.division.trim() !== (district.division ?? '').trim()) body.division = form.division.trim();
+    if (form.deoName.trim() !== (district.deoName ?? '').trim()) body.deoName = form.deoName.trim();
+    if (form.deoEmail.trim() !== (district.deoEmail ?? '').trim()) body.deoEmail = form.deoEmail.trim();
+    if (form.deoId.trim() !== (district.deoId ?? '').trim()) body.deoId = form.deoId.trim();
+
+    const expectedVendCount = parseOptionalNumber(form.expectedVendCount);
+    const bboxMinLat = parseOptionalNumber(form.bboxMinLat);
+    const bboxMaxLat = parseOptionalNumber(form.bboxMaxLat);
+    const bboxMinLon = parseOptionalNumber(form.bboxMinLon);
+    const bboxMaxLon = parseOptionalNumber(form.bboxMaxLon);
+
+    if (form.expectedVendCount.trim() !== String(district.expectedVendCount ?? '')) body.expectedVendCount = expectedVendCount;
+    if (form.bboxMinLat.trim() !== String(district.bboxMinLat ?? '')) body.bboxMinLat = bboxMinLat;
+    if (form.bboxMaxLat.trim() !== String(district.bboxMaxLat ?? '')) body.bboxMaxLat = bboxMaxLat;
+    if (form.bboxMinLon.trim() !== String(district.bboxMinLon ?? '')) body.bboxMinLon = bboxMinLon;
+    if (form.bboxMaxLon.trim() !== String(district.bboxMaxLon ?? '')) body.bboxMaxLon = bboxMaxLon;
+
+    if (Object.keys(body).length === 0) {
+      setSaving(false);
+      setError('No changes to save');
+      return;
+    }
+
     const res = await fetch(`/api/admin/districts/${encodeURIComponent(district.name)}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },

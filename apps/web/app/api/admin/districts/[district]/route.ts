@@ -35,6 +35,20 @@ interface DistrictPatchBody {
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+function normalizeText(value: unknown): string | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  return trimmed === '' ? null : trimmed;
+}
+
+function normalizeNumber(value: unknown): number | undefined {
+  if (value === undefined || value === null || value === '') return undefined;
+  const parsed = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : Number.NaN;
+}
+
 // District Master inline edit — minor corrections (division, DEO assignment, expected
 // vend count, bbox). Bulk Excel provisioning remains the path for initial campaign setup.
 export async function PATCH(
@@ -46,8 +60,23 @@ export async function PATCH(
 
   const { district } = await params;
   const body = await req.json() as DistrictPatchBody;
-  if (body.deoEmail && !EMAIL_RE.test(body.deoEmail)) {
+  const division = normalizeText(body.division);
+  const deoName = normalizeText(body.deoName);
+  const deoEmail = normalizeText(body.deoEmail);
+  const deoId = normalizeText(body.deoId);
+  const expectedVendCount = normalizeNumber(body.expectedVendCount);
+  const bboxMinLat = normalizeNumber(body.bboxMinLat);
+  const bboxMaxLat = normalizeNumber(body.bboxMaxLat);
+  const bboxMinLon = normalizeNumber(body.bboxMinLon);
+  const bboxMaxLon = normalizeNumber(body.bboxMaxLon);
+
+  if (deoEmail && !EMAIL_RE.test(deoEmail)) {
     return NextResponse.json({ error: 'Invalid DEO email' }, { status: 400 });
+  }
+  for (const value of [expectedVendCount, bboxMinLat, bboxMaxLat, bboxMinLon, bboxMaxLon]) {
+    if (Number.isNaN(value)) {
+      return NextResponse.json({ error: 'Invalid numeric value' }, { status: 400 });
+    }
   }
 
   const { env } = await getCloudflareContext({ async: true }) as { env: CloudflareEnv };
@@ -56,34 +85,38 @@ export async function PATCH(
   const existing = await db.select().from(districts).where(eq(districts.name, district)).get();
   if (!existing) return NextResponse.json({ error: 'District not found' }, { status: 404 });
 
-  const newDeoEmail = body.deoEmail?.trim() || null;
-  const newDeoName = body.deoName?.trim() || existing.deoName;
-  const newDeoId = body.deoId?.trim() || existing.deoId;
+  const updates: Record<string, unknown> = {};
+  if (body.division !== undefined) updates.division = division;
+  if (body.deoName !== undefined) updates.deoName = deoName;
+  if (body.deoEmail !== undefined) updates.deoEmail = deoEmail;
+  if (body.deoId !== undefined) updates.deoId = deoId;
+  if (body.expectedVendCount !== undefined) updates.expectedVendCount = expectedVendCount;
+  if (body.bboxMinLat !== undefined) updates.bboxMinLat = bboxMinLat;
+  if (body.bboxMaxLat !== undefined) updates.bboxMaxLat = bboxMaxLat;
+  if (body.bboxMinLon !== undefined) updates.bboxMinLon = bboxMinLon;
+  if (body.bboxMaxLon !== undefined) updates.bboxMaxLon = bboxMaxLon;
+
+  if (Object.keys(updates).length === 0) {
+    return NextResponse.json({ error: 'No changes provided' }, { status: 400 });
+  }
 
   await db.transaction(async (tx) => {
-    await tx.update(districts).set({
-      ...(body.division !== undefined ? { division: body.division } : {}),
-      ...(body.deoName !== undefined ? { deoName: newDeoName } : {}),
-      ...(body.deoEmail !== undefined ? { deoEmail: newDeoEmail } : {}),
-      ...(body.deoId !== undefined ? { deoId: newDeoId } : {}),
-      ...(body.expectedVendCount !== undefined ? { expectedVendCount: body.expectedVendCount } : {}),
-      ...(body.bboxMinLat !== undefined ? { bboxMinLat: body.bboxMinLat } : {}),
-      ...(body.bboxMaxLat !== undefined ? { bboxMaxLat: body.bboxMaxLat } : {}),
-      ...(body.bboxMinLon !== undefined ? { bboxMinLon: body.bboxMinLon } : {}),
-      ...(body.bboxMaxLon !== undefined ? { bboxMaxLon: body.bboxMaxLon } : {}),
-    }).where(eq(districts.name, district));
+    await tx.update(districts).set(updates).where(eq(districts.name, district));
 
-    if (body.deoEmail !== undefined && existing.deoEmail && existing.deoEmail !== newDeoEmail) {
+    if (body.deoEmail !== undefined && existing.deoEmail && existing.deoEmail !== deoEmail) {
       await tx.delete(authUsers).where(eq(authUsers.email, existing.deoEmail));
     }
 
-    if (newDeoEmail) {
+    if (deoEmail) {
       await tx.insert(authUsers).values({
-        email: newDeoEmail, name: newDeoName ?? newDeoEmail, role: 'deo',
-        deoId: newDeoId, districtName: district,
+        email: deoEmail,
+        name: deoName ?? existing.deoName ?? deoEmail,
+        role: 'deo',
+        deoId: deoId ?? existing.deoId,
+        districtName: district,
       }).onConflictDoUpdate({
         target: authUsers.email,
-        set: { name: newDeoName ?? newDeoEmail, deoId: newDeoId, districtName: district },
+        set: { name: deoName ?? existing.deoName ?? deoEmail, deoId: deoId ?? existing.deoId, districtName: district },
       });
     }
   });

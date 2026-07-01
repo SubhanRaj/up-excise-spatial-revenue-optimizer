@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import Link from 'next/link';
 import { useSession } from '@/hooks/useSession';
 import HelpPanel from '@/app/_components/HelpPanel';
 
@@ -13,11 +14,14 @@ export default function UnitsPage() {
   const [name, setName] = useState('');
   const [type, setType] = useState<'circle' | 'sector'>('circle');
   const [loading, setLoading] = useState(false);
+  const [unitsLoading, setUnitsLoading] = useState(false);
 
   const load = useCallback(async () => {
     if (!district) return;
+    setUnitsLoading(true);
     const res = await fetch(`/api/districts/${encodeURIComponent(district)}/units`);
     if (res.ok) setUnits(await res.json());
+    setUnitsLoading(false);
   }, [district]);
 
   useEffect(() => { void load(); }, [load]);
@@ -66,8 +70,8 @@ export default function UnitsPage() {
         <HelpPanel pageKey="units" title="Circles & Sectors — How it works">
           <p><strong>Step 1 — Register all circles and sectors</strong> for your district before distributing the Excel template to Inspectors. Use the form below to add each unit by name and type.</p>
           <p><strong>Naming tip:</strong> Use consistent names across all Inspectors — e.g. "Circle 1", "Circle 2", "Sector A". Each Inspector will enter this name on every row they fill in the template.</p>
-          <p><strong>Step 2 — Download the district template</strong> using the button below (appears once you have at least one unit). The template has one sheet with all data columns and a "Column Guide" sheet explaining each field.</p>
-          <p><strong>Step 3 — Distribute blank copies</strong> of the template to each Inspector. They fill their rows, enter their circle/sector name in the <code>circle_sector_name</code> column, and return the completed file to you.</p>
+          <p><strong>Step 2 — Verify each unit</strong> once it is registered, then open the upload flow. The verify and upload buttons below stay available for each registered unit.</p>
+          <p><strong>Step 3 — Download the district template</strong> using the button below (appears once you have at least one unit). The template has one sheet with all data columns and a "Column Guide" sheet explaining each field.</p>
           <p><strong>Step 4 — Consolidate</strong> all Inspector sections into a single district Excel file and upload it on the <a href="/upload" className="link">Upload page</a>.</p>
         </HelpPanel>
       </div>
@@ -99,20 +103,26 @@ export default function UnitsPage() {
         {units.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="table table-zebra w-full" role="grid" aria-label="Registered units">
-              <thead><tr><th>#</th><th>Name</th><th>Type</th></tr></thead>
+              <thead><tr><th>#</th><th>Name</th><th>Type</th><th>Actions</th></tr></thead>
               <tbody>
                 {units.map((u, i) => (
                   <tr key={u.id} role="row">
                     <td role="gridcell">{i + 1}</td>
                     <td role="gridcell">{u.name}</td>
                     <td role="gridcell"><span className="badge badge-outline capitalize">{u.type}</span></td>
+                    <td role="gridcell">
+                      <div className="flex gap-2 flex-wrap">
+                        <Link href="/verify" className="btn btn-ghost btn-xs">Verify</Link>
+                        <Link href="/upload" className="btn btn-primary btn-xs">Upload</Link>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         ) : (
-          <p className="text-base-content/60 text-sm">No units registered yet. Add circles and sectors above.</p>
+          <p className="text-base-content/60 text-sm">{unitsLoading ? 'Loading registered units…' : 'No units registered yet. Add circles and sectors above.'}</p>
         )}
       </div>
 

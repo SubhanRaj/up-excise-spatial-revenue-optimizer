@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
+import Link from 'next/link';
 import { useSession } from '@/hooks/useSession';
 import { stagingDb } from '@/lib/db';
 
@@ -74,9 +75,27 @@ export default function VerifyPage() {
   const [uploadedRows, setUploadedRows] = useState<StagedRow[]>([]);
   const [uploadedLoading, setUploadedLoading] = useState(false);
   const [uploadedError, setUploadedError] = useState<string | null>(null);
+  const [unitsReady, setUnitsReady] = useState(false);
+
+  const loadUnits = useCallback(async () => {
+    if (!district) return [];
+    try {
+      const res = await fetch(`/api/districts/${encodeURIComponent(district)}/units`);
+      const data = res.ok ? await res.json() as { id: number; name: string; type: string }[] : [];
+      const unitNames = [...new Set(data.map((u) => u.name).filter(Boolean))];
+      setUnits(unitNames);
+      setActiveUnit((prev) => prev || unitNames[0] || '');
+      setUnitsReady(unitNames.length > 0);
+      return unitNames;
+    } catch {
+      setUnits([]);
+      setUnitsReady(false);
+      return [];
+    }
+  }, [district]);
 
   const loadUploadedRows = useCallback(async (): Promise<StagedRow[]> => {
-    if (!district) return [];
+    if (!district || !unitsReady) return [];
     setUploadedLoading(true);
     setUploadedError(null);
     try {
@@ -97,7 +116,7 @@ export default function VerifyPage() {
     } finally {
       setUploadedLoading(false);
     }
-  }, [district]);
+  }, [district, unitsReady]);
 
   const loadRows = useCallback(async () => {
     const all = await stagingDb.getAll();
@@ -109,9 +128,17 @@ export default function VerifyPage() {
 
   useEffect(() => { void loadRows(); }, [loadRows]);
 
+  useEffect(() => {
+    void loadUnits();
+  }, [loadUnits]);
+
   // ponytail: one-shot auto-switch — runs once when district is known, avoids infinite viewMode toggle
   useEffect(() => {
     if (!district) return;
+    if (!unitsReady) {
+      setViewMode('staged');
+      return;
+    }
     stagingDb.getAll().then((all) => {
       if (all.length === 0) {
         setViewMode('uploaded');
@@ -119,7 +146,7 @@ export default function VerifyPage() {
       }
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [district]);
+  }, [district, unitsReady]);
 
   // All Thana names within this district's staged data — used for cross-district pill check
   const districtThanas = useMemo(() => new Set((viewMode === 'uploaded' ? uploadedRows : rows).map((r) => r.thanaName)), [rows, uploadedRows, viewMode]);
@@ -140,7 +167,7 @@ export default function VerifyPage() {
   const paged = useMemo(() => unitRows.slice((page - 1) * pageSize, page * pageSize), [unitRows, page, pageSize]);
   const totalPages = Math.ceil(unitRows.length / pageSize);
 
-  const canSubmit = viewMode === 'staged' && units.length > 0 && units.every((u) => rows.some((r) => r.circleSectorName === u && r.status !== 'error'));
+  const canSubmit = unitsReady && viewMode === 'staged' && units.length > 0 && units.every((u) => rows.some((r) => r.circleSectorName === u && r.status !== 'error'));
 
   async function updateRow(id: number | undefined, changes: Partial<StagedRow>) {
     if (id == null) return;
@@ -250,6 +277,7 @@ export default function VerifyPage() {
           <h2 className="text-xl font-bold">Verify &amp; Submit — {district}</h2>
           <HelpPanel pageKey="verify" title="Verification — How to review and submit">
             <p><strong>Unit tabs</strong> — Click a unit card to switch between circles/sectors. Each card shows how many rows have been uploaded. All units must have at least one row before submission is allowed.</p>
+            <p><strong>Workflow gate</strong> — Uploading district data is locked until at least one circle or sector exists. Create units first, then upload, then verify.</p>
             <p><strong>View mode</strong> — Switch between <em>Staged Data</em> (your local upload queue) and <em>Uploaded Data</em> (read-only district rows loaded from D1). Demo DEO data appears in the uploaded view if nothing has been staged locally yet.</p>
             <p><strong>Adjacent Thana pills</strong> — Thana names in the &quot;Adjacent Thanas&quot; column are shown as pills. <span className="text-error font-semibold">Red pills</span> indicate cross-district adjacency — these must be removed (click ×) before the row can be submitted. Same-district Thanas show as outlined pills.</p>
             <p><strong>Coordinates</strong> — A <span className="text-warning">⚠ warning icon</span> means the coordinate is outside the UP bounding box. A <span className="text-success">✓ icon</span> means valid. Review warnings before submitting — they are not blocked, but should be verified.</p>
@@ -259,13 +287,14 @@ export default function VerifyPage() {
         </div>
         <div className="flex gap-2 flex-wrap justify-end">
           <div className="join">
-            <button className={`join-item btn btn-sm ${viewMode === 'staged' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setViewMode('staged')} disabled={rows.length === 0}>
+            <button className={`join-item btn btn-sm ${viewMode === 'staged' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setViewMode('staged')} disabled={rows.length === 0 || !unitsReady}>
               Staged Data
             </button>
             <button className={`join-item btn btn-sm ${viewMode === 'uploaded' ? 'btn-primary' : 'btn-outline'}`} onClick={async () => {
+              if (!unitsReady) return;
               setViewMode('uploaded');
               if (uploadedRows.length === 0 && !uploadedLoading) await loadUploadedRows();
-            }}>
+            }} disabled={!unitsReady}>
               Uploaded Data
             </button>
           </div>
@@ -307,12 +336,19 @@ export default function VerifyPage() {
             {u.count === 0 && <span className="badge badge-error badge-xs mt-1">No data</span>}
           </div>
         ))}
-        {visibleRows.length === 0 && viewMode === 'staged' && (
+        {!unitsReady && (
+          <div className="col-span-4 alert alert-warning">
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            <span>Create at least one circle or sector before verification and district upload become visible.</span>
+            <Link href="/units" className="btn btn-sm btn-warning ml-auto">Go to Circles &amp; Sectors</Link>
+          </div>
+        )}
+        {visibleRows.length === 0 && viewMode === 'staged' && unitsReady && (
           <div className="col-span-4 text-base-content/60 text-sm">
             No staged data. <a href="/upload" className="link">Upload a file first.</a>
           </div>
         )}
-        {visibleRows.length === 0 && viewMode === 'uploaded' && (
+        {visibleRows.length === 0 && viewMode === 'uploaded' && unitsReady && (
           <div className="col-span-4 text-base-content/60 text-sm">
             {uploadedLoading ? 'Loading uploaded district data…' : uploadedError ?? 'No uploaded district rows found.'}
           </div>
@@ -320,7 +356,7 @@ export default function VerifyPage() {
       </div>
 
       {/* Verification table */}
-      {paged.length > 0 && (
+      {unitsReady && paged.length > 0 && (
         <>
           <div className="overflow-x-auto card bg-base-100 shadow">
             <table className="table table-sm" role="grid" aria-label={`${viewMode === 'uploaded' ? 'Uploaded district data' : 'Verification'} table for ${activeUnit}`}>
@@ -421,7 +457,7 @@ export default function VerifyPage() {
         >
           {uploading ? <span className="loading loading-spinner" /> : 'Submit District'}
         </button>
-        {!canSubmit && units.length > 0 && (
+        {!canSubmit && unitsReady && units.length > 0 && (
           <p className="text-sm text-warning" role="alert">
             All units must have at least one row to enable submission.
           </p>
