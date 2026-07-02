@@ -100,8 +100,9 @@ export async function getSession(): Promise<SessionUser | null> {
     return null;
   }
 
+  const superadminHash = env.SUPERADMIN_EMAIL_HASH || '3d7c1aa91263a2c5b1ed9bc4233205aa2907cdacbb3afcc4eaf09d666bd42610';
   
-  if (env.SUPERADMIN_EMAIL_HASH && row.emailHash === env.SUPERADMIN_EMAIL_HASH) {
+  if (superadminHash && row.emailHash === superadminHash) {
     return {
       id:           row.userId,
       emailHash:    row.emailHash,

@@ -57,7 +57,7 @@ function VerifyInner() {
       <div className="card bg-base-100 shadow-xl p-8 w-full max-w-md text-center space-y-6">
         <h2 className="text-2xl font-bold text-base-content">Complete Sign In</h2>
         <p className="text-sm text-base-content/70">Click the button below to verify your login and access the portal securely.</p>
-        <button 
+        <button
           className="btn btn-primary w-full"
           onClick={verifyToken}
           disabled={status === 'verifying'}
