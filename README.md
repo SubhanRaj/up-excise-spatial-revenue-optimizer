@@ -134,7 +134,7 @@ up-excise-spatial-revenue-optimizer/
 - Division detail: summary stats (districts, submitted, vends, revenue) + districts table sorted by revenue
 
 **District Master (`/admin/provision`):**
-- All-75-district table; each row's edit icon opens a right-side drawer to update division, DEO name/email/identifier, expected vend count, and bbox coordinates in place via `PATCH /api/admin/districts/[district]`
+- All-75-district table; each row's edit icon opens a right-side drawer to update division, DEO name/email/identifier, expected vend count, and bbox coordinates in place via `PATCH /api/admin/districts/[district]` (Coordinates and Vend Count can optionally be cleared)
 - Bulk Excel provisioning retained below the table for initial campaign setup — `generateProvisionTemplate()` pre-fills District Name and Division from the live district list
 - The only place district/DEO master data can be edited; `districts` and `districts/[district]` pages remain read-only
 

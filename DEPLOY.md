@@ -127,7 +127,7 @@ INSERT INTO auth_users (email, name, role, deo_id, district_name)
 VALUES ('deo@example.gov.in', 'DEO Name', 'deo', 'DEO-XXX-001', 'District Name');
 ```
 
-Or use the admin portal's **District Master** page (`/admin/provision`) — either the per-district edit drawer (`PATCH /api/admin/districts/[district]`) for a single DEO, or bulk Excel upload (`POST /api/admin/bulk-provision`) for many at once.
+Or use the admin portal's **District Master** page (`/admin/provision`) — either the per-district edit drawer (`PATCH /api/admin/districts/[district]`, where coordinates and vend counts can be explicitly cleared to `null` if needed) for a single DEO, or bulk Excel upload (`POST /api/admin/bulk-provision`) for many at once.
 
 ---
 
