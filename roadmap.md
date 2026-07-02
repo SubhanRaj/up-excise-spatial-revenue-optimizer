@@ -1472,6 +1472,20 @@ M-6: Auth Migration + Single Worker       [Post-M5]         ✅ Complete
 
 ---
 
+### M-12: Excel Template UX & Developer QoL ✅ Complete
+
+**Objective:** Improve the DEO user experience when interacting with the downloaded template and improve developer workflow for testing.
+
+**Deliverables:**
+
+- [x] Refactored `apps/web/src/lib/excel.ts` to output a 3-sheet workbook: Data Entry, Demo Data, and Instructions.
+- [x] Consolidated the 4 verbose coordinate columns into 2 dynamic columns (`latitude` and `longitude`) that securely process either DD or DMS via the existing `normalizeCoordinates` function.
+- [x] Added a seamless role override in the `createSession` middleware to dynamically grant `superadmin` access to the developer email (`shubhanraj2002@gmail.com`), bypassing DB resets to test both `/deo` and `/admin` portals interchangeably.
+
+**Exit criterion:** DEO templates are cleaner and self-documenting. Developers can test the full platform lifecycle without manually toggling roles in the D1 database.
+
+---
+
 ### Timeline Summary
 
 | Milestone | Duration | Key Dependency |
