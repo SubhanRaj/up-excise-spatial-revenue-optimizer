@@ -78,10 +78,6 @@ function EditDrawer({ district, onClose, onSaved }: { district: DistrictRow; onC
     return Number.isFinite(parsed) ? parsed : Number.NaN;
   }
 
-  function isInvalidNumeric(value: number | undefined): boolean {
-    return value === undefined || Number.isNaN(value);
-  }
-
   async function save() {
     setSaving(true);
     setError(null);
@@ -98,17 +94,38 @@ function EditDrawer({ district, onClose, onSaved }: { district: DistrictRow; onC
     const bboxMinLon = parseOptionalNumber(form.bboxMinLon);
     const bboxMaxLon = parseOptionalNumber(form.bboxMaxLon);
 
-    if (isInvalidNumeric(expectedVendCount) || isInvalidNumeric(bboxMinLat) || isInvalidNumeric(bboxMaxLat) || isInvalidNumeric(bboxMinLon) || isInvalidNumeric(bboxMaxLon)) {
+    if (expectedVendCount !== undefined && Number.isNaN(expectedVendCount)) {
       setSaving(false);
-      setError('Please enter valid numeric values');
+      setError('Please enter a valid numeric value for Expected Vend Count');
+      return;
+    }
+    
+    if (
+      (bboxMinLat !== undefined && Number.isNaN(bboxMinLat)) ||
+      (bboxMaxLat !== undefined && Number.isNaN(bboxMaxLat)) ||
+      (bboxMinLon !== undefined && Number.isNaN(bboxMinLon)) ||
+      (bboxMaxLon !== undefined && Number.isNaN(bboxMaxLon))
+    ) {
+      setSaving(false);
+      setError('Please enter valid numeric coordinates for Latitude and Longitude');
       return;
     }
 
-    if (expectedVendCount !== undefined && expectedVendCount !== district.expectedVendCount) body.expectedVendCount = expectedVendCount as number;
-    if (bboxMinLat !== undefined && bboxMinLat !== district.bboxMinLat) body.bboxMinLat = bboxMinLat as number;
-    if (bboxMaxLat !== undefined && bboxMaxLat !== district.bboxMaxLat) body.bboxMaxLat = bboxMaxLat as number;
-    if (bboxMinLon !== undefined && bboxMinLon !== district.bboxMinLon) body.bboxMinLon = bboxMinLon as number;
-    if (bboxMaxLon !== undefined && bboxMaxLon !== district.bboxMaxLon) body.bboxMaxLon = bboxMaxLon as number;
+    // if cleared (empty string), it sends null to clear the database
+    if (form.expectedVendCount.trim() === '' && district.expectedVendCount !== null) body.expectedVendCount = null as any;
+    else if (expectedVendCount !== undefined && expectedVendCount !== district.expectedVendCount) body.expectedVendCount = expectedVendCount;
+
+    if (form.bboxMinLat.trim() === '' && district.bboxMinLat !== null) body.bboxMinLat = null as any;
+    else if (bboxMinLat !== undefined && bboxMinLat !== district.bboxMinLat) body.bboxMinLat = bboxMinLat;
+
+    if (form.bboxMaxLat.trim() === '' && district.bboxMaxLat !== null) body.bboxMaxLat = null as any;
+    else if (bboxMaxLat !== undefined && bboxMaxLat !== district.bboxMaxLat) body.bboxMaxLat = bboxMaxLat;
+
+    if (form.bboxMinLon.trim() === '' && district.bboxMinLon !== null) body.bboxMinLon = null as any;
+    else if (bboxMinLon !== undefined && bboxMinLon !== district.bboxMinLon) body.bboxMinLon = bboxMinLon;
+
+    if (form.bboxMaxLon.trim() === '' && district.bboxMaxLon !== null) body.bboxMaxLon = null as any;
+    else if (bboxMaxLon !== undefined && bboxMaxLon !== district.bboxMaxLon) body.bboxMaxLon = bboxMaxLon;
 
     if (Object.keys(body).length === 0) {
       setSaving(false);

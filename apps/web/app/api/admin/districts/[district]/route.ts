@@ -29,8 +29,8 @@ export async function GET(
 
 interface DistrictPatchBody {
   division?: string; deoName?: string; deoEmail?: string; deoId?: string;
-  expectedVendCount?: number;
-  bboxMinLat?: number; bboxMaxLat?: number; bboxMinLon?: number; bboxMaxLon?: number;
+  expectedVendCount?: number | null;
+  bboxMinLat?: number | null; bboxMaxLat?: number | null; bboxMinLon?: number | null; bboxMaxLon?: number | null;
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -43,8 +43,9 @@ function normalizeText(value: unknown): string | null | undefined {
   return trimmed === '' ? null : trimmed;
 }
 
-function normalizeNumber(value: unknown): number | undefined {
-  if (value === undefined || value === null || value === '') return undefined;
+function normalizeNumber(value: unknown): number | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null || value === '') return null;
   const parsed = typeof value === 'number' ? value : Number(value);
   return Number.isFinite(parsed) ? parsed : Number.NaN;
 }

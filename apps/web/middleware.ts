@@ -21,7 +21,7 @@ export default function middleware(req: NextRequest) {
   if (pathname.match(/^\/admin/) && role !== 'admin' && role !== 'superadmin') {
     return NextResponse.redirect(new URL('/login', req.url));
   }
-  if (pathname.match(/^\/(home|upload|verify|units)/) && role !== 'deo' && role !== 'superadmin') {
+  if (pathname.match(/^\/(home|upload|verify|units)/) && role !== 'deo' && role !== 'superadmin' && role !== 'admin') {
     return NextResponse.redirect(new URL('/login', req.url));
   }
 
