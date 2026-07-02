@@ -23,8 +23,6 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 // ─── Config ────────────────────────────────────────────────────────────────
 const DISTRICT       = 'Demo District';
 const DIVISION       = 'Lucknow'; // bare name — must match the real 75 districts' division strings exactly
-const DEO_NAME       = 'Demo DEO Officer';
-const DEO_EMAIL      = 'subhanraj2002@gmail.com';
 const DEO_ID         = 'DEO-DEMO-001';
 const EXP_VEND_COUNT = 1500;
 
@@ -36,8 +34,9 @@ const BHANG_MGQ_MULTIPLIER        = 20;
 const LAT_MIN = 26.60, LAT_MAX = 27.10;
 const LON_MIN = 80.40, LON_MAX = 81.05;
 
-const ADMIN_EMAIL = 'shubhanraj2002@gmail.com';
-const ADMIN_NAME  = 'Subhan Raj';
+// Single identity — shubhanraj2002@gmail.com is used for admin, superadmin bypass, AND demo DEO.
+const OWNER_EMAIL = 'shubhanraj2002@gmail.com';
+const OWNER_NAME  = 'Subhan Raj';
 
 const DB_NAME = 'up-excise-spatial-revenue-optimizer-prod';
 const EXCEL_OUT = join(__dirname, '..', 'docs', 'templates', 'demo-district-data.xlsx');
@@ -194,7 +193,7 @@ function sqlTruncate(): string {
     `DELETE FROM district_circles_sectors WHERE district_name = '${esc(DISTRICT)}';`,
     `DELETE FROM districts WHERE name = '${esc(DISTRICT)}';`,
     `DELETE FROM audit_log WHERE district_name = '${esc(DISTRICT)}';`,
-    `DELETE FROM auth_users WHERE email_hash = '${esc(hashEmail(DEO_EMAIL))}';`,
+    // No auth_user deletion — we never delete the single owner account
   ].join('\n');
 }
 
@@ -204,7 +203,7 @@ function sqlResetAll(): string {
     'DELETE FROM district_circles_sectors;',
     'DELETE FROM districts;',
     'DELETE FROM audit_log;',
-    `DELETE FROM auth_users WHERE role = 'deo';`,
+    // Do not delete auth_users — the owner account must survive a reset
   ].join('\n');
 }
 
@@ -215,11 +214,10 @@ function sqlSeed(shops: Shop[]): string {
     sqlTruncate(),
     '',
     '-- Demo District row (status submitted so HQ dashboard shows it)',
-    `INSERT INTO districts (name, division, deo_name, deo_email_hash, deo_id, expected_vend_count, status, created_at) VALUES ('${esc(DISTRICT)}', '${esc(DIVISION)}', '${esc(DEO_NAME)}', '${esc(hashEmail(DEO_EMAIL))}', '${esc(DEO_ID)}', ${EXP_VEND_COUNT}, 'submitted', ${now});`,
+    `INSERT INTO districts (name, division, deo_name, deo_email_hash, deo_id, expected_vend_count, status, created_at) VALUES ('${esc(DISTRICT)}', '${esc(DIVISION)}', '${esc(OWNER_NAME)}', '${esc(hashEmail(OWNER_EMAIL))}', '${esc(DEO_ID)}', ${EXP_VEND_COUNT}, 'submitted', ${now});`,
     '',
-    '-- Portal accounts (idempotent — admin and demo DEO both restored after any migration wipe)',
-    `INSERT INTO auth_users (email_hash, name, role) VALUES ('${esc(hashEmail(ADMIN_EMAIL))}', '${esc(ADMIN_NAME)}', 'admin') ON CONFLICT(email_hash) DO UPDATE SET name=excluded.name;`,
-    `INSERT INTO auth_users (email_hash, name, role, deo_id, district_name) VALUES ('${esc(hashEmail(DEO_EMAIL))}', '${esc(DEO_NAME)}', 'deo', '${esc(DEO_ID)}', '${esc(DISTRICT)}') ON CONFLICT(email_hash) DO UPDATE SET name=excluded.name, deo_id=excluded.deo_id, district_name=excluded.district_name;`,
+    '-- Single owner account — gets deo_id + district_name so the DEO portal works under the superadmin bypass',
+    `INSERT INTO auth_users (email_hash, name, role, deo_id, district_name) VALUES ('${esc(hashEmail(OWNER_EMAIL))}', '${esc(OWNER_NAME)}', 'admin', '${esc(DEO_ID)}', '${esc(DISTRICT)}') ON CONFLICT(email_hash) DO UPDATE SET name=excluded.name, deo_id=excluded.deo_id, district_name=excluded.district_name;`,
     '',
     '-- Circles and sectors',
   ];

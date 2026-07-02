@@ -118,13 +118,15 @@ pnpm exec opennextjs-cloudflare deploy
 
 | Email | Role | Notes |
 |---|---|---|
-| `shubhanraj2002@gmail.com` | `admin` | HQ account, lands on `/admin` |
-| `shubhanraj2002+deo@gmail.com` | `deo` | Demo DEO, district: Lucknow |
+| `shubhanraj2002@gmail.com` | `admin` + superadmin bypass | Single owner account — accesses both `/admin` and all DEO pages (`/home`, `/upload`, `/verify`, `/units`). `deo_id = DEO-DEMO-001`, `district_name = Demo District` stored in DB so the DEO portal is fully functional under the superadmin bypass. |
 
-**Provision a DEO** (via admin UI or direct D1 insert):
+> **One email, full access.** There is no separate DEO account. The `SUPERADMIN_EMAIL_HASH` worker secret identifies this email and grants elevated access automatically on every login.
+
+**Provision a real DEO** (via admin UI or direct D1 insert):
 ```sql
-INSERT INTO auth_users (email, name, role, deo_id, district_name)
-VALUES ('deo@example.gov.in', 'DEO Name', 'deo', 'DEO-XXX-001', 'District Name');
+-- auth_users stores email_hash, not plaintext email
+INSERT INTO auth_users (email_hash, name, role, deo_id, district_name)
+VALUES ('<sha256_of_email>', 'DEO Name', 'deo', 'DEO-XXX-001', 'District Name');
 ```
 
 Or use the admin portal's **District Master** page (`/admin/provision`) — either the per-district edit drawer (`PATCH /api/admin/districts/[district]`, where coordinates and vend counts can be explicitly cleared to `null` if needed) for a single DEO, or bulk Excel upload (`POST /api/admin/bulk-provision`) for many at once.
@@ -133,14 +135,14 @@ Or use the admin portal's **District Master** page (`/admin/provision`) — eith
 
 ## Demo Data & DB Management
 
-The seed script at `scripts/seed-demo.ts` populates **Demo District** (Lucknow) with 1500 realistic shops covering all five shop types.
+The seed script at `scripts/seed-demo.ts` populates **Demo District** (Lucknow) with 1500 realistic shops covering all five shop types. The single owner account (`shubhanraj2002@gmail.com`) is upserted with `deo_id` and `district_name` so the DEO portal works without a separate account.
 
 | Command | Effect |
 |---|---|
 | `pnpm seed:demo` | Seed Demo District into prod D1 (idempotent) |
 | `pnpm seed:demo -- --excel-only` | Regenerate Excel demo file only |
-| `pnpm seed:demo -- --truncate` | Remove Demo District data from prod D1 |
-| `pnpm seed:demo -- --reset-all` | **Truncate ALL tables** (use before real campaign) |
+| `pnpm seed:demo -- --truncate` | Remove Demo District rows from prod D1 (owner account is **never** deleted) |
+| `pnpm seed:demo -- --reset-all` | **Truncate shop/district tables** — owner account survives (use before real campaign) |
 | `pnpm seed:demo -- --local` | Seed into local D1 dev DB |
 
 **Excel demo file:** `docs/templates/demo-district-data.xlsx`

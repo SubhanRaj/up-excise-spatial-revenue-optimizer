@@ -129,13 +129,27 @@ export default function HomeStats({ district }: { district: string }) {
           <p className="text-xs text-base-content/60">Pull previously uploaded shops from the server to your local device.</p>
           {syncError && <p className="text-xs text-error mt-1">{syncError}</p>}
         </div>
-        <button
-          onClick={handleSync}
-          disabled={isBusy || !!cooldownLabel}
-          className="btn btn-sm btn-outline"
-        >
-          {syncing ? <><span className="loading loading-spinner loading-xs" /> Syncing…</> : cooldownLabel ?? 'Sync from Server'}
-        </button>
+        <div className="flex items-center gap-2">
+          {cooldownLabel && (
+            <button
+              className="btn btn-xs btn-ghost text-base-content/40 hover:text-error"
+              title="Clear sync cooldown"
+              onClick={() => {
+                try { localStorage.removeItem(LS_KEY); } catch { /* ignore */ }
+                setCooldownLabel(null);
+              }}
+            >
+              Reset
+            </button>
+          )}
+          <button
+            onClick={handleSync}
+            disabled={isBusy || !!cooldownLabel}
+            className="btn btn-sm btn-outline"
+          >
+            {syncing ? <><span className="loading loading-spinner loading-xs" /> Syncing…</> : cooldownLabel ?? 'Sync from Server'}
+          </button>
+        </div>
       </div>
     </div>
   );

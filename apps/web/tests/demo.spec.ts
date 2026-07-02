@@ -9,8 +9,8 @@ test.describe('E2E Local Demo - Superadmin Bypass & Excel Upload Flow', () => {
 
   test.beforeAll(() => {
     console.log('Seeding demo data locally...');
-    // Seed the database to ensure shubhanraj2002@gmail.com and Demo District exist
-    execSync('pnpm run seed:demo --local', { stdio: 'inherit' });
+    // Seed the database to ensure shubhanraj2002@gmail.com exist
+    execSync('pnpm run seed:demo -- --local', { stdio: 'inherit' });
   });
 
   test('Complete lifecycle: Login, Create Unit, Upload Excel, Verify, Submit', async ({ page }) => {
@@ -21,10 +21,14 @@ test.describe('E2E Local Demo - Superadmin Bypass & Excel Upload Flow', () => {
     const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
     
-    const insertCmd = `pnpm --filter web exec wrangler d1 execute up-excise-spatial-revenue-optimizer-prod --local --command="INSERT INTO auth_magic_links (email, token_hash, expires_at, used) VALUES ('shubhanraj2002@gmail.com', '${tokenHash}', '${expiresAt}', 0);"`;
+    // auth_magic_links uses email_hash — compute SHA-256 of the single owner email
+    const OWNER_EMAIL = 'shubhanraj2002@gmail.com';
+    const emailHash = crypto.createHash('sha256').update(OWNER_EMAIL.trim().toLowerCase()).digest('hex');
+
+    const insertCmd = `pnpm --filter web exec wrangler d1 execute up-excise-spatial-revenue-optimizer-prod --local --command="INSERT INTO auth_magic_links (email_hash, token_hash, expires_at, used) VALUES ('${emailHash}', '${tokenHash}', '${expiresAt}', 0);"`;
     execSync(insertCmd);
 
-    // 2. Login by visiting the verify route
+    // 2. Login via GET /api/auth/verify?token=... (Playwright navigates; route handles GET)
     console.log('Logging in...');
     await page.goto(`/api/auth/verify?token=${rawToken}`);
     
