@@ -358,9 +358,9 @@ export default function VerifyPage() {
       {/* Verification table */}
       {unitsReady && paged.length > 0 && (
         <>
-          <div className="overflow-x-auto card bg-base-100 shadow">
-            <table className="table table-sm" role="grid" aria-label={`${viewMode === 'uploaded' ? 'Uploaded district data' : 'Verification'} table for ${activeUnit}`}>
-              <thead>
+          <div className="overflow-auto max-h-[calc(100vh-320px)] card bg-base-100 shadow border border-base-200">
+            <table className="table table-sm table-pin-rows" role="grid" aria-label={`${viewMode === 'uploaded' ? 'Uploaded district data' : 'Verification'} table for ${activeUnit}`}>
+              <thead className="bg-base-200 z-10">
                 <tr>
                   <th>Shop ID</th><th>Shop Name</th><th>Thana</th><th>Type</th>
                   <th>Adjacent Thanas</th><th>Coords</th><th>Revenue</th><th>Status</th>

@@ -526,9 +526,9 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
         </div>
 
         {/* Table */}
-        <div className="overflow-x-auto">
-          <table className="table table-xs w-full" role="grid">
-            <thead className="bg-base-50 text-[11px] uppercase tracking-wide text-base-content/50">
+        <div className="overflow-auto max-h-[calc(100vh-250px)] rounded-xl border border-base-200">
+          <table className="table table-xs table-pin-rows w-full" role="grid">
+            <thead className="bg-base-200 text-[11px] uppercase tracking-wide text-base-content/50 z-10">
               <tr>
                 <th
                   className="cursor-pointer hover:text-base-content whitespace-nowrap"
