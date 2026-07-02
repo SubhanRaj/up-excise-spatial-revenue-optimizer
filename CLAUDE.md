@@ -282,6 +282,13 @@ All API routes are same-origin Next.js Route Handlers. The browser sends the ses
 
 ## Hard Constraints — Never Violate These
 
+### Zero-Knowledge PII Storage (Email Hashing)
+
+- **No plaintext emails are permitted in the database.** All tables (`districts`, `auth_users`, `auth_magic_links`) store SHA-256 hashes (`email_hash` / `deo_email_hash`).
+- **Do not add new plaintext email columns.** Any new feature tracking users must rely on hashes.
+- **In-memory hashing:** The frontend collects the plaintext email and can keep it in `sessionStorage`. The backend immediately hashes the input on receipt and discards the plaintext string after sending the magic link email.
+- **Superadmin Configuration:** The developer's/superadmin's email string must never be hardcoded in the codebase. It is driven exclusively by the `SUPERADMIN_EMAIL_HASH` environment variable.
+
 ### Auth Facade — No Public Pages
 
 - **Every route is behind auth** except `/login`, `/auth/verify`, and `/api/healthz`. Middleware redirects unauthenticated requests to `/login` with no `?redirect_url=` query param.

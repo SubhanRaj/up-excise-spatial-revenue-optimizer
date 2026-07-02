@@ -1456,8 +1456,21 @@ M-6: Auth Migration + Single Worker       [Post-M5]         ✅ Complete
 
 ---
 
-### M-11: Admin Portal Offline-First Parity ✅ Complete
+### M-11: PII Email Hashing & Superadmin Config ✅ Complete
 
+**Objective:** Ensure that zero plaintext email addresses are stored in the database or hardcoded in the codebase, preventing unauthorized disclosure of DEO and Admin identities.
+
+**Deliverables:**
+- [x] Schema modified to use `email_hash` and `deo_email_hash` in `auth_users`, `auth_magic_links`, and `districts` tables.
+- [x] Login flow dynamically hashes plaintext emails and only searches D1 by hash.
+- [x] Superadmin config transitioned to the `.env` variable `SUPERADMIN_EMAIL_HASH`, completely removing the developer's email string from the codebase.
+- [x] SessionStorage implemented for storing the plaintext email temporarily in the frontend after login submission.
+
+**Exit criterion:** The entire system works using hashed PII, meaning no plaintext emails exist in D1.
+
+---
+
+### M-12: E2E Playwright Automation ✅ Complete
 **Objective:** Enforce the IndexedDB-first caching pattern across all remaining admin pages to eliminate unnecessary Cloudflare Worker CPU execution and D1 read operations.
 
 **Deliverables:**

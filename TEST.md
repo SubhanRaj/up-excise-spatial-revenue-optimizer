@@ -28,3 +28,22 @@ To trigger the demo run, simply open a terminal in your project root and follow 
    ```
 
 The script is set to run with `--headed` mode via `package.json`, which means a Chrome browser window will pop up automatically. You will see the cursor flying through the application, performing every step from login to upload and final submission.
+
+## Security & Database Resets (PII Hashing)
+
+Since the platform employs zero-knowledge plaintext emails (saving only SHA-256 hashes for DEOs in the database), the login flow hashes inputs on-the-fly.
+
+If you ever manually modify the schema or want to test email hashing logic on a clean slate, you can reset all databases and re-seed the hashed values using:
+
+```bash
+# Reset & Seed Local Environment
+pnpm seed:demo --reset-all --local
+pnpm seed:districts -- --local
+pnpm seed:demo --local
+
+# Reset & Seed Production (Remote) Environment
+pnpm --filter web exec wrangler d1 execute up-excise-spatial-revenue-optimizer-prod --remote --file=../../reset.sql
+pnpm --filter web exec wrangler d1 migrations apply up-excise-spatial-revenue-optimizer-prod --remote
+pnpm seed:districts
+pnpm seed:demo
+```

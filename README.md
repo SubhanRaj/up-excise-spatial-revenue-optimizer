@@ -74,16 +74,18 @@ up-excise-spatial-revenue-optimizer/
 
 ---
 
-## Authentication
+## Authentication & PII Hashing
 
 **Passwordless magic-link only. No passwords ever set or stored.**
+**Zero-Knowledge PII: No plaintext emails are stored in the database. Only SHA-256 hashes are persisted.**
 
 **Flow:**
-1. DEO enters their email on `/login`
-2. Resend delivers a single-use magic link (15-min expiry)
-3. DEO clicks the link → `/auth/verify` verifies token via `POST /api/auth/verify`
-4. Session cookies set (`excise-session` HttpOnly HMAC, `excise-role` client-readable)
-5. DEO redirected to `/home` (or `/admin` for admin role)
+1. DEO enters their plaintext email on `/login`
+2. Server hashes the email on the fly and verifies it against `auth_users.email_hash` in D1
+3. Resend delivers a single-use magic link (15-min expiry) to the in-memory plaintext email, then the server drops the plaintext string.
+4. DEO clicks the link → `/auth/verify` verifies token via `POST /api/auth/verify`
+5. Session cookies set (`excise-session` HttpOnly HMAC, `excise-role` client-readable)
+6. DEO redirected to `/home` (or `/admin` for admin role)
 
 **Session:** 24 hours clock-based. IndexedDB data preserved through re-login.
 
@@ -93,6 +95,8 @@ up-excise-spatial-revenue-optimizer/
 
 ## Security
 
+- **PII Hashing:** User and DEO emails are strictly hashed (SHA-256) in D1.
+- **Superadmin Override:** Configured securely via `SUPERADMIN_EMAIL_HASH` environment variable, avoiding hardcoded email strings in the codebase.
 - **No data in URLs.** All mutations are HTTP POST with JSON body.
 - **No secrets in source.** All keys live in Cloudflare Worker Secrets.
 - **Session cookies:** HttpOnly, Secure, SameSite=Lax. Never in localStorage or IndexedDB.
