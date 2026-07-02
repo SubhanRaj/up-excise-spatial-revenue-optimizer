@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import HelpPanel from '@/app/_components/HelpPanel';
+import { adminAuditCache } from '@/lib/db';
 interface AuditRow { id: number; eventType: string; deoId: string; districtName?: string; ipAddress?: string; createdAt: number }
 
 export default function AuditPage() {
@@ -10,9 +11,15 @@ export default function AuditPage() {
 
   useEffect(() => {
     (async () => {
+      const cached = await adminAuditCache.get(String(page));
+      if (cached) {
+        setRows((cached as { rows: AuditRow[] }).rows ?? []);
+        return;
+      }
       const res = await fetch(`/api/admin/audit-log?page=${page}`);
       if (!res.ok) return;
       const data = await res.json() as { rows: AuditRow[] };
+      adminAuditCache.set(String(page), data);
       setRows(data.rows ?? []);
     })();
   }, [page]);

@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useSession } from '@/hooks/useSession';
 import HelpPanel from '@/app/_components/HelpPanel';
 import { useAdminDistricts } from '@/hooks/useAdminDistricts';
+import { adminMapCache } from '@/lib/db';
 const MAP_POLL_MS = 5 * 60 * 1000;
 
 interface DistrictRow {
@@ -81,20 +82,31 @@ export default function AdminPage() {
   };
   const chartInstances = useRef<{ destroy: () => void }[]>([]);
 
-  async function fetchMapData() {
+  async function fetchMapData(force = false) {
+    if (!force) {
+      const cached = await adminMapCache.get();
+      if (cached) {
+        setMapData(cached as MapRow[]);
+        setApiError(null);
+        setLastRefresh(new Date());
+        return;
+      }
+    }
     const mapRes = await fetch('/api/admin/map-data');
     if (!mapRes.ok) {
       setApiError(`API error — your session may have expired, please sign in again.`);
       return;
     }
-    setMapData(await mapRes.json() as MapRow[]);
+    const data = await mapRes.json() as MapRow[];
+    adminMapCache.set(data);
+    setMapData(data);
     setApiError(null);
     setLastRefresh(new Date());
   }
 
   useEffect(() => {
     void fetchMapData();
-    const id = setInterval(fetchMapData, MAP_POLL_MS);
+    const id = setInterval(() => fetchMapData(true), MAP_POLL_MS);
     return () => clearInterval(id);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -241,7 +253,7 @@ export default function AdminPage() {
           {/* tabler:alert-circle */}
           <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
           <span>{apiError}</span>
-          <button className="btn btn-sm btn-ghost" onClick={fetchMapData}>Retry</button>
+          <button className="btn btn-sm btn-ghost" onClick={() => fetchMapData(true)}>Retry</button>
         </div>
       )}
       {/* State totals */}

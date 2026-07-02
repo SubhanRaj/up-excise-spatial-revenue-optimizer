@@ -3,6 +3,7 @@
 import { memo, use, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import HelpPanel from '@/app/_components/HelpPanel';
+import { adminShopsCache } from '@/lib/db';
 
 declare const XLSX: {
   utils: { json_to_sheet: (data: unknown[]) => unknown; book_new: () => unknown; book_append_sheet: (wb: unknown, ws: unknown, name: string) => void };
@@ -212,10 +213,19 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
   useEffect(() => {
     async function load() {
       setLoading(true);
+      const cached = await adminShopsCache.get(name);
+      if (cached) {
+        const { d, s } = cached as { d: DistrictDetail, s: { rows: ShopRow[] } };
+        setDetail(d);
+        setAllShops(s.rows);
+        setLoading(false);
+        return;
+      }
       const [d, s] = await Promise.all([
         fetch(`/api/admin/districts/${encodeURIComponent(name)}`).then((r) => r.json()),
         fetch(`/api/admin/districts/${encodeURIComponent(name)}/shops?pageSize=all`).then((r) => r.json()),
       ]);
+      adminShopsCache.set(name, { d, s });
       setDetail(d as DistrictDetail);
       setAllShops((s as { rows: ShopRow[] }).rows);
       setLoading(false);

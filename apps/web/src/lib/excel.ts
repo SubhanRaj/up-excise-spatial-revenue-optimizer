@@ -28,10 +28,8 @@ const COL_MAP: Record<string, keyof StagedRow> = {
   shop_name: 'shopName',
   shop_type: 'shopType',
   has_cl5cc: 'hasCl5cc',
-  latitude_dms: 'latitudeDms',
-  longitude_dms: 'longitudeDms',
-  latitude_decimal: 'latitudeDecimal',
-  longitude_decimal: 'longitudeDecimal',
+  latitude: 'latitudeDms',
+  longitude: 'longitudeDms',
   license_fee_lf: 'licenseFeeLf',
   basic_license_fee_blf: 'basicLicenseFeeBlf',
   mgr_amount: 'mgrAmount',
@@ -165,13 +163,21 @@ export async function parseExcelFile(
     }
 
     // Coordinate normalization — DMS → DD
-    const rawLat = r['latitude_dms'] ?? row.latitudeDecimal;
-    const rawLon = r['longitude_dms'] ?? row.longitudeDecimal;
-    const coords = normalizeCoordinates(rawLat as string | number, rawLon as string | number);
+    const rawLat = (r['latitude'] as string | undefined) ?? row.latitudeDms;
+    const rawLon = (r['longitude'] as string | undefined) ?? row.longitudeDms;
+    const coords = normalizeCoordinates(rawLat, rawLon);
     if (coords) {
       row.latitudeDecimal = coords.latitudeDecimal;
       row.longitudeDecimal = coords.longitudeDecimal;
+      row.latitudeDms = String(rawLat);
+      row.longitudeDms = String(rawLon);
       if (coords.warning) row.coordinateWarning = coords.warning;
+    } else {
+      // If parsing fails, reset to null
+      row.latitudeDecimal = null;
+      row.longitudeDecimal = null;
+      row.latitudeDms = null;
+      row.longitudeDms = null;
     }
 
     row.totalRevenue = computeRevenue(row as Parameters<typeof computeRevenue>[0]);
@@ -185,7 +191,7 @@ export async function parseExcelFile(
 const TEMPLATE_HEADERS = [
   'circle_sector_name', 'thana_name', 'adjacent_thanas_raw',
   'shop_id', 'shop_name', 'shop_type', 'has_cl5cc',
-  'latitude_dms', 'longitude_dms', 'latitude_decimal', 'longitude_decimal',
+  'latitude', 'longitude',
   'license_fee_lf', 'basic_license_fee_blf',
   'mgr_amount', 'composite_lf_fl', 'composite_lf_beer',
   'composite_mgr_fl', 'composite_mgr_beer', 'mgq_quantity',
@@ -201,10 +207,8 @@ const COLUMN_GUIDE: unknown[][] = [
   ['shop_name', 'Official name of the retail vend', 'All shop types', 'English only'],
   ['shop_type', 'Shop classification', 'All shop types', 'Dropdown list: MODEL_SHOP | COMPOSITE_SHOP | PRV | BHANG_SHOP | COUNTRY_LIQUOR'],
   ['has_cl5cc', 'true = has CL5CC beer endorsement, false = standard', 'COUNTRY_LIQUOR only', 'Dropdown list: true | false. Any other shop_type must use false'],
-  ['latitude_dms', 'Latitude in DMS format', 'Optional', 'e.g. 26°50\'48.12"N — takes precedence over latitude_decimal if both filled'],
-  ['longitude_dms', 'Longitude in DMS format', 'Optional', 'e.g. 80°56\'46.3"E — takes precedence over longitude_decimal if both filled'],
-  ['latitude_decimal', 'Latitude in decimal degrees', 'Optional', 'UP range: 23.8 – 30.4. Leave blank if using DMS columns'],
-  ['longitude_decimal', 'Longitude in decimal degrees', 'Optional', 'UP range: 77.1 – 84.6. Leave blank if using DMS columns'],
+  ['latitude', 'Latitude (DMS or Decimal)', 'Optional', 'e.g. 26°50\'48.12"N or 26.8467'],
+  ['longitude', 'Longitude (DMS or Decimal)', 'Optional', 'e.g. 80°56\'46.3"E or 80.9462'],
   ['license_fee_lf', 'Annual license fee (INR, whole rupees)', 'MODEL_SHOP, PRV, BHANG_SHOP', 'COMPOSITE_SHOP: leave 0 — computed from composite_lf_fl + composite_lf_beer'],
   ['basic_license_fee_blf', 'Basic license fee for country liquor (INR)', 'COUNTRY_LIQUOR', ''],
   ['mgr_amount', 'Annual Minimum Guaranteed Revenue (INR)', 'MODEL_SHOP, PRV', 'COMPOSITE_SHOP: leave 0 — computed from composite_mgr_fl + composite_mgr_beer'],
@@ -220,8 +224,9 @@ const COLUMN_GUIDE: unknown[][] = [
 
 /**
  * Generates the district Excel template as a downloadable Blob.
- * Sheet 1 "Data": column headers + one example row per shop type.
- * Sheet 2 "Column Guide": description of every column.
+ * Sheet 1 "Data Entry": column headers only (blank for DEO to fill).
+ * Sheet 2 "Demo Data": column headers + one example row per shop type.
+ * Sheet 3 "Instructions": description of every column.
  */
 export async function generateTemplate(districtName: string, units: string[]): Promise<Blob> {
   const exUnit = units[0] ?? 'Circle 1';
@@ -229,18 +234,22 @@ export async function generateTemplate(districtName: string, units: string[]): P
 
   // One example row per shop type — Inspector can copy & modify
   const examples: unknown[][] = [
-    [exUnit, exThana, '', 'SHOP001', 'Example Model Liquor Store', 'MODEL_SHOP', 'false', '', '', '', '', 100000, 0, 200000, 0, 0, 0, 0, 0, 0, 0, 0],
-    [exUnit, exThana, '', 'SHOP002', 'Example Composite Wine Shop', 'COMPOSITE_SHOP', 'false', '', '', '', '', 0, 0, 0, 50000, 50000, 100000, 100000, 0, 0, 0, 0],
-    [exUnit, exThana, '', 'SHOP003', 'Example Premium Retail Vend', 'PRV', 'false', '', '', '', '', 80000, 0, 150000, 0, 0, 0, 0, 0, 0, 0, 0],
-    [exUnit, exThana, '', 'SHOP004', 'Example Bhang Shop', 'BHANG_SHOP', 'false', '', '', '', '', 20000, 0, 0, 0, 0, 0, 0, 500, 0, 0, 0],
-    [exUnit, exThana, '', 'SHOP005', 'Example Country Liquor Shop', 'COUNTRY_LIQUOR', 'false', '', '', '', '', 0, 75000, 0, 0, 0, 0, 0, 0, 60000, 0, 0],
-    [exUnit, exThana, '', 'SHOP006', 'Example CL5CC Beer Endorsed Shop', 'COUNTRY_LIQUOR', 'true', '', '', '', '', 0, 75000, 0, 0, 0, 0, 0, 0, 60000, 25000, 50000],
+    [exUnit, exThana, '', 'SHOP001', 'Example Model Liquor Store', 'MODEL_SHOP', 'false', '', '', 100000, 0, 200000, 0, 0, 0, 0, 0, 0, 0, 0],
+    [exUnit, exThana, '', 'SHOP002', 'Example Composite Wine Shop', 'COMPOSITE_SHOP', 'false', '', '', 0, 0, 0, 50000, 50000, 100000, 100000, 0, 0, 0, 0],
+    [exUnit, exThana, '', 'SHOP003', 'Example Premium Retail Vend', 'PRV', 'false', '', '', 80000, 0, 150000, 0, 0, 0, 0, 0, 0, 0, 0],
+    [exUnit, exThana, '', 'SHOP004', 'Example Bhang Shop', 'BHANG_SHOP', 'false', '', '', 20000, 0, 0, 0, 0, 0, 0, 500, 0, 0, 0],
+    [exUnit, exThana, '', 'SHOP005', 'Example Country Liquor Shop', 'COUNTRY_LIQUOR', 'false', '', '', 0, 75000, 0, 0, 0, 0, 0, 0, 60000, 0, 0],
+    [exUnit, exThana, '', 'SHOP006', 'Example CL5CC Beer Endorsed Shop', 'COUNTRY_LIQUOR', 'true', '', '', 0, 75000, 0, 0, 0, 0, 0, 0, 60000, 25000, 50000],
   ];
 
-  const ws = XLSX.utils.aoa_to_sheet([TEMPLATE_HEADERS, ...examples]);
+  const wsDataEntry = XLSX.utils.aoa_to_sheet([TEMPLATE_HEADERS]);
+  const wsDemo = XLSX.utils.aoa_to_sheet([TEMPLATE_HEADERS, ...examples]);
+  const wsGuide = XLSX.utils.aoa_to_sheet(COLUMN_GUIDE);
+
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, `${districtName} Data`);
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(COLUMN_GUIDE), 'Column Guide');
+  XLSX.utils.book_append_sheet(wb, wsDataEntry, 'Data Entry');
+  XLSX.utils.book_append_sheet(wb, wsDemo, 'Demo Data');
+  XLSX.utils.book_append_sheet(wb, wsGuide, 'Instructions');
 
   const out = XLSX.write(wb, { type: 'array', bookType: 'xlsx' });
   const workbookBytes = await addTemplateValidations(out as ArrayBuffer);

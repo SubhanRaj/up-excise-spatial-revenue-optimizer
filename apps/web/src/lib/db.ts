@@ -111,6 +111,7 @@ function getAdminDb(): DexieInstance {
     // version 2: add districts_cache
     _adminDb.version(1).stores({ export_cache: 'key' });
     _adminDb.version(2).stores({ export_cache: 'key', districts_cache: 'key' });
+    _adminDb.version(3).stores({ export_cache: 'key', districts_cache: 'key', map_cache: 'key', shops_cache: 'key', audit_cache: 'key' });
   }
   return _adminDb;
 }
@@ -155,4 +156,55 @@ export const adminExportCache = {
 
   clear: () =>
     getAdminDb().table<AdminKvCache<unknown[]>>('export_cache').clear(),
+};
+
+// ── Map cache (TTL: 5 min) ─────────────────────────────────────────────────
+
+export const adminMapCache = {
+  get: () =>
+    getAdminDb().table<AdminKvCache<unknown>>('map_cache')
+      .where('key').equals('map_data').toArray()
+      .then((r) => {
+        const entry = r[0];
+        if (!entry) return null;
+        if (Date.now() - entry.fetchedAt > DISTRICTS_TTL_MS) return null;
+        return entry.data;
+      }),
+  set: (data: unknown) =>
+    getAdminDb().table<AdminKvCache<unknown>>('map_cache')
+      .put({ key: 'map_data', data, fetchedAt: Date.now() }),
+};
+
+// ── Shops cache (TTL: 5 min) ───────────────────────────────────────────────
+
+export const adminShopsCache = {
+  get: (districtName: string) =>
+    getAdminDb().table<AdminKvCache<unknown>>('shops_cache')
+      .where('key').equals(districtName).toArray()
+      .then((r) => {
+        const entry = r[0];
+        if (!entry) return null;
+        if (Date.now() - entry.fetchedAt > DISTRICTS_TTL_MS) return null;
+        return entry.data;
+      }),
+  set: (districtName: string, data: unknown) =>
+    getAdminDb().table<AdminKvCache<unknown>>('shops_cache')
+      .put({ key: districtName, data, fetchedAt: Date.now() }),
+};
+
+// ── Audit cache (TTL: 1 min) ───────────────────────────────────────────────
+
+export const adminAuditCache = {
+  get: (page: string) =>
+    getAdminDb().table<AdminKvCache<unknown>>('audit_cache')
+      .where('key').equals(page).toArray()
+      .then((r) => {
+        const entry = r[0];
+        if (!entry) return null;
+        if (Date.now() - entry.fetchedAt > 60 * 1000) return null; // 1 min TTL
+        return entry.data;
+      }),
+  set: (page: string, data: unknown) =>
+    getAdminDb().table<AdminKvCache<unknown>>('audit_cache')
+      .put({ key: page, data, fetchedAt: Date.now() }),
 };

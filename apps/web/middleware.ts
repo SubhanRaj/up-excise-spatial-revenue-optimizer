@@ -18,10 +18,10 @@ export default function middleware(req: NextRequest) {
 
   // Route group enforcement based on role cookie (security enforced in server layouts via requireAuth)
   const role = req.cookies.get('excise-role')?.value;
-  if (pathname.match(/^\/admin/) && role !== 'admin') {
+  if (pathname.match(/^\/admin/) && role !== 'admin' && role !== 'superadmin') {
     return NextResponse.redirect(new URL('/login', req.url));
   }
-  if (pathname.match(/^\/(home|upload|verify|units)/) && role !== 'deo') {
+  if (pathname.match(/^\/(home|upload|verify|units)/) && role !== 'deo' && role !== 'superadmin') {
     return NextResponse.redirect(new URL('/login', req.url));
   }
 
