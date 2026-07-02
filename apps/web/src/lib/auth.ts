@@ -13,7 +13,7 @@ export type SessionUser = {
   id: number;
   emailHash: string;
   name: string;
-  role: 'deo' | 'admin';
+  role: 'deo' | 'admin' | 'superadmin';
   deoId: string;
   districtName: string | null;
 };
@@ -100,6 +100,18 @@ export async function getSession(): Promise<SessionUser | null> {
     return null;
   }
 
+  
+  if (env.SUPERADMIN_EMAIL_HASH && row.emailHash === env.SUPERADMIN_EMAIL_HASH) {
+    return {
+      id:           row.userId,
+      emailHash:    row.emailHash,
+      name:         row.name,
+      role:         'superadmin',
+      deoId:        row.deoId ?? '',
+      districtName: 'Demo District',
+    };
+  }
+
   return {
     id:           row.userId,
     emailHash:    row.emailHash,
@@ -114,11 +126,7 @@ export async function requireAuth(minRole: 'deo' | 'admin' = 'deo'): Promise<Ses
   const session = await getSession();
   if (!session) redirect('/login');
   
-  const env = await getEnv();
-  if (env.SUPERADMIN_EMAIL_HASH && session.emailHash === env.SUPERADMIN_EMAIL_HASH) {
-    return session;
-  }
-  
+  if (session.role === 'superadmin') return session;
   if (minRole === 'admin' && session.role !== 'admin') redirect('/login');
   return session;
 }
