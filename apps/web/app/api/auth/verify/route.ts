@@ -24,11 +24,13 @@ export async function POST(req: NextRequest) {
   }
 
   const user = await db.select().from(authUsers)
-    .where(eq(authUsers.email, link.email)).limit(1).then((r) => r[0] ?? null);
+    .where(eq(authUsers.emailHash, link.emailHash)).limit(1).then((r) => r[0] ?? null);
 
   if (!user) return NextResponse.json({ error: 'no_account' }, { status: 401 });
 
-  const effectiveRole = user.email === 'shubhanraj2002@gmail.com' ? 'superadmin' : user.role;
-  await createSession(user.id, effectiveRole, user.districtName ?? null);
+  const isSuper = env.SUPERADMIN_EMAIL_HASH && user.emailHash === env.SUPERADMIN_EMAIL_HASH;
+  const effectiveRole = isSuper ? 'superadmin' : user.role;
+  const effectiveDistrict = isSuper ? 'Demo District' : (user.districtName ?? null);
+  await createSession(user.id, effectiveRole, effectiveDistrict);
   return NextResponse.json({ redirect: effectiveRole === 'superadmin' || user.role === 'admin' ? '/admin' : '/home' });
 }

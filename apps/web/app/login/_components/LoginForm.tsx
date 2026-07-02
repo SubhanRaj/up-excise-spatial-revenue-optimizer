@@ -12,6 +12,9 @@ export default function LoginForm() {
   function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    try {
+      sessionStorage.setItem('deoEmail', email);
+    } catch {}
     startTransition(async () => {
       const result = await requestMagicLink(email);
       if (result.error) setError(result.error);

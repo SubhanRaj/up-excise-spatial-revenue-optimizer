@@ -3,7 +3,7 @@ import { sql } from 'drizzle-orm';
 
 export const authUsers = sqliteTable('auth_users', {
   id:           integer('id').primaryKey({ autoIncrement: true }),
-  email:        text('email').unique().notNull(),
+  emailHash:    text('email_hash').unique().notNull(),
   name:         text('name').notNull(),
   role:         text('role').notNull().default('deo'),  // 'deo' | 'admin'
   deoId:        text('deo_id'),
@@ -13,7 +13,7 @@ export const authUsers = sqliteTable('auth_users', {
 
 export const authMagicLinks = sqliteTable('auth_magic_links', {
   id:         integer('id').primaryKey({ autoIncrement: true }),
-  email:      text('email').notNull(),
+  emailHash:  text('email_hash').notNull(),
   tokenHash:  text('token_hash').unique().notNull(),
   expiresAt:  text('expires_at').notNull(),
   used:       integer('used').notNull().default(0),

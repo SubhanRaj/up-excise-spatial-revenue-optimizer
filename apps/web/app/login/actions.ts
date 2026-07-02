@@ -20,8 +20,11 @@ export async function requestMagicLink(email: string): Promise<{ error?: string 
 
   const { env } = await getCloudflareContext({ async: true }) as { env: CloudflareEnv };
   const db = drizzle(env.DB);
+  
+  const { sha256hex } = await import('@/lib/auth');
+  const emailHashStr = await sha256hex(trimmed);
 
-  const user = await db.select().from(authUsers).where(eq(authUsers.email, trimmed)).limit(1).then((r) => r[0] ?? null);
+  const user = await db.select().from(authUsers).where(eq(authUsers.emailHash, emailHashStr)).limit(1).then((r) => r[0] ?? null);
   // generic message — don't reveal whether email is registered
   if (!user) return { error: 'If that email is registered, a sign-in link has been sent.' };
 
@@ -30,18 +33,18 @@ export async function requestMagicLink(email: string): Promise<{ error?: string 
     .select({ cnt: count() })
     .from(authMagicLinks)
     .where(and(
-      eq(authMagicLinks.email, trimmed),
+      eq(authMagicLinks.emailHash, emailHashStr),
       sql`${authMagicLinks.createdAt} >= datetime('now', '-15 minutes')`,
     ));
   if ((rateRows[0]?.cnt ?? 0) >= 3) return { error: 'If that email is registered, a sign-in link has been sent.' };
 
   // Delete unused, unexpired links for this email before creating a fresh one
-  await db.delete(authMagicLinks).where(and(eq(authMagicLinks.email, trimmed), eq(authMagicLinks.used, 0)));
+  await db.delete(authMagicLinks).where(and(eq(authMagicLinks.emailHash, emailHashStr), eq(authMagicLinks.used, 0)));
 
   const rawToken  = crypto.randomUUID();
   const tokenHash = await hashToken(rawToken);
   const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
-  await db.insert(authMagicLinks).values({ email: trimmed, tokenHash, expiresAt, used: 0 });
+  await db.insert(authMagicLinks).values({ emailHash: emailHashStr, tokenHash, expiresAt, used: 0 });
 
   const headersList = await headers();
   const rawHost = headersList.get('host') ?? '';

@@ -11,7 +11,7 @@ const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
 
 export type SessionUser = {
   id: number;
-  email: string;
+  emailHash: string;
   name: string;
   role: 'deo' | 'admin';
   deoId: string;
@@ -20,7 +20,7 @@ export type SessionUser = {
 
 // ── Crypto ────────────────────────────────────────────────────────────────────
 
-async function sha256hex(data: string): Promise<string> {
+export async function sha256hex(data: string): Promise<string> {
   const buf = new TextEncoder().encode(data);
   const hash = await crypto.subtle.digest('SHA-256', buf);
   return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('');
@@ -51,7 +51,7 @@ export async function hashToken(token: string): Promise<string> {
 
 // ── CF env ────────────────────────────────────────────────────────────────────
 
-async function getEnv(): Promise<CloudflareEnv> {
+export async function getEnv(): Promise<CloudflareEnv> {
   const { env } = await getCloudflareContext({ async: true }) as { env: CloudflareEnv };
   return env;
 }
@@ -82,7 +82,7 @@ export async function getSession(): Promise<SessionUser | null> {
       sessionId:    authSessions.id,
       expiresAt:    authSessions.expiresAt,
       userId:       authSessions.userId,
-      email:        authUsers.email,
+      emailHash:    authUsers.emailHash,
       name:         authUsers.name,
       role:         authUsers.role,
       deoId:        authUsers.deoId,
@@ -102,10 +102,10 @@ export async function getSession(): Promise<SessionUser | null> {
 
   return {
     id:           row.userId,
-    email:        row.email,
+    emailHash:    row.emailHash,
     name:         row.name,
     role:         row.role as 'deo' | 'admin',
-    deoId:        row.deoId ?? row.email,
+    deoId:        row.deoId ?? '',
     districtName: row.districtName ?? null,
   };
 }
@@ -113,7 +113,12 @@ export async function getSession(): Promise<SessionUser | null> {
 export async function requireAuth(minRole: 'deo' | 'admin' = 'deo'): Promise<SessionUser> {
   const session = await getSession();
   if (!session) redirect('/login');
-  if (session.email === 'shubhanraj2002@gmail.com') return session;
+  
+  const env = await getEnv();
+  if (env.SUPERADMIN_EMAIL_HASH && session.emailHash === env.SUPERADMIN_EMAIL_HASH) {
+    return session;
+  }
+  
   if (minRole === 'admin' && session.role !== 'admin') redirect('/login');
   return session;
 }

@@ -183,13 +183,18 @@ function generateShops(): Shop[] {
 }
 
 // ─── SQL builders ────────────────────────────────────────────────────────────
+import { createHash } from 'node:crypto';
+function hashEmail(email: string) {
+  return createHash('sha256').update(email.trim().toLowerCase()).digest('hex');
+}
+
 function sqlTruncate(): string {
   return [
     `DELETE FROM phase1_raw_collection WHERE district_name = '${esc(DISTRICT)}';`,
     `DELETE FROM district_circles_sectors WHERE district_name = '${esc(DISTRICT)}';`,
     `DELETE FROM districts WHERE name = '${esc(DISTRICT)}';`,
     `DELETE FROM audit_log WHERE district_name = '${esc(DISTRICT)}';`,
-    `DELETE FROM auth_users WHERE email = '${esc(DEO_EMAIL)}';`,
+    `DELETE FROM auth_users WHERE email_hash = '${esc(hashEmail(DEO_EMAIL))}';`,
   ].join('\n');
 }
 
@@ -210,11 +215,11 @@ function sqlSeed(shops: Shop[]): string {
     sqlTruncate(),
     '',
     '-- Demo District row (status submitted so HQ dashboard shows it)',
-    `INSERT INTO districts (name, division, deo_name, deo_email, deo_id, expected_vend_count, status, created_at) VALUES ('${esc(DISTRICT)}', '${esc(DIVISION)}', '${esc(DEO_NAME)}', '${esc(DEO_EMAIL)}', '${esc(DEO_ID)}', ${EXP_VEND_COUNT}, 'submitted', ${now});`,
+    `INSERT INTO districts (name, division, deo_name, deo_email_hash, deo_id, expected_vend_count, status, created_at) VALUES ('${esc(DISTRICT)}', '${esc(DIVISION)}', '${esc(DEO_NAME)}', '${esc(hashEmail(DEO_EMAIL))}', '${esc(DEO_ID)}', ${EXP_VEND_COUNT}, 'submitted', ${now});`,
     '',
     '-- Portal accounts (idempotent — admin and demo DEO both restored after any migration wipe)',
-    `INSERT INTO auth_users (email, name, role) VALUES ('${esc(ADMIN_EMAIL)}', '${esc(ADMIN_NAME)}', 'admin') ON CONFLICT(email) DO UPDATE SET name=excluded.name;`,
-    `INSERT INTO auth_users (email, name, role, deo_id, district_name) VALUES ('${esc(DEO_EMAIL)}', '${esc(DEO_NAME)}', 'deo', '${esc(DEO_ID)}', '${esc(DISTRICT)}') ON CONFLICT(email) DO UPDATE SET name=excluded.name, deo_id=excluded.deo_id, district_name=excluded.district_name;`,
+    `INSERT INTO auth_users (email_hash, name, role) VALUES ('${esc(hashEmail(ADMIN_EMAIL))}', '${esc(ADMIN_NAME)}', 'admin') ON CONFLICT(email_hash) DO UPDATE SET name=excluded.name;`,
+    `INSERT INTO auth_users (email_hash, name, role, deo_id, district_name) VALUES ('${esc(hashEmail(DEO_EMAIL))}', '${esc(DEO_NAME)}', 'deo', '${esc(DEO_ID)}', '${esc(DISTRICT)}') ON CONFLICT(email_hash) DO UPDATE SET name=excluded.name, deo_id=excluded.deo_id, district_name=excluded.district_name;`,
     '',
     '-- Circles and sectors',
   ];

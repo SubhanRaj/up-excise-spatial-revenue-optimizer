@@ -52,7 +52,7 @@ export const districts = sqliteTable('districts', {
   division: text('division'),
 
   deoName: text('deo_name'),
-  deoEmail: text('deo_email').unique(),
+  deoEmailHash: text('deo_email_hash').unique(),
   deoId: text('deo_id'),
 
   expectedVendCount: integer('expected_vend_count'),
@@ -69,7 +69,7 @@ export const districts = sqliteTable('districts', {
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
 }, (t) => ({
   nameIdx: index('dist_name_idx').on(t.name),
-  emailIdx: index('dist_email_idx').on(t.deoEmail),
+  emailIdx: index('dist_email_hash_idx').on(t.deoEmailHash),
 }));
 
 export const districtCirclesSectors = sqliteTable('district_circles_sectors', {

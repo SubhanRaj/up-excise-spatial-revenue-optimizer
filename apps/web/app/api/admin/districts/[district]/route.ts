@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { drizzle } from 'drizzle-orm/d1';
 import { eq, count, sum } from 'drizzle-orm';
-import { getSession } from '@/lib/auth';
+import { getSession, sha256hex } from '@/lib/auth';
 import { districts, districtCirclesSectors, phase1RawCollection, authUsers } from '@excise/schema';
 
 export async function GET(
@@ -85,10 +85,19 @@ export async function PATCH(
   const existing = await db.select().from(districts).where(eq(districts.name, district)).get();
   if (!existing) return NextResponse.json({ error: 'District not found' }, { status: 404 });
 
+  let newEmailHashStr: string | undefined = undefined;
+  if (deoEmail) {
+    newEmailHashStr = await sha256hex(deoEmail.toLowerCase());
+    if (existing.deoEmailHash === newEmailHashStr) {
+      return NextResponse.json({ error: 'New email cannot be the same as the old email' }, { status: 400 });
+    }
+  }
+
   const updates: Record<string, unknown> = {};
   if (body.division !== undefined) updates.division = division;
   if (body.deoName !== undefined) updates.deoName = deoName;
-  if (body.deoEmail !== undefined) updates.deoEmail = deoEmail;
+  if (newEmailHashStr !== undefined) updates.deoEmailHash = newEmailHashStr;
+  else if (body.deoEmail === null) updates.deoEmailHash = null;
   if (body.deoId !== undefined) updates.deoId = deoId;
   if (body.expectedVendCount !== undefined) updates.expectedVendCount = expectedVendCount;
   if (body.bboxMinLat !== undefined) updates.bboxMinLat = bboxMinLat;
@@ -103,20 +112,20 @@ export async function PATCH(
   await db.transaction(async (tx) => {
     await tx.update(districts).set(updates).where(eq(districts.name, district));
 
-    if (body.deoEmail !== undefined && existing.deoEmail && existing.deoEmail !== deoEmail) {
-      await tx.delete(authUsers).where(eq(authUsers.email, existing.deoEmail));
+    if (body.deoEmail !== undefined && existing.deoEmailHash && existing.deoEmailHash !== newEmailHashStr) {
+      await tx.delete(authUsers).where(eq(authUsers.emailHash, existing.deoEmailHash));
     }
 
-    if (deoEmail) {
+    if (newEmailHashStr) {
       await tx.insert(authUsers).values({
-        email: deoEmail,
-        name: deoName ?? existing.deoName ?? deoEmail,
+        emailHash: newEmailHashStr,
+        name: deoName ?? existing.deoName ?? 'DEO',
         role: 'deo',
         deoId: deoId ?? existing.deoId,
         districtName: district,
       }).onConflictDoUpdate({
-        target: authUsers.email,
-        set: { name: deoName ?? existing.deoName ?? deoEmail, deoId: deoId ?? existing.deoId, districtName: district },
+        target: authUsers.emailHash,
+        set: { name: deoName ?? existing.deoName ?? 'DEO', deoId: deoId ?? existing.deoId, districtName: district },
       });
     }
   });

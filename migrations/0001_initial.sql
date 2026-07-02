@@ -52,7 +52,7 @@ CREATE TABLE districts (
   name                 TEXT NOT NULL UNIQUE,
   division             TEXT,
   deo_name             TEXT,
-  deo_email            TEXT UNIQUE,
+  deo_email_hash       TEXT UNIQUE,
   deo_id               TEXT,
   expected_vend_count  INTEGER,
   bbox_min_lat         REAL,
@@ -65,7 +65,7 @@ CREATE TABLE districts (
 );
 
 CREATE INDEX dist_name_idx ON districts(name);
-CREATE INDEX dist_email_idx ON districts(deo_email);
+CREATE INDEX dist_email_hash_idx ON districts(deo_email_hash);
 
 -- Circles / sectors registered per district by the DEO
 CREATE TABLE district_circles_sectors (
@@ -97,7 +97,7 @@ CREATE INDEX al_created_at_idx ON audit_log(created_at);
 -- Custom HMAC magic-link auth tables
 CREATE TABLE auth_users (
   id            INTEGER PRIMARY KEY AUTOINCREMENT,
-  email         TEXT UNIQUE NOT NULL,
+  email_hash    TEXT UNIQUE NOT NULL,
   name          TEXT NOT NULL,
   role          TEXT NOT NULL DEFAULT 'deo',
   deo_id        TEXT,
@@ -107,14 +107,14 @@ CREATE TABLE auth_users (
 
 CREATE TABLE auth_magic_links (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
-  email       TEXT NOT NULL,
+  email_hash  TEXT NOT NULL,
   token_hash  TEXT UNIQUE NOT NULL,
   expires_at  TEXT NOT NULL,
   used        INTEGER NOT NULL DEFAULT 0,
   created_at  TEXT DEFAULT (datetime('now'))
 );
 
-CREATE INDEX idx_magic_email ON auth_magic_links(email, created_at);
+CREATE INDEX idx_magic_email ON auth_magic_links(email_hash, created_at);
 
 CREATE TABLE auth_sessions (
   id          TEXT PRIMARY KEY,
