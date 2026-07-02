@@ -66,7 +66,7 @@ export default function HomeStats({ district }: { district: string }) {
   }
 
   return (
-    <div className="space-y-4">
+    <div className={`space-y-4 ${syncing ? 'pointer-events-none opacity-50' : ''}`}>
       <div className="grid grid-cols-3 gap-4">
         <div className="stat bg-base-100 rounded-2xl shadow">
           <div className="stat-title">Circles / Sectors</div>

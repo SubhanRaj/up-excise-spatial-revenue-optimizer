@@ -285,7 +285,7 @@ export default function VerifyPage() {
             <p><strong>Submit District</strong> — The button activates only when all registered units have at least one row with no errors. Clicking it uploads all pending rows and marks the district as submitted to headquarters.</p>
           </HelpPanel>
         </div>
-        <div className="flex gap-2 flex-wrap justify-end">
+        <div className={`flex gap-2 flex-wrap justify-end ${(uploadedLoading || uploading) ? 'pointer-events-none opacity-50' : ''}`}>
           <div className="join">
             <button className={`join-item btn btn-sm ${viewMode === 'staged' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setViewMode('staged')} disabled={rows.length === 0 || !unitsReady}>
               Staged Data
