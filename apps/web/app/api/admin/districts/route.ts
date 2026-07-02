@@ -15,7 +15,7 @@ export async function GET() {
 
   const [districtRows, aggregates] = await Promise.all([
     db.select({
-      name: districts.name, division: districts.division, deoName: districts.deoName, deoEmail: districts.deoEmail,
+      name: districts.name, division: districts.division, deoName: districts.deoName, deoEmailHash: districts.deoEmailHash,
       deoId: districts.deoId,
       expectedVendCount: districts.expectedVendCount, status: districts.status, submittedAt: districts.submittedAt,
       bboxMinLat: districts.bboxMinLat, bboxMaxLat: districts.bboxMaxLat,

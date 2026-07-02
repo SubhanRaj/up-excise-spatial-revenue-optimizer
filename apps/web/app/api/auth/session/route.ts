@@ -11,6 +11,5 @@ export async function GET() {
     name:         session.name,
     role:         session.role,
     districtName: session.districtName,
-    email:        session.email,
   });
 }

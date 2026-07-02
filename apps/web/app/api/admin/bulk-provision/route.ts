@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { drizzle } from 'drizzle-orm/d1';
-import { getSession } from '@/lib/auth';
+import { getSession, sha256hex } from '@/lib/auth';
 import { districts, authUsers } from '@excise/schema';
 
 
@@ -23,26 +23,28 @@ export async function POST(req: NextRequest) {
 
   for (const row of body.rows) {
     try {
+      const emailHashStr = await sha256hex(row.deoEmail);
+
       await db.insert(districts).values({
         name: row.districtName, division: row.division, deoName: row.deoName,
-        deoEmail: row.deoEmail, deoId: row.deoId, expectedVendCount: row.expectedVendCount,
+        deoEmailHash: emailHashStr, deoId: row.deoId, expectedVendCount: row.expectedVendCount,
         bboxMinLat: row.bboxMinLat ?? null, bboxMaxLat: row.bboxMaxLat ?? null,
         bboxMinLon: row.bboxMinLon ?? null, bboxMaxLon: row.bboxMaxLon ?? null,
         status: 'pending', createdAt: now,
       }).onConflictDoUpdate({
         target: districts.name,
         set: {
-          division: row.division, deoName: row.deoName, deoEmail: row.deoEmail,
+          division: row.division, deoName: row.deoName, deoEmailHash: emailHashStr,
           deoId: row.deoId, expectedVendCount: row.expectedVendCount,
           bboxMinLat: row.bboxMinLat ?? null, bboxMaxLat: row.bboxMaxLat ?? null,
           bboxMinLon: row.bboxMinLon ?? null, bboxMaxLon: row.bboxMaxLon ?? null,
         },
       });
       await db.insert(authUsers).values({
-        email: row.deoEmail, name: row.deoName, role: 'deo',
+        emailHash: emailHashStr, name: row.deoName, role: 'deo',
         deoId: row.deoId, districtName: row.districtName,
       }).onConflictDoUpdate({
-        target: authUsers.email,
+        target: authUsers.emailHash,
         set: { name: row.deoName, deoId: row.deoId, districtName: row.districtName },
       });
       results.push({ email: row.deoEmail, status: 'provisioned' });

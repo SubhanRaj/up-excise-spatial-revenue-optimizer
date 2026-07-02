@@ -7,12 +7,13 @@ import { getSession } from '@/lib/auth';
 const SUPERADMIN_EMAIL = 'shubhanraj2002@gmail.com';
 
 export async function POST() {
-  const user = await getSession();
-  if (!user || user.role !== 'admin' || user.email !== SUPERADMIN_EMAIL) {
+  const session = await getSession();
+  const { env } = await getCloudflareContext({ async: true }) as { env: CloudflareEnv };
+
+  if (!session || session.role !== 'admin' || session.emailHash !== env.SUPERADMIN_EMAIL_HASH) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  const { env } = await getCloudflareContext({ async: true }) as { env: CloudflareEnv };
   const db = drizzle(env.DB);
 
   // Order matters: delete sessions before users (FK), delete shop data, reset districts.

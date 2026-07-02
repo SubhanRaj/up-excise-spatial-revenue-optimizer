@@ -92,7 +92,7 @@ Before writing any code that involves:
 | **Client** | Department of Excise, Government of Uttar Pradesh |
 | **Consulting Firm** | SIBIN Tech Solutions |
 | **Lead Engineer** | Subhan Raj |
-| **AI Co-Author** | Claude Sonnet 4.6 (Anthropic) |
+| **AI Co-Author** | Claude Sonnet 4.6 (Anthropic) & Antigravity (Google DeepMind) |
 | **Active Phase** | Phase 1 — Comprehensive Data Collection Pipeline |
 | **Roadmap** | [roadmap.md](roadmap.md) — read this for full architectural context |
 
