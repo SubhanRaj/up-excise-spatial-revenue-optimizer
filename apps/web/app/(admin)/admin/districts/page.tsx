@@ -104,7 +104,7 @@ export default function DistrictsPage() {
       {/* Table card */}
       <div className="bg-base-100 rounded-xl border border-base-200 overflow-hidden">
         {/* Toolbar */}
-        <div className="flex flex-wrap gap-3 items-center p-4 border-b border-base-200">
+        <div className={`flex flex-wrap gap-3 items-center p-4 border-b border-base-200 ${loading ? 'pointer-events-none opacity-50' : ''}`}>
           <div className="relative flex-1 min-w-[200px]">
             <svg xmlns="http://www.w3.org/2000/svg" className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-base-content/30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
             <input
