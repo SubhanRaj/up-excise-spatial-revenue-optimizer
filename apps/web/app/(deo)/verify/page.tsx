@@ -383,7 +383,7 @@ export default function VerifyPage() {
                       )}
                     </td>
                     <td role="gridcell" className="text-xs">{row.thanaName}</td>
-                    <td role="gridcell"><span className="badge badge-xs badge-outline">{row.shopType}</span></td>
+                    <td role="gridcell"><span className="badge badge-sm h-auto py-1 px-2 badge-outline">{row.shopType}</span></td>
                     <td role="gridcell" className="min-w-48">
                       <PillList
                         raw={row.adjacentThanasRaw}

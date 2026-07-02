@@ -146,7 +146,7 @@ function SortIcon({ active, dir }: { active: boolean; dir: 'asc' | 'desc' }) {
 function TypeBadge({ type, cl5cc }: { type: string; cl5cc: boolean }) {
   return (
     <div className="flex flex-col gap-0.5 items-start">
-      <span className={`badge badge-xs font-medium ${TYPE_BADGE[type] ?? 'badge-ghost'}`}>
+      <span className={`badge badge-sm h-auto py-1 px-2 font-medium text-center ${TYPE_BADGE[type] ?? 'badge-ghost'}`}>
         {TYPE_LABEL[type] ?? type}
       </span>
       {cl5cc && <span className="badge badge-xs badge-outline text-[10px]">CL5CC</span>}
