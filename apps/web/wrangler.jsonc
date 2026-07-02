@@ -7,9 +7,6 @@
     "directory": ".open-next/assets",
     "binding": "ASSETS"
   },
-  "vars": {
-    "SUPERADMIN_EMAIL_HASH": "7c53d1000a6e300cd9c2a6886ed208f25b20cc8b9fb68165d3a95d1da09d171d"
-  },
   "d1_databases": [
     {
       "binding": "DB",
