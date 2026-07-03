@@ -81,12 +81,12 @@ export default function ExportPage() {
       {cachedAt !== null && (
         <div className="flex items-center gap-2 text-sm bg-base-200 rounded-lg px-4 py-2.5">
           <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-success shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22C6.477 22 2 17.523 2 12S6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/><path d="m9 12 2 2 4-4"/></svg>
-          <span className="text-base-content/70">Cached — <strong className="text-base-content">{rowCount?.toLocaleString()} rows</strong>, last fetched {fmtAge(cachedAt)}</span>
+          <span className="text-base-content/90">Cached — <strong className="text-base-content">{rowCount?.toLocaleString()} rows</strong>, last fetched {fmtAge(cachedAt)}</span>
           <button className="btn btn-xs btn-ghost ml-auto" onClick={() => adminExportCache.clear().then(() => { setCachedAt(null); setRowCount(null); })}>Clear cache</button>
         </div>
       )}
 
-      <p className="text-sm text-base-content/70">
+      <p className="text-sm text-base-content/90">
         Downloads the full Phase 1 dataset as an Excel file. SheetJS generates the .xlsx in-browser —
         no server-side spreadsheet library required. Fetched data is cached in IndexedDB for offline re-export.
       </p>

@@ -31,7 +31,7 @@ export default function DivisionsPage() {
       <div className="flex items-center gap-3 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Divisions</h1>
-          <p className="text-sm text-base-content/50 mt-0.5">{divisions.length} administrative divisions of Uttar Pradesh</p>
+          <p className="text-sm text-base-content/70 mt-0.5">{divisions.length} administrative divisions of Uttar Pradesh</p>
         </div>
         <div className="ml-auto">
           <HelpPanel pageKey="admin_divisions_list" title="Divisions Overview">
@@ -63,12 +63,12 @@ export default function DivisionsPage() {
                   style={{ width: `${div.count ? (div.submitted / div.count) * 100 : 0}%` }}
                 />
               </div>
-              <div className="flex items-center gap-3 text-xs text-base-content/50">
+              <div className="flex items-center gap-3 text-xs text-base-content/70">
                 <span className="text-success font-medium">{div.submitted} submitted</span>
                 {div.inProgress > 0 && <span className="text-warning">{div.inProgress} in progress</span>}
-                <span className="ml-auto tabular-nums font-medium text-base-content/70">{fmt(div.revenue)}</span>
+                <span className="ml-auto tabular-nums font-medium text-base-content/90">{fmt(div.revenue)}</span>
               </div>
-              <p className="mt-2 text-[11px] text-base-content/30 truncate">{div.districts.slice(0, 4).join(', ')}{div.count > 4 ? ` +${div.count - 4} more` : ''}</p>
+              <p className="mt-2 text-[11px] text-base-content/50 truncate">{div.districts.slice(0, 4).join(', ')}{div.count > 4 ? ` +${div.count - 4} more` : ''}</p>
             </Link>
           ))}
         </div>

@@ -51,7 +51,7 @@ function PillList({ raw, districtThanas, onChange, readOnly = false }: {
           </span>
         );
       })}
-      {pills.length === 0 && <span className="text-xs text-base-content/40">—</span>}
+      {pills.length === 0 && <span className="text-xs text-base-content/60">—</span>}
     </div>
   );
 }
@@ -344,12 +344,12 @@ export default function VerifyPage() {
           </div>
         )}
         {visibleRows.length === 0 && viewMode === 'staged' && unitsReady && (
-          <div className="col-span-4 text-base-content/60 text-sm">
+          <div className="col-span-4 text-base-content/80 text-sm">
             No staged data. <a href="/upload" className="link">Upload a file first.</a>
           </div>
         )}
         {visibleRows.length === 0 && viewMode === 'uploaded' && unitsReady && (
-          <div className="col-span-4 text-base-content/60 text-sm">
+          <div className="col-span-4 text-base-content/80 text-sm">
             {uploadedLoading ? 'Loading uploaded district data…' : uploadedError ?? 'No uploaded district rows found.'}
           </div>
         )}
@@ -408,7 +408,7 @@ export default function VerifyPage() {
                           {row.latitudeDecimal.toFixed(4)}, {row.longitudeDecimal!.toFixed(4)}
                         </span>
                       ) : (
-                        <span className="text-xs text-base-content/40" aria-label="No coordinates">—</span>
+                        <span className="text-xs text-base-content/60" aria-label="No coordinates">—</span>
                       )}
                     </td>
                     <td role="gridcell" className="text-xs font-mono">{formatInr(row.totalRevenue)}</td>
@@ -426,7 +426,7 @@ export default function VerifyPage() {
 
           {/* Pagination */}
           <div className="flex items-center justify-between" aria-label="Pagination">
-            <span className="text-sm text-base-content/60">
+            <span className="text-sm text-base-content/80">
               {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, unitRows.length)} of {unitRows.length}
             </span>
             <div className="join">

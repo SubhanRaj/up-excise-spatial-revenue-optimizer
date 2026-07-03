@@ -82,7 +82,7 @@ export default function UploadPage() {
             <p><strong>Re-uploading:</strong> Uploading a new file replaces all staged data for this district. Rows already marked "uploaded" are preserved.</p>
           </HelpPanel>
         </div>
-        <p className="text-sm text-base-content/70 mb-6">
+        <p className="text-sm text-base-content/90 mb-6">
           {hasUnits
             ? 'Upload the consolidated district Excel file. All rows are parsed in the browser — no data leaves your device until you submit on the Verify page.'
             : 'Create at least one circle or sector first. Uploading is locked until the unit list exists.'}
@@ -95,7 +95,7 @@ export default function UploadPage() {
             Download District Template
           </button>
           <Link href="/units" className="btn btn-ghost btn-sm">Go to Circles &amp; Sectors</Link>
-          <span className="text-xs text-base-content/50">Register circles and sectors first, then download or upload the district file.</span>
+          <span className="text-xs text-base-content/70">Register circles and sectors first, then download or upload the district file.</span>
         </div>
 
         {hasUnits ? (
@@ -116,9 +116,9 @@ export default function UploadPage() {
             }}
           >
             {/* tabler:folder-open */}
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-12 h-12 text-base-content/40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 19l2-7h13l-2 7H5z"/><path d="M5 19H3a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h4l3 3h7a2 2 0 0 1 2 2v1"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-12 h-12 text-base-content/60" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 19l2-7h13l-2 7H5z"/><path d="M5 19H3a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h4l3 3h7a2 2 0 0 1 2 2v1"/></svg>
             <span className="font-medium">Drop your district .xlsx file here or click to browse</span>
-            <span className="text-sm text-base-content/60">One consolidated file per district</span>
+            <span className="text-sm text-base-content/80">One consolidated file per district</span>
             <input
               ref={inputRef}
               type="file"

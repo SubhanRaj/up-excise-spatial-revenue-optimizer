@@ -105,14 +105,14 @@ function RevenueCell({ s }: { s: ShopRow }) {
     <details className="group cursor-pointer">
       <summary className="list-none select-none font-mono text-xs font-medium tabular-nums hover:underline decoration-dotted underline-offset-2">
         {fmt(s.totalRevenue)}
-        <span className="ml-1 text-base-content/30 group-open:hidden">▾</span>
+        <span className="ml-1 text-base-content/50 group-open:hidden">▾</span>
       </summary>
       <div className="absolute z-10 mt-1 w-56 rounded-lg border border-base-300 bg-base-100 p-3 shadow-lg text-xs">
-        <p className="text-base-content/50 font-medium uppercase tracking-wide text-[10px] mb-2">Revenue Breakdown</p>
+        <p className="text-base-content/70 font-medium uppercase tracking-wide text-[10px] mb-2">Revenue Breakdown</p>
         <div className="space-y-1">
           {lines.map(([label, val]) => (
             <div key={label} className="flex justify-between gap-3">
-              <span className="text-base-content/60 truncate">{label}</span>
+              <span className="text-base-content/80 truncate">{label}</span>
               <span className="font-mono tabular-nums shrink-0">{fmt(val)}</span>
             </div>
           ))}
@@ -127,7 +127,7 @@ function RevenueCell({ s }: { s: ShopRow }) {
 }
 
 function AdjThanas({ raw }: { raw: string | null }) {
-  if (!raw) return <span className="text-base-content/30">—</span>;
+  if (!raw) return <span className="text-base-content/50">—</span>;
   const thanas = raw.split(',').map((t) => t.trim()).filter(Boolean);
   return (
     <div className="flex flex-wrap gap-1 min-w-[140px]">
@@ -139,7 +139,7 @@ function AdjThanas({ raw }: { raw: string | null }) {
 }
 
 function SortIcon({ active, dir }: { active: boolean; dir: 'asc' | 'desc' }) {
-  if (!active) return <span className="text-base-content/20 ml-1">⇅</span>;
+  if (!active) return <span className="text-base-content/40 ml-1">⇅</span>;
   return <span className="text-info ml-1">{dir === 'asc' ? '↑' : '↓'}</span>;
 }
 
@@ -159,11 +159,11 @@ function TypeBadge({ type, cl5cc }: { type: string; cl5cc: boolean }) {
 function StatCard({ label, value, sub, href }: { label: string; value: string; sub?: string; href?: string }) {
   return (
     <div className="bg-base-100 rounded-xl border border-base-200 p-4 space-y-1">
-      <p className="text-[11px] uppercase tracking-widest font-medium text-base-content/40">{label}</p>
+      <p className="text-[11px] uppercase tracking-widest font-medium text-base-content/60">{label}</p>
       {href
         ? <Link href={href} className="block text-xl font-bold text-primary tabular-nums hover:underline underline-offset-2">{value}</Link>
         : <p className="text-xl font-bold text-base-content tabular-nums">{value}</p>}
-      {sub && <p className="text-xs text-base-content/50">{sub}</p>}
+      {sub && <p className="text-xs text-base-content/70">{sub}</p>}
     </div>
   );
 }
@@ -405,7 +405,7 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
           <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
           Districts
         </Link>
-        <span className="text-base-content/30">/</span>
+        <span className="text-base-content/50">/</span>
         <h1 className="text-2xl font-bold tracking-tight">{name}</h1>
         {detail && (
           <span className={`badge badge-sm font-medium ${detail.status === 'submitted' ? 'badge-success' : detail.status === 'in_progress' ? 'badge-warning' : 'badge-ghost'}`}>
@@ -464,7 +464,7 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
       {/* Per-type breakdown bar */}
       {!loading && allShops.length > 0 && (
         <div className="bg-base-100 rounded-xl border border-base-200 p-4">
-          <p className="text-[11px] uppercase tracking-widest font-medium text-base-content/40 mb-3">Shop Type Breakdown</p>
+          <p className="text-[11px] uppercase tracking-widest font-medium text-base-content/60 mb-3">Shop Type Breakdown</p>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
             {SHOP_TYPES.map((t) => {
               const c = typeCounts[t];
@@ -477,10 +477,10 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
                 >
                   <div className="flex items-center gap-1.5 mb-1">
                     <span className={`badge badge-xs ${TYPE_BADGE[t]}`}>{' '}</span>
-                    <span className="text-xs font-medium text-base-content/70">{TYPE_LABEL[t]}</span>
+                    <span className="text-xs font-medium text-base-content/90">{TYPE_LABEL[t]}</span>
                   </div>
                   <p className="text-lg font-bold tabular-nums">{c.count}</p>
-                  <p className="text-[11px] text-base-content/40 tabular-nums">{fmtCr(c.revenue)}</p>
+                  <p className="text-[11px] text-base-content/60 tabular-nums">{fmtCr(c.revenue)}</p>
                 </button>
               );
             })}
@@ -495,10 +495,10 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
                 >
                   <div className="flex items-center gap-1.5 mb-1">
                     <span className="badge badge-xs badge-outline text-[10px]">CL5CC</span>
-                    <span className="text-xs font-medium text-base-content/70">Country Liquor w/ Beer</span>
+                    <span className="text-xs font-medium text-base-content/90">Country Liquor w/ Beer</span>
                   </div>
                   <p className="text-lg font-bold tabular-nums">{cl5ccCount}</p>
-                  <p className="text-[11px] text-base-content/40">of Country Liquor</p>
+                  <p className="text-[11px] text-base-content/60">of Country Liquor</p>
                 </button>
               );
             })()}
@@ -513,7 +513,7 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
         <div className={`flex flex-wrap gap-3 items-center p-4 border-b border-base-200 ${loading ? 'pointer-events-none opacity-50' : ''}`}>
           {/* Search */}
           <div className="relative flex-1 min-w-[200px]">
-            <svg xmlns="http://www.w3.org/2000/svg" className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-base-content/30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-base-content/50" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
             <input
               type="text"
               value={search}
@@ -546,7 +546,7 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
           )}
 
           {/* Group by type toggle */}
-          <label className="flex items-center gap-2 cursor-pointer select-none text-sm text-base-content/70">
+          <label className="flex items-center gap-2 cursor-pointer select-none text-sm text-base-content/90">
             <input
               type="checkbox"
               className="toggle toggle-xs toggle-info"
@@ -558,7 +558,7 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
 
           {/* Page size */}
           <div className="flex items-center gap-2 ml-auto">
-            <span className="text-xs text-base-content/40 whitespace-nowrap">Rows per page</span>
+            <span className="text-xs text-base-content/60 whitespace-nowrap">Rows per page</span>
             <div className="join">
               {PAGE_SIZES.map((ps) => (
                 <button
@@ -574,7 +574,7 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
         </div>
 
         {/* Result count */}
-        <div className="px-4 py-2 bg-base-50 border-b border-base-200 text-xs text-base-content/50">
+        <div className="px-4 py-2 bg-base-50 border-b border-base-200 text-xs text-base-content/70">
           {loading ? 'Loading…' : (
             <>
               Showing <strong>{displayRows.length.toLocaleString()}</strong> of{' '}
@@ -587,7 +587,7 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
         {/* Table */}
         <div className="overflow-auto max-h-[calc(100vh-250px)] rounded-xl border border-base-200">
           <table className="table table-xs table-pin-rows w-full" role="grid">
-            <thead className="bg-base-200 text-[11px] uppercase tracking-wide text-base-content/50 z-10">
+            <thead className="bg-base-200 text-[11px] uppercase tracking-wide text-base-content/70 z-10">
               <tr>
                 <th
                   className="cursor-pointer hover:text-base-content whitespace-nowrap"
@@ -651,12 +651,12 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
                             onClick={() => toggleGroup(type)}
                             className="flex items-center gap-2 hover:opacity-70 transition-opacity"
                           >
-                            <span className="text-base-content/50 text-xs">{isExpanded ? '▾' : '▸'}</span>
+                            <span className="text-base-content/70 text-xs">{isExpanded ? '▾' : '▸'}</span>
                             <span className={`badge badge-sm font-semibold ${TYPE_BADGE[type] ?? 'badge-ghost'}`}>
                               {TYPE_LABEL[type] ?? type}
                             </span>
                           </button>
-                          <span className="text-xs text-base-content/50">
+                          <span className="text-xs text-base-content/70">
                             {allGroupRows.length} shops · {fmtCr(allGroupRows.reduce((s, r) => s + r.totalRevenue, 0))}
                           </span>
                         </div>
@@ -667,7 +667,7 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
                       ...(gTotalPages > 1 ? [
                         <tr key={`pgn-${type}`}>
                           <td colSpan={skeletonCols} className="py-1.5 px-4 bg-base-50">
-                            <div className="flex items-center gap-2 text-xs text-base-content/60">
+                            <div className="flex items-center gap-2 text-xs text-base-content/80">
                               <button className="btn btn-ghost btn-xs" disabled={gPage === 1} onClick={() => setGPage(gPage - 1)}>← Prev</button>
                               <span>Page {gPage} of {gTotalPages}</span>
                               <button className="btn btn-ghost btn-xs" disabled={gPage >= gTotalPages} onClick={() => setGPage(gPage + 1)}>Next →</button>
@@ -683,7 +683,7 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
                 displayRows.length === 0
                   ? (
                     <tr>
-                      <td colSpan={skeletonCols} className="text-center py-12 text-base-content/40">
+                      <td colSpan={skeletonCols} className="text-center py-12 text-base-content/60">
                         No shops match your filters.
                       </td>
                     </tr>
@@ -704,7 +704,7 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
             >
               ← Previous
             </button>
-            <span className="text-xs text-base-content/50">
+            <span className="text-xs text-base-content/70">
               Page <strong>{page}</strong> of <strong>{totalPages}</strong>
             </span>
             <button
@@ -725,25 +725,25 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
 const ShopTableRow = memo(function ShopTableRow({ s }: { s: ShopRow }) {  // ponytail: memo prevents re-render of stable rows when toolbar state changes
   return (
     <tr className="hover:bg-base-50 border-b border-base-100 last:border-0">
-      <td className="font-mono text-xs text-base-content/70 whitespace-nowrap">{s.shopId}</td>
+      <td className="font-mono text-xs text-base-content/90 whitespace-nowrap">{s.shopId}</td>
       <td className="max-w-[200px]">
         <span className="block truncate text-sm font-medium" title={s.shopName}>{s.shopName}</span>
       </td>
-      <td className="text-xs text-base-content/60 max-w-[120px] truncate" title={s.circleSectorName}>
+      <td className="text-xs text-base-content/80 max-w-[120px] truncate" title={s.circleSectorName}>
         {s.circleSectorName}
       </td>
-      <td className="text-xs text-base-content/70 whitespace-nowrap">{s.thanaName}</td>
+      <td className="text-xs text-base-content/90 whitespace-nowrap">{s.thanaName}</td>
       <td><AdjThanas raw={s.adjacentThanasRaw} /></td>
       <td><TypeBadge type={s.shopType} cl5cc={s.hasCl5cc} /></td>
-      <td className="font-mono text-xs text-base-content/50 whitespace-nowrap">
+      <td className="font-mono text-xs text-base-content/70 whitespace-nowrap">
         {s.latitudeDecimal != null && s.longitudeDecimal != null
           ? `${s.latitudeDecimal.toFixed(4)}, ${s.longitudeDecimal.toFixed(4)}`
-          : <span className="text-base-content/25">—</span>}
+          : <span className="text-base-content/45">—</span>}
       </td>
       <td className="text-right relative">
         <RevenueCell s={s} />
       </td>
-      <td className="text-xs text-base-content/40">{s.uploadedByDeo}</td>
+      <td className="text-xs text-base-content/60">{s.uploadedByDeo}</td>
     </tr>
   );
 });

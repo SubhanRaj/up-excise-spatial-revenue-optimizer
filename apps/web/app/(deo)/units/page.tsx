@@ -122,7 +122,7 @@ export default function UnitsPage() {
             </table>
           </div>
         ) : (
-          <p className="text-base-content/60 text-sm">{unitsLoading ? 'Loading registered units…' : 'No units registered yet. Add circles and sectors above.'}</p>
+          <p className="text-base-content/80 text-sm">{unitsLoading ? 'Loading registered units…' : 'No units registered yet. Add circles and sectors above.'}</p>
         )}
       </div>
 

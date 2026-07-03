@@ -126,13 +126,13 @@ export default function HomeStats({ district }: { district: string }) {
       <div className="flex items-center justify-between bg-base-100 p-4 rounded-xl shadow-sm border border-base-200">
         <div>
           <h3 className="font-semibold text-sm">Sync Device Data</h3>
-          <p className="text-xs text-base-content/60">Pull previously uploaded shops from the server to your local device.</p>
+          <p className="text-xs text-base-content/80">Pull previously uploaded shops from the server to your local device.</p>
           {syncError && <p className="text-xs text-error mt-1">{syncError}</p>}
         </div>
         <div className="flex items-center gap-2">
           {cooldownLabel && (
             <button
-              className="btn btn-xs btn-ghost text-base-content/40 hover:text-error"
+              className="btn btn-xs btn-ghost text-base-content/60 hover:text-error"
               title="Clear sync cooldown"
               onClick={() => {
                 try { localStorage.removeItem(LS_KEY); } catch { /* ignore */ }

@@ -34,10 +34,10 @@ export default function DivisionPage({ params }: { params: Promise<{ division: s
           <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
           Districts
         </Link>
-        <span className="text-base-content/30">/</span>
+        <span className="text-base-content/50">/</span>
         <div>
           <h1 className="text-2xl font-bold tracking-tight">{divName} Division</h1>
-          {!loading && <p className="text-sm text-base-content/50 mt-0.5">{districts.length} districts</p>}
+          {!loading && <p className="text-sm text-base-content/70 mt-0.5">{districts.length} districts</p>}
         </div>
         <div className="ml-auto">
           <HelpPanel pageKey={`admin_division_${divName}`} title={`${divName} Division`}>
@@ -60,7 +60,7 @@ export default function DivisionPage({ params }: { params: Promise<{ division: s
             { label: 'Total Revenue', value: fmt(totals.revenue), cls: 'text-primary' },
           ].map(({ label, value, cls }) => (
             <div key={label} className="bg-base-100 rounded-xl border border-base-200 p-4 space-y-1">
-              <p className="text-[11px] uppercase tracking-widest font-medium text-base-content/40">{label}</p>
+              <p className="text-[11px] uppercase tracking-widest font-medium text-base-content/60">{label}</p>
               <p className={`text-xl font-bold tabular-nums ${cls ?? 'text-base-content'}`}>{value}</p>
             </div>
           ))}
@@ -74,7 +74,7 @@ export default function DivisionPage({ params }: { params: Promise<{ division: s
         </div>
         <div className="overflow-x-auto">
           <table className="table table-sm w-full" role="grid">
-            <thead className="bg-base-50 text-[11px] uppercase tracking-wide text-base-content/50">
+            <thead className="bg-base-50 text-[11px] uppercase tracking-wide text-base-content/70">
               <tr>
                 <th>District</th>
                 <th>DEO</th>
@@ -92,7 +92,7 @@ export default function DivisionPage({ params }: { params: Promise<{ division: s
                   </tr>
                 ))
               ) : districts.length === 0 ? (
-                <tr><td colSpan={6} className="text-center py-12 text-base-content/40">No districts found for this division.</td></tr>
+                <tr><td colSpan={6} className="text-center py-12 text-base-content/60">No districts found for this division.</td></tr>
               ) : (
                 districts.map((d) => (
                   <tr
@@ -101,7 +101,7 @@ export default function DivisionPage({ params }: { params: Promise<{ division: s
                     onClick={() => router.push(`/admin/districts/${encodeURIComponent(d.name)}`)}
                   >
                     <td className="font-medium">{d.name}</td>
-                    <td className="text-xs text-base-content/60">{d.deoName ?? '—'}</td>
+                    <td className="text-xs text-base-content/80">{d.deoName ?? '—'}</td>
                     <td>
                       <span className={`badge badge-sm ${d.status === 'submitted' ? 'badge-success' : d.status === 'in_progress' ? 'badge-warning' : 'badge-ghost'}`}>
                         {d.status}

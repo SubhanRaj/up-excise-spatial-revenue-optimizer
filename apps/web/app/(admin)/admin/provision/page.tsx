@@ -183,7 +183,7 @@ function EditDrawer({ district, onClose, onSaved }: { district: DistrictRow; onC
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-base-200 bg-base-100 sticky top-0 z-10">
           <div>
-            <p className="text-[11px] uppercase tracking-widest font-medium text-base-content/40 mb-0.5">Edit District</p>
+            <p className="text-[11px] uppercase tracking-widest font-medium text-base-content/60 mb-0.5">Edit District</p>
             <h3 className="text-base font-bold leading-tight">{district.name}</h3>
           </div>
           <button className="btn btn-ghost btn-sm btn-circle" onClick={handleClose} aria-label="Close">
@@ -202,7 +202,7 @@ function EditDrawer({ district, onClose, onSaved }: { district: DistrictRow; onC
 
           {/* Section: Administrative */}
           <div className="space-y-3">
-            <p className="text-[10px] uppercase tracking-widest font-semibold text-base-content/40 border-b border-base-200 pb-1">Administrative</p>
+            <p className="text-[10px] uppercase tracking-widest font-semibold text-base-content/60 border-b border-base-200 pb-1">Administrative</p>
             <label className="form-control">
               <span className="label-text text-xs font-medium mb-1">Division</span>
               <select className="select select-bordered select-sm" value={form.division} onChange={set('division')}>
@@ -214,24 +214,24 @@ function EditDrawer({ district, onClose, onSaved }: { district: DistrictRow; onC
 
           {/* Section: DEO Identity */}
           <div className="space-y-3">
-            <p className="text-[10px] uppercase tracking-widest font-semibold text-base-content/40 border-b border-base-200 pb-1">District Excise Officer</p>
+            <p className="text-[10px] uppercase tracking-widest font-semibold text-base-content/60 border-b border-base-200 pb-1">District Excise Officer</p>
             <label className="form-control">
               <span className="label-text text-xs font-medium mb-1">Full Name</span>
               <input className="input input-bordered input-sm" placeholder="e.g. Rajesh Kumar Sharma" value={form.deoName} onChange={set('deoName')} />
             </label>
             <label className="form-control">
-              <span className="label-text text-xs font-medium mb-1">Email <span className="text-base-content/40 font-normal">(portal login)</span></span>
+              <span className="label-text text-xs font-medium mb-1">Email <span className="text-base-content/60 font-normal">(portal login)</span></span>
               <input type="email" className="input input-bordered input-sm font-mono text-xs" placeholder="officer@up-excise.gov.in" value={form.deoEmail} onChange={set('deoEmail')} />
             </label>
             <label className="form-control">
-              <span className="label-text text-xs font-medium mb-1">Identifier <span className="text-base-content/40 font-normal">(dept. ID)</span></span>
+              <span className="label-text text-xs font-medium mb-1">Identifier <span className="text-base-content/60 font-normal">(dept. ID)</span></span>
               <input className="input input-bordered input-sm font-mono text-xs" placeholder="e.g. DEO-LKO-001" value={form.deoId} onChange={set('deoId')} />
             </label>
           </div>
 
           {/* Section: Capacity */}
           <div className="space-y-3">
-            <p className="text-[10px] uppercase tracking-widest font-semibold text-base-content/40 border-b border-base-200 pb-1">Expected Capacity</p>
+            <p className="text-[10px] uppercase tracking-widest font-semibold text-base-content/60 border-b border-base-200 pb-1">Expected Capacity</p>
             <label className="form-control">
               <span className="label-text text-xs font-medium mb-1">Expected Vend Count</span>
               <input type="number" min="0" className="input input-bordered input-sm" placeholder="e.g. 450" value={form.expectedVendCount} onChange={set('expectedVendCount')} />
@@ -240,22 +240,22 @@ function EditDrawer({ district, onClose, onSaved }: { district: DistrictRow; onC
 
           {/* Section: Bounding Box */}
           <div className="space-y-3">
-            <p className="text-[10px] uppercase tracking-widest font-semibold text-base-content/40 border-b border-base-200 pb-1">Map Bounding Box <span className="normal-case text-[9px]">(decimal degrees)</span></p>
+            <p className="text-[10px] uppercase tracking-widest font-semibold text-base-content/60 border-b border-base-200 pb-1">Map Bounding Box <span className="normal-case text-[9px]">(decimal degrees)</span></p>
             <div className="grid grid-cols-2 gap-2">
               <label className="form-control">
-                <span className="label-text text-[10px] text-base-content/50 mb-0.5">Min Latitude (S)</span>
+                <span className="label-text text-[10px] text-base-content/70 mb-0.5">Min Latitude (S)</span>
                 <input type="number" step="any" className="input input-bordered input-xs font-mono" placeholder="23.8" value={form.bboxMinLat} onChange={set('bboxMinLat')} />
               </label>
               <label className="form-control">
-                <span className="label-text text-[10px] text-base-content/50 mb-0.5">Max Latitude (N)</span>
+                <span className="label-text text-[10px] text-base-content/70 mb-0.5">Max Latitude (N)</span>
                 <input type="number" step="any" className="input input-bordered input-xs font-mono" placeholder="30.4" value={form.bboxMaxLat} onChange={set('bboxMaxLat')} />
               </label>
               <label className="form-control">
-                <span className="label-text text-[10px] text-base-content/50 mb-0.5">Min Longitude (W)</span>
+                <span className="label-text text-[10px] text-base-content/70 mb-0.5">Min Longitude (W)</span>
                 <input type="number" step="any" className="input input-bordered input-xs font-mono" placeholder="77.1" value={form.bboxMinLon} onChange={set('bboxMinLon')} />
               </label>
               <label className="form-control">
-                <span className="label-text text-[10px] text-base-content/50 mb-0.5">Max Longitude (E)</span>
+                <span className="label-text text-[10px] text-base-content/70 mb-0.5">Max Longitude (E)</span>
                 <input type="number" step="any" className="input input-bordered input-xs font-mono" placeholder="84.6" value={form.bboxMaxLon} onChange={set('bboxMaxLon')} />
               </label>
             </div>
@@ -357,12 +357,12 @@ export default function DistrictMasterPage() {
           <li><strong>Edit a district</strong> — click the edit icon on any row to open a panel for division, DEO name/email/identifier, expected vend count, and bounding-box coordinates. Saves immediately, no Excel round-trip required.</li>
           <li><strong>Bulk provisioning</strong> — for initial campaign setup or large batches of DEOs, download the template (pre-filled with district name and division), fill in DEO details, and upload it below.</li>
         </ol>
-        <p className="mt-1 text-base-content/60">DEOs who already have accounts are skipped automatically on bulk upload. Email failures are reported per-row without rolling back the DB write.</p>
+        <p className="mt-1 text-base-content/80">DEOs who already have accounts are skipped automatically on bulk upload. Email failures are reported per-row without rolling back the DB write.</p>
       </HelpPanel>
 
       <div className="card bg-base-100 shadow p-6">
         <h2 className="text-xl font-bold mb-1">District Master</h2>
-        <p className="text-sm text-base-content/70 mb-4">
+        <p className="text-sm text-base-content/90 mb-4">
           Reference data for all 75 districts — division assignment, DEO identity, expected vend counts, and map coordinates. Edit a single district inline, or use bulk Excel upload for initial provisioning.
         </p>
 
@@ -376,13 +376,13 @@ export default function DistrictMasterPage() {
                 {districtRows.map((d) => (
                   <tr key={d.name} role="row">
                     <td className="font-medium">{d.name}</td>
-                    <td>{d.division ?? <span className="text-base-content/30">—</span>}</td>
+                    <td>{d.division ?? <span className="text-base-content/50">—</span>}</td>
                     <td>
                       {d.deoName
                         ? <div className="text-xs font-medium">{d.deoName}</div>
-                        : <span className="text-base-content/30 text-xs">Unassigned</span>}
+                        : <span className="text-base-content/50 text-xs">Unassigned</span>}
                     </td>
-                    <td>{d.expectedVendCount ?? <span className="text-base-content/30">—</span>}</td>
+                    <td>{d.expectedVendCount ?? <span className="text-base-content/50">—</span>}</td>
                     <td>{d.vendCount}</td>
                     <td><span className={`badge badge-xs ${d.status === 'submitted' ? 'badge-success' : d.status === 'in_progress' ? 'badge-warning' : 'badge-ghost'}`}>{d.status}</span></td>
                     <td>
@@ -400,7 +400,7 @@ export default function DistrictMasterPage() {
 
       <div className="card bg-base-100 shadow p-6">
         <h2 className="text-xl font-bold mb-2">Bulk DEO Provisioning</h2>
-        <p className="text-sm text-base-content/70 mb-4">
+        <p className="text-sm text-base-content/90 mb-4">
           Upload a DEO Excel file with columns: <strong>District Name, Division, DEO Name, DEO Email, DEO Identifier, Expected Vend Count</strong>.
           SheetJS parses the file in-browser; no data is sent until you confirm below.
         </p>
@@ -459,7 +459,7 @@ export default function DistrictMasterPage() {
       {session?.email === SUPERADMIN_EMAIL && (
         <div className="card bg-base-100 shadow p-6 border border-error/30">
           <h2 className="text-xl font-bold text-error mb-1">Danger Zone</h2>
-          <p className="text-sm text-base-content/70 mb-4">
+          <p className="text-sm text-base-content/90 mb-4">
             Deletes all shop records, circles/sectors, audit log, and DEO accounts. Resets all 75 district statuses to pending.
             Your admin account is preserved. Use this to wipe test data before the real campaign.
           </p>

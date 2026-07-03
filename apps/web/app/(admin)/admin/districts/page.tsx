@@ -13,7 +13,7 @@ const fmtCoord = (n: number) => n.toFixed(4);
 type SortKey = 'name' | 'division' | 'status' | 'vendCount' | 'totalRevenue';
 
 function SortIcon({ active, dir }: { active: boolean; dir: 'asc' | 'desc' }) {
-  if (!active) return <span className="text-base-content/20 ml-1">⇅</span>;
+  if (!active) return <span className="text-base-content/40 ml-1">⇅</span>;
   return <span className="text-info ml-1">{dir === 'asc' ? '↑' : '↓'}</span>;
 }
 
@@ -64,7 +64,7 @@ export default function DistrictsPage() {
       <div className="flex items-center gap-3 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">All Districts</h1>
-          <p className="text-sm text-base-content/50 mt-0.5">Complete registry of all 75 Uttar Pradesh districts. Select a district to view its shop-level records.</p>
+          <p className="text-sm text-base-content/70 mt-0.5">Complete registry of all 75 Uttar Pradesh districts. Select a district to view its shop-level records.</p>
         </div>
         <div className="ml-auto flex items-center gap-2">
           <button className="btn btn-sm btn-outline gap-1" onClick={refresh} disabled={loading}>
@@ -86,20 +86,20 @@ export default function DistrictsPage() {
       {!loading && (
         <div className="flex flex-wrap gap-3">
           <div className="bg-base-100 rounded-xl border border-base-200 px-4 py-2 flex items-center gap-2">
-            <span className="text-xs text-base-content/50">Showing</span>
+            <span className="text-xs text-base-content/70">Showing</span>
             <span className="font-bold tabular-nums">{rows.length}</span>
-            <span className="text-xs text-base-content/50">of 75 districts</span>
+            <span className="text-xs text-base-content/70">of 75 districts</span>
           </div>
           <div className="bg-base-100 rounded-xl border border-base-200 px-4 py-2 flex items-center gap-2">
-            <span className="text-xs text-base-content/50">Submitted</span>
+            <span className="text-xs text-base-content/70">Submitted</span>
             <span className="font-bold text-success tabular-nums">{totals.submitted}</span>
           </div>
           <div className="bg-base-100 rounded-xl border border-base-200 px-4 py-2 flex items-center gap-2">
-            <span className="text-xs text-base-content/50">Total vends</span>
+            <span className="text-xs text-base-content/70">Total vends</span>
             <span className="font-bold tabular-nums">{totals.vends.toLocaleString()}</span>
           </div>
           <div className="bg-base-100 rounded-xl border border-base-200 px-4 py-2 flex items-center gap-2">
-            <span className="text-xs text-base-content/50">Total revenue</span>
+            <span className="text-xs text-base-content/70">Total revenue</span>
             <span className="font-bold text-primary tabular-nums">{fmt(totals.revenue)}</span>
           </div>
         </div>
@@ -110,7 +110,7 @@ export default function DistrictsPage() {
         {/* Toolbar */}
         <div className={`flex flex-wrap gap-3 items-center p-4 border-b border-base-200 ${loading ? 'pointer-events-none opacity-50' : ''}`}>
           <div className="relative flex-1 min-w-[200px]">
-            <svg xmlns="http://www.w3.org/2000/svg" className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-base-content/30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-base-content/50" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
             <input
               type="text"
               value={search}
@@ -133,7 +133,7 @@ export default function DistrictsPage() {
 
         <div className="overflow-x-auto">
           <table className="table table-sm w-full" role="grid">
-            <thead className="bg-base-50 text-[11px] uppercase tracking-wide text-base-content/50">
+            <thead className="bg-base-50 text-[11px] uppercase tracking-wide text-base-content/70">
               <tr>
                 <th className="cursor-pointer hover:text-base-content" onClick={() => handleSort('name')}>
                   District <SortIcon active={sortKey === 'name'} dir={sortDir} />
@@ -165,7 +165,7 @@ export default function DistrictsPage() {
                   </tr>
                 ))
               ) : rows.length === 0 ? (
-                <tr><td colSpan={8} className="text-center py-12 text-base-content/40">No districts match your filters.</td></tr>
+                <tr><td colSpan={8} className="text-center py-12 text-base-content/60">No districts match your filters.</td></tr>
               ) : (
                 rows.map((d) => (
                   <tr key={d.name} className="hover:bg-base-50 cursor-pointer" onClick={() => router.push(`/admin/districts/${encodeURIComponent(d.name)}`)}>
@@ -173,15 +173,15 @@ export default function DistrictsPage() {
                     <td>
                       {d.division
                         ? <Link href={`/admin/divisions/${encodeURIComponent(d.division)}`} onClick={(e) => e.stopPropagation()} className="badge badge-sm badge-ghost hover:badge-primary transition-colors cursor-pointer">{d.division}</Link>
-                        : <span className="text-base-content/30">—</span>}
+                        : <span className="text-base-content/50">—</span>}
                     </td>
                     <td>
-                      <div className="text-xs font-medium">{d.deoName ?? <span className="text-base-content/30">—</span>}</div>
+                      <div className="text-xs font-medium">{d.deoName ?? <span className="text-base-content/50">—</span>}</div>
                     </td>
-                    <td className="font-mono text-[11px] text-base-content/50 whitespace-nowrap">
+                    <td className="font-mono text-[11px] text-base-content/70 whitespace-nowrap">
                       {d.centerLat != null && d.centerLon != null
                         ? <>{fmtCoord(d.centerLat)}°N<br />{fmtCoord(d.centerLon)}°E</>
-                        : <span className="text-base-content/20">—</span>}
+                        : <span className="text-base-content/40">—</span>}
                     </td>
                     <td>
                       <span className={`badge badge-sm ${d.status === 'submitted' ? 'badge-success' : d.status === 'in_progress' ? 'badge-warning' : 'badge-ghost'}`}>

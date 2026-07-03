@@ -29,7 +29,7 @@ export default function LoginForm() {
           {/* tabler:shield-check */}
           <svg xmlns="http://www.w3.org/2000/svg" className="w-12 h-12 text-primary mx-auto mb-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3a12 12 0 0 0 8.5 3A12 12 0 0 1 12 21A12 12 0 0 1 3.5 6A12 12 0 0 0 12 3"/><path d="m9 12 2 2 4-4"/></svg>
           <h1 className="text-2xl font-bold">UP Excise Spatial Revenue Optimizer</h1>
-          <p className="text-sm text-base-content/60">Department of Excise, Government of Uttar Pradesh</p>
+          <p className="text-sm text-base-content/80">Department of Excise, Government of Uttar Pradesh</p>
         </div>
 
         {sent ? (
@@ -71,7 +71,7 @@ export default function LoginForm() {
           </form>
         )}
 
-        <p className="text-center text-xs text-base-content/40">
+        <p className="text-center text-xs text-base-content/60">
           Access is restricted to provisioned accounts only.
         </p>
       </div>

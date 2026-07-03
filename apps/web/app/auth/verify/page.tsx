@@ -45,7 +45,7 @@ function VerifyInner() {
       <main className="min-h-screen flex items-center justify-center bg-base-200">
         <div className="card bg-base-100 shadow-xl p-8 w-full max-w-md text-center space-y-4">
           <p className="text-xl font-semibold text-error">Link invalid or expired</p>
-          <p className="text-sm text-base-content/60">{error ? messages[error] : messages.expired}</p>
+          <p className="text-sm text-base-content/80">{error ? messages[error] : messages.expired}</p>
           <a href="/login" className="btn btn-primary">Request a new link</a>
         </div>
       </main>
@@ -56,7 +56,7 @@ function VerifyInner() {
     <main className="min-h-screen flex items-center justify-center bg-base-200">
       <div className="card bg-base-100 shadow-xl p-8 w-full max-w-md text-center space-y-6">
         <h2 className="text-2xl font-bold text-base-content">Complete Sign In</h2>
-        <p className="text-sm text-base-content/70">Click the button below to verify your login and access the portal securely.</p>
+        <p className="text-sm text-base-content/90">Click the button below to verify your login and access the portal securely.</p>
         <button
           className="btn btn-primary w-full"
           onClick={verifyToken}

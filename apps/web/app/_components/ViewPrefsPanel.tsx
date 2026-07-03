@@ -89,7 +89,7 @@ export default function ViewPrefsPanel() {
 
   const btnClass = (active: boolean) =>
     `flex-1 py-1 rounded-lg text-xs font-medium transition-colors ${
-      active ? 'bg-primary text-primary-content' : 'hover:bg-base-200 text-base-content/60'
+      active ? 'bg-primary text-primary-content' : 'hover:bg-base-200 text-base-content/80'
     }`;
 
   return (
@@ -104,13 +104,13 @@ export default function ViewPrefsPanel() {
           className="fixed bottom-16 right-4 z-40 w-56 rounded-xl border border-base-300 bg-base-100 shadow-2xl p-3 space-y-3"
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-base-content/70">View Preferences</span>
-            <button className="btn btn-ghost btn-xs text-base-content/50" onClick={reset}>↺ Reset</button>
+            <span className="text-xs font-semibold text-base-content/90">View Preferences</span>
+            <button className="btn btn-ghost btn-xs text-base-content/70" onClick={reset}>↺ Reset</button>
           </div>
 
           {/* Theme */}
           <div className="space-y-1.5">
-            <p className="text-[10px] uppercase tracking-widest text-base-content/40">Theme</p>
+            <p className="text-[10px] uppercase tracking-widest text-base-content/60">Theme</p>
             <div className="flex gap-1">
               <button className={btnClass(themeMode === 'light')} onClick={() => setTheme('light')}>
                 {/* tabler:sun */}
@@ -126,7 +126,7 @@ export default function ViewPrefsPanel() {
 
           {/* Font Size */}
           <div className="space-y-1.5">
-            <p className="text-[10px] uppercase tracking-widest text-base-content/40">Font Size</p>
+            <p className="text-[10px] uppercase tracking-widest text-base-content/60">Font Size</p>
             <div className="flex gap-1">
               <button className={btnClass(prefs.fontSize === 'sm')} onClick={() => update({ fontSize: 'sm' })}>S</button>
               <button className={btnClass(prefs.fontSize === 'base')} onClick={() => update({ fontSize: 'base' })}>M</button>
@@ -136,7 +136,7 @@ export default function ViewPrefsPanel() {
 
           {/* Density */}
           <div className="space-y-1.5">
-            <p className="text-[10px] uppercase tracking-widest text-base-content/40">Density</p>
+            <p className="text-[10px] uppercase tracking-widest text-base-content/60">Density</p>
             <div className="flex gap-1">
               <button className={btnClass(prefs.density === 'compact')} onClick={() => update({ density: 'compact' })}>Compact</button>
               <button className={btnClass(prefs.density === 'normal')} onClick={() => update({ density: 'normal' })}>Normal</button>
@@ -146,7 +146,7 @@ export default function ViewPrefsPanel() {
 
           {/* Width */}
           <div className="space-y-1.5">
-            <p className="text-[10px] uppercase tracking-widest text-base-content/40">Width</p>
+            <p className="text-[10px] uppercase tracking-widest text-base-content/60">Width</p>
             <div className="flex gap-1">
               <button className={btnClass(prefs.width === 'normal')} onClick={() => update({ width: 'normal' })}>Normal</button>
               <button className={btnClass(prefs.width === 'wide')} onClick={() => update({ width: 'wide' })}>Wide</button>

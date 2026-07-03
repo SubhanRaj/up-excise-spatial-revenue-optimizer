@@ -23,7 +23,7 @@ export default async function DeoDashboard() {
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-bold">Welcome back</h1>
-          <p className="text-base-content/60 mt-1">
+          <p className="text-base-content/80 mt-1">
             District: <span className="font-semibold text-base-content">{district}</span>
           </p>
         </div>
@@ -39,7 +39,7 @@ export default async function DeoDashboard() {
           </div>
           <div>
             <h3 className="font-semibold text-base">Circles &amp; Sectors</h3>
-            <p className="text-sm text-base-content/60 mt-1">Register inspection circles and sectors, then download the district template</p>
+            <p className="text-sm text-base-content/80 mt-1">Register inspection circles and sectors, then download the district template</p>
           </div>
           <div className="mt-auto"><span className="btn btn-primary btn-sm w-full">Manage</span></div>
         </Link>
@@ -51,7 +51,7 @@ export default async function DeoDashboard() {
             </div>
             <div>
               <h3 className="font-semibold text-base">Upload District File</h3>
-              <p className="text-sm text-base-content/60 mt-1">Parse the consolidated district Excel file and stage all shop records</p>
+              <p className="text-sm text-base-content/80 mt-1">Parse the consolidated district Excel file and stage all shop records</p>
             </div>
             <div className="mt-auto"><span className="btn btn-secondary btn-sm w-full">Upload</span></div>
           </Link>
@@ -62,7 +62,7 @@ export default async function DeoDashboard() {
             </div>
             <div>
               <h3 className="font-semibold text-base">Upload District File</h3>
-              <p className="text-sm text-base-content/60 mt-1">Parse the consolidated district Excel file and stage all shop records</p>
+              <p className="text-sm text-base-content/80 mt-1">Parse the consolidated district Excel file and stage all shop records</p>
             </div>
             <div className="mt-auto"><span className="btn btn-secondary btn-sm w-full btn-disabled">Upload</span></div>
           </div>
@@ -75,7 +75,7 @@ export default async function DeoDashboard() {
             </div>
             <div>
               <h3 className="font-semibold text-base">Verify &amp; Submit</h3>
-              <p className="text-sm text-base-content/60 mt-1">Review staged records, fix validation errors, then submit to headquarters</p>
+              <p className="text-sm text-base-content/80 mt-1">Review staged records, fix validation errors, then submit to headquarters</p>
             </div>
             <div className="mt-auto"><span className="btn btn-success btn-sm w-full">Review</span></div>
           </Link>
@@ -86,7 +86,7 @@ export default async function DeoDashboard() {
             </div>
             <div>
               <h3 className="font-semibold text-base">Verify &amp; Submit</h3>
-              <p className="text-sm text-base-content/60 mt-1">Review staged records, fix validation errors, then submit to headquarters</p>
+              <p className="text-sm text-base-content/80 mt-1">Review staged records, fix validation errors, then submit to headquarters</p>
             </div>
             <div className="mt-auto"><span className="btn btn-success btn-sm w-full btn-disabled">Review</span></div>
           </div>

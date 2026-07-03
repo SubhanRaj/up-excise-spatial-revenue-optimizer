@@ -75,11 +75,11 @@ function SearchBar() {
   return (
     <div ref={wrapperRef} className="relative hidden lg:flex mx-4">
       <label className="input input-sm input-bordered flex items-center gap-2 w-64 cursor-text focus-within:border-primary transition-colors">
-        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-base-content/40 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-base-content/60 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
         <input
           type="text"
           placeholder="Search districts, divisions…"
-          className="grow bg-transparent outline-none text-sm min-w-0 placeholder:text-base-content/30"
+          className="grow bg-transparent outline-none text-sm min-w-0 placeholder:text-base-content/50"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={onKeyDown}
@@ -89,7 +89,7 @@ function SearchBar() {
         {query && (
           <button
             onClick={() => { setQuery(''); setOpen(false); }}
-            className="shrink-0 text-base-content/30 hover:text-base-content cursor-pointer transition-colors"
+            className="shrink-0 text-base-content/50 hover:text-base-content cursor-pointer transition-colors"
             tabIndex={-1}
             aria-label="Clear search"
           >
@@ -101,7 +101,7 @@ function SearchBar() {
       {open && (
         <div className="absolute top-full left-0 right-0 mt-1 bg-base-100 border border-base-200 rounded-xl shadow-2xl z-[60] overflow-hidden min-w-[300px]">
           {results.some((r) => r.kind === 'division') && (
-            <div className="px-3 pt-2 pb-1 text-[10px] uppercase tracking-widest font-medium text-base-content/30">Divisions</div>
+            <div className="px-3 pt-2 pb-1 text-[10px] uppercase tracking-widest font-medium text-base-content/50">Divisions</div>
           )}
           {results.filter((r) => r.kind === 'division').map((r, i) => {
             const globalIdx = i;
@@ -115,14 +115,14 @@ function SearchBar() {
                 <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-primary shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-medium truncate">{r.label}</div>
-                  {r.sub && <div className="text-xs text-base-content/40">{r.sub}</div>}
+                  {r.sub && <div className="text-xs text-base-content/60">{r.sub}</div>}
                 </div>
                 <span className="badge badge-xs badge-primary shrink-0">Division</span>
               </Link>
             );
           })}
           {results.some((r) => r.kind === 'district') && (
-            <div className="px-3 pt-2 pb-1 text-[10px] uppercase tracking-widest font-medium text-base-content/30 border-t border-base-100">Districts</div>
+            <div className="px-3 pt-2 pb-1 text-[10px] uppercase tracking-widest font-medium text-base-content/50 border-t border-base-100">Districts</div>
           )}
           {results.filter((r) => r.kind === 'district').map((r, i) => {
             const globalIdx = results.filter((x) => x.kind === 'division').length + i;
@@ -133,10 +133,10 @@ function SearchBar() {
                 onClick={() => { setOpen(false); setQuery(''); }}
                 className={`flex items-center gap-3 px-3 py-2 cursor-pointer transition-colors ${activeIdx === globalIdx ? 'bg-base-200' : 'hover:bg-base-50'}`}
               >
-                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-base-content/40 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18"/><path d="M9 8h1"/><path d="M9 12h1"/><path d="M9 16h1"/><path d="M14 8h1"/><path d="M14 12h1"/><path d="M14 16h1"/><path d="M5 21V6l7-3 7 3v15"/></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-base-content/60 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18"/><path d="M9 8h1"/><path d="M9 12h1"/><path d="M9 16h1"/><path d="M14 8h1"/><path d="M14 12h1"/><path d="M14 16h1"/><path d="M5 21V6l7-3 7 3v15"/></svg>
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-medium truncate">{r.label}</div>
-                  {r.sub && <div className="text-xs text-base-content/40">{r.sub}</div>}
+                  {r.sub && <div className="text-xs text-base-content/60">{r.sub}</div>}
                 </div>
                 <span className="badge badge-xs badge-ghost shrink-0">District</span>
               </Link>
@@ -197,7 +197,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <svg xmlns="http://www.w3.org/2000/svg" className="w-10 h-10 text-primary shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18"/><path d="M9 8h1"/><path d="M9 12h1"/><path d="M9 16h1"/><path d="M14 8h1"/><path d="M14 12h1"/><path d="M14 16h1"/><path d="M5 21V6l7-3 7 3v15"/></svg>
             <div className="hidden md:block">
               <div className="font-bold text-sm leading-tight group-hover:text-primary transition-colors">UP Excise SRO</div>
-              <div className="text-xs text-base-content/50 leading-tight">Headquarters Dashboard</div>
+              <div className="text-xs text-base-content/70 leading-tight">Headquarters Dashboard</div>
             </div>
           </Link>
         </div>
@@ -218,13 +218,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
       {crumbs.length > 0 && (
         <div className="bg-base-100 border-b border-base-200 px-6 py-2">
-          <nav aria-label="Breadcrumb" className="text-xs text-base-content/50 flex items-center gap-1.5">
+          <nav aria-label="Breadcrumb" className="text-xs text-base-content/70 flex items-center gap-1.5">
             {crumbs.map((c, i) => (
               <span key={i} className="flex items-center gap-1.5">
                 {i > 0 && <span aria-hidden>›</span>}
                 {c.href
                   ? <Link href={c.href} className="hover:text-base-content hover:underline underline-offset-2 transition-colors cursor-pointer">{c.label}</Link>
-                  : <span className={i === crumbs.length - 1 ? 'text-base-content/80 font-medium' : ''}>{c.label}</span>
+                  : <span className={i === crumbs.length - 1 ? 'text-base-content font-medium' : ''}>{c.label}</span>
                 }
               </span>
             ))}

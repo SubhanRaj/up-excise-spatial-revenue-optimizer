@@ -277,10 +277,10 @@ export default function AdminPage() {
         <div className="flex justify-between items-center mb-2">
           <div>
             <h3 className="font-semibold">District Status — Uttar Pradesh</h3>
-            <p className="text-xs text-base-content/40 mt-0.5">75 districts · click any district to view shop records</p>
+            <p className="text-xs text-base-content/60 mt-0.5">75 districts · click any district to view shop records</p>
           </div>
           <div className="flex items-center gap-3">
-            {lastRefresh && <span className="text-xs text-base-content/50 hidden sm:inline">Updated {lastRefresh.toLocaleTimeString()}</span>}
+            {lastRefresh && <span className="text-xs text-base-content/70 hidden sm:inline">Updated {lastRefresh.toLocaleTimeString()}</span>}
             <button className="btn btn-xs btn-outline" onClick={() => fetchMapData(true)}>
               <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21v-5h5"/></svg>
               Sync from Server
@@ -288,7 +288,7 @@ export default function AdminPage() {
           </div>
         </div>
         <div id="admin-map" ref={mapRef} style={{ height: 660 }} aria-label="UP district status choropleth map" role="img" />
-        <div className="flex gap-4 mt-2 text-xs text-base-content/60">
+        <div className="flex gap-4 mt-2 text-xs text-base-content/80">
           {[['#94a3b8','Pending'],['#f59e0b','In Progress'],['#16a34a','Submitted']].map(([color, label]) => (
             <span key={label} className="flex items-center gap-1.5">
               <span className="inline-block w-3 h-3 rounded-sm border border-[#334155]" style={{ background: color }} />
@@ -315,7 +315,7 @@ export default function AdminPage() {
         <div className="card bg-base-100 shadow p-4">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold">Divisions</h3>
-            <span className="text-xs text-base-content/40">{divisions.length} divisions · click to view districts</span>
+            <span className="text-xs text-base-content/60">{divisions.length} divisions · click to view districts</span>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
             {divisions.map((div) => (
@@ -324,13 +324,13 @@ export default function AdminPage() {
                 href={`/admin/divisions/${encodeURIComponent(div.name)}`}
                 className="rounded-lg border border-base-200 p-3 hover:border-primary hover:bg-base-50 transition-colors cursor-pointer group"
               >
-                <p className="text-xs font-semibold text-base-content/70 group-hover:text-primary transition-colors truncate">{div.name}</p>
-                <p className="text-[11px] text-base-content/40 mt-0.5">{div.count} districts</p>
+                <p className="text-xs font-semibold text-base-content/90 group-hover:text-primary transition-colors truncate">{div.name}</p>
+                <p className="text-[11px] text-base-content/60 mt-0.5">{div.count} districts</p>
                 <div className="mt-2 flex items-center gap-1.5">
                   <span className={`badge badge-xs ${div.submitted === div.count ? 'badge-success' : div.submitted > 0 ? 'badge-warning' : 'badge-ghost'}`}>
                     {div.submitted}/{div.count}
                   </span>
-                  <span className="text-[11px] text-base-content/40 tabular-nums">{formatInr(div.revenue)}</span>
+                  <span className="text-[11px] text-base-content/60 tabular-nums">{formatInr(div.revenue)}</span>
                 </div>
               </Link>
             ))}
@@ -343,7 +343,7 @@ export default function AdminPage() {
         <div className="flex justify-between items-center mb-3 flex-wrap gap-2">
           <div>
             <h3 className="font-semibold">Top 10 Districts by Revenue</h3>
-            <p className="text-xs text-base-content/40 mt-0.5">Highest revenue districts this cycle</p>
+            <p className="text-xs text-base-content/60 mt-0.5">Highest revenue districts this cycle</p>
           </div>
           <Link href="/admin/districts" className="btn btn-sm btn-outline gap-1">
             View all 75 districts
@@ -358,12 +358,12 @@ export default function AdminPage() {
             <tbody>
               {top10.map((d, i) => (
                 <tr key={d.name} role="row">
-                  <td role="gridcell" className="text-base-content/40 text-xs tabular-nums w-6">{i + 1}</td>
+                  <td role="gridcell" className="text-base-content/60 text-xs tabular-nums w-6">{i + 1}</td>
                   <td role="gridcell" className="font-medium">{d.name}</td>
                   <td role="gridcell">
                     {d.division
                       ? <Link href={`/admin/divisions/${encodeURIComponent(d.division)}`} className="badge badge-xs badge-ghost hover:badge-primary transition-colors cursor-pointer">{d.division}</Link>
-                      : <span className="text-base-content/30">—</span>}
+                      : <span className="text-base-content/50">—</span>}
                   </td>
                   <td role="gridcell">
                     <span className={`badge badge-sm ${d.status === 'submitted' ? 'badge-success' : d.status === 'in_progress' ? 'badge-warning' : 'badge-ghost'}`}>

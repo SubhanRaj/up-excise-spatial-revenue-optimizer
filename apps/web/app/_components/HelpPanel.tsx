@@ -58,7 +58,7 @@ export default function HelpPanel({ pageKey, title, children }: HelpPanelProps) 
   return (
     <div ref={wrapperRef} className="relative inline-block">
       <button
-        className={`btn btn-ghost btn-xs gap-1 ${done ? 'text-base-content/40' : 'text-info'}`}
+        className={`btn btn-ghost btn-xs gap-1 ${done ? 'text-base-content/60' : 'text-info'}`}
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-label={open ? 'Close help' : 'Open help and instructions'}
@@ -100,7 +100,7 @@ export default function HelpPanel({ pageKey, title, children }: HelpPanelProps) 
               </button>
             </div>
 
-            <div className="text-sm text-base-content/80 space-y-2 overflow-y-auto max-h-64 pr-1">
+            <div className="text-sm text-base-content space-y-2 overflow-y-auto max-h-64 pr-1">
               {children}
             </div>
 
