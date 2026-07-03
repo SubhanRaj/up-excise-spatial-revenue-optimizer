@@ -1268,7 +1268,7 @@ M-6: Auth Migration + Single Worker       [Post-M5]         ✅ Complete
 - [x] Client-side search in the verification UI (IndexedDB-powered, no network call).
 - [x] Audit events written: `upload_chunk` and `unit_registered` events logged to `audit_log` via Worker.
 
-**Exit criterion:** DEO can register two circles, upload a separate Excel for each (parsed from jsDelivr-served SheetJS), review grouped rows, remove a red adjacency pill, toggle dark mode, force-refresh the page, and see all data and theme preference restored from IndexedDB/localStorage. Submit button is blocked until both circles are verified. PWA install prompt appears on an iPad browser.
+**Exit criterion:** DEO can register two circles, download the district template containing dropdowns for both circles, upload a single consolidated district Excel (parsed from jsDelivr-served SheetJS), review grouped rows, remove a red adjacency pill, toggle dark mode, force-refresh the page, and see all data and theme preference restored from IndexedDB/localStorage. Submit button is blocked until all registered circles are verified. PWA install prompt appears on an iPad browser.
 
 ---
 
