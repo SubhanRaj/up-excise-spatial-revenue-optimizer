@@ -245,11 +245,11 @@ export async function generateTemplate(districtName: string, units: string[]): P
 
   const titleRow = [`District: ${districtName.toUpperCase()}   |   UP Excise Spatial Revenue Optimizer   |   DEO Data Entry Template`];
 
-  const wsDataEntry = XLSX.utils.aoa_to_sheet([titleRow, TEMPLATE_HEADERS]);
+  const wsDataEntry = XLSX.utils.aoa_to_sheet([titleRow, TEMPLATE_HEADERS]) as any;
   wsDataEntry['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: TEMPLATE_HEADERS.length - 1 } }];
   wsDataEntry['!views'] = [{ state: 'frozen', ySplit: 2 }];
 
-  const wsDemo = XLSX.utils.aoa_to_sheet([titleRow, TEMPLATE_HEADERS, ...examples]);
+  const wsDemo = XLSX.utils.aoa_to_sheet([titleRow, TEMPLATE_HEADERS, ...examples]) as any;
   wsDemo['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: TEMPLATE_HEADERS.length - 1 } }];
   wsDemo['!views'] = [{ state: 'frozen', ySplit: 2 }];
 
