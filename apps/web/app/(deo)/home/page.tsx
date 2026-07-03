@@ -5,9 +5,18 @@ import { requireAuth } from '@/lib/auth';
 import HelpPanel from '@/app/_components/HelpPanel';
 import HomeStats from './HomeStats';
 
+import { getCloudflareContext } from '@opennextjs/cloudflare';
+import { drizzle } from 'drizzle-orm/d1';
+import { districtCirclesSectors } from '@excise/schema';
+import { eq } from 'drizzle-orm';
+
 export default async function DeoDashboard() {
   const session = await requireAuth('deo');
   const district = session.districtName ?? 'Unknown District';
+  const { env } = await getCloudflareContext({ async: true }) as { env: CloudflareEnv };
+  const db = drizzle(env.DB);
+  const unitsResult = await db.select({ id: districtCirclesSectors.id }).from(districtCirclesSectors).where(eq(districtCirclesSectors.districtName, district)).limit(1).all();
+  const hasUnits = unitsResult.length > 0;
 
   return (
     <div className="space-y-8">
@@ -35,27 +44,53 @@ export default async function DeoDashboard() {
           <div className="mt-auto"><span className="btn btn-primary btn-sm w-full">Manage</span></div>
         </Link>
 
-        <Link href="/upload" className="card bg-base-100 shadow hover:shadow-lg transition-all hover:-translate-y-0.5 p-6 flex flex-col gap-4">
-          <div className="w-12 h-12 rounded-xl bg-secondary/10 flex items-center justify-center">
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-secondary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/><polyline points="7 9 12 4 17 9"/><line x1="12" y1="4" x2="12" y2="16"/></svg>
+        {hasUnits ? (
+          <Link href="/upload" className="card bg-base-100 shadow hover:shadow-lg transition-all hover:-translate-y-0.5 p-6 flex flex-col gap-4">
+            <div className="w-12 h-12 rounded-xl bg-secondary/10 flex items-center justify-center">
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-secondary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/><polyline points="7 9 12 4 17 9"/><line x1="12" y1="4" x2="12" y2="16"/></svg>
+            </div>
+            <div>
+              <h3 className="font-semibold text-base">Upload District File</h3>
+              <p className="text-sm text-base-content/60 mt-1">Parse the consolidated district Excel file and stage all shop records</p>
+            </div>
+            <div className="mt-auto"><span className="btn btn-secondary btn-sm w-full">Upload</span></div>
+          </Link>
+        ) : (
+          <div className="card bg-base-100 shadow p-6 flex flex-col gap-4 opacity-50 cursor-not-allowed" title="Create a circle or sector first">
+            <div className="w-12 h-12 rounded-xl bg-secondary/10 flex items-center justify-center">
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-secondary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/><polyline points="7 9 12 4 17 9"/><line x1="12" y1="4" x2="12" y2="16"/></svg>
+            </div>
+            <div>
+              <h3 className="font-semibold text-base">Upload District File</h3>
+              <p className="text-sm text-base-content/60 mt-1">Parse the consolidated district Excel file and stage all shop records</p>
+            </div>
+            <div className="mt-auto"><span className="btn btn-secondary btn-sm w-full btn-disabled">Upload</span></div>
           </div>
-          <div>
-            <h3 className="font-semibold text-base">Upload District File</h3>
-            <p className="text-sm text-base-content/60 mt-1">Parse the consolidated district Excel file and stage all shop records</p>
-          </div>
-          <div className="mt-auto"><span className="btn btn-secondary btn-sm w-full">Upload</span></div>
-        </Link>
+        )}
 
-        <Link href="/verify" className="card bg-base-100 shadow hover:shadow-lg transition-all hover:-translate-y-0.5 p-6 flex flex-col gap-4">
-          <div className="w-12 h-12 rounded-xl bg-success/10 flex items-center justify-center">
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-success" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="2"/><path d="m9 14 2 2 4-4"/></svg>
+        {hasUnits ? (
+          <Link href="/verify" className="card bg-base-100 shadow hover:shadow-lg transition-all hover:-translate-y-0.5 p-6 flex flex-col gap-4">
+            <div className="w-12 h-12 rounded-xl bg-success/10 flex items-center justify-center">
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-success" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="2"/><path d="m9 14 2 2 4-4"/></svg>
+            </div>
+            <div>
+              <h3 className="font-semibold text-base">Verify &amp; Submit</h3>
+              <p className="text-sm text-base-content/60 mt-1">Review staged records, fix validation errors, then submit to headquarters</p>
+            </div>
+            <div className="mt-auto"><span className="btn btn-success btn-sm w-full">Review</span></div>
+          </Link>
+        ) : (
+          <div className="card bg-base-100 shadow p-6 flex flex-col gap-4 opacity-50 cursor-not-allowed" title="Create a circle or sector first">
+            <div className="w-12 h-12 rounded-xl bg-success/10 flex items-center justify-center">
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-success" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="2"/><path d="m9 14 2 2 4-4"/></svg>
+            </div>
+            <div>
+              <h3 className="font-semibold text-base">Verify &amp; Submit</h3>
+              <p className="text-sm text-base-content/60 mt-1">Review staged records, fix validation errors, then submit to headquarters</p>
+            </div>
+            <div className="mt-auto"><span className="btn btn-success btn-sm w-full btn-disabled">Review</span></div>
           </div>
-          <div>
-            <h3 className="font-semibold text-base">Verify &amp; Submit</h3>
-            <p className="text-sm text-base-content/60 mt-1">Review staged records, fix validation errors, then submit to headquarters</p>
-          </div>
-          <div className="mt-auto"><span className="btn btn-success btn-sm w-full">Review</span></div>
-        </Link>
+        )}
       </div>
 
       <HelpPanel pageKey="home" title="Getting started — Phase 1 Data Collection Workflow">

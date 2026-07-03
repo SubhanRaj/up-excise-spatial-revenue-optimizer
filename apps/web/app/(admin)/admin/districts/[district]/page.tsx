@@ -233,6 +233,18 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
     void load();
   }, [name]);
 
+  async function refreshShops() {
+    setLoading(true);
+    const [d, s] = await Promise.all([
+      fetch(`/api/admin/districts/${encodeURIComponent(name)}`).then((r) => r.json()),
+      fetch(`/api/admin/districts/${encodeURIComponent(name)}/shops?pageSize=all`).then((r) => r.json()),
+    ]);
+    adminShopsCache.set(name, { d, s });
+    setDetail(d as DistrictDetail);
+    setAllShops((s as { rows: ShopRow[] }).rows);
+    setLoading(false);
+  }
+
   // ── Client-side derived data ──────────────────────────────────────────────
 
   const filteredSorted = useMemo(() => {
@@ -317,7 +329,50 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
   }
 
   function exportXlsx() {
-    const ws = XLSX.utils.json_to_sheet(allShops);
+    const totalRev = allShops.reduce((sum, s) => sum + s.totalRevenue, 0);
+    const rowsForExport = [
+      ...allShops,
+      {
+        id: '',
+        shopId: 'TOTAL',
+        shopName: '',
+        circleSectorName: '',
+        thanaName: '',
+        adjacentThanasRaw: '',
+        shopType: '',
+        hasCl5cc: '',
+        latitudeDecimal: '',
+        longitudeDecimal: '',
+        licenseFeeLf: '',
+        basicLicenseFeeBlf: '',
+        mgrAmount: '',
+        compositeLfFl: '',
+        compositeLfBeer: '',
+        compositeMgrFl: '',
+        compositeMgrBeer: '',
+        mgqQuantity: '',
+        considerationFee: '',
+        specialBeerLf: '',
+        specialBeerMgr: '',
+        totalRevenue: totalRev,
+        uploadedByDeo: ''
+      }
+    ];
+
+    const ws = XLSX.utils.json_to_sheet(rowsForExport);
+    
+    // Add Auto-Filter to the headers
+    ws['!autofilter'] = { ref: `A1:W${allShops.length + 1}` };
+    
+    // Freeze top row and first column
+    ws['!views'] = [{
+      state: 'frozen',
+      xSplit: 1,
+      ySplit: 1,
+      topLeftCell: 'B2',
+      activeCell: 'B2'
+    }];
+
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, name.slice(0, 31));
     const out = XLSX.write(wb, { type: 'array', bookType: 'xlsx' }) as ArrayBuffer;
@@ -371,6 +426,10 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
               <li><strong>Export XLSX</strong> — downloads this district&apos;s shops as an Excel file. All columns are correctly formatted — no CSV comma-quoting issues.</li>
             </ul>
           </HelpPanel>
+          <button className="btn btn-sm btn-outline gap-1" onClick={refreshShops} disabled={loading}>
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21v-5h5"/></svg>
+            Sync from Server
+          </button>
           <button className="btn btn-sm btn-outline gap-2" onClick={exportXlsx} disabled={allShops.length === 0}>
             <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/><polyline points="7 11 12 16 17 11"/><line x1="12" y1="4" x2="12" y2="16"/></svg>
             Export XLSX

@@ -66,7 +66,11 @@ export default function DistrictsPage() {
           <h1 className="text-2xl font-bold tracking-tight">All Districts</h1>
           <p className="text-sm text-base-content/50 mt-0.5">Complete registry of all 75 Uttar Pradesh districts. Select a district to view its shop-level records.</p>
         </div>
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-2">
+          <button className="btn btn-sm btn-outline gap-1" onClick={refresh} disabled={loading}>
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21v-5h5"/></svg>
+            Sync from Server
+          </button>
           <HelpPanel pageKey="admin_districts_list" title="All Districts">
             <p>Full list of all 75 UP districts. Filter by division or status. Click a district row to open its shop-level detail view.</p>
             <ul className="list-disc list-inside space-y-1 mt-1">

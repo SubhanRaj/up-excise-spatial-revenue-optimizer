@@ -122,7 +122,7 @@ up-excise-spatial-revenue-optimizer/
 - Divisions grid: 18 division cards each showing district count, submission progress bar, and total revenue
 - 2 Chart.js charts side by side: submission progress doughnut + top-20 districts bar chart
 - State totals stat cards (submitted districts, total vends, total revenue)
-- Auto-refresh every 5 minutes; map click on district polygon → district detail page
+- Manual Sync button for live data pull; map click on district polygon → district detail page
 
 **Districts page (`/admin/districts`):**
 - Full 75-district sortable table with search, division filter, and status filter

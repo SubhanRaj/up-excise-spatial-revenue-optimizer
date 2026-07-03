@@ -19,6 +19,18 @@ export default function DeoLayout({ children }: { children: React.ReactNode }) {
   };
   const crumb = crumbMap[pathname] ?? '';
 
+  const [hasUnits, setHasUnits] = useState(true);
+
+  useEffect(() => {
+    fetch('/api/auth/session').then(r => r.ok ? r.json() : {}).then(session => {
+      if (session.districtName) {
+        fetch(`/api/districts/${encodeURIComponent(session.districtName)}/units`)
+          .then(r => r.ok ? r.json() : [])
+          .then(units => setHasUnits(units.length > 0));
+      }
+    });
+  }, [pathname]);
+
   return (
     <div className="min-h-screen bg-base-200">
       {/* z-[1000] — above Leaflet tooltip pane (650) */}
@@ -36,8 +48,19 @@ export default function DeoLayout({ children }: { children: React.ReactNode }) {
         <div className="flex-none gap-1">
           <Link href="/home" className={`btn btn-ghost btn-sm ${pathname === '/home' ? 'btn-active' : ''}`}>Dashboard</Link>
           <Link href="/units" className={`btn btn-ghost btn-sm ${pathname === '/units' ? 'btn-active' : ''}`}>Circles</Link>
-          <Link href="/upload" className={`btn btn-ghost btn-sm ${pathname === '/upload' ? 'btn-active' : ''}`}>Upload</Link>
-          <Link href="/verify" className={`btn btn-ghost btn-sm ${pathname === '/verify' ? 'btn-active' : ''}`}>Verify</Link>
+          
+          {hasUnits ? (
+            <Link href="/upload" className={`btn btn-ghost btn-sm ${pathname === '/upload' ? 'btn-active' : ''}`}>Upload</Link>
+          ) : (
+            <span className="btn btn-ghost btn-sm btn-disabled opacity-40 cursor-not-allowed" title="Create a circle or sector first">Upload</span>
+          )}
+          
+          {hasUnits ? (
+            <Link href="/verify" className={`btn btn-ghost btn-sm ${pathname === '/verify' ? 'btn-active' : ''}`}>Verify</Link>
+          ) : (
+            <span className="btn btn-ghost btn-sm btn-disabled opacity-40 cursor-not-allowed" title="Create a circle or sector first">Verify</span>
+          )}
+
           <Link href="/admin" className="btn btn-outline btn-secondary btn-sm ml-1">HQ Admin</Link>
           <button className="btn btn-ghost btn-sm ml-1" onClick={signOut}>Sign out</button>
         </div>

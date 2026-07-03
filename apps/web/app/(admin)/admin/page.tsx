@@ -7,7 +7,6 @@ import { useSession } from '@/hooks/useSession';
 import HelpPanel from '@/app/_components/HelpPanel';
 import { useAdminDistricts } from '@/hooks/useAdminDistricts';
 import { adminMapCache } from '@/lib/db';
-const MAP_POLL_MS = 5 * 60 * 1000;
 
 interface DistrictRow {
   name: string; division?: string; deoName?: string; expectedVendCount?: number;
@@ -106,8 +105,6 @@ export default function AdminPage() {
 
   useEffect(() => {
     void fetchMapData();
-    const id = setInterval(() => fetchMapData(true), MAP_POLL_MS);
-    return () => clearInterval(id);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -282,7 +279,13 @@ export default function AdminPage() {
             <h3 className="font-semibold">District Status — Uttar Pradesh</h3>
             <p className="text-xs text-base-content/40 mt-0.5">75 districts · click any district to view shop records</p>
           </div>
-          {lastRefresh && <span className="text-xs text-base-content/50">Updated {lastRefresh.toLocaleTimeString()}</span>}
+          <div className="flex items-center gap-3">
+            {lastRefresh && <span className="text-xs text-base-content/50 hidden sm:inline">Updated {lastRefresh.toLocaleTimeString()}</span>}
+            <button className="btn btn-xs btn-outline" onClick={() => fetchMapData(true)}>
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21v-5h5"/></svg>
+              Sync from Server
+            </button>
+          </div>
         </div>
         <div id="admin-map" ref={mapRef} style={{ height: 660 }} aria-label="UP district status choropleth map" role="img" />
         <div className="flex gap-4 mt-2 text-xs text-base-content/60">

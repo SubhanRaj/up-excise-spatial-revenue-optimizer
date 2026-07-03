@@ -13,6 +13,7 @@ export default function HelpPanel({ pageKey, title, children }: HelpPanelProps) 
   const [open, setOpen] = useState(false);
   const [done, setDone] = useState(false);
   const [alignRight, setAlignRight] = useState(false);
+  const [alignTop, setAlignTop] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const balloonRef = useRef<HTMLDivElement>(null);
 
@@ -20,16 +21,17 @@ export default function HelpPanel({ pageKey, title, children }: HelpPanelProps) 
     try { setDone(localStorage.getItem(storageKey) === 'true'); } catch { }
   }, [storageKey]);
 
-  // After balloon renders, check if it overflows the right edge and flip alignment.
+  // After balloon renders, check if it overflows edges and flip alignment.
   // useLayoutEffect runs before paint so there's no visible flicker.
   useLayoutEffect(() => {
     if (!open || !balloonRef.current) return;
     const rect = balloonRef.current.getBoundingClientRect();
     setAlignRight(rect.right > window.innerWidth - 8);
+    setAlignTop(rect.bottom > window.innerHeight - 8);
   }, [open]);
 
   // Reset alignment on close so the next open re-evaluates correctly.
-  useEffect(() => { if (!open) setAlignRight(false); }, [open]);
+  useEffect(() => { if (!open) { setAlignRight(false); setAlignTop(false); } }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -80,12 +82,12 @@ export default function HelpPanel({ pageKey, title, children }: HelpPanelProps) 
           <div className="fixed inset-0 z-[1001] backdrop-blur-[2px] bg-black/10 pointer-events-none" aria-hidden="true" />
           <div
             ref={balloonRef}
-            className={`absolute top-full z-[1002] mt-1 w-[min(28rem,90vw)] card bg-base-100 border border-info/20 shadow-2xl p-4 space-y-3 ${alignRight ? 'right-0' : 'left-0'}`}
+            className={`absolute z-[1002] w-[min(28rem,90vw)] card bg-base-100 border border-info/20 shadow-2xl p-4 space-y-3 ${alignRight ? 'right-0' : 'left-0'} ${alignTop ? 'bottom-full mb-1' : 'top-full mt-1'}`}
             role="region"
             aria-label={`Help: ${title}`}
           >
             {/* Balloon caret — mirrors alignment */}
-            <div className={`absolute -top-2 w-3 h-3 bg-base-100 border-l border-t border-info/20 rotate-45 ${alignRight ? 'right-3' : 'left-3'}`} />
+            <div className={`absolute w-3 h-3 bg-base-100 rotate-45 ${alignRight ? 'right-3' : 'left-3'} ${alignTop ? '-bottom-1.5 border-r border-b border-info/20' : '-top-1.5 border-l border-t border-info/20'}`} />
 
             <div className="flex items-start justify-between gap-2">
               <h3 className="font-semibold text-sm text-info">{title}</h3>

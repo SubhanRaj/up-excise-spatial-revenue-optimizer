@@ -128,7 +128,6 @@ export const adminDistrictsCache = {
       .then((r) => {
         const entry = r[0];
         if (!entry) return null;
-        if (Date.now() - entry.fetchedAt > DISTRICTS_TTL_MS) return null; // stale
         return entry.data;
       }),
 
@@ -167,7 +166,6 @@ export const adminMapCache = {
       .then((r) => {
         const entry = r[0];
         if (!entry) return null;
-        if (Date.now() - entry.fetchedAt > DISTRICTS_TTL_MS) return null;
         return entry.data;
       }),
   set: (data: unknown) =>
@@ -184,7 +182,6 @@ export const adminShopsCache = {
       .then((r) => {
         const entry = r[0];
         if (!entry) return null;
-        if (Date.now() - entry.fetchedAt > DISTRICTS_TTL_MS) return null;
         return entry.data;
       }),
   set: (districtName: string, data: unknown) =>
@@ -201,7 +198,6 @@ export const adminAuditCache = {
       .then((r) => {
         const entry = r[0];
         if (!entry) return null;
-        if (Date.now() - entry.fetchedAt > 60 * 1000) return null; // 1 min TTL
         return entry.data;
       }),
   set: (page: string, data: unknown) =>
