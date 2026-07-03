@@ -44,6 +44,9 @@ Deploys automatically on push to `main` when source files change.
 
 **Source paths (deploy trigger):** `apps/web/app/**`, `apps/web/src/**`, `apps/web/public/**`, `apps/web/package.json`, `apps/web/wrangler.jsonc`, `packages/schema/src/**`
 
+### ⚠️ Mandatory Type Check Before Push
+Before committing and pushing code to GitHub (which triggers the CI deployment), AI Agents and Developers **must** run `pnpm typecheck` locally and ensure it passes. Next.js App Router enforces strict typing in the build pipeline. Failing to type check locally will break the CI build. Always verify locally first.
+
 ### GitHub Actions Secrets
 
 Repo → Settings → Secrets and variables → Actions. Both already set.

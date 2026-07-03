@@ -17,6 +17,9 @@ If you cannot solve a problem with confidence after **one attempt**, stop and as
 - **Act** when the fix is obvious and involves a small, reversible change to code.
 - **Ask** when you are uncertain which approach is correct, when the fix would touch pinned versions or infrastructure, or when a first attempt did not work and you are unsure why.
 
+### Mandatory Type Check Before Push
+Before committing and pushing code to GitHub (which triggers the CI deployment), you **must** run `pnpm typecheck` locally and ensure it passes. Next.js App Router enforces strict typing in the build pipeline. Failing to type check locally will break the CI build and waste time. Always verify locally first.
+
 This applies even in auto mode. A question asked once is far cheaper than three wrong fixes.
 
 ### Infrastructure Is Fully Provisioned — Do Not Re-Verify
