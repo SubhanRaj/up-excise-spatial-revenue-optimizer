@@ -38,6 +38,7 @@ export default function DeoLayout({ children }: { children: React.ReactNode }) {
           <Link href="/units" className={`btn btn-ghost btn-sm ${pathname === '/units' ? 'btn-active' : ''}`}>Circles</Link>
           <Link href="/upload" className={`btn btn-ghost btn-sm ${pathname === '/upload' ? 'btn-active' : ''}`}>Upload</Link>
           <Link href="/verify" className={`btn btn-ghost btn-sm ${pathname === '/verify' ? 'btn-active' : ''}`}>Verify</Link>
+          <Link href="/admin" className="btn btn-outline btn-secondary btn-sm ml-1">HQ Admin</Link>
           <button className="btn btn-ghost btn-sm ml-1" onClick={signOut}>Sign out</button>
         </div>
       </nav>

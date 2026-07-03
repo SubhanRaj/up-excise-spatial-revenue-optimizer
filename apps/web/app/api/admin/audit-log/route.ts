@@ -10,7 +10,7 @@ const PAGE_SIZE = 100;
 
 export async function GET(req: NextRequest) {
   const user = await getSession();
-  if (!user || user.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (!user || !['admin', 'superadmin'].includes(user.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const page = Math.max(1, Number(new URL(req.url).searchParams.get('page') ?? 1));
   const { env } = await getCloudflareContext({ async: true }) as { env: CloudflareEnv };

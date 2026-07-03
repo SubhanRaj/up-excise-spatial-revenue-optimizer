@@ -10,7 +10,7 @@ test.describe('E2E Local Demo - Superadmin Bypass & Excel Upload Flow', () => {
   test.beforeAll(() => {
     console.log('Seeding demo data locally...');
     // Seed the database to ensure shubhanraj2002@gmail.com exist
-    execSync('pnpm run seed:demo -- --local', { stdio: 'inherit' });
+    execSync('pnpm -w run seed:demo -- --local', { stdio: 'inherit' });
   });
 
   test('Complete lifecycle: Login, Create Unit, Upload Excel, Verify, Submit', async ({ page }) => {
@@ -33,16 +33,17 @@ test.describe('E2E Local Demo - Superadmin Bypass & Excel Upload Flow', () => {
     await page.goto(`/api/auth/verify?token=${rawToken}`);
     
     // As a superadmin, we land on /admin. Let's verify we are in.
-    await expect(page.locator('h1').filter({ hasText: 'Dashboard' })).toBeVisible({ timeout: 10000 });
+    await expect(page).toHaveURL(/\/admin/);
+    await expect(page.locator('div').filter({ hasText: 'Headquarters Dashboard' }).first()).toBeVisible({ timeout: 10000 });
 
     // 3. Navigate to DEO Units page to create a sector
     console.log('Navigating to DEO portal...');
     await page.goto('/units');
-    await expect(page.locator('h2').filter({ hasText: 'Manage Circles & Sectors' })).toBeVisible();
+    await expect(page.locator('h2').filter({ hasText: 'Circles & Sectors' })).toBeVisible();
 
     // Create a new sector for testing
     const testSector = `Test Sector ${Date.now()}`;
-    await page.fill('input[placeholder="e.g. Sector A or Circle 1"]', testSector);
+    await page.fill('input[placeholder="Unit name (e.g. Circle 1)"]', testSector);
     await page.selectOption('select', 'sector');
     await page.click('button:has-text("Add Unit")');
     // Ensure it appears in the list
@@ -82,14 +83,13 @@ test.describe('E2E Local Demo - Superadmin Bypass & Excel Upload Flow', () => {
     // 5. Navigate to Upload and upload the Excel file
     console.log('Uploading Excel...');
     await page.goto('/upload');
-    await expect(page.locator('h2').filter({ hasText: 'Upload Excel Data' })).toBeVisible();
+    await expect(page.locator('h2').filter({ hasText: 'Upload District Excel' })).toBeVisible();
     
     const fileInput = await page.$('input[type="file"]');
     await fileInput?.setInputFiles(excelPath);
-    await page.click('button:has-text("Upload & Preview")');
 
     // Proceed to verify
-    await page.click('a:has-text("Proceed to verification")');
+    await page.click('a:has-text("Go to Verify →")');
 
     // 6. Verify Page
     console.log('Verifying and submitting district...');
@@ -108,7 +108,8 @@ test.describe('E2E Local Demo - Superadmin Bypass & Excel Upload Flow', () => {
     console.log('Checking Admin Dashboard...');
     await page.goto('/admin');
     // Ensure it doesn't redirect
-    await expect(page.locator('h1').filter({ hasText: 'Dashboard' })).toBeVisible();
+    await expect(page).toHaveURL(/\/admin/);
+    await expect(page.locator('div').filter({ hasText: 'Headquarters Dashboard' }).first()).toBeVisible({ timeout: 10000 });
 
     console.log('E2E Demo completed successfully!');
   });

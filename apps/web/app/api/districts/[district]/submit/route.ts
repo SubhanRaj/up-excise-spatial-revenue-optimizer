@@ -32,9 +32,9 @@ export async function POST(
   }
 
   const now = new Date();
-  await db.transaction(async (tx) => {
-    await tx.update(districts).set({ status: 'submitted', submittedAt: now }).where(eq(districts.name, district));
-    await tx.insert(auditLog).values({
+  await db.batch([
+    db.update(districts).set({ status: 'submitted', submittedAt: now }).where(eq(districts.name, district)),
+    db.insert(auditLog).values({
       eventType: 'district_submitted',
       deoId: user.deoId,
       districtName: district,
@@ -42,8 +42,8 @@ export async function POST(
       userAgent: req.headers.get('User-Agent') ?? null,
       metadata: JSON.stringify({ submittedAt: now.toISOString() }),
       createdAt: now,
-    });
-  });
+    })
+  ]);
 
   return NextResponse.json({ ok: true, submittedAt: now.toISOString() });
 }

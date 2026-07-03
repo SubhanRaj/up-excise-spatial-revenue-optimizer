@@ -10,7 +10,7 @@ export async function POST() {
   const session = await getSession();
   const { env } = await getCloudflareContext({ async: true }) as { env: CloudflareEnv };
 
-  if (!session || session.role !== 'admin' || session.emailHash !== env.SUPERADMIN_EMAIL_HASH) {
+  if (!session || !['admin', 'superadmin'].includes(session.role) || session.emailHash !== env.SUPERADMIN_EMAIL_HASH) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 

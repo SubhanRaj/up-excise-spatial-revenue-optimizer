@@ -10,7 +10,7 @@ export async function GET(
   { params }: { params: Promise<{ district: string }> },
 ) {
   const user = await getSession();
-  if (!user || user.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (!user || !['admin', 'superadmin'].includes(user.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const { district } = await params;
   const { env } = await getCloudflareContext({ async: true }) as { env: CloudflareEnv };
@@ -57,7 +57,7 @@ export async function PATCH(
   { params }: { params: Promise<{ district: string }> },
 ) {
   const user = await getSession();
-  if (!user || user.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (!user || !['admin', 'superadmin'].includes(user.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const { district } = await params;
   const body = await req.json() as DistrictPatchBody;
@@ -110,15 +110,17 @@ export async function PATCH(
     return NextResponse.json({ error: 'No changes provided' }, { status: 400 });
   }
 
-  await db.transaction(async (tx) => {
-    await tx.update(districts).set(updates).where(eq(districts.name, district));
+  const batchStmts: any[] = [
+    db.update(districts).set(updates).where(eq(districts.name, district))
+  ];
 
-    if (body.deoEmail !== undefined && existing.deoEmailHash && existing.deoEmailHash !== newEmailHashStr) {
-      await tx.delete(authUsers).where(eq(authUsers.emailHash, existing.deoEmailHash));
-    }
+  if (body.deoEmail !== undefined && existing.deoEmailHash && existing.deoEmailHash !== newEmailHashStr) {
+    batchStmts.push(db.delete(authUsers).where(eq(authUsers.emailHash, existing.deoEmailHash)));
+  }
 
-    if (newEmailHashStr) {
-      await tx.insert(authUsers).values({
+  if (newEmailHashStr) {
+    batchStmts.push(
+      db.insert(authUsers).values({
         emailHash: newEmailHashStr,
         name: deoName ?? existing.deoName ?? 'DEO',
         role: 'deo',
@@ -127,9 +129,11 @@ export async function PATCH(
       }).onConflictDoUpdate({
         target: authUsers.emailHash,
         set: { name: deoName ?? existing.deoName ?? 'DEO', deoId: deoId ?? existing.deoId, districtName: district },
-      });
-    }
-  });
+      })
+    );
+  }
+
+  await db.batch(batchStmts as any);
 
   return NextResponse.json({ ok: true });
 }

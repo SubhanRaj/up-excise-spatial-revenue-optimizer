@@ -13,7 +13,7 @@ interface ProvisionRow {
 
 export async function POST(req: NextRequest) {
   const user = await getSession();
-  if (!user || user.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (!user || !['admin', 'superadmin'].includes(user.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const body = await req.json() as { rows: ProvisionRow[] };
   const { env } = await getCloudflareContext({ async: true }) as { env: CloudflareEnv };

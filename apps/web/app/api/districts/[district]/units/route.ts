@@ -41,15 +41,15 @@ export async function POST(
   const db = drizzle(env.DB);
   const now = new Date();
 
-  await db.transaction(async (tx) => {
-    await tx.insert(districtCirclesSectors).values({
+  await db.batch([
+    db.insert(districtCirclesSectors).values({
       districtName: district,
       name: body.name.trim(),
       type: body.type,
       createdByDeo: user.deoId,
       createdAt: now,
-    });
-    await tx.insert(auditLog).values({
+    }),
+    db.insert(auditLog).values({
       eventType: 'unit_registered',
       deoId: user.deoId,
       districtName: district,
@@ -57,8 +57,8 @@ export async function POST(
       userAgent: req.headers.get('User-Agent') ?? null,
       metadata: JSON.stringify({ name: body.name, type: body.type }),
       createdAt: now,
-    });
-  });
+    })
+  ]);
 
   return NextResponse.json({ ok: true });
 }
