@@ -58,12 +58,10 @@ function escapeXml(value: string): string {
     .replaceAll('&', '&amp;')
     .replaceAll('<', '&lt;')
     .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&apos;');
+    .replaceAll('"', '&quot;');
 }
 
-function buildListValidationXml(range: string, values: readonly string[], promptTitle: string, prompt: string, errorTitle: string, error: string): string {
-  const formula = `"${values.join(',')}"`;
+function buildListValidationXml(range: string, formula: string, promptTitle: string, prompt: string, errorTitle: string, error: string): string {
   return [
     `<dataValidation type="list" allowBlank="1" showInputMessage="1" showErrorMessage="1" errorStyle="stop" promptTitle="${escapeXml(promptTitle)}" prompt="${escapeXml(prompt)}" errorTitle="${escapeXml(errorTitle)}" error="${escapeXml(error)}" sqref="${escapeXml(range)}">`,
     `<formula1>${escapeXml(formula)}</formula1>`,
@@ -71,35 +69,32 @@ function buildListValidationXml(range: string, values: readonly string[], prompt
   ].join('');
 }
 
-async function addTemplateValidations(workbookBytes: ArrayBuffer): Promise<ArrayBuffer> {
+async function addTemplateValidations(workbookBytes: ArrayBuffer, units: string[]): Promise<ArrayBuffer> {
   const zip = await JSZip.loadAsync(workbookBytes);
-  const sheet = zip.file('xl/worksheets/sheet1.xml');
-  if (!sheet) throw new Error('Generated workbook is missing the main worksheet');
+  
+  const validationsList = [
+    buildListValidationXml('F3:F1048576', `"${SHOP_TYPE_OPTIONS.join(',')}"`, 'Shop type', 'Choose a shop type from the dropdown list.', 'Invalid shop type', `Use one of: ${SHOP_TYPE_OPTIONS.join(', ')}`),
+    buildListValidationXml('G3:G1048576', `"${CL5CC_OPTIONS.join(',')}"`, 'CL5CC', 'Choose true if the shop has CL5CC; otherwise choose false.', 'Invalid CL5CC value', 'Use true or false only.'),
+  ];
 
-  const xml = await sheet.async('string');
-  const validations = [
-    buildListValidationXml(
-      'F2:F1048576',
-      SHOP_TYPE_OPTIONS,
-      'Shop type',
-      'Choose a shop type from the dropdown list.',
-      'Invalid shop type',
-      `Use one of: ${SHOP_TYPE_OPTIONS.join(', ')}`,
-    ),
-    buildListValidationXml(
-      'G2:G1048576',
-      CL5CC_OPTIONS,
-      'CL5CC',
-      'Choose true if the shop has CL5CC; otherwise choose false.',
-      'Invalid CL5CC value',
-      'Use true or false only.',
-    ),
-  ].join('');
+  if (units.length > 0) {
+    validationsList.push(
+      buildListValidationXml('A3:A1048576', `'Reference Data'!$A$2:$A$${units.length + 1}`, 'Circle / Sector', 'Select a registered unit.', 'Invalid Unit', 'Please select a unit from the dropdown list.')
+    );
+  }
 
-  const nextXml = xml.replace('</worksheet>', `<dataValidations count="2">${validations}</dataValidations></worksheet>`);
-  if (nextXml === xml) throw new Error('Failed to inject dropdown validations into the worksheet');
+  const validations = validationsList.join('');
 
-  zip.file('xl/worksheets/sheet1.xml', nextXml);
+  for (const sheetName of ['sheet1.xml', 'sheet2.xml']) {
+    const sheet = zip.file(`xl/worksheets/${sheetName}`);
+    if (!sheet) continue;
+
+    const xml = await sheet.async('string');
+    // Inject immediately after </sheetData> to preserve valid Excel XML schema order
+    const nextXml = xml.replace('</sheetData>', `</sheetData><dataValidations count="${validationsList.length}">${validations}</dataValidations>`);
+    zip.file(`xl/worksheets/${sheetName}`, nextXml);
+  }
+
   return await zip.generateAsync({ type: 'arraybuffer' });
 }
 
@@ -118,7 +113,14 @@ export async function parseExcelFile(
   const ws = wb.Sheets[wb.SheetNames[0]!];
   if (!ws) throw new Error('Excel file has no sheets');
 
-  const raw = XLSX.utils.sheet_to_json(ws) as Record<string, unknown>[];
+  let raw = XLSX.utils.sheet_to_json(ws) as Record<string, unknown>[];
+  if (raw.length > 0) {
+    const isTitleRowFormat = Object.values(raw[0]!).includes('circle_sector_name');
+    if (isTitleRowFormat) {
+      raw = XLSX.utils.sheet_to_json(ws, { range: 1 }) as Record<string, unknown>[];
+    }
+  }
+
   const results: StagedRow[] = [];
 
   for (let i = 0; i < raw.length; i++) {
@@ -232,7 +234,6 @@ export async function generateTemplate(districtName: string, units: string[]): P
   const exUnit = units[0] ?? 'Circle 1';
   const exThana = 'Kotwali';
 
-  // One example row per shop type — Inspector can copy & modify
   const examples: unknown[][] = [
     [exUnit, exThana, '', 'SHOP001', 'Example Model Liquor Store', 'MODEL_SHOP', 'false', '', '', 100000, 0, 200000, 0, 0, 0, 0, 0, 0, 0, 0],
     [exUnit, exThana, '', 'SHOP002', 'Example Composite Wine Shop', 'COMPOSITE_SHOP', 'false', '', '', 0, 0, 0, 50000, 50000, 100000, 100000, 0, 0, 0, 0],
@@ -242,17 +243,27 @@ export async function generateTemplate(districtName: string, units: string[]): P
     [exUnit, exThana, '', 'SHOP006', 'Example CL5CC Beer Endorsed Shop', 'COUNTRY_LIQUOR', 'true', '', '', 0, 75000, 0, 0, 0, 0, 0, 0, 60000, 25000, 50000],
   ];
 
-  const wsDataEntry = XLSX.utils.aoa_to_sheet([TEMPLATE_HEADERS]);
-  const wsDemo = XLSX.utils.aoa_to_sheet([TEMPLATE_HEADERS, ...examples]);
+  const titleRow = [`District: ${districtName.toUpperCase()}   |   UP Excise Spatial Revenue Optimizer   |   DEO Data Entry Template`];
+
+  const wsDataEntry = XLSX.utils.aoa_to_sheet([titleRow, TEMPLATE_HEADERS]);
+  wsDataEntry['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: TEMPLATE_HEADERS.length - 1 } }];
+  wsDataEntry['!views'] = [{ state: 'frozen', ySplit: 2 }];
+
+  const wsDemo = XLSX.utils.aoa_to_sheet([titleRow, TEMPLATE_HEADERS, ...examples]);
+  wsDemo['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: TEMPLATE_HEADERS.length - 1 } }];
+  wsDemo['!views'] = [{ state: 'frozen', ySplit: 2 }];
+
   const wsGuide = XLSX.utils.aoa_to_sheet(COLUMN_GUIDE);
+  const wsRef = XLSX.utils.aoa_to_sheet([['Registered Units'], ...units.map(u => [u])]);
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, wsDataEntry, 'Data Entry');
   XLSX.utils.book_append_sheet(wb, wsDemo, 'Demo Data');
   XLSX.utils.book_append_sheet(wb, wsGuide, 'Instructions');
+  XLSX.utils.book_append_sheet(wb, wsRef, 'Reference Data');
 
   const out = XLSX.write(wb, { type: 'array', bookType: 'xlsx' });
-  const workbookBytes = await addTemplateValidations(out as ArrayBuffer);
+  const workbookBytes = await addTemplateValidations(out as ArrayBuffer, units);
   return new Blob([workbookBytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
 }
 
