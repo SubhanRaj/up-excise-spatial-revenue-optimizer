@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useState, useEffect } from 'react';
 
 async function signOut() {
   await fetch('/api/auth/logout', { method: 'POST' });
@@ -22,7 +23,7 @@ export default function DeoLayout({ children }: { children: React.ReactNode }) {
   const [hasUnits, setHasUnits] = useState(true);
 
   useEffect(() => {
-    fetch('/api/auth/session').then(r => r.ok ? r.json() : {}).then(session => {
+    fetch('/api/auth/session').then(r => r.ok ? r.json() : {}).then((session: any) => {
       if (session.districtName) {
         fetch(`/api/districts/${encodeURIComponent(session.districtName)}/units`)
           .then(r => r.ok ? r.json() : [])

@@ -18,7 +18,7 @@ function SortIcon({ active, dir }: { active: boolean; dir: 'asc' | 'desc' }) {
 }
 
 export default function DistrictsPage() {
-  const { districts, loading } = useAdminDistricts();
+  const { districts, loading, refresh } = useAdminDistricts();
   const router = useRouter();
   const [search, setSearch] = useState('');
   const [divFilter, setDivFilter] = useState('all');

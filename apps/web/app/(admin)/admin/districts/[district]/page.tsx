@@ -359,7 +359,7 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
       }
     ];
 
-    const ws = XLSX.utils.json_to_sheet(rowsForExport);
+    const ws = XLSX.utils.json_to_sheet(rowsForExport) as any;
     
     // Add Auto-Filter to the headers
     ws['!autofilter'] = { ref: `A1:W${allShops.length + 1}` };
