@@ -20,16 +20,15 @@ export default function HelpPanel({ pageKey, title, children }: HelpPanelProps) 
     try { setDone(localStorage.getItem(storageKey) === 'true'); } catch { }
   }, [storageKey]);
 
-  // The trigger lives in a fixed top-right corner, so the balloon always opens downward
-  // and to the left of it — that direction always has the most room in that corner, so
-  // there's nothing to "flip" (a flip here is what previously pushed it off-screen at the
-  // top). Instead, clamp width/height to whatever room is actually available so it only
-  // scrolls internally if the display genuinely doesn't have space, not by default.
+  // The trigger is fixed at the bottom-right corner (stacked above the view-preferences
+  // FAB), so the balloon always opens upward and to the left of it — that direction always
+  // has the most room in that corner. Clamp width/height to whatever room is actually
+  // available so it only scrolls internally if the display genuinely doesn't have space.
   useLayoutEffect(() => {
     if (!open || !wrapperRef.current) return;
     const rect = wrapperRef.current.getBoundingClientRect();
     setPanelWidth(Math.min(672, window.innerWidth - 32));
-    setPanelMaxHeight(Math.max(200, window.innerHeight - rect.bottom - 24));
+    setPanelMaxHeight(Math.max(200, rect.top - 24));
   }, [open]);
 
   useEffect(() => {
@@ -63,12 +62,12 @@ export default function HelpPanel({ pageKey, title, children }: HelpPanelProps) 
   }
 
   return (
-    // Fixed at the same on-screen spot on every page — top-right, just below the sticky
-    // navbar/breadcrumb strip — instead of being laid out inline next to each page's own
-    // heading, which produced inconsistent, cramped "half-width" headers across pages.
-    <div ref={wrapperRef} className="group fixed top-[4.75rem] right-4 z-[1000]">
+    // Fixed at the same on-screen spot on every page — bottom-right, stacked directly
+    // above the view-preferences FAB — instead of being laid out inline next to each
+    // page's own heading, which produced inconsistent, cramped "half-width" headers.
+    <div ref={wrapperRef} className="group fixed bottom-16 right-4 z-[1000]">
       {!open && (
-        <span className="pointer-events-none absolute right-full top-1/2 mr-3 -translate-y-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2.5 py-1.5 text-xs font-medium text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100">
+        <span className="pointer-events-none absolute right-full top-1/2 mr-3 -translate-y-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2.5 py-1.5 text-xs font-medium text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100 z-[1000]">
           {done ? 'Help' : 'Help / Instructions'}
         </span>
       )}
@@ -92,12 +91,12 @@ export default function HelpPanel({ pageKey, title, children }: HelpPanelProps) 
           <div className="fixed inset-0 z-[1001] backdrop-blur-[2px] bg-black/10" aria-hidden="true" onClick={() => setOpen(false)} />
           <div
             style={{ width: panelWidth, maxHeight: panelMaxHeight }}
-            className="absolute z-[1002] top-full right-0 mt-2 flex flex-col card bg-base-100 border border-info/20 shadow-2xl p-5 space-y-3"
+            className="absolute z-[1002] bottom-full right-0 mb-2 flex flex-col card bg-base-100 border border-info/20 shadow-2xl p-5 space-y-3"
             role="region"
             aria-label={`Help: ${title}`}
           >
-            {/* Balloon caret — always top-right, matching the fixed open-downward-left anchor */}
-            <div className="absolute -top-1.5 right-3 w-3 h-3 bg-base-100 rotate-45 border-l border-t border-info/20" />
+            {/* Balloon caret — always bottom-right, matching the fixed open-upward-left anchor */}
+            <div className="absolute -bottom-1.5 right-3 w-3 h-3 bg-base-100 rotate-45 border-r border-b border-info/20" />
 
             <div className="flex items-start justify-between gap-2">
               <h3 className="font-semibold text-base text-info">{title}</h3>

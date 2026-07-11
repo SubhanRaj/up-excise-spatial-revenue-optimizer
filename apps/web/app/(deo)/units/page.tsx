@@ -175,18 +175,18 @@ export default function UnitsPage() {
           <Link href="/upload" className="btn btn-primary self-start">Continue to Upload →</Link>
         </div>
       ) : step === 'count' ? (
-        <div className="card bg-base-100 shadow p-16 space-y-10 max-w-3xl mx-auto">
+        <div className="card bg-base-100 shadow p-8 space-y-6 max-w-2xl mx-auto">
           <StepHeader step={1} />
           <div className="text-center">
-            <p className="text-base text-base-content">Enter the number of sectors and circles for <strong>{district}</strong>.</p>
-            <p className="text-sm text-base-content/60">{district} के सेक्टर और सर्कल की संख्या दर्ज करें</p>
+            <p className="text-sm text-base-content">Enter the number of sectors and circles for <strong>{district}</strong>.</p>
+            <p className="text-xs text-base-content/60">{district} के सेक्टर और सर्कल की संख्या दर्ज करें</p>
           </div>
-          <div className="grid grid-cols-2 gap-8">
+          <div className="grid grid-cols-2 gap-6">
             <div>
-              <label className="label justify-center"><span className="label-text font-medium text-base">Number of Sectors<br/>सेक्टर की संख्या</span></label>
+              <label className="label justify-center"><span className="label-text font-medium">Number of Sectors<br/>सेक्टर की संख्या</span></label>
               <input
                 type="number" min={0} max={50} inputMode="numeric"
-                className="input input-bordered w-full text-2xl text-center h-16"
+                className="input input-bordered input-lg w-full text-center"
                 value={sectorCount}
                 onChange={(e) => setSectorCount(e.target.value)}
                 placeholder="e.g. 6"
@@ -194,10 +194,10 @@ export default function UnitsPage() {
               />
             </div>
             <div>
-              <label className="label justify-center"><span className="label-text font-medium text-base">Number of Circles<br/>सर्कल की संख्या</span></label>
+              <label className="label justify-center"><span className="label-text font-medium">Number of Circles<br/>सर्कल की संख्या</span></label>
               <input
                 type="number" min={0} max={50} inputMode="numeric"
-                className="input input-bordered w-full text-2xl text-center h-16"
+                className="input input-bordered input-lg w-full text-center"
                 value={circleCount}
                 onChange={(e) => setCircleCount(e.target.value)}
                 placeholder="e.g. 4"
@@ -205,12 +205,12 @@ export default function UnitsPage() {
               />
             </div>
           </div>
-          <button className="btn btn-primary btn-lg w-full" onClick={goToNames}>
+          <button className="btn btn-primary w-full" onClick={goToNames}>
             Continue →
           </button>
         </div>
       ) : (
-        <div className="card bg-base-100 shadow p-12 space-y-8 max-w-4xl mx-auto">
+        <div className="card bg-base-100 shadow p-8 space-y-6 max-w-2xl mx-auto">
           <StepHeader step={2} />
           <div className="text-center">
             <p className="text-sm text-base-content">Type the name of each sector and circle below. Include the area name if you have one. Every box is required.</p>
@@ -261,7 +261,7 @@ export default function UnitsPage() {
 
           <div className="flex gap-3 flex-wrap justify-center pt-2">
             <button className="btn btn-ghost" onClick={() => setStep('count')} disabled={submitting}>← Change Count</button>
-            <button className="btn btn-primary btn-lg" onClick={submitUnits} disabled={submitting}>
+            <button className="btn btn-primary" onClick={submitUnits} disabled={submitting}>
               {submitting ? <span className="loading loading-spinner" /> : 'Submit & Lock'}
             </button>
           </div>

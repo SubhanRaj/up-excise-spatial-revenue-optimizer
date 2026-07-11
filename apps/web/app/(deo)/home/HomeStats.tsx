@@ -113,10 +113,10 @@ export default function HomeStats({ district }: { district: string }) {
 
   return (
     <div className={`space-y-4 ${isBusy ? 'pointer-events-none opacity-50' : ''}`}>
-      {/* Adjacent to the fixed Help button (top-right) — a single compact action, no
-          heading/description block. This pulls this device's copy of already-uploaded
-          shops down from the server; it does not push anything. */}
-      <div className="fixed top-[4.75rem] right-[4.75rem] z-[1000]">
+      {/* A single compact action in normal document flow, not pinned to the viewport —
+          this pulls this device's copy of already-uploaded shops down from the server;
+          it does not push anything. */}
+      <div className="flex justify-end">
         <button
           onClick={handleSync}
           disabled={isBusy || !!cooldownLabel}
