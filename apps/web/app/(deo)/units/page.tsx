@@ -8,7 +8,20 @@ import HelpPanel from '@/app/_components/HelpPanel';
 interface Unit { id: number; name: string; type: 'circle' | 'sector' }
 
 type Swal = { fire: (o: Record<string, unknown>) => Promise<{ isConfirmed: boolean }> };
-type Notyf = { success: (m: string) => void; error: (m: string) => void };
+
+function toastError(en: string, hi: string) {
+  const SwalG = (window as unknown as { Swal?: Swal }).Swal;
+  void SwalG?.fire({
+    toast: true,
+    position: 'top-end',
+    icon: 'error',
+    title: en,
+    html: `<div style="font-size:12px;color:#64748b;margin-top:2px">${hi}</div>`,
+    showConfirmButton: false,
+    timer: 4500,
+    timerProgressBar: true,
+  });
+}
 
 function StepHeader({ step }: { step: 1 | 2 }) {
   return (
@@ -65,7 +78,7 @@ export default function UnitsPage() {
     const ns = Math.max(0, Math.min(50, Number(sectorCount) || 0));
     const nc = Math.max(0, Math.min(50, Number(circleCount) || 0));
     if (nc + ns === 0) {
-      (window as unknown as { notyf?: Notyf }).notyf?.error('Enter at least 1 circle or sector.');
+      toastError('Enter at least 1 circle or sector.', 'कम से कम 1 सर्कल या सेक्टर दर्ज करें।');
       return;
     }
     setSectorNames(Array.from({ length: ns }, (_, i) => sectorNames[i] ?? ''));
@@ -80,7 +93,7 @@ export default function UnitsPage() {
   async function submitUnits() {
     setTriedSubmit(true);
     if (!canSubmit) {
-      (window as unknown as { notyf?: Notyf }).notyf?.error('Fill in every box before submitting — none can be left blank.');
+      toastError('Fill in every box before submitting — none can be left blank.', 'सबमिट करने से पहले हर बॉक्स भरें — कोई भी खाली नहीं छोड़ा जा सकता।');
       return;
     }
     const sectors = sectorNames.map((n) => n.trim());
@@ -109,10 +122,23 @@ export default function UnitsPage() {
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({})) as { error?: string };
-        await SwalG?.fire({ icon: 'error', title: 'Could not submit', text: body.error ?? 'Please try again.' });
+        await SwalG?.fire({
+          icon: 'error',
+          title: 'Could not submit',
+          html: `<p>${body.error ?? 'Please try again.'}</p><p style="font-size:12px;color:#64748b;margin-top:6px">सबमिट नहीं हो सका। कृपया पुनः प्रयास करें।</p>`,
+        });
         return;
       }
-      (window as unknown as { notyf?: Notyf }).notyf?.success('Circles & sectors locked in.');
+      void SwalG?.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'success',
+        title: 'Circles & sectors locked in.',
+        html: `<div style="font-size:12px;color:#64748b;margin-top:2px">सर्कल और सेक्टर लॉक हो गए।</div>`,
+        showConfirmButton: false,
+        timer: 3500,
+        timerProgressBar: true,
+      });
       await load();
     } finally {
       setSubmitting(false);
@@ -265,9 +291,6 @@ export default function UnitsPage() {
               {submitting ? <span className="loading loading-spinner" /> : 'Submit & Lock'}
             </button>
           </div>
-          {triedSubmit && !allFilled && (
-            <p className="text-error text-sm text-center">Every box must have a name before you can submit.</p>
-          )}
         </div>
       )}
     </div>
