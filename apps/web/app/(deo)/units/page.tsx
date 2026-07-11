@@ -175,18 +175,18 @@ export default function UnitsPage() {
           <Link href="/upload" className="btn btn-primary self-start">Continue to Upload →</Link>
         </div>
       ) : step === 'count' ? (
-        <div className="card bg-base-100 shadow p-8 space-y-6 max-w-xl mx-auto">
+        <div className="card bg-base-100 shadow p-16 space-y-10 max-w-3xl mx-auto">
           <StepHeader step={1} />
           <div className="text-center">
-            <p className="text-sm text-base-content">Enter the number of sectors and circles for <strong>{district}</strong>.</p>
-            <p className="text-xs text-base-content/60">{district} के सेक्टर और सर्कल की संख्या दर्ज करें</p>
+            <p className="text-base text-base-content">Enter the number of sectors and circles for <strong>{district}</strong>.</p>
+            <p className="text-sm text-base-content/60">{district} के सेक्टर और सर्कल की संख्या दर्ज करें</p>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-8">
             <div>
-              <label className="label justify-center"><span className="label-text font-medium">Number of Sectors<br/>सेक्टर की संख्या</span></label>
+              <label className="label justify-center"><span className="label-text font-medium text-base">Number of Sectors<br/>सेक्टर की संख्या</span></label>
               <input
                 type="number" min={0} max={50} inputMode="numeric"
-                className="input input-bordered w-full text-lg text-center"
+                className="input input-bordered w-full text-2xl text-center h-16"
                 value={sectorCount}
                 onChange={(e) => setSectorCount(e.target.value)}
                 placeholder="e.g. 6"
@@ -194,10 +194,10 @@ export default function UnitsPage() {
               />
             </div>
             <div>
-              <label className="label justify-center"><span className="label-text font-medium">Number of Circles<br/>सर्कल की संख्या</span></label>
+              <label className="label justify-center"><span className="label-text font-medium text-base">Number of Circles<br/>सर्कल की संख्या</span></label>
               <input
                 type="number" min={0} max={50} inputMode="numeric"
-                className="input input-bordered w-full text-lg text-center"
+                className="input input-bordered w-full text-2xl text-center h-16"
                 value={circleCount}
                 onChange={(e) => setCircleCount(e.target.value)}
                 placeholder="e.g. 4"
@@ -210,7 +210,7 @@ export default function UnitsPage() {
           </button>
         </div>
       ) : (
-        <div className="card bg-base-100 shadow p-8 space-y-6 max-w-4xl mx-auto">
+        <div className="card bg-base-100 shadow p-12 space-y-8 max-w-4xl mx-auto">
           <StepHeader step={2} />
           <div className="text-center">
             <p className="text-sm text-base-content">Type the name of each sector and circle below. Include the area name if you have one. Every box is required.</p>
@@ -220,13 +220,13 @@ export default function UnitsPage() {
           {sectorNames.length > 0 && (
             <div>
               <h3 className="font-semibold text-sm mb-3 text-center">Sectors / सेक्टर</h3>
-              <div className="flex flex-wrap justify-center gap-3">
+              <div className="flex flex-col gap-3 max-w-md mx-auto">
                 {sectorNames.map((name, i) => {
                   const blank = triedSubmit && !name.trim();
                   return (
                     <input
                       key={`sector-${i}`}
-                      className={`input input-bordered w-56 ${blank ? 'input-error' : ''}`}
+                      className={`input input-bordered w-full ${blank ? 'input-error' : ''}`}
                       value={name}
                       placeholder={`Sector ${i + 1}`}
                       aria-label={`Sector ${i + 1} name`}
@@ -241,13 +241,13 @@ export default function UnitsPage() {
           {circleNames.length > 0 && (
             <div>
               <h3 className="font-semibold text-sm mb-3 text-center">Circles / सर्कल</h3>
-              <div className="flex flex-wrap justify-center gap-3">
+              <div className="flex flex-col gap-3 max-w-md mx-auto">
                 {circleNames.map((name, i) => {
                   const blank = triedSubmit && !name.trim();
                   return (
                     <input
                       key={`circle-${i}`}
-                      className={`input input-bordered w-56 ${blank ? 'input-error' : ''}`}
+                      className={`input input-bordered w-full ${blank ? 'input-error' : ''}`}
                       value={name}
                       placeholder={`Circle ${i + 1}`}
                       aria-label={`Circle ${i + 1} name`}

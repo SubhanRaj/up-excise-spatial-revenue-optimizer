@@ -20,7 +20,8 @@ export default function DeoLayout({ children }: { children: React.ReactNode }) {
   };
   const crumb = crumbMap[pathname] ?? '';
 
-  const [hasUnits, setHasUnits] = useState(true);
+  // Defaults closed — Upload/Verify must not flash into view before the units check resolves.
+  const [hasUnits, setHasUnits] = useState(false);
 
   useEffect(() => {
     fetch('/api/auth/session').then(r => r.ok ? r.json() : {}).then((session: any) => {

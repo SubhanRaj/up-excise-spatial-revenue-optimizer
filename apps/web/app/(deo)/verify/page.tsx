@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useSession } from '@/hooks/useSession';
 import { stagingDb } from '@/lib/db';
 
@@ -57,6 +57,7 @@ function PillList({ raw, districtThanas, onChange, readOnly = false }: {
 }
 
 export default function VerifyPage() {
+  const router = useRouter();
   const { session } = useSession();
   const district = session?.districtName ?? '';
   const deoId = session?.deoId ?? '';
@@ -76,6 +77,7 @@ export default function VerifyPage() {
   const [uploadedLoading, setUploadedLoading] = useState(false);
   const [uploadedError, setUploadedError] = useState<string | null>(null);
   const [unitsReady, setUnitsReady] = useState(false);
+  const [unitsChecked, setUnitsChecked] = useState(false);
 
   const loadUnits = useCallback(async () => {
     if (!district) return [];
@@ -91,6 +93,8 @@ export default function VerifyPage() {
       setUnits([]);
       setUnitsReady(false);
       return [];
+    } finally {
+      setUnitsChecked(true);
     }
   }, [district]);
 
@@ -131,6 +135,13 @@ export default function VerifyPage() {
   useEffect(() => {
     void loadUnits();
   }, [loadUnits]);
+
+  // Hard gate — not reachable until circles/sectors are locked, matching the server-side
+  // rejection every units-dependent API route already enforces. Bounce straight to /units
+  // instead of rendering a degraded "locked" version of this page.
+  useEffect(() => {
+    if (unitsChecked && !unitsReady) router.replace('/units');
+  }, [unitsChecked, unitsReady, router]);
 
   // ponytail: one-shot auto-switch — runs once when district is known, avoids infinite viewMode toggle
   useEffect(() => {
@@ -283,6 +294,10 @@ export default function VerifyPage() {
     uploaded: visibleRows.filter((r) => r.circleSectorName === u && r.status === 'uploaded').length,
   }));
 
+  if (!unitsChecked || !unitsReady) {
+    return <div className="text-sm text-base-content/60 p-6">Checking your circles and sectors…</div>;
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -303,14 +318,13 @@ export default function VerifyPage() {
         </div>
         <div className={`flex gap-2 flex-wrap justify-end ${(uploadedLoading || uploading) ? 'pointer-events-none opacity-50' : ''}`}>
           <div className="join">
-            <button className={`join-item btn btn-sm ${viewMode === 'staged' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setViewMode('staged')} disabled={rows.length === 0 || !unitsReady}>
+            <button className={`join-item btn btn-sm ${viewMode === 'staged' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setViewMode('staged')} disabled={rows.length === 0}>
               Staged Data
             </button>
             <button className={`join-item btn btn-sm ${viewMode === 'uploaded' ? 'btn-primary' : 'btn-outline'}`} onClick={async () => {
-              if (!unitsReady) return;
               setViewMode('uploaded');
               if (uploadedRows.length === 0 && !uploadedLoading) await loadUploadedRows();
-            }} disabled={!unitsReady}>
+            }}>
               Uploaded Data
             </button>
           </div>
@@ -352,14 +366,7 @@ export default function VerifyPage() {
             {u.count === 0 && <span className="badge badge-error badge-xs mt-1">No data</span>}
           </div>
         ))}
-        {!unitsReady && (
-          <div className="col-span-4 alert alert-warning">
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-            <span>Create at least one circle or sector before verification and district upload become visible.</span>
-            <Link href="/units" className="btn btn-sm btn-warning ml-auto">Go to Circles &amp; Sectors</Link>
-          </div>
-        )}
-        {visibleRows.length === 0 && viewMode === 'staged' && unitsReady && (
+        {visibleRows.length === 0 && viewMode === 'staged' && (
           <div className="col-span-4 text-base-content/80 text-sm">
             No staged data. <a href="/upload" className="link">Upload a file first.</a>
           </div>

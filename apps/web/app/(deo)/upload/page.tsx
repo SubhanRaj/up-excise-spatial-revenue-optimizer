@@ -1,12 +1,14 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { useSession } from '@/hooks/useSession';
 import { stagingDb } from '@/lib/db';
 import HelpPanel from '@/app/_components/HelpPanel';
 
 export default function UploadPage() {
+  const router = useRouter();
   const { session } = useSession();
   const district = session?.districtName ?? '';
   const uploadedByDeo = session?.deoId ?? '';
@@ -16,21 +18,30 @@ export default function UploadPage() {
   const [rowCount, setRowCount] = useState(0);
   const [dragOver, setDragOver] = useState(false);
   const [units, setUnits] = useState<{ id: number; name: string; type: string }[]>([]);
-  const [unitsLoading, setUnitsLoading] = useState(false);
+  const [unitsChecked, setUnitsChecked] = useState(false);
 
   useEffect(() => {
     if (!district) return;
-    setUnitsLoading(true);
     fetch(`/api/districts/${encodeURIComponent(district)}/units`)
       .then((res) => (res.ok ? res.json() as Promise<{ id: number; name: string; type: string }[]> : []))
       .then((data) => setUnits(data))
-      .finally(() => setUnitsLoading(false));
+      .finally(() => setUnitsChecked(true));
   }, [district]);
 
   const hasUnits = units.length > 0;
 
+  // Hard gate — this page is not reachable until circles/sectors are locked, matching the
+  // server-side rejection every units-dependent API route already enforces. No degraded
+  // "locked" view is shown here; the DEO is bounced straight back to /units.
+  useEffect(() => {
+    if (unitsChecked && !hasUnits) router.replace('/units');
+  }, [unitsChecked, hasUnits, router]);
+
+  if (!unitsChecked || !hasUnits) {
+    return <div className="text-sm text-base-content/60 p-6">Checking your circles and sectors…</div>;
+  }
+
   async function downloadTemplate() {
-    if (!hasUnits) return;
     const res = await fetch(`/api/districts/${encodeURIComponent(district)}/template`);
     const meta = await res.json() as { districtName: string; units: { name: string }[] };
     const { generateTemplate } = await import('@/lib/excel');
@@ -42,7 +53,6 @@ export default function UploadPage() {
   }
 
   async function handleFile(file: File) {
-    if (!hasUnits) return;
     if (!file.name.endsWith('.xlsx')) {
       (window as unknown as { Swal?: { fire: (o: unknown) => void } }).Swal?.fire({
         icon: 'error', title: 'Invalid file', text: 'Please upload an .xlsx file.',
@@ -86,57 +96,47 @@ export default function UploadPage() {
           </HelpPanel>
         </div>
         <p className="text-sm text-base-content/90 mb-6">
-          {hasUnits
-            ? 'Upload the consolidated district Excel file. All rows are parsed in the browser — no data leaves your device until you submit on the Verify page.'
-            : 'Create at least one circle or sector first. Uploading is locked until the unit list exists.'}
+          Upload the consolidated district Excel file. All rows are parsed in the browser — no data leaves your device until you submit on the Verify page.
         </p>
 
         <div className="flex items-center gap-3 mb-4 flex-wrap">
-          <button className="btn btn-outline btn-sm" onClick={downloadTemplate} disabled={!hasUnits} aria-label="Download district Excel template">
+          <button className="btn btn-outline btn-sm" onClick={downloadTemplate} aria-label="Download district Excel template">
             {/* tabler:download */}
             <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/><polyline points="7 11 12 16 17 11"/><line x1="12" y1="4" x2="12" y2="16"/></svg>
             Download District Template
           </button>
           <Link href="/units" className="btn btn-ghost btn-sm">Go to Circles &amp; Sectors</Link>
-          <span className="text-xs text-base-content/70">Register circles and sectors first, then download or upload the district file.</span>
         </div>
 
-        {hasUnits ? (
-          <div
-            className={`border-2 border-dashed rounded-xl p-12 flex flex-col items-center gap-4 cursor-pointer transition-colors ${dragOver ? 'border-primary bg-primary/5' : 'border-base-300 hover:border-primary/50'}`}
-            role="button"
-            aria-label="Upload Excel file — drag and drop or click to browse"
-            tabIndex={0}
-            onClick={() => inputRef.current?.click()}
-            onKeyDown={(e) => e.key === 'Enter' && inputRef.current?.click()}
-            onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-            onDragLeave={() => setDragOver(false)}
-            onDrop={(e) => {
-              e.preventDefault();
-              setDragOver(false);
-              const f = e.dataTransfer.files[0];
-              if (f) void handleFile(f);
-            }}
-          >
-            {/* tabler:folder-open */}
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-12 h-12 text-base-content/60" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 19l2-7h13l-2 7H5z"/><path d="M5 19H3a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h4l3 3h7a2 2 0 0 1 2 2v1"/></svg>
-            <span className="font-medium">Drop your district .xlsx file here or click to browse</span>
-            <span className="text-sm text-base-content/80">One consolidated file per district</span>
-            <input
-              ref={inputRef}
-              type="file"
-              accept=".xlsx"
-              className="hidden"
-              aria-label="Select Excel file"
-              onChange={(e) => { const f = e.target.files?.[0]; if (f) void handleFile(f); }}
-            />
-          </div>
-        ) : (
-          <div className="alert alert-warning" role="alert" aria-live="polite">
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-            <span>{unitsLoading ? 'Checking your registered circles and sectors…' : 'Create at least one circle or sector before uploading the district Excel file.'}</span>
-          </div>
-        )}
+        <div
+          className={`border-2 border-dashed rounded-xl p-12 flex flex-col items-center gap-4 cursor-pointer transition-colors ${dragOver ? 'border-primary bg-primary/5' : 'border-base-300 hover:border-primary/50'}`}
+          role="button"
+          aria-label="Upload Excel file — drag and drop or click to browse"
+          tabIndex={0}
+          onClick={() => inputRef.current?.click()}
+          onKeyDown={(e) => e.key === 'Enter' && inputRef.current?.click()}
+          onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setDragOver(false);
+            const f = e.dataTransfer.files[0];
+            if (f) void handleFile(f);
+          }}
+        >
+          {/* tabler:folder-open */}
+          <svg xmlns="http://www.w3.org/2000/svg" className="w-12 h-12 text-base-content/60" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 19l2-7h13l-2 7H5z"/><path d="M5 19H3a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h4l3 3h7a2 2 0 0 1 2 2v1"/></svg>
+          <span className="font-medium">Drop your district .xlsx file here or click to browse</span>
+          <span className="text-sm text-base-content/80">One consolidated file per district</span>
+          <input
+            ref={inputRef}
+            type="file"
+            accept=".xlsx"
+            className="hidden"
+            aria-label="Select Excel file"
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) void handleFile(f); }}
+          />
+        </div>
 
         {/* Progress bar */}
         {status === 'parsing' && (
