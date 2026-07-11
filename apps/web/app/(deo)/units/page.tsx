@@ -21,7 +21,8 @@ function StepHeader({ step }: { step: 1 | 2 }) {
             {n < step ? '✓' : n}
           </div>
           <span className={`text-sm font-medium ${n === step ? 'text-base-content' : 'text-base-content/50'}`}>
-            {n === 1 ? 'How many?' : 'Enter names'}
+            {n === 1 ? 'Count of Sectors & Circles' : 'Enter Names'}
+            <span className="block text-xs font-normal text-base-content/50">{n === 1 ? 'संख्या दर्ज करें' : 'नाम दर्ज करें'}</span>
           </span>
           {n === 1 && <div className={`h-0.5 flex-1 ${step > 1 ? 'bg-success' : 'bg-base-300'}`} />}
         </div>
@@ -176,7 +177,10 @@ export default function UnitsPage() {
       ) : step === 'count' ? (
         <div className="card bg-base-100 shadow p-8 space-y-6 max-w-xl mx-auto">
           <StepHeader step={1} />
-          <p className="text-sm text-base-content text-center">How many sectors and how many circles does <strong>{district}</strong> have? Boxes will be created for each one so you only have to type the name.</p>
+          <div className="text-center">
+            <p className="text-sm text-base-content">Enter the number of sectors and circles for <strong>{district}</strong>.</p>
+            <p className="text-xs text-base-content/60">{district} के सेक्टर और सर्कल की संख्या दर्ज करें</p>
+          </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="label justify-center"><span className="label-text font-medium">Number of Sectors<br/>सेक्टर की संख्या</span></label>
@@ -208,7 +212,10 @@ export default function UnitsPage() {
       ) : (
         <div className="card bg-base-100 shadow p-8 space-y-6 max-w-4xl mx-auto">
           <StepHeader step={2} />
-          <p className="text-sm text-base-content text-center">Type the name of each sector and circle below. Include the area name if you have one. Every box is required.</p>
+          <div className="text-center">
+            <p className="text-sm text-base-content">Type the name of each sector and circle below. Include the area name if you have one. Every box is required.</p>
+            <p className="text-xs text-base-content/60">नीचे प्रत्येक सेक्टर और सर्कल का नाम दर्ज करें। हर बॉक्स भरना अनिवार्य है।</p>
+          </div>
 
           {sectorNames.length > 0 && (
             <div>

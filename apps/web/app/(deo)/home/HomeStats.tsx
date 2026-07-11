@@ -23,6 +23,16 @@ function getSyncCooldownLabel(): string | null {
   }
 }
 
+function getLastSyncedLabel(): string | null {
+  try {
+    const lastSync = localStorage.getItem(LS_KEY);
+    if (!lastSync) return null;
+    return `Last fetched: ${new Date(parseInt(lastSync, 10)).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}`;
+  } catch {
+    return null;
+  }
+}
+
 export default function HomeStats({ district }: { district: string }) {
   const [circles, setCircles] = useState<number | null>(null);
   const [circlesError, setCirclesError] = useState<string | null>(null);
@@ -32,6 +42,7 @@ export default function HomeStats({ district }: { district: string }) {
   const [syncing, setSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
   const [cooldownLabel, setCooldownLabel] = useState<string | null>(null);
+  const [lastSyncedLabel, setLastSyncedLabel] = useState<string | null>(null);
 
   const refreshStats = useCallback(() => {
     stagingDb.count().then(setStaged).catch(() => setStaged(0));
@@ -40,6 +51,7 @@ export default function HomeStats({ district }: { district: string }) {
 
   const refreshCooldown = useCallback(() => {
     setCooldownLabel(getSyncCooldownLabel());
+    setLastSyncedLabel(getLastSyncedLabel());
   }, []);
 
   useEffect(() => {
@@ -71,7 +83,7 @@ export default function HomeStats({ district }: { district: string }) {
   }, [district, refreshStats, refreshCooldown]);
 
   async function handleSync() {
-    // Re-check cooldown right before sync (guards race conditions)
+    // Re-check cooldown right before fetching (guards race conditions)
     const label = getSyncCooldownLabel();
     if (label) { setCooldownLabel(label); return; }
 
@@ -101,6 +113,27 @@ export default function HomeStats({ district }: { district: string }) {
 
   return (
     <div className={`space-y-4 ${isBusy ? 'pointer-events-none opacity-50' : ''}`}>
+      {/* Adjacent to the fixed Help button (top-right) — a single compact action, no
+          heading/description block. This pulls this device's copy of already-uploaded
+          shops down from the server; it does not push anything. */}
+      <div className="fixed top-[4.75rem] right-[4.75rem] z-[1000]">
+        <button
+          onClick={handleSync}
+          disabled={isBusy || !!cooldownLabel}
+          title={syncError ? `Failed: ${syncError}` : lastSyncedLabel ?? 'Never fetched yet'}
+          className="btn btn-sm btn-outline bg-base-100 shadow gap-1.5"
+        >
+          {syncing ? (
+            <><span className="loading loading-spinner loading-xs" /> Fetching…</>
+          ) : (
+            <>
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4.05 11a8 8 0 1 1 .5 4m-.5-4H8m-4 0V7"/></svg>
+              {cooldownLabel ?? 'Fetch from Server'}
+            </>
+          )}
+        </button>
+      </div>
+
       <div className="grid grid-cols-3 gap-4">
         <div className="stat bg-base-100 rounded-2xl shadow">
           <div className="stat-title">Circles / Sectors</div>
@@ -114,41 +147,12 @@ export default function HomeStats({ district }: { district: string }) {
         <div className="stat bg-base-100 rounded-2xl shadow">
           <div className="stat-title">Shops Staged</div>
           <div className="stat-value text-secondary">{staged ?? '—'}</div>
-          <div className="stat-desc">in IndexedDB</div>
+          <div className="stat-desc">on this device</div>
         </div>
         <div className="stat bg-base-100 rounded-2xl shadow">
           <div className="stat-title">Shops Uploaded</div>
           <div className="stat-value text-success">{uploaded ?? '—'}</div>
           <div className="stat-desc">to server</div>
-        </div>
-      </div>
-
-      <div className="flex items-center justify-between bg-base-100 p-4 rounded-xl shadow-sm border border-base-200">
-        <div>
-          <h3 className="font-semibold text-sm">Sync Device Data</h3>
-          <p className="text-xs text-base-content/80">Pull previously uploaded shops from the server to your local device.</p>
-          {syncError && <p className="text-xs text-error mt-1">{syncError}</p>}
-        </div>
-        <div className="flex items-center gap-2">
-          {cooldownLabel && (
-            <button
-              className="btn btn-xs btn-ghost text-base-content/60 hover:text-error"
-              title="Clear sync cooldown"
-              onClick={() => {
-                try { localStorage.removeItem(LS_KEY); } catch { /* ignore */ }
-                setCooldownLabel(null);
-              }}
-            >
-              Reset
-            </button>
-          )}
-          <button
-            onClick={handleSync}
-            disabled={isBusy || !!cooldownLabel}
-            className="btn btn-sm btn-outline"
-          >
-            {syncing ? <><span className="loading loading-spinner loading-xs" /> Syncing…</> : cooldownLabel ?? 'Sync from Server'}
-          </button>
         </div>
       </div>
     </div>

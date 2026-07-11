@@ -66,25 +66,25 @@ export default function HelpPanel({ pageKey, title, children }: HelpPanelProps) 
     // Fixed at the same on-screen spot on every page — top-right, just below the sticky
     // navbar/breadcrumb strip — instead of being laid out inline next to each page's own
     // heading, which produced inconsistent, cramped "half-width" headers across pages.
-    <div ref={wrapperRef} className="fixed top-[4.75rem] right-4 z-[1000]">
+    <div ref={wrapperRef} className="group fixed top-[4.75rem] right-4 z-[1000]">
+      {!open && (
+        <span className="pointer-events-none absolute right-full top-1/2 mr-3 -translate-y-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2.5 py-1.5 text-xs font-medium text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100">
+          {done ? 'Help' : 'Help / Instructions'}
+        </span>
+      )}
       <button
-        className={`btn btn-ghost btn-sm gap-1 bg-base-100 shadow ${done ? 'text-base-content/60' : 'text-info'}`}
+        className={`relative flex h-11 w-11 items-center justify-center rounded-full border shadow-lg transition-colors bg-base-100 ${done ? 'border-base-300 text-base-content/60 hover:bg-base-200' : 'border-info/30 text-info hover:bg-info/10'}`}
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-label={open ? 'Close help' : 'Open help and instructions'}
       >
         {/* tabler:help-circle */}
-        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
           <circle cx="12" cy="12" r="9"/>
           <path d="M12 17v.01"/>
           <path d="M12 13.5a1.5 1.5 0 0 1 1-1.5 2.6 2.6 0 1 0-3-2.5"/>
         </svg>
-        {done ? 'Help' : 'Help / Instructions'}
-        {done && (
-          <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3 text-success" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="9"/><path d="m9 12 2 2 4-4"/>
-          </svg>
-        )}
+        {!done && <span className="absolute right-0.5 top-0.5 h-2.5 w-2.5 rounded-full bg-error ring-2 ring-base-100" />}
       </button>
 
       {open && (
