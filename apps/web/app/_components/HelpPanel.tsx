@@ -12,26 +12,25 @@ export default function HelpPanel({ pageKey, title, children }: HelpPanelProps) 
   const storageKey = `help_done_${pageKey}`;
   const [open, setOpen] = useState(false);
   const [done, setDone] = useState(false);
-  const [alignRight, setAlignRight] = useState(false);
-  const [alignTop, setAlignTop] = useState(false);
+  const [panelWidth, setPanelWidth] = useState(672);
+  const [panelMaxHeight, setPanelMaxHeight] = useState(480);
   const wrapperRef = useRef<HTMLDivElement>(null);
-  const balloonRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     try { setDone(localStorage.getItem(storageKey) === 'true'); } catch { }
   }, [storageKey]);
 
-  // After balloon renders, check if it overflows edges and flip alignment.
-  // useLayoutEffect runs before paint so there's no visible flicker.
+  // The trigger lives in a fixed top-right corner, so the balloon always opens downward
+  // and to the left of it — that direction always has the most room in that corner, so
+  // there's nothing to "flip" (a flip here is what previously pushed it off-screen at the
+  // top). Instead, clamp width/height to whatever room is actually available so it only
+  // scrolls internally if the display genuinely doesn't have space, not by default.
   useLayoutEffect(() => {
-    if (!open || !balloonRef.current) return;
-    const rect = balloonRef.current.getBoundingClientRect();
-    setAlignRight(rect.right > window.innerWidth - 8);
-    setAlignTop(rect.bottom > window.innerHeight - 8);
+    if (!open || !wrapperRef.current) return;
+    const rect = wrapperRef.current.getBoundingClientRect();
+    setPanelWidth(Math.min(672, window.innerWidth - 32));
+    setPanelMaxHeight(Math.max(200, window.innerHeight - rect.bottom - 24));
   }, [open]);
-
-  // Reset alignment on close so the next open re-evaluates correctly.
-  useEffect(() => { if (!open) { setAlignRight(false); setAlignTop(false); } }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -92,13 +91,13 @@ export default function HelpPanel({ pageKey, title, children }: HelpPanelProps) 
         <>
           <div className="fixed inset-0 z-[1001] backdrop-blur-[2px] bg-black/10" aria-hidden="true" onClick={() => setOpen(false)} />
           <div
-            ref={balloonRef}
-            className={`absolute z-[1002] w-[min(42rem,92vw)] card bg-base-100 border border-info/20 shadow-2xl p-5 space-y-3 ${alignRight ? 'right-0' : 'left-0'} ${alignTop ? 'bottom-full mb-1' : 'top-full mt-1'}`}
+            style={{ width: panelWidth, maxHeight: panelMaxHeight }}
+            className="absolute z-[1002] top-full right-0 mt-2 flex flex-col card bg-base-100 border border-info/20 shadow-2xl p-5 space-y-3"
             role="region"
             aria-label={`Help: ${title}`}
           >
-            {/* Balloon caret — mirrors alignment */}
-            <div className={`absolute w-3 h-3 bg-base-100 rotate-45 ${alignRight ? 'right-3' : 'left-3'} ${alignTop ? '-bottom-1.5 border-r border-b border-info/20' : '-top-1.5 border-l border-t border-info/20'}`} />
+            {/* Balloon caret — always top-right, matching the fixed open-downward-left anchor */}
+            <div className="absolute -top-1.5 right-3 w-3 h-3 bg-base-100 rotate-45 border-l border-t border-info/20" />
 
             <div className="flex items-start justify-between gap-2">
               <h3 className="font-semibold text-base text-info">{title}</h3>
@@ -111,12 +110,12 @@ export default function HelpPanel({ pageKey, title, children }: HelpPanelProps) 
               </button>
             </div>
 
-            <div className="text-sm text-base-content space-y-2 overflow-y-auto max-h-[75vh] pr-1">
+            <div className="min-h-0 flex-1 text-sm text-base-content space-y-2 overflow-y-auto pr-1">
               {children}
             </div>
 
             {!done && (
-              <button className="btn btn-info btn-xs" onClick={markDone}>
+              <button className="btn btn-info btn-xs shrink-0 self-start" onClick={markDone}>
                 Got it — don&apos;t show hint badge again
               </button>
             )}
