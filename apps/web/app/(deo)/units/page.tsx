@@ -165,7 +165,18 @@ export default function UnitsPage() {
         <p className="text-sm text-base-content/70">सर्कल एवं सेक्टर पंजीकरण — यह पहला और अनिवार्य चरण है</p>
       </div>
 
-      <HelpPanel pageKey="units" title="Circles & Sectors — How it works">
+      <HelpPanel
+        pageKey="units"
+        title="Circles & Sectors — How it works"
+        titleHi="Circles & Sectors — यह कैसे काम करता है"
+        childrenHi={<>
+          <p><strong>चरण 1 — सभी circles और sectors रजिस्टर करें</strong> अपने district के लिए, एक ही बार में, कुछ और करने से पहले। सिस्टम को बताएं कि आपके पास कितने sectors और कितने circles हैं, फिर हर नाम दिए गए box में टाइप करें।</p>
+          <p><strong>यह एक बार होने वाला चरण है।</strong> सबमिट करने के बाद, list लॉक हो जाती है और इसे edit नहीं किया जा सकता — पहले हर नाम ध्यान से जांच लें।</p>
+          <p><strong>नामकरण:</strong> Sector के नाम आमतौर पर सिर्फ एक नंबर होते हैं, जैसे &quot;Sector 1&quot;, लेकिन इसमें कोई area भी शामिल हो सकता है, जैसे &quot;Sector 1 Hazratganj&quot;। Circle के नाम आमतौर पर area सहित होते हैं, जैसे &quot;Circle 1 Mall, Malihabad&quot;।</p>
+          <p><strong>चरण 2 — Download the district template</strong> Upload page से (आपके circles/sectors लॉक होते ही यह अपने-आप unlock हो जाता है)।</p>
+          <p><strong>चरण 3 — Upload &amp; Verify</strong> करें consolidated district Excel फ़ाइल को, फिर headquarters को सबमिट करें।</p>
+        </>}
+      >
         <p><strong>Step 1 — Register all circles and sectors</strong> for your district, in one go, before doing anything else. Tell the system how many sectors and how many circles you have, then type each name in the box provided.</p>
         <p><strong>This is a one-time step.</strong> Once you submit, the list is locked and cannot be edited — check every name carefully first.</p>
         <p><strong>Naming:</strong> Sector names are usually just a number, e.g. &quot;Sector 1&quot;, but can also include an area, e.g. &quot;Sector 1 Hazratganj&quot;. Circle names usually include the area, e.g. &quot;Circle 1 Mall, Malihabad&quot;.</p>

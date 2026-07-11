@@ -6,15 +6,21 @@ interface HelpPanelProps {
   pageKey: string;
   title: string;
   children: React.ReactNode;
+  /** Hindi translation of `title`. When provided (DEO portal only — admin stays English-only), an English/हिन्दी tab appears. */
+  titleHi?: string;
+  /** Hindi translation of `children`. Technical terms (field names, buttons, file types) stay in English within the Hindi copy. */
+  childrenHi?: React.ReactNode;
 }
 
-export default function HelpPanel({ pageKey, title, children }: HelpPanelProps) {
+export default function HelpPanel({ pageKey, title, children, titleHi, childrenHi }: HelpPanelProps) {
   const storageKey = `help_done_${pageKey}`;
   const [open, setOpen] = useState(false);
   const [done, setDone] = useState(false);
   const [panelWidth, setPanelWidth] = useState(672);
   const [panelMaxHeight, setPanelMaxHeight] = useState(480);
+  const [lang, setLang] = useState<'en' | 'hi'>('en');
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const hasHindi = !!childrenHi;
 
   useEffect(() => {
     try { setDone(localStorage.getItem(storageKey) === 'true'); } catch { }
@@ -99,7 +105,7 @@ export default function HelpPanel({ pageKey, title, children }: HelpPanelProps) 
             <div className="absolute -bottom-1.5 right-3 w-3 h-3 bg-base-100 rotate-45 border-r border-b border-info/20" />
 
             <div className="flex items-start justify-between gap-2">
-              <h3 className="font-semibold text-base text-info">{title}</h3>
+              <h3 className="font-semibold text-base text-info">{lang === 'hi' && titleHi ? titleHi : title}</h3>
               <button
                 className="btn btn-ghost btn-xs shrink-0"
                 onClick={() => setOpen(false)}
@@ -109,8 +115,27 @@ export default function HelpPanel({ pageKey, title, children }: HelpPanelProps) 
               </button>
             </div>
 
+            {hasHindi && (
+              <div className="tabs tabs-boxed tabs-xs w-fit shrink-0" role="tablist" aria-label="Help language">
+                <button
+                  role="tab"
+                  className={`tab ${lang === 'en' ? 'tab-active' : ''}`}
+                  onClick={() => setLang('en')}
+                >
+                  English
+                </button>
+                <button
+                  role="tab"
+                  className={`tab ${lang === 'hi' ? 'tab-active' : ''}`}
+                  onClick={() => setLang('hi')}
+                >
+                  हिन्दी
+                </button>
+              </div>
+            )}
+
             <div className="min-h-0 flex-1 text-sm text-base-content space-y-2 overflow-y-auto pr-1">
-              {children}
+              {lang === 'hi' && hasHindi ? childrenHi : children}
             </div>
 
             {!done && (

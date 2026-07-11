@@ -72,7 +72,20 @@ export default async function DeoDashboard() {
         </div>
       )}
 
-      <HelpPanel pageKey="home" title="Getting started — Phase 1 Data Collection Workflow">
+      <HelpPanel
+        pageKey="home"
+        title="Getting started — Phase 1 Data Collection Workflow"
+        titleHi="शुरुआत करें — Phase 1 डेटा संग्रहण वर्कफ़्लो"
+        childrenHi={<>
+          <p>आपका कार्य <strong>{district}</strong> के लिए shop डेटा को headquarters में सबमिट करना है। इस वर्कफ़्लो में तीन चरण हैं, जिन्हें सख्ती से क्रम में पूरा करना है:</p>
+          <ol className="list-decimal list-inside space-y-1 mt-1">
+            <li><strong>Circles &amp; Sectors</strong> — अपने सभी inspection circles और sectors को एक ही बार में रजिस्टर करें। सबमिट करने के बाद यह लॉक हो जाता है, इसलिए नाम पहले ध्यान से जांच लें।</li>
+            <li><strong>Upload District File</strong> — Inspectors द्वारा भरे गए सेक्शन इकट्ठा करें, उन्हें एक Excel फ़ाइल में मिलाएं, और यहां अपलोड करें। डेटा अपने-आप आपके डिवाइस पर सेव हो जाता है।</li>
+            <li><strong>Verify &amp; Submit</strong> — सभी rows की समीक्षा करें, कोई भी अमान्य adjacent Thana entry (लाल रंग में दिखाई गई) हटाएं, फिर headquarters को सबमिट करें।</li>
+          </ol>
+          <p className="mt-1">सारा डेटा पहले offline सेव होता है। आप बिना इंटरनेट के भी काम कर सकते हैं — connectivity वापस आते ही records अपने-आप अपलोड हो जाते हैं।</p>
+        </>}
+      >
         <p>Your task is to submit shop data for <strong>{district}</strong> to headquarters. The workflow has three steps, done strictly in order:</p>
         <ol className="list-decimal list-inside space-y-1 mt-1">
           <li><strong>Circles &amp; Sectors</strong> — Register all inspection circles and sectors in one go. This is locked once submitted, so double-check names first.</li>

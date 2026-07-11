@@ -86,7 +86,19 @@ export default function UploadPage() {
             <h2 className="text-xl font-bold">Upload District Excel — {district}</h2>
             <p className="text-xs text-base-content/60">जिला एक्सेल फ़ाइल अपलोड करें</p>
           </div>
-          <HelpPanel pageKey="upload" title="Upload — What file to upload and how">
+          <HelpPanel
+            pageKey="upload"
+            title="Upload — What file to upload and how"
+            titleHi="Upload — कौन सी फ़ाइल अपलोड करनी है और कैसे"
+            childrenHi={<>
+              <p><strong>क्या अपलोड करें:</strong> एक ही consolidated district Excel फ़ाइल (.xlsx) जिसे आपके Inspectors ने <Link href="/units" className="link">Circles page</Link> से डाउनलोड किए गए template का उपयोग करके भरा है।</p>
+              <p><strong>अपलोड करने से पहले:</strong> सुनिश्चित करें कि सभी Inspectors ने अपने भरे हुए सेक्शन वापस दिए हैं और आपने उन्हें एक फ़ाइल में मिला दिया है। हर row में <code>circle_sector_name</code> का एक value होना चाहिए जो किसी पहले से रजिस्टर्ड unit से मेल खाता हो।</p>
+              <p><strong>Column format:</strong> पहली row में column headers होने चाहिए (जैसा डाउनलोड किए गए template में है)। headers के ऊपर कोई अतिरिक्त row न जोड़ें।</p>
+              <p><strong>Coordinates:</strong> या तो DMS columns (<code>latitude_dms</code> / <code>longitude_dms</code>) का उपयोग करें या decimal degree columns (<code>latitude_decimal</code> / <code>longitude_decimal</code>) का — दोनों का नहीं। DMS को प्राथमिकता दी जाती है।</p>
+              <p><strong>सारा डेटा आपके डिवाइस पर ही रहता है</strong> जब तक आप Verify page पर जाकर Submit District पर क्लिक नहीं करते। Parsing पूरी तरह browser में होती है — अपलोड के दौरान कुछ भी सर्वर पर नहीं भेजा जाता।</p>
+              <p><strong>दोबारा अपलोड करना:</strong> नई फ़ाइल अपलोड करने से इस district का सारा staged डेटा बदल जाता है। जो rows पहले से "uploaded" मार्क हैं, वे सुरक्षित रहती हैं।</p>
+            </>}
+          >
             <p><strong>What to upload:</strong> The single consolidated district Excel file (.xlsx) your Inspectors filled using the template downloaded from the <Link href="/units" className="link">Circles page</Link>.</p>
             <p><strong>Before uploading:</strong> Ensure all Inspectors have returned their filled sections and you have consolidated them into one file. Every row must have a <code>circle_sector_name</code> value matching a pre-registered unit.</p>
             <p><strong>Column format:</strong> The first row must be the column headers (as in the downloaded template). Do not add extra rows above the headers.</p>

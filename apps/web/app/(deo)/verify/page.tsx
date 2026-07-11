@@ -306,7 +306,20 @@ export default function VerifyPage() {
             <h2 className="text-xl font-bold">Verify &amp; Submit — {district}</h2>
             <p className="text-xs text-base-content/60">जांचें और सबमिट करें</p>
           </div>
-          <HelpPanel pageKey="verify" title="Verification — How to review and submit">
+          <HelpPanel
+            pageKey="verify"
+            title="Verification — How to review and submit"
+            titleHi="Verification — समीक्षा और सबमिट कैसे करें"
+            childrenHi={<>
+              <p><strong>Unit tabs</strong> — circles/sectors के बीच स्विच करने के लिए किसी unit card पर क्लिक करें। हर card दिखाता है कि कितनी rows अपलोड हो चुकी हैं। सबमिशन की अनुमति देने से पहले सभी units में कम से कम एक row होनी चाहिए।</p>
+              <p><strong>Workflow gate</strong> — जब तक कम से कम एक circle या sector मौजूद न हो, district डेटा अपलोड करना लॉक रहता है। पहले units बनाएं, फिर अपलोड करें, फिर verify करें।</p>
+              <p><strong>View mode</strong> — <em>Staged Data</em> (आपकी local upload queue) और <em>Uploaded Data</em> (D1 से लोड की गई read-only district rows) के बीच स्विच करें। यदि अभी तक locally कुछ भी staged नहीं है, तो Demo DEO डेटा uploaded view में दिखाई देगा।</p>
+              <p><strong>Adjacent Thana pills</strong> — &quot;Adjacent Thanas&quot; column में Thana के नाम pills के रूप में दिखाए जाते हैं। <span className="text-error font-semibold">लाल pills</span> cross-district adjacency दर्शाते हैं — row सबमिट करने से पहले इन्हें हटाना (× पर क्लिक करके) ज़रूरी है। same-district Thanas outlined pills के रूप में दिखते हैं।</p>
+              <p><strong>Coordinates</strong> — <span className="text-warning">⚠ warning icon</span> का मतलब है coordinate UP bounding box के बाहर है। <span className="text-success">✓ icon</span> का मतलब valid है। सबमिट करने से पहले warnings की समीक्षा करें — इन्हें block नहीं किया जाता, लेकिन जांचना चाहिए।</p>
+              <p><strong>Revenue column</strong> — financial fields से अपने-आप calculate होता है। अगर कोई value गलत लगे, तो Excel फ़ाइल में वापस जाकर सही version दोबारा अपलोड करें।</p>
+              <p><strong>Submit District</strong> — यह बटन तभी सक्रिय होता है जब सभी registered units में बिना किसी error वाली कम से कम एक row हो। इस पर क्लिक करने से सभी pending rows अपलोड हो जाती हैं और district headquarters को सबमिट के रूप में मार्क हो जाता है।</p>
+            </>}
+          >
             <p><strong>Unit tabs</strong> — Click a unit card to switch between circles/sectors. Each card shows how many rows have been uploaded. All units must have at least one row before submission is allowed.</p>
             <p><strong>Workflow gate</strong> — Uploading district data is locked until at least one circle or sector exists. Create units first, then upload, then verify.</p>
             <p><strong>View mode</strong> — Switch between <em>Staged Data</em> (your local upload queue) and <em>Uploaded Data</em> (read-only district rows loaded from D1). Demo DEO data appears in the uploaded view if nothing has been staged locally yet.</p>
