@@ -33,7 +33,7 @@ export default async function DeoDashboard() {
       <HomeStats district={district} />
 
       {!hasUnits ? (
-        <div className="card bg-base-100 shadow-lg border-2 border-primary/30 p-8 max-w-xl">
+        <div className="card bg-base-100 shadow-lg border-2 border-primary/30 p-8 max-w-xl mx-auto items-center text-center">
           <div className="w-14 h-14 rounded-full bg-primary text-primary-content flex items-center justify-center mb-4 text-2xl font-bold">
             1
           </div>
