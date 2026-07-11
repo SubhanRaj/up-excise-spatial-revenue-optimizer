@@ -1,4 +1,4 @@
-const CACHE = 'excise-v1';
+const CACHE = 'excise-v2';
 
 // CDN assets pre-cached on install — app runs fully offline after first load
 const CDN_ASSETS = [
@@ -8,7 +8,7 @@ const CDN_ASSETS = [
   'https://cdn.jsdelivr.net/npm/dexie@4.0.10/dist/dexie.min.js',
   'https://cdn.jsdelivr.net/npm/sweetalert2@11.14.5/dist/sweetalert2.all.min.js',
   'https://cdn.jsdelivr.net/npm/notyf@3.10.0/notyf.min.js',
-  'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js',
+  'https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js',
   'https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js',
   'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js',
   'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css',

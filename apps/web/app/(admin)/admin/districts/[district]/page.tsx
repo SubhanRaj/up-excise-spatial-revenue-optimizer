@@ -5,11 +5,6 @@ import Link from 'next/link';
 import HelpPanel from '@/app/_components/HelpPanel';
 import { adminShopsCache } from '@/lib/db';
 
-declare const XLSX: {
-  utils: { json_to_sheet: (data: unknown[]) => unknown; book_new: () => unknown; book_append_sheet: (wb: unknown, ws: unknown, name: string) => void };
-  write: (wb: unknown, opts: { type: string; bookType: string }) => unknown;
-};
-
 const ON_PREMISES_CONSUMPTION_FEE = 300_000;
 const BHANG_MGQ_MULTIPLIER = 20;
 
@@ -328,7 +323,7 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
     });
   }
 
-  function exportXlsx() {
+  async function exportXlsx() {
     const totalRev = allShops.reduce((sum, s) => sum + s.totalRevenue, 0);
     const rowsForExport = [
       ...allShops,
@@ -359,26 +354,12 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
       }
     ];
 
-    const ws = XLSX.utils.json_to_sheet(rowsForExport) as any;
-    
-    // Add Auto-Filter to the headers
-    ws['!autofilter'] = { ref: `A1:W${allShops.length + 1}` };
-    
-    // Freeze top row and first column
-    ws['!views'] = [{
-      state: 'frozen',
-      xSplit: 1,
-      ySplit: 1,
-      topLeftCell: 'B2',
-      activeCell: 'B2'
-    }];
-
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, name.slice(0, 31));
-    const out = XLSX.write(wb, { type: 'array', bookType: 'xlsx' }) as ArrayBuffer;
-    const url = URL.createObjectURL(new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
-    const a = document.createElement('a'); a.href = url; a.download = `${name}-shops.xlsx`; a.click();
-    URL.revokeObjectURL(url);
+    const { exportRowsToXlsx } = await import('@/lib/excel');
+    await exportRowsToXlsx(rowsForExport as unknown as Record<string, unknown>[], {
+      sheetName: name.slice(0, 31),
+      filename: `${name}-shops.xlsx`,
+      freezeFirstColumn: true,
+    });
   }
 
   // Group rows by type for grouped view

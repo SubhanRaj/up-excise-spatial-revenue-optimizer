@@ -304,10 +304,8 @@ export default function DistrictMasterPage() {
   }
 
   async function handleFile(file: File) {
-    const buf = await file.arrayBuffer();
-    const wb = XLSX.read(buf, { type: 'array' });
-    const ws = wb.Sheets[wb.SheetNames[0]!];
-    const raw = XLSX.utils.sheet_to_json(ws) as Record<string, unknown>[];
+    const { readWorkbookRows } = await import('@/lib/excel');
+    const raw = await readWorkbookRows(file);
     setPreview(raw.map((r) => ({
       districtName: String(r['District Name'] ?? ''),
       division: String(r['Division'] ?? ''),
@@ -402,7 +400,7 @@ export default function DistrictMasterPage() {
         <h2 className="text-xl font-bold mb-2">Bulk DEO Provisioning</h2>
         <p className="text-sm text-base-content/90 mb-4">
           Upload a DEO Excel file with columns: <strong>District Name, Division, DEO Name, DEO Email, DEO Identifier, Expected Vend Count</strong>.
-          SheetJS parses the file in-browser; no data is sent until you confirm below.
+          The file is parsed in-browser; no data is sent until you confirm below.
         </p>
 
         <div className="flex flex-wrap gap-3 mb-4 items-center">

@@ -63,7 +63,7 @@ up-excise-spatial-revenue-optimizer/
 | Email | Resend | Magic-link delivery. |
 | UI Components | DaisyUI 5.6.3 | CDN. Requires Tailwind v4. |
 | CSS | Tailwind v4 (`@tailwindcss/browser`) | CDN. No PostCSS build step. |
-| Excel Parsing | SheetJS 0.18.5 | CDN. 100% in-browser. Never bundled. |
+| Excel I/O | ExcelJS 4.4.0 | CDN. 100% in-browser — reads uploads, generates templates, and exports, all with native print/freeze/validation support. Never bundled. |
 | Local Cache | Dexie.js 4.0.10 (IndexedDB) | CDN. Offline-first staging for all DEO data. |
 | PWA / Offline | Service Worker + Background Sync | Full offline capability after first load. |
 | Charts | Chart.js 4.4.7 | CDN. Admin route group only. |
@@ -265,7 +265,7 @@ See [roadmap.md](roadmap.md) for full specs, entry/exit criteria, and deliverabl
 Engineering is complete. Department action required before rollout:
 
 1. **DEO email addresses** — all 75 required for bulk provisioning
-2. **Excel template column layout** — must be locked before SheetJS mapping is built
+2. **Excel template column layout** — must be locked before column mapping is built
 3. **Shop count estimates per district** — for dashboard progress metrics
 4. **DEO credential/identifier assignment** — for `deo_id` scoping and circle/sector pre-registration
 5. **Circle/sector naming convention** — consistent names across all 75 districts

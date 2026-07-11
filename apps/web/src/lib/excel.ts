@@ -1,22 +1,16 @@
 'use client';
 
-import JSZip from 'jszip';
 import { normalizeCoordinates } from './coordinates';
 import { computeRevenue } from './revenue';
 import type { StagedRow } from './types';
+import type ExcelJSNamespace from 'exceljs';
 
 declare global {
-  // SheetJS loaded from CDN in root layout.tsx — never bundled.
-  const XLSX: {
-    read: (data: ArrayBuffer, opts: { type: string }) => { SheetNames: string[]; Sheets: Record<string, unknown> };
-    write: (wb: unknown, opts: { type: string; bookType: string }) => ArrayBuffer;
-    utils: {
-      sheet_to_json: (sheet: unknown, opts?: unknown) => Record<string, unknown>[];
-      aoa_to_sheet: (data: unknown[][]) => unknown;
-      book_new: () => { SheetNames: string[]; Sheets: Record<string, unknown> };
-      book_append_sheet: (wb: unknown, ws: unknown, name: string) => void;
-    };
-  };
+  // ExcelJS loaded from CDN in root layout.tsx — never bundled. The single spreadsheet
+  // library for this app: reading uploaded files, generating downloadable templates,
+  // and exporting data all go through it, so every workbook gets the same freeze panes /
+  // print setup / data validation support with no second library and no hand-edited XML.
+  const ExcelJS: typeof ExcelJSNamespace;
 }
 
 /** Column name → StagedRow field mapping for the standardized DEO Excel template. */
@@ -53,54 +47,79 @@ const NUM_FIELDS = new Set<keyof StagedRow>([
 const SHOP_TYPE_OPTIONS = ['MODEL_SHOP', 'COMPOSITE_SHOP', 'PRV', 'BHANG_SHOP', 'COUNTRY_LIQUOR'] as const;
 const CL5CC_OPTIONS = ['true', 'false'] as const;
 
-function escapeXml(value: string): string {
-  return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;');
+// Data validation dropdowns are applied to a large-but-finite row range rather than
+// the full 1,048,576-row sheet — 5,000 rows comfortably covers any single district
+// while keeping the sqref range readable.
+const VALIDATION_ROW_LIMIT = 5000;
+
+/** Landscape, fit-to-width, header row repeated on every printed page — applied to every generated sheet. */
+function applyPrintSetup(ws: ExcelJSNamespace.Worksheet, headerRow: number, colCount: number) {
+  ws.pageSetup = {
+    orientation: 'landscape',
+    fitToPage: true,
+    fitToWidth: 1,
+    fitToHeight: 0,
+    margins: { left: 0.3, right: 0.3, top: 0.4, bottom: 0.4, header: 0.2, footer: 0.2 },
+  };
+  ws.headerFooter = { differentFirst: false };
+  ws.pageSetup.printTitlesRow = `${headerRow}:${headerRow}`;
+  ws.views = [{ state: 'frozen', ySplit: headerRow, xSplit: 0 }];
+  ws.autoFilter = { from: { row: headerRow, column: 1 }, to: { row: headerRow, column: colCount } };
 }
 
-function buildListValidationXml(range: string, formula: string, promptTitle: string, prompt: string, errorTitle: string, error: string): string {
-  return [
-    `<dataValidation type="list" allowBlank="1" showInputMessage="1" showErrorMessage="1" errorStyle="stop" promptTitle="${escapeXml(promptTitle)}" prompt="${escapeXml(prompt)}" errorTitle="${escapeXml(errorTitle)}" error="${escapeXml(error)}" sqref="${escapeXml(range)}">`,
-    `<formula1>${escapeXml(formula)}</formula1>`,
-    '</dataValidation>',
-  ].join('');
+// exceljs's shipped type defs omit `Worksheet.dataValidations`, though it exists at runtime.
+interface ValidatableWorksheet extends ExcelJSNamespace.Worksheet {
+  dataValidations: { add: (address: string, rule: Partial<ExcelJSNamespace.DataValidation>) => void };
 }
 
-async function addTemplateValidations(workbookBytes: ArrayBuffer, units: string[]): Promise<ArrayBuffer> {
-  const zip = await JSZip.loadAsync(workbookBytes);
-  
-  const validationsList = [
-    buildListValidationXml('F3:F1048576', `"${SHOP_TYPE_OPTIONS.join(',')}"`, 'Shop type', 'Choose a shop type from the dropdown list.', 'Invalid shop type', `Use one of: ${SHOP_TYPE_OPTIONS.join(', ')}`),
-    buildListValidationXml('G3:G1048576', `"${CL5CC_OPTIONS.join(',')}"`, 'CL5CC', 'Choose true if the shop has CL5CC; otherwise choose false.', 'Invalid CL5CC value', 'Use true or false only.'),
-  ];
+function styleHeaderRow(ws: ExcelJSNamespace.Worksheet, rowNum: number) {
+  const row = ws.getRow(rowNum);
+  row.eachCell((cell) => {
+    cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E3A5F' } };
+    cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+    cell.border = { bottom: { style: 'thin' } };
+  });
+  row.height = 28;
+}
 
-  if (units.length > 0) {
-    validationsList.push(
-      buildListValidationXml('A3:A1048576', `'Reference Data'!$A$2:$A$${units.length + 1}`, 'Circle / Sector', 'Select a registered unit.', 'Invalid Unit', 'Please select a unit from the dropdown list.')
-    );
+/** Reads a worksheet's data rows into plain objects keyed by the given header row's cell text. */
+function rowsFromSheet(ws: ExcelJSNamespace.Worksheet, headerRow: number): Record<string, unknown>[] {
+  const headerValues = ws.getRow(headerRow).values as unknown[];
+  const headers = headerValues.map((v) => (v == null ? '' : String(v).trim()));
+
+  const rows: Record<string, unknown>[] = [];
+  for (let r = headerRow + 1; r <= ws.rowCount; r++) {
+    const values = ws.getRow(r).values as unknown[];
+    if (!values || values.every((v) => v == null || v === '')) continue;
+
+    const obj: Record<string, unknown> = {};
+    for (let c = 1; c < values.length; c++) {
+      const header = headers[c];
+      if (!header) continue;
+      obj[header] = values[c];
+    }
+    rows.push(obj);
   }
+  return rows;
+}
 
-  const validations = validationsList.join('');
-
-  for (const sheetName of ['sheet1.xml', 'sheet2.xml']) {
-    const sheet = zip.file(`xl/worksheets/${sheetName}`);
-    if (!sheet) continue;
-
-    const xml = await sheet.async('string');
-    // Inject immediately after </sheetData> to preserve valid Excel XML schema order
-    const nextXml = xml.replace('</sheetData>', `</sheetData><dataValidations count="${validationsList.length}">${validations}</dataValidations>`);
-    zip.file(`xl/worksheets/${sheetName}`, nextXml);
-  }
-
-  return await zip.generateAsync({ type: 'arraybuffer' });
+/**
+ * Reads the first sheet of an uploaded workbook into plain row objects keyed by the
+ * header row's cell text. `headerRow` defaults to 1 (no title row above the headers).
+ */
+export async function readWorkbookRows(file: File, headerRow = 1): Promise<Record<string, unknown>[]> {
+  const buf = await file.arrayBuffer();
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.load(buf);
+  const ws = wb.worksheets[0];
+  if (!ws) throw new Error('Excel file has no sheets');
+  return rowsFromSheet(ws, headerRow);
 }
 
 /**
  * Parses a DEO district Excel file into StagedRows.
- * All heavy work runs in-browser via SheetJS loaded from CDN — zero Worker CPU.
+ * All heavy work runs in-browser via ExcelJS loaded from CDN — zero Worker CPU.
  */
 export async function parseExcelFile(
   file: File,
@@ -109,17 +128,16 @@ export async function parseExcelFile(
   onProgress?: (pct: number) => void,
 ): Promise<StagedRow[]> {
   const buf = await file.arrayBuffer();
-  const wb = XLSX.read(buf, { type: 'array' });
-  const ws = wb.Sheets[wb.SheetNames[0]!];
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.load(buf);
+  const ws = wb.worksheets[0];
   if (!ws) throw new Error('Excel file has no sheets');
 
-  let raw = XLSX.utils.sheet_to_json(ws) as Record<string, unknown>[];
-  if (raw.length > 0) {
-    const isTitleRowFormat = Object.values(raw[0]!).includes('circle_sector_name');
-    if (isTitleRowFormat) {
-      raw = XLSX.utils.sheet_to_json(ws, { range: 1 }) as Record<string, unknown>[];
-    }
-  }
+  // Our generated template has a merged title on row 1 and real headers on row 2;
+  // a plain file (no title row) has headers directly on row 1.
+  const row1 = (ws.getRow(1).values as unknown[]).map((v) => (v == null ? '' : String(v).trim()));
+  const headerRow = row1.includes('circle_sector_name') ? 1 : 2;
+  const raw = rowsFromSheet(ws, headerRow);
 
   const results: StagedRow[] = [];
 
@@ -224,11 +242,77 @@ const COLUMN_GUIDE: unknown[][] = [
   ['special_beer_mgr', 'Annual beer Minimum Guaranteed Revenue (INR)', 'COUNTRY_LIQUOR + CL5CC only', 'Leave 0 if has_cl5cc = 0'],
 ];
 
+/** Builds the "Data Entry" or "Demo Data" sheet: title row, header row, optional example rows. */
+function buildShopDataSheet(
+  wb: ExcelJSNamespace.Workbook,
+  name: string,
+  titleText: string,
+  exampleRows: unknown[][],
+  units: string[],
+) {
+  const ws = wb.addWorksheet(name);
+
+  ws.mergeCells(1, 1, 1, TEMPLATE_HEADERS.length);
+  const titleCell = ws.getCell(1, 1);
+  titleCell.value = titleText;
+  titleCell.font = { bold: true, size: 12, color: { argb: 'FFFFFFFF' } };
+  titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F2A44' } };
+  titleCell.alignment = { vertical: 'middle', horizontal: 'center' };
+  ws.getRow(1).height = 26;
+
+  ws.getRow(2).values = TEMPLATE_HEADERS as ExcelJSNamespace.CellValue[];
+  styleHeaderRow(ws, 2);
+
+  for (const ex of exampleRows) ws.addRow(ex);
+
+  ws.columns = TEMPLATE_HEADERS.map((h) => ({ width: Math.max(16, h.length + 4) }));
+  for (let r = 3; r <= ws.rowCount; r++) {
+    ws.getRow(r).eachCell({ includeEmpty: false }, (cell) => {
+      cell.alignment = { wrapText: true, vertical: 'top' };
+    });
+  }
+
+  applyPrintSetup(ws, 2, TEMPLATE_HEADERS.length);
+  ws.pageSetup.printTitlesRow = '1:2';
+  ws.views = [{ state: 'frozen', ySplit: 2, xSplit: 0 }];
+
+  const shopTypeCol = TEMPLATE_HEADERS.indexOf('shop_type') + 1;
+  const cl5ccCol = TEMPLATE_HEADERS.indexOf('has_cl5cc') + 1;
+  const unitCol = TEMPLATE_HEADERS.indexOf('circle_sector_name') + 1;
+  const colLetter = (n: number) => ws.getColumn(n).letter;
+  const validations = (ws as ValidatableWorksheet).dataValidations;
+
+  validations.add(`${colLetter(shopTypeCol)}3:${colLetter(shopTypeCol)}${VALIDATION_ROW_LIMIT}`, {
+    type: 'list', allowBlank: true, formulae: [`"${SHOP_TYPE_OPTIONS.join(',')}"`],
+    showInputMessage: true, promptTitle: 'Shop type', prompt: 'Choose a shop type from the dropdown list.',
+    showErrorMessage: true, errorStyle: 'error', errorTitle: 'Invalid shop type', error: `Use one of: ${SHOP_TYPE_OPTIONS.join(', ')}`,
+  });
+  validations.add(`${colLetter(cl5ccCol)}3:${colLetter(cl5ccCol)}${VALIDATION_ROW_LIMIT}`, {
+    type: 'list', allowBlank: true, formulae: [`"${CL5CC_OPTIONS.join(',')}"`],
+    showInputMessage: true, promptTitle: 'CL5CC', prompt: 'Choose true if the shop has CL5CC; otherwise choose false.',
+    showErrorMessage: true, errorStyle: 'error', errorTitle: 'Invalid CL5CC value', error: 'Use true or false only.',
+  });
+  if (units.length > 0) {
+    validations.add(`${colLetter(unitCol)}3:${colLetter(unitCol)}${VALIDATION_ROW_LIMIT}`, {
+      type: 'list', allowBlank: true, formulae: [`'Reference Data'!$A$2:$A$${units.length + 1}`],
+      showInputMessage: true, promptTitle: 'Circle / Sector', prompt: 'Select a registered unit.',
+      showErrorMessage: true, errorStyle: 'error', errorTitle: 'Invalid Unit', error: 'Please select a unit from the dropdown list.',
+    });
+  }
+
+  return ws;
+}
+
 /**
  * Generates the district Excel template as a downloadable Blob.
  * Sheet 1 "Data Entry": column headers only (blank for DEO to fill).
  * Sheet 2 "Demo Data": column headers + one example row per shop type.
  * Sheet 3 "Instructions": description of every column.
+ * Sheet 4 "Reference Data": registered circle/sector units, feeds the dropdown on sheets 1-2.
+ *
+ * Built with ExcelJS (loaded from CDN, global `ExcelJS`) instead of SheetJS's writer —
+ * ExcelJS produces spec-compliant OOXML natively (freeze panes, print setup, data
+ * validation) so there is no hand-edited worksheet XML that can corrupt the file.
  */
 export async function generateTemplate(districtName: string, units: string[]): Promise<Blob> {
   const exUnit = units[0] ?? 'Circle 1';
@@ -243,28 +327,38 @@ export async function generateTemplate(districtName: string, units: string[]): P
     [exUnit, exThana, '', 'SHOP006', 'Example CL5CC Beer Endorsed Shop', 'COUNTRY_LIQUOR', 'true', '', '', 0, 75000, 0, 0, 0, 0, 0, 0, 60000, 25000, 50000],
   ];
 
-  const titleRow = [`District: ${districtName.toUpperCase()}   |   UP Excise Spatial Revenue Optimizer   |   DEO Data Entry Template`];
+  const titleText = `District: ${districtName.toUpperCase()}   |   UP Excise Spatial Revenue Optimizer   |   DEO Data Entry Template`;
 
-  const wsDataEntry = XLSX.utils.aoa_to_sheet([titleRow, TEMPLATE_HEADERS]) as any;
-  wsDataEntry['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: TEMPLATE_HEADERS.length - 1 } }];
-  wsDataEntry['!views'] = [{ state: 'frozen', ySplit: 2 }];
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'UP Excise Spatial Revenue Optimizer';
+  wb.created = new Date();
 
-  const wsDemo = XLSX.utils.aoa_to_sheet([titleRow, TEMPLATE_HEADERS, ...examples]) as any;
-  wsDemo['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: TEMPLATE_HEADERS.length - 1 } }];
-  wsDemo['!views'] = [{ state: 'frozen', ySplit: 2 }];
+  buildShopDataSheet(wb, 'Data Entry', titleText, [], units);
+  buildShopDataSheet(wb, 'Demo Data', titleText, examples, units);
 
-  const wsGuide = XLSX.utils.aoa_to_sheet(COLUMN_GUIDE);
-  const wsRef = XLSX.utils.aoa_to_sheet([['Registered Units'], ...units.map(u => [u])]);
+  const wsGuide = wb.addWorksheet('Instructions');
+  wsGuide.getRow(1).values = COLUMN_GUIDE[0] as ExcelJSNamespace.CellValue[];
+  styleHeaderRow(wsGuide, 1);
+  for (const row of COLUMN_GUIDE.slice(1)) wsGuide.addRow(row);
+  wsGuide.columns = [{ width: 24 }, { width: 55 }, { width: 26 }, { width: 45 }];
+  for (let r = 2; r <= wsGuide.rowCount; r++) {
+    wsGuide.getRow(r).eachCell({ includeEmpty: false }, (cell) => {
+      cell.alignment = { wrapText: true, vertical: 'top' };
+    });
+  }
+  applyPrintSetup(wsGuide, 1, (COLUMN_GUIDE[0] as unknown[]).length);
+  wsGuide.views = [{ state: 'frozen', ySplit: 1, xSplit: 0 }];
 
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, wsDataEntry, 'Data Entry');
-  XLSX.utils.book_append_sheet(wb, wsDemo, 'Demo Data');
-  XLSX.utils.book_append_sheet(wb, wsGuide, 'Instructions');
-  XLSX.utils.book_append_sheet(wb, wsRef, 'Reference Data');
+  const wsRef = wb.addWorksheet('Reference Data');
+  wsRef.getRow(1).values = ['Registered Units'] as ExcelJSNamespace.CellValue[];
+  styleHeaderRow(wsRef, 1);
+  for (const u of units) wsRef.addRow([u]);
+  wsRef.getColumn(1).width = 30;
+  applyPrintSetup(wsRef, 1, 1);
+  wsRef.views = [{ state: 'frozen', ySplit: 1, xSplit: 0 }];
 
-  const out = XLSX.write(wb, { type: 'array', bookType: 'xlsx' });
-  const workbookBytes = await addTemplateValidations(out as ArrayBuffer, units);
-  return new Blob([workbookBytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const buf = await wb.xlsx.writeBuffer();
+  return new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
 }
 
 interface ProvisionTemplateRow {
@@ -296,11 +390,76 @@ export async function generateProvisionTemplate(rows: ProvisionTemplateRow[] = [
     ['Expected Vend Count', 'Approximate number of retail vends in the district', 'Used for "X of Y uploaded" progress display in the portal'],
   ];
 
-  const ws = XLSX.utils.aoa_to_sheet([headers, ...body]);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'DEO List');
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(guide), 'Column Guide');
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'UP Excise Spatial Revenue Optimizer';
+  wb.created = new Date();
 
-  const out = XLSX.write(wb, { type: 'array', bookType: 'xlsx' });
-  return new Blob([out as ArrayBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const wsList = wb.addWorksheet('DEO List');
+  wsList.getRow(1).values = headers as ExcelJSNamespace.CellValue[];
+  styleHeaderRow(wsList, 1);
+  for (const row of body) wsList.addRow(row);
+  wsList.columns = [{ width: 26 }, { width: 18 }, { width: 24 }, { width: 30 }, { width: 20 }, { width: 20 }];
+  for (let r = 2; r <= wsList.rowCount; r++) {
+    wsList.getRow(r).eachCell({ includeEmpty: false }, (cell) => {
+      cell.alignment = { wrapText: true, vertical: 'top' };
+    });
+  }
+  applyPrintSetup(wsList, 1, headers.length);
+  wsList.views = [{ state: 'frozen', ySplit: 1, xSplit: 0 }];
+
+  const wsGuide = wb.addWorksheet('Column Guide');
+  wsGuide.getRow(1).values = guide[0] as ExcelJSNamespace.CellValue[];
+  styleHeaderRow(wsGuide, 1);
+  for (const row of guide.slice(1)) wsGuide.addRow(row);
+  wsGuide.columns = [{ width: 24 }, { width: 55 }, { width: 45 }];
+  for (let r = 2; r <= wsGuide.rowCount; r++) {
+    wsGuide.getRow(r).eachCell({ includeEmpty: false }, (cell) => {
+      cell.alignment = { wrapText: true, vertical: 'top' };
+    });
+  }
+  applyPrintSetup(wsGuide, 1, (guide[0] as unknown[]).length);
+  wsGuide.views = [{ state: 'frozen', ySplit: 1, xSplit: 0 }];
+
+  const buf = await wb.xlsx.writeBuffer();
+  return new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+}
+
+/**
+ * Builds and downloads an .xlsx from a flat array of row objects (headers = keys of
+ * the first row) — the shared path for every admin data export. Same landscape/fit-to-
+ * width print setup, repeated header row, wrapped cells, and frozen header as the
+ * generated templates above, so every workbook in the app looks and prints the same way.
+ */
+export async function exportRowsToXlsx(
+  rows: Record<string, unknown>[],
+  opts: { sheetName: string; filename: string; freezeFirstColumn?: boolean },
+): Promise<void> {
+  if (rows.length === 0) return;
+  const headers = Object.keys(rows[0]!);
+
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'UP Excise Spatial Revenue Optimizer';
+  wb.created = new Date();
+
+  const ws = wb.addWorksheet(opts.sheetName.slice(0, 31));
+  ws.getRow(1).values = headers as ExcelJSNamespace.CellValue[];
+  styleHeaderRow(ws, 1);
+  for (const r of rows) ws.addRow(headers.map((h) => r[h] as ExcelJSNamespace.CellValue));
+  ws.columns = headers.map((h) => ({ width: Math.max(14, h.length + 4) }));
+  for (let r = 2; r <= ws.rowCount; r++) {
+    ws.getRow(r).eachCell({ includeEmpty: false }, (cell) => {
+      cell.alignment = { wrapText: true, vertical: 'top' };
+    });
+  }
+
+  applyPrintSetup(ws, 1, headers.length);
+  ws.views = [{ state: 'frozen', ySplit: 1, xSplit: opts.freezeFirstColumn ? 1 : 0 }];
+
+  const buf = await wb.xlsx.writeBuffer();
+  const url = URL.createObjectURL(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = opts.filename;
+  a.click();
+  URL.revokeObjectURL(url);
 }

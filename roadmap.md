@@ -1520,7 +1520,7 @@ M-6: Auth Migration + Single Worker       [Post-M5]         ✅ Complete
 The following require department action before the upload campaign can begin:
 
 1. **DEO email addresses:** All 75 DEO department emails must be provided to the administrator before accounts can be provisioned via `POST /api/admin/bulk-provision`.
-2. **Excel template column layout:** Column names, order, and data types must be confirmed before the SheetJS column-mapping is finalized.
+2. **Excel template column layout:** Column names, order, and data types must be confirmed before the column mapping is finalized.
 3. **Thana master list (best-effort):** A reference list of Thana names per district for the adjacent Thana cross-district filter. If unavailable, the filter uses a runtime check against already-uploaded Thana names.
 4. **Shop count estimates per district:** Allows the dashboard to display accurate "X of Y uploaded" progress metrics.
 5. **DEO credential and identifier assignment:** DEOs must complete circle/sector pre-registration before distributing templates to Inspectors.
@@ -1543,7 +1543,7 @@ The following require department action before the upload campaign can begin:
 | Email | Resend | Magic-link delivery. `onboarding@resend.dev` until custom domain verified. Key set as CF Worker Secret. |
 | UI Components | DaisyUI 5.6.3 | Requires Tailwind v4. Semantic component classes, zero JS runtime, loaded from jsDelivr CDN. |
 | CSS Utilities | Tailwind v4 Browser CDN | `@tailwindcss/browser@4` — runtime utility generation; loaded from CDN, no PostCSS build step. |
-| Excel Parsing | SheetJS (`xlsx`) 0.18.5 | Loaded from jsDelivr CDN; ~900KB, never bundled. All parsing in browser. |
+| Excel I/O | ExcelJS 4.4.0 | Loaded from jsDelivr CDN, never bundled. Single library for reading uploads, generating templates, and exporting — replaced SheetJS + hand-patched worksheet XML in M-14 because that combination produced corrupted `.xlsx` output. |
 | Local Persistence | Dexie.js 4.0.10 (IndexedDB) | Loaded from jsDelivr CDN; offline-first staging layer for all DEO-entered data |
 | Offline / PWA | Service Worker + Background Sync | App shell cache, CDN asset cache, transparent upload retry on reconnect |
 | Scheduled Tasks | Deferred | Cron purge (45-day audit log) deferred — @opennextjs/cloudflare v1 does not expose `scheduled` export hook. |

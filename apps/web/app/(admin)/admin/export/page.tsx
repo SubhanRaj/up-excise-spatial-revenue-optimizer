@@ -4,11 +4,6 @@ import { useEffect, useState } from 'react';
 import HelpPanel from '@/app/_components/HelpPanel';
 import { adminExportCache } from '@/lib/db';
 
-declare const XLSX: {
-  utils: { json_to_sheet: (data: unknown[]) => unknown; book_new: () => unknown; book_append_sheet: (wb: unknown, ws: unknown, name: string) => void };
-  write: (wb: unknown, opts: { type: string; bookType: string }) => unknown;
-};
-
 function fmtAge(ms: number) {
   const secs = Math.floor((Date.now() - ms) / 1000);
   if (secs < 60) return `${secs}s ago`;
@@ -36,7 +31,7 @@ export default function ExportPage() {
       const ts = Date.now();
       setCachedAt(ts);
       setRowCount(data.rows.length);
-      writeXlsx(data.rows);
+      await writeXlsx(data.rows);
     } finally {
       setLoading(false);
     }
@@ -46,21 +41,18 @@ export default function ExportPage() {
     setLoading(true);
     try {
       const c = await adminExportCache.get();
-      if (c) writeXlsx(c.data);
+      if (c) await writeXlsx(c.data);
     } finally {
       setLoading(false);
     }
   }
 
-  function writeXlsx(rows: unknown[]) {
-    const ws = XLSX.utils.json_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Phase 1 Data');
-    const out = XLSX.write(wb, { type: 'array', bookType: 'xlsx' }) as ArrayBuffer;
-    const url = URL.createObjectURL(new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
-    const a = document.createElement('a');
-    a.href = url; a.download = 'phase1-all-districts.xlsx'; a.click();
-    URL.revokeObjectURL(url);
+  async function writeXlsx(rows: unknown[]) {
+    const { exportRowsToXlsx } = await import('@/lib/excel');
+    await exportRowsToXlsx(rows as Record<string, unknown>[], {
+      sheetName: 'Phase 1 Data',
+      filename: 'phase1-all-districts.xlsx',
+    });
   }
 
   return (
@@ -69,7 +61,7 @@ export default function ExportPage() {
         <h2 className="text-xl font-bold">Export Data</h2>
         <HelpPanel pageKey="admin_export" title="Full State Export — How it works">
           <ul className="list-disc list-inside space-y-1">
-            <li><strong>Format</strong> — Excel (.xlsx) generated in-browser via SheetJS. No CSV — comma-containing fields like adjacent thanas are correctly quoted.</li>
+            <li><strong>Format</strong> — Excel (.xlsx) generated in-browser via ExcelJS. No CSV — comma-containing fields like adjacent thanas are correctly quoted.</li>
             <li><strong>IndexedDB cache</strong> — fetched data is stored in <code>excise-admin</code> IndexedDB so you can re-export without a second network round-trip.</li>
             <li><strong>Refresh &amp; Download</strong> — re-fetches from D1 and updates the cache.</li>
             <li><strong>Download from Cache</strong> — uses the previously fetched copy (faster, no network call).</li>
@@ -87,7 +79,7 @@ export default function ExportPage() {
       )}
 
       <p className="text-sm text-base-content/90">
-        Downloads the full Phase 1 dataset as an Excel file. SheetJS generates the .xlsx in-browser —
+        Downloads the full Phase 1 dataset as an Excel file. ExcelJS generates the .xlsx in-browser —
         no server-side spreadsheet library required. Fetched data is cached in IndexedDB for offline re-export.
       </p>
 

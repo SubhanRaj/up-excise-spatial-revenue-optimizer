@@ -70,7 +70,7 @@ These are real mistakes Claude made in previous sessions on this project. Every 
 
 **What happened:** Several export routes and download functions were written to generate CSV. `adjacent_thanas_raw` contains comma-separated values like "Kotwali, Hazratganj" which broke every column to the right when joined with `,`.
 
-**The rule (already in this file):** **CSV is never acceptable.** All file I/O — imports, exports, templates, downloads — must use XLSX via SheetJS (`window.XLSX`). SheetJS is loaded on every page as a CDN global. Generating XLSX in-browser is three lines: `json_to_sheet` → `book_new/book_append_sheet` → `write({type:'array', bookType:'xlsx'})` → `Blob` → click. There is no excuse to use CSV.
+**The rule (already in this file):** **CSV is never acceptable.** All file I/O — imports, exports, templates, downloads — must use XLSX via ExcelJS (`window.ExcelJS`), the single spreadsheet library loaded on every page as a CDN global. There is no excuse to use CSV.
 
 ### ❌ Mistake 3 — Admin portal pages hit CF D1 directly on every render
 
@@ -82,7 +82,7 @@ These are real mistakes Claude made in previous sessions on this project. Every 
 
 Before writing any code that involves:
 - A CDN `<script>` or `<link>` tag → check the exact URL in the "Frontend CDN Stack" table
-- Any file download or data export → use SheetJS XLSX, not CSV
+- Any file download or data export → use ExcelJS XLSX, not CSV
 - Any admin page that needs districts or state data → use `useAdminDistricts` hook, not a raw fetch
 
 ---
@@ -248,7 +248,9 @@ All API routes are same-origin Next.js Route Handlers. The browser sends the ses
 
 > All CDN assets are loaded in `apps/web/app/layout.tsx` as `<script src="...">` and `<link>` tags in `<head>`. They are available as browser globals on every page before React hydration.
 >
-> **SheetJS** is the canonical parser/writer for all spreadsheet I/O in this project — DEO Excel import, admin template download, and all data exports. CDN is the default. If the CDN is unavailable or a server-side route needs spreadsheet generation, installing `xlsx` as an npm package is acceptable — use whichever approach works best for the context, not a fixed rule. CSV is **never** acceptable for data with comma-containing fields (e.g. adjacent thanas); always use XLSX.
+> **ExcelJS** (`window.ExcelJS`) is the single spreadsheet library for the whole app — reading uploaded DEO files (`parseExcelFile`, `readWorkbookRows`), generating downloadable templates (`generateTemplate`, `generateProvisionTemplate`), and every data export (`exportRowsToXlsx`), all in `apps/web/src/lib/excel.ts`. One library means every workbook gets the same freeze panes, print setup (landscape, fit-to-width, repeating header rows), cell styling, and dropdown data validation for free, with no second library doing the same job a different way.
+> This project previously used SheetJS for reading/simple exports and hand-patched worksheet XML via JSZip to bolt data validation onto its writer — that patch produced invalid/corrupted `.xlsx` output because it never added the workbook-level `_xlnm.Print_Titles` defined name and was fragile to OOXML element ordering. SheetJS and JSZip were removed entirely; ExcelJS writes fully spec-compliant OOXML directly, for both reading and writing, so there is no manual XML editing anywhere in this codebase.
+> CDN is the default. If the CDN is unavailable or a server-side route needs spreadsheet generation, installing `exceljs` as an npm package is acceptable. CSV is **never** acceptable for data with comma-containing fields (e.g. adjacent thanas); always use XLSX.
 >
 > UI libraries (DaisyUI, Tailwind browser CDN, Dexie, SweetAlert2, Notyf, Chart.js, Leaflet) must remain CDN-only — they are not used server-side and bundling them into the Worker would increase cold-start size without benefit.
 
@@ -259,7 +261,7 @@ All API routes are same-origin Next.js Route Handlers. The browser sends the ses
 | **Dexie.js** | 4.0.10 | `https://cdn.jsdelivr.net/npm/dexie@4.0.10/dist/dexie.min.js` | All pages |
 | **SweetAlert2** | 11.14.5 | `https://cdn.jsdelivr.net/npm/sweetalert2@11.14.5/dist/sweetalert2.all.min.js` | All pages |
 | **Notyf** (JS + CSS) | 3.10.0 | `https://cdn.jsdelivr.net/npm/notyf@3.10.0/notyf.min.{js,css}` | All pages |
-| **SheetJS** (`xlsx`) | **0.18.5** | `https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js` | All pages |
+| **ExcelJS** | **4.4.0** | `https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js` | All pages — the only spreadsheet library; reads, writes, and exports |
 | **Chart.js** | **4.4.7** | `https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js` | All pages |
 | **Leaflet.js** (JS + CSS) | **1.9.4** | `https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.{js,css}` | All pages |
 
@@ -353,7 +355,7 @@ Do not fetch `/api/auth/session` directly from page components — always go thr
 - Shows all `phase1_raw_collection` fields: shop ID, name, circle/sector, thana, adjacent thanas (flex-wrap pills), type badge + CL5CC sub-badge, coordinates, revenue (collapsible `<details>` breakdown — no modal).
 - Group-by-type view collapses each type group independently with its own inner pagination. Group-by-type state persisted to `localStorage` (`admin-group-by-type`); per-group open/close persisted to `localStorage` (`admin-group-{districtName}`). Enabling group-by-type deselects any active type filter.
 - Type labels use full names: `Composite Shop (FL + Beer)`, `PRV (Premium Retail Vend)`. The CL5CC breakdown bar card filters `has_cl5cc = true` and is only active alongside Country Liquor (disabled + greyed for other types). A circle/sector dropdown is also available.
-- Full-state UI table (~30K shops in one view) is **not a supported operation**. The only full-state path is `GET /api/admin/export/all` → XLSX download via the `/admin/export` page (data cached in `excise-admin` IndexedDB, generated in-browser by SheetJS). No CSV.
+- Full-state UI table (~30K shops in one view) is **not a supported operation**. The only full-state path is `GET /api/admin/export/all` → XLSX download via the `/admin/export` page (data cached in `excise-admin` IndexedDB, generated in-browser by ExcelJS). No CSV.
 
 **Admin nav search:**
 - The navbar search bar (`SearchBar` component in `app/(admin)/layout.tsx`) fetches district + division names once on mount (module-level cache `searchCache`). Filters as the user types, shows a dropdown grouped by Divisions / Districts, supports keyboard navigation (↑↓, Enter, Escape). No search results page — navigates directly to the clicked district or division page.
@@ -413,14 +415,14 @@ Do not fetch `/api/auth/session` directly from page components — always go thr
 - The `districts` reference table (75 rows) may be queried freely — it is metadata-only and never contains shop data.
 
 ### CDN-First — Bundle Contains Only App Logic
-- DaisyUI, Tailwind v4 browser CDN, SheetJS, Dexie.js, SweetAlert2, and Notyf are all loaded from jsDelivr CDN at runtime. Never install these as npm dependencies or bundle them into the Next.js output.
+- DaisyUI, Tailwind v4 browser CDN, ExcelJS, Dexie.js, SweetAlert2, and Notyf are all loaded from jsDelivr CDN at runtime. Never install these as npm dependencies or bundle them into the Next.js output.
 - The Next.js bundle contains: React, Next.js App Router runtime, and app-specific TypeScript components. No auth SDK, no UI component library.
 
 ### PWA & Offline
 - IndexedDB writes happen synchronously with every user action. The network upload is always secondary. Data is never at risk from a connectivity event.
 - Connection loss, network change, tab close, or device sleep must never trigger a logout or IndexedDB clear. Session expiry (24h) is the only cause of re-authentication.
 - Session expiry must not destroy IndexedDB data. The DEO re-authenticates via magic link and resumes with all staged data intact.
-- The Service Worker pre-caches all CDN assets on install: DaisyUI, Tailwind v4 browser CDN, Dexie.js, SweetAlert2, Notyf, SheetJS. After first load the entire app runs offline with no network dependency.
+- The Service Worker pre-caches all CDN assets on install: DaisyUI, Tailwind v4 browser CDN, Dexie.js, SweetAlert2, Notyf, ExcelJS. After first load the entire app runs offline with no network dependency.
 - Minimum supported viewport is **768px**. No small-screen mobile layouts. Do not write `sm:` or `xs:` responsive prefixes in any layout.
 
 ### Data Language
@@ -548,7 +550,7 @@ Track which milestone is currently active. Update this table as milestones are c
 |---|---|---|
 | M-0: Foundation & Repo Setup | **Completed** | pnpm workspace, CI/CD, wrangler config, D1 databases created and migrated |
 | M-1: Schema, Migrations & Worker Skeleton | **Completed** | Drizzle schema (4 tables), 2 migrations applied to dev + prod D1, initial worker skeleton (migrations later consolidated into a single file — see M-10) |
-| M-2: Excel Ingestion & Coordinate Engine | **Completed** | SheetJS parser, DMS→DD converter, revenue formulas, UP bbox validation |
+| M-2: Excel Ingestion & Coordinate Engine | **Completed** | Excel parser, DMS→DD converter, revenue formulas, UP bbox validation |
 | M-3: Verification UI & IndexedDB | **Completed** | DEO verify page, Dexie.js offline staging, Service Worker + Background Sync PWA |
 | M-4: Worker Batch API & D1 Integration | **Completed** | Batch upload, dual-verification, atomic db.batch()/db.transaction() writes |
 | M-5: Dashboard, Testing & DEO Handoff | **Completed** | Admin choropleth map (initially 70 GADM polygons, later replaced), Chart.js analytics, audit log, CSV export, 12/12 unit tests passing |
@@ -560,6 +562,7 @@ Track which milestone is currently active. Update this table as milestones are c
 | M-11: Admin Portal Offline-First Parity | **Completed** | Upgraded Dexie.js admin schema to version 3. Added caching stores for map data, individual district shops, and audit log. Refactored the overview map, district detail shops table, and audit log to use the IndexedDB-first caching pattern. All admin pages now fetch locally before attempting D1 queries, enforcing zero-cost and offline-first compliance. |
 | M-12: Excel Template UX & Developer QoL | **Completed** | Refactored the DEO Excel template generator to produce 3 separate sheets (Data Entry, Demo Data, Instructions) to improve DEO UX; consolidated 4 coordinate columns into 2 (`latitude`, `longitude`) accepting either DMS or DD while retaining `latitudeDms` and `longitudeDms` internally as an audit failsafe; added `superadmin` role bypass for `shubhanraj2002@gmail.com` to test both DEO and Admin routes simultaneously; updated Playwright tests for full end-to-end local demo automation. |
 | M-13: Admin UX Refresh & Excel Enhancements | **Completed** | Removed 5-minute auto-polling TTLs from Admin cache in favor of manual "Sync from Server" buttons; enhanced `exportXlsx` on District Detail with auto-filters, freeze panes, and an injected "TOTAL" row at the bottom; disabled DEO district Excel upload/verify actions when no units are registered. Overhauled DEO Excel template: fixed JSZip XML validation injection, added merged title rows, froze top panes, and added dynamic dropdowns for circles/sectors driven by a hidden Reference Data sheet. |
+| M-14: Single-Library Spreadsheet Rewrite | **Completed** | Replaced SheetJS + hand-patched JSZip XML with ExcelJS as the one spreadsheet library for the entire app (CDN global `window.ExcelJS`, `apps/web/src/lib/excel.ts`) — fixes the corrupted DEO Excel template (missing workbook-level `_xlnm.Print_Titles` defined name from the old XML patch) and removes the SheetJS/ExcelJS duplication. Every generated/exported workbook (`generateTemplate`, `generateProvisionTemplate`, `exportRowsToXlsx`) now gets landscape orientation, fit-to-width printing, a header row repeated on every printed page, frozen header panes, and wrapped cell text. Added shared `readWorkbookRows`/`rowsFromSheet` helpers for reading uploads (DEO district file, admin bulk-provision file). Removed `xlsx` and `jszip` from the CDN stack, Service Worker precache list, and dependencies. |
 
 See [roadmap.md Section 6](roadmap.md#6-development-milestones--action-plan) for full milestone specs, entry/exit criteria, and deliverable checklists.
 
@@ -570,7 +573,7 @@ See [roadmap.md Section 6](roadmap.md#6-development-milestones--action-plan) for
 The following are unresolved department-side decisions that block specific milestones. Do not implement the affected features until these are resolved.
 
 1. **DEO email addresses** — All 75 DEO department emails must be provided before accounts can be provisioned via `POST /api/admin/bulk-provision`.
-2. **Excel template column layout** — SheetJS column mapping cannot be built until column names and order are locked.
+2. **Excel template column layout** — column mapping cannot be built until column names and order are locked.
 3. **Thana master list** — blocks the adjacent Thana cross-district filter (best-effort; proceed with runtime check if unavailable).
 4. **Shop count estimates per district** — blocks dashboard "X of Y uploaded" progress metrics.
 5. **DEO credential and identifier assignment** — blocks the upload campaign. Provisioning sends magic-link emails to DEO addresses. DEOs must also complete circle/sector pre-registration before distributing templates to Inspectors.
