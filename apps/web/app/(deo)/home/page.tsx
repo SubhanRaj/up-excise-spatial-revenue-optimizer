@@ -40,7 +40,7 @@ export default async function DeoDashboard() {
           <h2 className="font-bold text-lg">Step 1 of 3 — Create Circles &amp; Sectors</h2>
           <p className="text-sm text-base-content/70 mb-1">चरण 1 — सर्कल और सेक्टर बनाएं</p>
           <p className="text-sm text-base-content/90 mt-2">
-            This is the only thing you can do right now. Upload and Verify will unlock automatically once your circles and sectors are registered.
+            Create &amp; lock your circles and sectors to proceed.
           </p>
           <Link href="/units" className="btn btn-primary btn-lg mt-6 w-full sm:w-auto">Create Circles &amp; Sectors →</Link>
         </div>

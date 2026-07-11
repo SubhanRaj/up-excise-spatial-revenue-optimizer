@@ -49,6 +49,14 @@ export default function HelpPanel({ pageKey, title, children }: HelpPanelProps) 
     return () => document.removeEventListener('mousedown', onDown);
   }, [open]);
 
+  // Block background scroll while the panel is open — it already visually blurs/dims the page.
+  useEffect(() => {
+    if (!open) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, [open]);
+
   function markDone() {
     try { localStorage.setItem(storageKey, 'true'); } catch { }
     setDone(true);
@@ -56,9 +64,12 @@ export default function HelpPanel({ pageKey, title, children }: HelpPanelProps) 
   }
 
   return (
-    <div ref={wrapperRef} className="relative inline-block">
+    // Fixed at the same on-screen spot on every page — top-right, just below the sticky
+    // navbar/breadcrumb strip — instead of being laid out inline next to each page's own
+    // heading, which produced inconsistent, cramped "half-width" headers across pages.
+    <div ref={wrapperRef} className="fixed top-[4.75rem] right-4 z-[1000]">
       <button
-        className={`btn btn-ghost btn-xs gap-1 ${done ? 'text-base-content/60' : 'text-info'}`}
+        className={`btn btn-ghost btn-sm gap-1 bg-base-100 shadow ${done ? 'text-base-content/60' : 'text-info'}`}
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-label={open ? 'Close help' : 'Open help and instructions'}
@@ -79,10 +90,10 @@ export default function HelpPanel({ pageKey, title, children }: HelpPanelProps) 
 
       {open && (
         <>
-          <div className="fixed inset-0 z-[1001] backdrop-blur-[2px] bg-black/10 pointer-events-none" aria-hidden="true" />
+          <div className="fixed inset-0 z-[1001] backdrop-blur-[2px] bg-black/10" aria-hidden="true" onClick={() => setOpen(false)} />
           <div
             ref={balloonRef}
-            className={`absolute z-[1002] w-[min(28rem,90vw)] card bg-base-100 border border-info/20 shadow-2xl p-4 space-y-3 ${alignRight ? 'right-0' : 'left-0'} ${alignTop ? 'bottom-full mb-1' : 'top-full mt-1'}`}
+            className={`absolute z-[1002] w-[min(42rem,92vw)] card bg-base-100 border border-info/20 shadow-2xl p-5 space-y-3 ${alignRight ? 'right-0' : 'left-0'} ${alignTop ? 'bottom-full mb-1' : 'top-full mt-1'}`}
             role="region"
             aria-label={`Help: ${title}`}
           >
@@ -90,7 +101,7 @@ export default function HelpPanel({ pageKey, title, children }: HelpPanelProps) 
             <div className={`absolute w-3 h-3 bg-base-100 rotate-45 ${alignRight ? 'right-3' : 'left-3'} ${alignTop ? '-bottom-1.5 border-r border-b border-info/20' : '-top-1.5 border-l border-t border-info/20'}`} />
 
             <div className="flex items-start justify-between gap-2">
-              <h3 className="font-semibold text-sm text-info">{title}</h3>
+              <h3 className="font-semibold text-base text-info">{title}</h3>
               <button
                 className="btn btn-ghost btn-xs shrink-0"
                 onClick={() => setOpen(false)}
@@ -100,7 +111,7 @@ export default function HelpPanel({ pageKey, title, children }: HelpPanelProps) 
               </button>
             </div>
 
-            <div className="text-sm text-base-content space-y-2 overflow-y-auto max-h-64 pr-1">
+            <div className="text-sm text-base-content space-y-2 overflow-y-auto max-h-[75vh] pr-1">
               {children}
             </div>
 
