@@ -145,6 +145,10 @@ export default function UnitsPage() {
     }
   }
 
+  if (!session) {
+    return <div className="text-sm text-base-content/60 p-6">Loading…</div>;
+  }
+
   if (!district) {
     return (
       <div className="alert alert-warning max-w-xl" role="alert">
