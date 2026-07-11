@@ -44,7 +44,20 @@ const NUM_FIELDS = new Set<keyof StagedRow>([
   'latitudeDecimal', 'longitudeDecimal',
 ]);
 
-const SHOP_TYPE_OPTIONS = ['MODEL_SHOP', 'COMPOSITE_SHOP', 'PRV', 'BHANG_SHOP', 'COUNTRY_LIQUOR'] as const;
+// Backend enum values (CLAUDE.md "Shop Type Enum" — exact strings, never change these).
+// The sheet never shows these raw underscored constants to the DEO; the dropdown shows
+// SHOP_TYPE_LABELS instead, and parseExcelFile maps the friendly label back to the enum.
+const SHOP_TYPE_LABELS: Record<string, string> = {
+  MODEL_SHOP: 'Model Shop',
+  COMPOSITE_SHOP: 'Composite Shop (FL + Beer)',
+  PRV: 'PRV (Premium Retail Vend)',
+  BHANG_SHOP: 'Bhang Shop',
+  COUNTRY_LIQUOR: 'Country Liquor',
+};
+const SHOP_TYPE_OPTIONS = Object.values(SHOP_TYPE_LABELS);
+const SHOP_TYPE_REVERSE: Record<string, string> = Object.fromEntries(
+  Object.entries(SHOP_TYPE_LABELS).map(([enumKey, label]) => [label.toLowerCase(), enumKey]),
+);
 const CL5CC_OPTIONS = ['true', 'false'] as const;
 
 // Data validation dropdowns are applied to a large-but-finite row range rather than
@@ -193,6 +206,9 @@ export async function parseExcelFile(
 
       if (fieldName === 'hasCl5cc') {
         (row as Record<string, unknown>)[fieldName] = Boolean(val) && val !== 'false' && val !== '0';
+      } else if (fieldName === 'shopType') {
+        const trimmed = String(val).trim();
+        (row as Record<string, unknown>)[fieldName] = SHOP_TYPE_REVERSE[trimmed.toLowerCase()] ?? trimmed;
       } else if (NUM_FIELDS.has(fieldName)) {
         (row as Record<string, unknown>)[fieldName] = Number(val) || 0;
       } else {
@@ -290,7 +306,7 @@ const COLUMN_GUIDE: unknown[][] = [
   [FRIENDLY_LABELS.shop_id, 'Department-assigned license/registration ID.\nविभाग द्वारा दिया गया लाइसेंस/पंजीकरण आईडी।', 'All shop types / सभी प्रकार', 'Alphanumeric. Must be unique within the district.\nअक्षर व अंक। जिले में अद्वितीय होना चाहिए।'],
   [FRIENDLY_LABELS.shop_name, 'Official name of the retail vend.\nदुकान का आधिकारिक नाम।', 'All shop types / सभी प्रकार', 'English only.\nकेवल अंग्रेज़ी में।'],
   [FRIENDLY_LABELS.shop_type, 'Shop classification — choose from the dropdown.\nदुकान का वर्गीकरण — dropdown से चुनें।', 'All shop types / सभी प्रकार', 'MODEL_SHOP | COMPOSITE_SHOP | PRV | BHANG_SHOP | COUNTRY_LIQUOR'],
-  [FRIENDLY_LABELS.has_cl5cc, 'true = has CL5CC beer endorsement, false = standard.\ntrue = CL5CC बियर endorsement है, false = सामान्य।', 'COUNTRY_LIQUOR only / केवल COUNTRY_LIQUOR', 'Any other shop_type must use false.\nअन्य किसी भी shop_type के लिए false ही रहेगा।'],
+  [FRIENDLY_LABELS.has_cl5cc, 'true = has CL5CC beer endorsement, false = standard.\ntrue = CL5CC बियर endorsement है, false = सामान्य।', 'COUNTRY_LIQUOR only / केवल COUNTRY_LIQUOR', 'Locked to false for every other Shop Type — cell will reject "true".\nअन्य किसी भी Shop Type के लिए "true" स्वीकार नहीं होगा।'],
   [FRIENDLY_LABELS.latitude, 'Latitude — DMS or Decimal.\nअक्षांश — DMS या Decimal में।', 'Optional / वैकल्पिक', 'e.g. 26°50\'48.12"N or 26.8467'],
   [FRIENDLY_LABELS.longitude, 'Longitude — DMS or Decimal.\nदेशांतर — DMS या Decimal में।', 'Optional / वैकल्पिक', 'e.g. 80°56\'46.3"E or 80.9462'],
   [FRIENDLY_LABELS.license_fee_lf, 'Annual license fee (INR, whole rupees).\nवार्षिक लाइसेंस शुल्क (INR, पूर्ण रुपयों में)।', 'MODEL_SHOP, PRV, BHANG_SHOP', 'Locked to 0 for other shop types — cell will reject entry.\nअन्य दुकान प्रकार के लिए यह 0 पर locked है — गलत entry स्वीकार नहीं होगी।'],
@@ -352,10 +368,15 @@ function buildShopDataSheet(
     showInputMessage: true, promptTitle: 'Shop type', prompt: 'Choose a shop type from the dropdown list.',
     showErrorMessage: true, errorStyle: 'error', errorTitle: 'Invalid shop type', error: `Use one of: ${SHOP_TYPE_OPTIONS.join(', ')}`,
   });
+  // has_cl5cc only applies to Country Liquor shops (CLAUDE.md "CL5CC Rule") — locked to
+  // false/blank for every other shop_type. No dropdown arrow (custom validation can't show
+  // one), same tradeoff as the FIELD_GATES loop below; the input message tells the DEO why.
   validations.add(`${colLetter(cl5ccCol)}3:${colLetter(cl5ccCol)}${VALIDATION_ROW_LIMIT}`, {
-    type: 'list', allowBlank: true, formulae: [`"${CL5CC_OPTIONS.join(',')}"`],
-    showInputMessage: true, promptTitle: 'CL5CC', prompt: 'Choose true if the shop has CL5CC; otherwise choose false.',
-    showErrorMessage: true, errorStyle: 'error', errorTitle: 'Invalid CL5CC value', error: 'Use true or false only.',
+    type: 'custom', allowBlank: true,
+    formulae: [`=OR($${colLetter(cl5ccCol)}3="",$${colLetter(cl5ccCol)}3="false",AND($${colLetter(cl5ccCol)}3="true",$${colLetter(shopTypeCol)}3="${SHOP_TYPE_LABELS.COUNTRY_LIQUOR}"))`],
+    showInputMessage: true, promptTitle: 'CL5CC', prompt: 'Type true or false. "true" is only allowed when Shop Type is Country Liquor.',
+    showErrorMessage: true, errorStyle: 'error', errorTitle: 'CL5CC not applicable',
+    error: `"true" is only allowed when Shop Type = Country Liquor. Use false otherwise.\n"true" केवल तभी जब Shop Type = Country Liquor हो। अन्यथा false रखें।`,
   });
   if (units.length > 0) {
     validations.add(`${colLetter(unitCol)}3:${colLetter(unitCol)}${VALIDATION_ROW_LIMIT}`, {
@@ -373,14 +394,15 @@ function buildShopDataSheet(
   for (const gate of FIELD_GATES) {
     const col = TEMPLATE_HEADERS.indexOf(gate.key) + 1;
     const letter = colLetter(col);
-    const typesCond = gate.allowedTypes.map((t) => `$${shopTypeLetter}3="${t}"`).join(',');
+    const allowedLabels = gate.allowedTypes.map((t) => SHOP_TYPE_LABELS[t]!);
+    const typesCond = allowedLabels.map((label) => `$${shopTypeLetter}3="${label}"`).join(',');
     const cond = gate.requireCl5cc ? `AND(OR(${typesCond}),$${cl5ccLetter}3="true")` : `OR(${typesCond})`;
     const [enLabel] = FRIENDLY_LABELS[gate.key]!.split('\n');
     validations.add(`${letter}3:${letter}${VALIDATION_ROW_LIMIT}`, {
       type: 'custom', allowBlank: true, formulae: [`=OR($${letter}3="",$${letter}3=0,${cond})`],
       showErrorMessage: true, errorStyle: 'error',
       errorTitle: 'Not applicable for this shop type',
-      error: `"${enLabel}" only applies to ${gate.allowedTypes.join('/')}${gate.requireCl5cc ? ' with CL5CC' : ''}. Leave blank or 0 otherwise.\nयह फ़ील्ड केवल ${gate.allowedTypes.join('/')}${gate.requireCl5cc ? ' (CL5CC सहित)' : ''} के लिए है। अन्यथा खाली या 0 छोड़ें।`,
+      error: `"${enLabel}" only applies to ${allowedLabels.join('/')}${gate.requireCl5cc ? ' with CL5CC' : ''}. Leave blank or 0 otherwise.\nयह फ़ील्ड केवल ${allowedLabels.join('/')}${gate.requireCl5cc ? ' (CL5CC सहित)' : ''} के लिए है। अन्यथा खाली या 0 छोड़ें।`,
     });
   }
 
@@ -403,12 +425,12 @@ export async function generateTemplate(districtName: string, units: string[]): P
   const exThana = 'Kotwali';
 
   const examples: unknown[][] = [
-    [exUnit, exThana, '', 'SHOP001', 'Example Model Liquor Store', 'MODEL_SHOP', 'false', '', '', 100000, 0, 200000, 0, 0, 0, 0, 0, 0, 0, 0],
-    [exUnit, exThana, '', 'SHOP002', 'Example Composite Wine Shop', 'COMPOSITE_SHOP', 'false', '', '', 0, 0, 0, 50000, 50000, 100000, 100000, 0, 0, 0, 0],
-    [exUnit, exThana, '', 'SHOP003', 'Example Premium Retail Vend', 'PRV', 'false', '', '', 80000, 0, 150000, 0, 0, 0, 0, 0, 0, 0, 0],
-    [exUnit, exThana, '', 'SHOP004', 'Example Bhang Shop', 'BHANG_SHOP', 'false', '', '', 20000, 0, 0, 0, 0, 0, 0, 500, 0, 0, 0],
-    [exUnit, exThana, '', 'SHOP005', 'Example Country Liquor Shop', 'COUNTRY_LIQUOR', 'false', '', '', 0, 75000, 0, 0, 0, 0, 0, 0, 60000, 0, 0],
-    [exUnit, exThana, '', 'SHOP006', 'Example CL5CC Beer Endorsed Shop', 'COUNTRY_LIQUOR', 'true', '', '', 0, 75000, 0, 0, 0, 0, 0, 0, 60000, 25000, 50000],
+    [exUnit, exThana, '', 'SHOP001', 'Example Model Liquor Store', SHOP_TYPE_LABELS.MODEL_SHOP, 'false', '', '', 100000, 0, 200000, 0, 0, 0, 0, 0, 0, 0, 0],
+    [exUnit, exThana, '', 'SHOP002', 'Example Composite Wine Shop', SHOP_TYPE_LABELS.COMPOSITE_SHOP, 'false', '', '', 0, 0, 0, 50000, 50000, 100000, 100000, 0, 0, 0, 0],
+    [exUnit, exThana, '', 'SHOP003', 'Example Premium Retail Vend', SHOP_TYPE_LABELS.PRV, 'false', '', '', 80000, 0, 150000, 0, 0, 0, 0, 0, 0, 0, 0],
+    [exUnit, exThana, '', 'SHOP004', 'Example Bhang Shop', SHOP_TYPE_LABELS.BHANG_SHOP, 'false', '', '', 20000, 0, 0, 0, 0, 0, 0, 500, 0, 0, 0],
+    [exUnit, exThana, '', 'SHOP005', 'Example Country Liquor Shop', SHOP_TYPE_LABELS.COUNTRY_LIQUOR, 'false', '', '', 0, 75000, 0, 0, 0, 0, 0, 0, 60000, 0, 0],
+    [exUnit, exThana, '', 'SHOP006', 'Example CL5CC Beer Endorsed Shop', SHOP_TYPE_LABELS.COUNTRY_LIQUOR, 'true', '', '', 0, 75000, 0, 0, 0, 0, 0, 0, 60000, 25000, 50000],
   ];
 
   const titleText = `District: ${districtName.toUpperCase()}   |   UP Excise Spatial Revenue Optimizer   |   DEO Data Entry Template`;
