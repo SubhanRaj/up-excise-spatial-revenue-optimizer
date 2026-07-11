@@ -5,14 +5,20 @@
 
 | Field | Value |
 |---|---|
-| **Document Version** | 1.1.0 |
+| **Document Version** | 1.2.0 |
 | **Classification** | Internal Engineering Master Document |
 | **Target Phase** | Phase 1 — Comprehensive Data Harvesting & Verification |
 | **Prepared By** | Subhan Raj, CSE Engineer — SIBIN Tech Solutions |
 | **Consulting For** | Department of Excise, Government of Uttar Pradesh |
 | **Authored** | 2026-06-25 |
-| **Last Updated** | 2026-06-30 |
-| **Status** | Phase 1 Code-Complete — Deployed to Production — Pending Departmental DEO Rollout |
+| **Last Updated** | 2026-07-11 |
+| **Status** | Phase 1 Code-Complete — Running on Cloudflare Free Tier — Pending Departmental DEO Rollout |
+
+> **Authority note:** This document is the original engineering *plan* and is kept for business-rule and schema-rationale context. For the authoritative **current implementation state** — what actually shipped, exact file paths, and the live milestone log — see [CLAUDE.md](CLAUDE.md), which is updated on every change. Two architecture pivots happened after this document's early sections (§3.3–§3.12) were written and were not retrofitted into that prose everywhere it's mentioned:
+> - **Auth (M-6):** Clerk was fully removed and replaced with custom HMAC magic-link auth (no external auth provider). Any reference to Clerk, `clerkMiddleware`, `publicMetadata.role`, or Clerk webhooks below describes the superseded original design — see CLAUDE.md's "Authentication Architecture" section for what's actually running.
+> - **Spreadsheets (M-14):** SheetJS + hand-patched worksheet XML was fully replaced with ExcelJS as the single spreadsheet library. Any reference to SheetJS or the `xlsx` npm package below is superseded — see CLAUDE.md's "Frontend CDN Stack" section.
+>
+> Section 6 (Development Milestones) is up to date through M-16 as of this revision.
 
 ---
 
@@ -177,8 +183,10 @@ Phase 1 must operate with **zero infrastructure cost**. This is not a preference
 | **Workers Request Count** | 100,000/day | Chunked batch uploads minimize request count per DEO session. |
 | **D1 Write Rows** | 100,000/day | `db.batch()` groups multiple inserts into a single transaction, dramatically reducing write operation count. |
 | **D1 Read Rows** | 5,000,000/day | Dashboard queries use indexed columns only (`districtName`, `thanaName`, `shopId`). Full table scans are prohibited in Phase 1. |
-| **Workers Bandwidth** | 10GB/month | JS bundle is app-logic only (React + components). All libraries (DaisyUI, SheetJS, Dexie.js, etc.) are served from jsDelivr CDN — zero bandwidth cost on Cloudflare. |
-| **Workers Deployments** | Unlimited | Single Worker deployed via CI/CD on every push to `main`. |
+| **Workers Bandwidth** | 10GB/month | JS bundle is app-logic only (React + components). All libraries (DaisyUI, ExcelJS, Dexie.js, etc.) are served from jsDelivr CDN — zero bandwidth cost on Cloudflare. |
+| **Workers Deployments** | Unlimited | Single Worker deployed via CI/CD on every push to `main`. Deploy frequency is never rate-limited or metered — only *runtime* usage (requests, CPU-ms, D1 reads/writes) counts against the free tier. |
+
+**Current status (as of the latest deploy):** the project runs entirely on Cloudflare's free tier — no paid Workers, D1, or add-on plan has been purchased. At the target scale (75 DEOs, each uploading their district once, plus admin browsing), Phase 1 usage is projected to stay well within all five limits above, so **launching Phase 1 to production on the free tier — including sending magic-link invitations to real DEOs and accepting live data — is technically viable today.** The only blockers to a real campaign launch are the department-side items in "Pre-Campaign Blockers" below (DEO email list, column layout sign-off, etc.), not infrastructure capacity. If usage ever approaches a free-tier ceiling (most likely D1 write rows during a compressed bulk-upload window, or Workers CPU time if a future feature moves compute server-side), the fix is to upgrade the specific Cloudflare product hit, not to redesign the architecture.
 
 ### 3.2 System Architecture Overview
 
@@ -1470,7 +1478,7 @@ M-6: Auth Migration + Single Worker       [Post-M5]         ✅ Complete
 
 ---
 
-### M-12: E2E Playwright Automation ✅ Complete
+### M-12a: E2E Playwright Automation ✅ Complete
 **Objective:** Enforce the IndexedDB-first caching pattern across all remaining admin pages to eliminate unnecessary Cloudflare Worker CPU execution and D1 read operations.
 
 **Deliverables:**
@@ -1485,17 +1493,80 @@ M-6: Auth Migration + Single Worker       [Post-M5]         ✅ Complete
 
 ---
 
-### M-12: Excel Template UX & Developer QoL ✅ Complete
+### M-12b: Excel Template UX & Developer QoL ✅ Complete
 
 **Objective:** Improve the DEO user experience when interacting with the downloaded template and improve developer workflow for testing.
 
 **Deliverables:**
 
-- [x] Refactored `apps/web/src/lib/excel.ts` to output a 3-sheet workbook: Data Entry, Demo Data, and Instructions.
+- [x] Refactored `apps/web/src/lib/excel.ts` to output a multi-sheet workbook: Data Entry, Demo Data, Instructions, Reference Data.
 - [x] Consolidated the 4 verbose coordinate columns into 2 dynamic columns (`latitude` and `longitude`) that securely process either DD or DMS via the existing `normalizeCoordinates` function.
 - [x] Added a seamless role override in the `createSession` middleware to dynamically grant `superadmin` access to the developer email (`shubhanraj2002@gmail.com`), bypassing DB resets to test both `/deo` and `/admin` portals interchangeably.
 
 **Exit criterion:** DEO templates are cleaner and self-documenting. Developers can test the full platform lifecycle without manually toggling roles in the D1 database.
+
+---
+
+### M-13: Admin UX Refresh & Excel Enhancements ✅ Complete
+
+**Objective:** Remove unnecessary polling from the admin portal and make district exports and DEO uploads more resilient.
+
+**Deliverables:**
+
+- [x] Removed 5-minute auto-polling TTLs from the admin IndexedDB cache in favor of an explicit manual "Sync from Server" button on every admin page that reads district/shop data.
+- [x] District Detail XLSX export gained auto-filters, frozen panes, and an injected TOTAL row.
+- [x] DEO district upload/verify actions disabled client-side when no circles/sectors are registered yet.
+- [x] Fixed a JSZip-based XML validation injection in the DEO Excel template generator; added merged title rows, frozen top panes, and dynamic circle/sector dropdowns fed by a hidden "Reference Data" sheet.
+
+**Exit criterion:** Admin pages never silently re-fetch on a timer; every network round-trip is an explicit user action.
+
+---
+
+### M-14: Single-Library Spreadsheet Rewrite ✅ Complete
+
+**Objective:** Eliminate SheetJS and hand-patched worksheet XML in favor of one spreadsheet library across the entire app.
+
+**Deliverables:**
+
+- [x] Replaced SheetJS (reads) + JSZip-XML-patching (writes) with ExcelJS everywhere — the single CDN global `window.ExcelJS` now handles every read, write, and export in `apps/web/src/lib/excel.ts`.
+- [x] Fixed the corrupted DEO Excel template output (missing workbook-level `_xlnm.Print_Titles` defined name from the old hand-edited XML).
+- [x] Every generated/exported workbook now gets landscape orientation, fit-to-width printing, a repeated header row, frozen header panes, and wrapped cell text for free.
+- [x] Removed `xlsx` and `jszip` from the CDN stack, Service Worker precache list, and dependencies.
+
+**Exit criterion:** There is exactly one spreadsheet library in the codebase, and no code manually edits OOXML.
+
+---
+
+### M-15: Foolproof Gated DEO Workflow ✅ Complete
+
+**Objective:** Make the DEO's Circles & Sectors → Upload → Verify workflow impossible to get lost in, and impossible to accidentally re-order.
+
+**Deliverables:**
+
+- [x] `POST /api/districts/[district]/units` made bulk-only (`{ circles, sectors }`); rejects with 409 once any unit row exists — lock derived from row existence, no schema flag.
+- [x] `/units` rebuilt as a 2-step wizard: enter counts → fill pre-generated name boxes → SweetAlert2-confirmed one-shot submit.
+- [x] `/home` and the DEO nav bar hide Upload/Verify entirely (not merely disabled) until units are locked.
+- [x] SweetAlert2 confirmation added before final `/verify` district submission.
+- [x] Bilingual (English/Hindi) subtitles added to DEO portal page titles and step headings — DEO portal only, admin stays English-only.
+
+**Exit criterion:** A first-time DEO cannot reach Upload or Verify before registering circles/sectors, and cannot accidentally re-submit a locked unit list.
+
+---
+
+### M-16: DEO Portal Polish & Bilingual Excel Template Overhaul ✅ Complete
+
+**Objective:** Close remaining UX gaps in the gated DEO workflow (silent freezes, no recovery path for mistakes) and make the downloaded Excel template genuinely usable by non-technical field staff.
+
+**Deliverables:**
+
+- [x] `HelpPanel` (`app/_components/HelpPanel.tsx`) gained optional `titleHi`/`childrenHi` props with an English/हिन्दी tab switcher, shown only when Hindi content is supplied — all four DEO help panels (home, units, upload, verify) fully translated; all seven admin help panels left English-only by design.
+- [x] `/units` circle/sector submission now shows a blocking "Locking circles & sectors…" loader overlay instead of freezing silently; the locked view tells the DEO to contact Admin/HQ for corrections.
+- [x] Added `DELETE /api/districts/[district]/units` (admin/superadmin only, audit-logged as `units_unlocked`) and an "Unlock Circles/Sectors" action on the admin district detail page, giving admins an actual recovery path for DEO mistakes.
+- [x] DEO Excel template (`apps/web/src/lib/excel.ts`) header row replaced raw snake_case DB column names (`basic_license_fee_blf`) with bilingual, human-readable labels (`Basic License Fee (BLF) ₹ / मूल लाइसेंस शुल्क (BLF) ₹`); parsing switched from header-text matching to fixed column-position mapping so the visible label is fully decoupled from field identity.
+- [x] Added per-cell Excel data validation gating every financial column to the shop types it applies to per the Revenue Formulas table (e.g. `basic_license_fee_blf` only accepts a value when `shop_type = COUNTRY_LIQUOR`) — enforced by Excel itself, not just the Worker on upload.
+- [x] "Reference Data" sheet hidden (still feeds the circle/sector dropdown, no longer a visible redundant tab); Instructions sheet fully translated to Hindi.
+
+**Exit criterion:** A DEO never sees an unexplained freeze during a mutating action, has a documented path to recover from a locking mistake, and can fill the Excel template correctly without needing to understand the underlying data model.
 
 ---
 
@@ -1513,7 +1584,15 @@ M-6: Auth Migration + Single Worker       [Post-M5]         ✅ Complete
 | M-7: Admin Portal UI Overhaul | 5 days | M-6 complete |
 | M-8: Admin Portal Navigation & Divisions | 3 days | M-7 complete |
 | M-9: SPA Navigation Parity & Polish | 2 days | M-8 complete |
-| **Total** | **~52 working days** | |
+| M-10: District Master & Migration Consolidation | 3 days | M-9 complete |
+| M-11: PII Email Hashing & Superadmin Config | 2 days | M-10 complete |
+| M-12a: E2E Playwright Automation | 2 days | M-11 complete |
+| M-12b: Excel Template UX & Developer QoL | 2 days | M-11 complete |
+| M-13: Admin UX Refresh & Excel Enhancements | 3 days | M-12b complete |
+| M-14: Single-Library Spreadsheet Rewrite | 2 days | M-13 complete |
+| M-15: Foolproof Gated DEO Workflow | 3 days | M-14 complete |
+| M-16: DEO Portal Polish & Bilingual Excel Template Overhaul | 2 days | M-15 complete |
+| **Total** | **~70 working days** | |
 
 ### Pre-Campaign Blockers
 
@@ -1577,10 +1656,10 @@ The following require department action before the upload campaign can begin:
 | Audit Log | The `audit_log` D1 table. Records every DEO login, session event, upload chunk, and district submission. Purged after 45 days by Cron Trigger. |
 | Admin Portal | The `(admin)` route group inside `apps/web`. Same portal Worker deployment as the DEO portal. URL: `/admin`. Read-only access to all district data; used by HQ/department administration. Loads data district-by-district; full-state table view is not available in the UI. |
 | Districts Table | The `districts` D1 reference table. 75 rows, one per UP district. Stores DEO name, email, identifier, division, expected vend count, and submission status. The admin dashboard queries this table for metadata; shop rows are loaded separately on demand. |
-| Admin District Cache | An IndexedDB Dexie store (`admin_district_cache`) in the admin route group. Caches district shop data after first fetch (1-hour TTL, stale-while-revalidate). Reduces repeat D1 reads for districts the admin has already reviewed. |
-| Bulk Provision | A one-time admin operation: upload a DEO Excel file (SheetJS parse in-browser) → preview → submit to `/api/admin/bulk-provision` → 75 Clerk accounts created + `districts` rows upserted. Idempotent. |
+| Admin District Cache | The `excise-admin` Dexie (IndexedDB) database, with cache-wrapper objects (`adminShopsCache`, `adminMapCache`, `adminAuditCache`, etc.) in `apps/web/src/lib/db.ts`. Caches district/shop/map/audit data after first fetch. TTL-based auto-polling was removed in M-13 in favor of an explicit "Sync from Server" button on every admin page — reduces repeat D1 reads without silently going stale. |
+| Bulk Provision | A one-time admin operation: upload a DEO Excel file (parsed in-browser with ExcelJS) → preview → submit to `POST /api/admin/bulk-provision` → `auth_users` rows (magic-link accounts) created + `districts` rows upserted. Idempotent. |
 | Choropleth | A map where geographic areas are shaded based on a data variable. In this system, UP districts are coloured by submission status and vend coverage. Rendered with Leaflet.js. |
-| Auth Facade | The rule that every page in the app is protected by Clerk's `clerkMiddleware` in `apps/web/middleware.ts`. Only `/login` and the Clerk webhook endpoint are publicly accessible. There are no visitor-facing or marketing pages. |
+| Auth Facade | The rule that every route is behind auth except `/login`, `/auth/verify`, and `/api/healthz`. Enforced by `middleware.ts` (cookie presence + role routing) plus `requireAuth()` in server layouts (full HMAC verification + D1 session lookup) — custom magic-link auth, no external auth provider (see §3.7). |
 | `map-data` | The `GET /api/admin/map-data` Worker route. Returns 75 aggregate district rows (status, vendCount, totalRevenue, expectedVendCount). Powers both the Leaflet choropleth and the Chart.js dashboard charts in a single request. |
 | D1 | Cloudflare D1. Serverless SQLite database at the edge. |
 | Workers | Cloudflare Workers. Serverless TypeScript runtime. 10ms CPU limit per request. |
