@@ -228,6 +228,39 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
     void load();
   }, [name]);
 
+  const [unlocking, setUnlocking] = useState(false);
+
+  async function unlockUnits() {
+    const SwalG = (window as unknown as { Swal?: { fire: (o: Record<string, unknown>) => Promise<{ isConfirmed: boolean }> } }).Swal;
+    const confirm = await SwalG?.fire({
+      icon: 'warning',
+      title: 'Unlock circles & sectors?',
+      html: `<p>This deletes all <b>${detail?.units.length ?? 0} circle/sector</b> entries for <b>${name}</b> and lets the DEO re-register them from scratch.</p>
+             <p style="margin-top:8px">This does not affect any already-uploaded shop data.</p>`,
+      showCancelButton: true,
+      confirmButtonText: 'Yes, Unlock',
+      cancelButtonText: 'Cancel',
+      confirmButtonColor: '#b91c1c',
+    });
+    if (!confirm?.isConfirmed) return;
+
+    setUnlocking(true);
+    try {
+      const res = await fetch(`/api/districts/${encodeURIComponent(name)}/units`, { method: 'DELETE' });
+      if (!res.ok) {
+        await SwalG?.fire({ icon: 'error', title: 'Could not unlock', text: 'Please try again.' });
+        return;
+      }
+      await refreshShops();
+      void SwalG?.fire({
+        toast: true, position: 'top-end', icon: 'success',
+        title: 'Circles & sectors unlocked.', showConfirmButton: false, timer: 3000, timerProgressBar: true,
+      });
+    } finally {
+      setUnlocking(false);
+    }
+  }
+
   async function refreshShops() {
     setLoading(true);
     const [d, s] = await Promise.all([
@@ -415,6 +448,14 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
             <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/><polyline points="7 11 12 16 17 11"/><line x1="12" y1="4" x2="12" y2="16"/></svg>
             Export XLSX
           </button>
+          {detail && detail.units.length > 0 && (
+            <button className="btn btn-sm btn-outline btn-error gap-2" onClick={unlockUnits} disabled={unlocking}>
+              {unlocking ? <span className="loading loading-spinner loading-xs" /> : (
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0"/></svg>
+              )}
+              Unlock Circles/Sectors
+            </button>
+          )}
         </div>
       </div>
 

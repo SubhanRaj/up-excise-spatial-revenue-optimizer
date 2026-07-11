@@ -149,6 +149,19 @@ export default function UnitsPage() {
     return <div className="text-sm text-base-content/60 p-6">Loading…</div>;
   }
 
+  const savingOverlay = submitting && (
+    <div className="fixed inset-0 z-[1300] bg-black/40 backdrop-blur-sm flex items-center justify-center" role="alert" aria-live="assertive">
+      <div className="card bg-base-100 shadow-2xl p-8 flex flex-col items-center gap-4 max-w-sm text-center">
+        <span className="loading loading-spinner loading-lg text-primary" />
+        <div>
+          <p className="font-semibold">Locking circles &amp; sectors…</p>
+          <p className="text-xs text-base-content/60 mt-1">सर्कल और सेक्टर लॉक हो रहे हैं — कृपया प्रतीक्षा करें</p>
+          <p className="text-xs text-base-content/50 mt-2">Do not close or refresh this page.</p>
+        </div>
+      </div>
+    </div>
+  );
+
   if (!district) {
     return (
       <div className="alert alert-warning max-w-xl" role="alert">
@@ -160,6 +173,7 @@ export default function UnitsPage() {
 
   return (
     <div className="space-y-6 w-full">
+      {savingOverlay}
       <div>
         <h2 className="text-xl font-bold">Circles &amp; Sectors — {district}</h2>
         <p className="text-sm text-base-content/70">सर्कल एवं सेक्टर पंजीकरण — यह पहला और अनिवार्य चरण है</p>
@@ -214,6 +228,13 @@ export default function UnitsPage() {
             </div>
           </div>
           <Link href="/upload" className="btn btn-primary self-start">Continue to Upload →</Link>
+          <div className="alert alert-warning text-sm">
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            <div>
+              <p>Made a mistake or entered wrong data? This list cannot be edited by you. Contact your Admin / UP Excise Headquarters to have it unlocked.</p>
+              <p className="text-xs opacity-80 mt-1">क्या कोई गलती हुई या गलत डेटा दर्ज हुआ? यह सूची आपके द्वारा edit नहीं की जा सकती। इसे अनलॉक कराने के लिए अपने Admin / UP Excise मुख्यालय से संपर्क करें।</p>
+            </div>
+          </div>
         </div>
       ) : step === 'count' ? (
         <div className="card bg-base-100 shadow p-8 space-y-6 max-w-2xl mx-auto">

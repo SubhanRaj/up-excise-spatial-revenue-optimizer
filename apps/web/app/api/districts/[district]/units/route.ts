@@ -83,3 +83,34 @@ export async function POST(
 
   return NextResponse.json({ ok: true, count: unitInserts.length });
 }
+
+// Admin-only escape hatch — the DEO has no edit/delete path for units by design (see POST
+// above), so a wrong name requires an admin to unlock the district's circles/sectors here.
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ district: string }> },
+) {
+  const user = await getSession();
+  if (!user || !['admin', 'superadmin'].includes(user.role)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
+  const { district } = await params;
+  const { env } = await getCloudflareContext({ async: true }) as { env: CloudflareEnv };
+  const db = drizzle(env.DB);
+
+  await db.batch([
+    db.delete(districtCirclesSectors).where(eq(districtCirclesSectors.districtName, district)),
+    db.insert(auditLog).values({
+      eventType: 'units_unlocked',
+      deoId: user.deoId,
+      districtName: district,
+      ipAddress: req.headers.get('CF-Connecting-IP') ?? null,
+      userAgent: req.headers.get('User-Agent') ?? null,
+      metadata: null,
+      createdAt: new Date(),
+    }),
+  ]);
+
+  return NextResponse.json({ ok: true });
+}
