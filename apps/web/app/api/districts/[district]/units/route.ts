@@ -24,6 +24,9 @@ export async function GET(
   return NextResponse.json(rows);
 }
 
+// Bulk, one-shot creation — the ONLY way to register circles/sectors. Once a district
+// has any unit row, this rejects: the DEO submits the full list once, then it's locked.
+// ponytail: "locked" derived from existence of rows, no separate flag/migration needed.
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ district: string }> },
@@ -32,33 +35,51 @@ export async function POST(
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { district } = await params;
-  const body = await req.json() as { name: string; type: 'circle' | 'sector' };
-  if (!body.name?.trim() || !['circle', 'sector'].includes(body.type)) {
-    return NextResponse.json({ error: 'name and type (circle|sector) required' }, { status: 400 });
+  const body = await req.json() as { circles?: string[]; sectors?: string[] };
+  const circles = (body.circles ?? []).map((n) => n.trim()).filter(Boolean);
+  const sectors = (body.sectors ?? []).map((n) => n.trim()).filter(Boolean);
+
+  if (circles.length + sectors.length === 0) {
+    return NextResponse.json({ error: 'At least one circle or sector name is required' }, { status: 400 });
   }
 
   const { env } = await getCloudflareContext({ async: true }) as { env: CloudflareEnv };
   const db = drizzle(env.DB);
+
+  const existing = await db
+    .select({ id: districtCirclesSectors.id })
+    .from(districtCirclesSectors)
+    .where(eq(districtCirclesSectors.districtName, district))
+    .limit(1)
+    .all();
+  if (existing.length > 0) {
+    return NextResponse.json({ error: 'Circles and sectors have already been submitted for this district and cannot be changed.' }, { status: 409 });
+  }
+
   const now = new Date();
+  const unitInserts = [
+    ...circles.map((name) => ({ name, type: 'circle' as const })),
+    ...sectors.map((name) => ({ name, type: 'sector' as const })),
+  ];
+
+  const [first, ...rest] = unitInserts.map((u) => db.insert(districtCirclesSectors).values({
+    districtName: district, name: u.name, type: u.type,
+    createdByDeo: user.deoId, createdAt: now,
+  }));
 
   await db.batch([
-    db.insert(districtCirclesSectors).values({
-      districtName: district,
-      name: body.name.trim(),
-      type: body.type,
-      createdByDeo: user.deoId,
-      createdAt: now,
-    }),
+    first!,
+    ...rest,
     db.insert(auditLog).values({
       eventType: 'unit_registered',
       deoId: user.deoId,
       districtName: district,
       ipAddress: req.headers.get('CF-Connecting-IP') ?? null,
       userAgent: req.headers.get('User-Agent') ?? null,
-      metadata: JSON.stringify({ name: body.name, type: body.type }),
+      metadata: JSON.stringify({ circles: circles.length, sectors: sectors.length }),
       createdAt: now,
-    })
+    }),
   ]);
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, count: unitInserts.length });
 }

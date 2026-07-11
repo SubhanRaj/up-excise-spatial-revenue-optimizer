@@ -42,24 +42,19 @@ export default function DeoLayout({ children }: { children: React.ReactNode }) {
             <svg xmlns="http://www.w3.org/2000/svg" className="w-10 h-10 text-primary shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3a12 12 0 0 0 8.5 3A12 12 0 0 1 12 21A12 12 0 0 1 3.5 6A12 12 0 0 0 12 3"/><path d="m9 12 2 2 4-4"/></svg>
             <div className="hidden md:block">
               <div className="font-bold text-sm leading-tight group-hover:text-primary transition-colors">UP Excise SRO</div>
-              <div className="text-xs text-base-content/70 leading-tight">District Excise Officer</div>
+              <div className="text-xs text-base-content/70 leading-tight">District Excise Officer / जिला आबकारी अधिकारी</div>
             </div>
           </Link>
         </div>
         <div className="flex-none gap-1">
           <Link href="/home" className={`btn btn-ghost btn-sm ${pathname === '/home' ? 'btn-active' : ''}`}>Dashboard</Link>
           <Link href="/units" className={`btn btn-ghost btn-sm ${pathname === '/units' ? 'btn-active' : ''}`}>Circles</Link>
-          
-          {hasUnits ? (
-            <Link href="/upload" className={`btn btn-ghost btn-sm ${pathname === '/upload' ? 'btn-active' : ''}`}>Upload</Link>
-          ) : (
-            <span className="btn btn-ghost btn-sm btn-disabled opacity-40 cursor-not-allowed" title="Create a circle or sector first">Upload</span>
-          )}
-          
-          {hasUnits ? (
-            <Link href="/verify" className={`btn btn-ghost btn-sm ${pathname === '/verify' ? 'btn-active' : ''}`}>Verify</Link>
-          ) : (
-            <span className="btn btn-ghost btn-sm btn-disabled opacity-40 cursor-not-allowed" title="Create a circle or sector first">Verify</span>
+
+          {hasUnits && (
+            <>
+              <Link href="/upload" className={`btn btn-ghost btn-sm ${pathname === '/upload' ? 'btn-active' : ''}`}>Upload</Link>
+              <Link href="/verify" className={`btn btn-ghost btn-sm ${pathname === '/verify' ? 'btn-active' : ''}`}>Verify</Link>
+            </>
           )}
 
           <Link href="/admin" className="btn btn-outline btn-secondary btn-sm ml-1">HQ Admin</Link>

@@ -194,6 +194,19 @@ export default function VerifyPage() {
       return;
     }
 
+    const Swal = (window as unknown as { Swal?: { fire: (o: unknown) => Promise<{ isConfirmed: boolean }> } }).Swal;
+    const confirm = await Swal?.fire({
+      icon: 'warning',
+      title: 'Submit district to headquarters?',
+      html: `<p>You are about to upload <b>${pending.length}</b> shop record(s) for <b>${district}</b> and lock this district as submitted.</p>
+             <p style="margin-top:8px;color:#64748b">यह जिला डेटा मुख्यालय को भेजा जाएगा। सबमिट करने से पहले सभी पंक्तियों की जांच कर लें।</p>`,
+      showCancelButton: true,
+      confirmButtonText: 'Yes, Submit',
+      cancelButtonText: 'Review Again',
+      confirmButtonColor: '#b91c1c',
+    });
+    if (!confirm?.isConfirmed) return;
+
     setUploading(true);
     let done = 0;
 
@@ -274,7 +287,10 @@ export default function VerifyPage() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3 flex-wrap">
-          <h2 className="text-xl font-bold">Verify &amp; Submit — {district}</h2>
+          <div>
+            <h2 className="text-xl font-bold">Verify &amp; Submit — {district}</h2>
+            <p className="text-xs text-base-content/60">जांचें और सबमिट करें</p>
+          </div>
           <HelpPanel pageKey="verify" title="Verification — How to review and submit">
             <p><strong>Unit tabs</strong> — Click a unit card to switch between circles/sectors. Each card shows how many rows have been uploaded. All units must have at least one row before submission is allowed.</p>
             <p><strong>Workflow gate</strong> — Uploading district data is locked until at least one circle or sector exists. Create units first, then upload, then verify.</p>

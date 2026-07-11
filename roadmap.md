@@ -145,7 +145,7 @@ A district typically comprises multiple circles and sectors, each overseen by an
 
 **Workflow:**
 
-1. **Pre-registration:** The DEO logs into the portal and registers all circles and sectors in their district (e.g., "Circle 1", "Sector A", "Sector B") through the Circle/Sector Management UI. These are stored in D1 in the `district_circles_sectors` table, scoped to the DEO's district.
+1. **Pre-registration — one-shot and locked (M-15):** The DEO does not add circles/sectors one at a time. The Circle/Sector Management UI first asks how many circles and how many sectors the district has, generates that exact number of pre-labelled name boxes, and the DEO fills each one in (circle names conventionally carry an area, e.g. "Circle 1 Mall, Malihabad"; sector names are usually just a number, e.g. "Sector 1", but may also carry an area). A SweetAlert2 confirmation warns this cannot be changed afterward, then the full list is submitted in a single request and stored in D1 in the `district_circles_sectors` table, scoped to the DEO's district. The registration endpoint then rejects any further attempt to add units for that district — the DEO cannot partially register, come back later, and add more. Upload and Verify are not shown to the DEO at all until this step is complete.
 
 2. **Template generation:** The portal generates **one district-wide Excel template** (`.xlsx`) with the district name pre-filled in the header and a `circle_sector_name` column included for every data row. There is one template per district — not one per circle/sector. The DEO downloads this single template and distributes blank copies to each Inspector.
 
@@ -153,11 +153,11 @@ A district typically comprises multiple circles and sectors, each overseen by an
 
 4. **DEO consolidation:** The DEO collects all returned Inspector sections and consolidates them into the single district Excel file — each row already carries its `circle_sector_name` tag from step 3.
 
-5. **Single district upload:** The DEO uploads the consolidated district Excel file to the portal. The system parses all rows in-browser (SheetJS), reads the `circle_sector_name` value from each row, and writes the full dataset to IndexedDB in one operation.
+5. **Single district upload:** The DEO uploads the consolidated district Excel file to the portal. The system parses all rows in-browser (ExcelJS, see M-14), reads the `circle_sector_name` value from each row, and writes the full dataset to IndexedDB in one operation.
 
 6. **Grouped verification UI:** The staging interface organizes rows in tabs or collapsible sections by circle/sector (grouped by `circle_sector_name` column values). The DEO reviews each unit's data independently — correcting coordinates, removing invalid adjacency pills, verifying revenue totals.
 
-7. **Collective district submission:** The final submit action batches all staged rows and transmits them to the Worker as a single district submission. The Worker treats the district as one atomic unit — individual circle/sector boundaries are metadata tags on the rows, not separate submission events.
+7. **Collective district submission — confirmed (M-15):** The final submit action shows a SweetAlert2 confirmation (record count, bilingual warning) before batching all staged rows and transmitting them to the Worker as a single district submission. The Worker treats the district as one atomic unit — individual circle/sector boundaries are metadata tags on the rows, not separate submission events.
 
 **HQ-level view:** At the headquarters dashboard, data is aggregated and displayed at the **district level only**. Circles and sectors are available as a drill-down dimension within the DEO's portal view but are not surfaced at the state-level summary. HQ sees: "Lucknow — 587 vends — ₹X total revenue."
 

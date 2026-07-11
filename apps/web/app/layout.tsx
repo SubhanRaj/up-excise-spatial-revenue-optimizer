@@ -26,12 +26,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* Government portal colour palette — navy primary, teal secondary, amber accent */}
         <style dangerouslySetInnerHTML={{ __html: `
           [data-theme="light"] {
-            --color-primary: oklch(38% 0.14 243);
-            --color-primary-content: oklch(97% 0.01 243);
-            --color-secondary: oklch(46% 0.12 195);
-            --color-secondary-content: oklch(97% 0.01 195);
-            --color-accent: oklch(68% 0.16 72);
-            --color-accent-content: oklch(15% 0.04 72);
+            --color-primary: oklch(32% 0.15 243);
+            --color-primary-content: oklch(98% 0.01 243);
+            --color-secondary: oklch(40% 0.13 195);
+            --color-secondary-content: oklch(98% 0.01 195);
+            --color-accent: oklch(62% 0.17 72);
+            --color-accent-content: oklch(12% 0.04 72);
+            --color-base-content: oklch(17% 0.02 255);
+            --color-base-300: oklch(80% 0.015 255);
           }
           [data-theme="dark"] {
             --color-primary: oklch(60% 0.16 243);

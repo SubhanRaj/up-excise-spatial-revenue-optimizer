@@ -72,7 +72,10 @@ export default function UploadPage() {
     <div className="space-y-6">
       <div className="card bg-base-100 shadow p-6">
         <div className="flex items-start justify-between flex-wrap gap-2 mb-4">
-          <h2 className="text-xl font-bold">Upload District Excel — {district}</h2>
+          <div>
+            <h2 className="text-xl font-bold">Upload District Excel — {district}</h2>
+            <p className="text-xs text-base-content/60">जिला एक्सेल फ़ाइल अपलोड करें</p>
+          </div>
           <HelpPanel pageKey="upload" title="Upload — What file to upload and how">
             <p><strong>What to upload:</strong> The single consolidated district Excel file (.xlsx) your Inspectors filled using the template downloaded from the <Link href="/units" className="link">Circles page</Link>.</p>
             <p><strong>Before uploading:</strong> Ensure all Inspectors have returned their filled sections and you have consolidated them into one file. Every row must have a <code>circle_sector_name</code> value matching a pre-registered unit.</p>
