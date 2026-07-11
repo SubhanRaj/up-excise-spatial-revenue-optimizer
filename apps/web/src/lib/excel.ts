@@ -466,6 +466,12 @@ export async function generateTemplate(districtName: string, units: string[]): P
   applyPrintSetup(wsRef, 1, 1);
   wsRef.views = [{ state: 'frozen', ySplit: 1, xSplit: 0 }];
   wsRef.state = 'hidden';
+  // Read-only — every cell defaults to locked, so enabling sheet protection (no password;
+  // this is a guardrail against accidental edits if unhidden, not a security boundary)
+  // blocks typing/inserting/deleting rows here. An edited or reordered reference list
+  // would silently break the circle/sector dropdown and, since generateTemplate rebuilds
+  // this sheet fresh from `units` on every download, is never a legitimate DEO action.
+  await wsRef.protect('', { selectLockedCells: true, selectUnlockedCells: false, insertRows: false, insertColumns: false, deleteRows: false, deleteColumns: false, sort: false, autoFilter: false });
 
   const buf = await wb.xlsx.writeBuffer();
   return new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
