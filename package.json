@@ -15,8 +15,8 @@
   },
   "devDependencies": {
     "@faker-js/faker": "^10.5.0",
+    "exceljs": "^4.4.0",
     "tsx": "^4.22.4",
-    "typescript": "^5.8.0",
-    "xlsx": "0.18.5"
+    "typescript": "^5.8.0"
   }
 }

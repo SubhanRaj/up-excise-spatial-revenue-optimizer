@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { execSync } from 'child_process';
 import * as crypto from 'crypto';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import * as path from 'path';
 import * as os from 'os';
 
@@ -36,24 +36,26 @@ test.describe('E2E Local Demo - Superadmin Bypass & Excel Upload Flow', () => {
     await expect(page).toHaveURL(/\/admin/);
     await expect(page.locator('div').filter({ hasText: 'Headquarters Dashboard' }).first()).toBeVisible({ timeout: 10000 });
 
-    // 3. Navigate to DEO Units page to create a sector
+    // 3. Navigate to DEO Units page and register one sector via the count → name wizard
     console.log('Navigating to DEO portal...');
     await page.goto('/units');
     await expect(page.locator('h2').filter({ hasText: 'Circles & Sectors' })).toBeVisible();
 
-    // Create a new sector for testing
     const testSector = `Test Sector ${Date.now()}`;
-    await page.fill('input[placeholder="Unit name (e.g. Circle 1)"]', testSector);
-    await page.selectOption('select', 'sector');
-    await page.click('button:has-text("Add Unit")');
-    // Ensure it appears in the list
+    await page.fill('input[aria-label="Number of sectors"]', '1');
+    await page.click('button:has-text("Continue")');
+    await page.fill('input[aria-label="Sector 1 name"]', testSector);
+    await page.click('button:has-text("Submit & Lock")');
+    // SweetAlert2 confirmation before the one-shot, irreversible submit
+    await page.click('button:has-text("Yes, Lock & Submit")');
+    // Ensure it appears in the locked read-only list
     await expect(page.locator(`text=${testSector}`)).toBeVisible();
 
     // 4. Generate a mock Excel file targeting our new sector
     console.log('Generating dummy Excel upload...');
     const tmpDir = os.tmpdir();
     const excelPath = path.join(tmpDir, 'test-upload.xlsx');
-    
+
     const TEMPLATE_HEADERS = [
       'circle_sector_name', 'thana_name', 'adjacent_thanas_raw',
       'shop_id', 'shop_name', 'shop_type', 'has_cl5cc',
@@ -75,10 +77,11 @@ test.describe('E2E Local Demo - Superadmin Bypass & Excel Upload Flow', () => {
       0, 0, 0
     ];
 
-    const ws = XLSX.utils.aoa_to_sheet([TEMPLATE_HEADERS, row]);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Data Entry');
-    XLSX.writeFile(wb, excelPath);
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Data Entry');
+    ws.addRow(TEMPLATE_HEADERS);
+    ws.addRow(row);
+    await wb.xlsx.writeFile(excelPath);
 
     // 5. Navigate to Upload and upload the Excel file
     console.log('Uploading Excel...');
@@ -98,9 +101,9 @@ test.describe('E2E Local Demo - Superadmin Bypass & Excel Upload Flow', () => {
     await expect(page.locator('td', { hasText: 'TSHOP001' })).toBeVisible();
     await expect(page.locator('td', { hasText: 'Test Model Shop' })).toBeVisible();
     
-    // Submit District
+    // Submit District — SweetAlert2 confirmation, then the success modal
     await page.click('button:has-text("Submit District")');
-    // Confirm SweetAlert success modal
+    await page.click('button:has-text("Yes, Submit")');
     await expect(page.locator('h2#swal2-title')).toHaveText('District submitted!', { timeout: 15000 });
     await page.click('button:has-text("OK")');
 
