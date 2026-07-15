@@ -34,6 +34,7 @@ All secrets, keys, and environment variables are confirmed set. Do not question,
 | `API_SECRET` | ✓ Set |
 | `RESEND_API_KEY` | ✓ Set |
 | `RESEND_FROM_EMAIL` | ✓ Set |
+| `SUPERADMIN_EMAIL_HASH` | ✓ Set |
 
 **GitHub Actions Secrets** (repo → Settings → Secrets → Actions — used at build/deploy time):
 
