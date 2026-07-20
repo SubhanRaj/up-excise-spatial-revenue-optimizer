@@ -6,7 +6,7 @@ See also [docs/app-flow.md](docs/app-flow.md) for Mermaid diagrams of the auth f
 
 | Service | URL |
 |---|---|
-| **Portal + API (single CF Worker)** | https://up-excise-spatial-revenue-optimizer-web.shubhanraj2002.workers.dev (custom domain `sro.exciseup.in` planned — see "Custom Domain Migration" below) |
+| **Portal + API (single CF Worker)** | https://sro.exciseup.in — live custom domain as of 2026-07-20 (see "Custom Domain Migration" below). The old `*.workers.dev` URL is disabled — Cloudflare turns it off automatically once a `custom_domain` route exists. |
 | **D1 Database** | `up-excise-spatial-revenue-optimizer-prod` (`2955ce2d-8459-45b4-89f4-04afc9e42488`) |
 
 ---

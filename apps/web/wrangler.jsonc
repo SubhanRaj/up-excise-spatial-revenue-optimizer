@@ -17,7 +17,10 @@
   ],
   "observability": {
     "enabled": true
-  }
+  },
+  "routes": [
+    { "pattern": "sro.exciseup.in", "custom_domain": true }
+  ]
   // Secrets (wrangler secret put --name up-excise-spatial-revenue-optimizer-web):
   //   SESSION_SECRET, API_SECRET, RESEND_API_KEY, RESEND_FROM_EMAIL
 }
