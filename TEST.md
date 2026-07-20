@@ -73,7 +73,7 @@ pnpm seed:demo
 
 ## Manual CUG Login Test
 
-For manually testing the CUG login path (`/login` → "CUG Mobile (DEO)" tab, the default tab) without a real DEO's number: the "Demo DEO Officer" `auth_users` row (`deo_id = DEO-DEMO-001`, `district_name = Demo District`) has a test CUG hash set. The raw 10-digit number lives only in the `DEMO_CUG` Cloudflare Worker secret (`wrangler secret put DEMO_CUG --name up-excise-spatial-revenue-optimizer-web`) — never write it into source or docs. Logging in with it lands on `/home` as the demo DEO, separate from the owner's own admin/superadmin account (same `district_name`, different `auth_users` row — see roadmap.md's M-17 entry).
+For manually testing the CUG login path (`/login` → "CUG Mobile (DEO)" tab, the default tab) without a real DEO's number: the "Demo DEO Officer" `auth_users` row (`deo_id = DEO-DEMO-001`, `district_name = Demo District`) has a test CUG hash set. The raw 10-digit number lives only in the `DEMO_CUG` Cloudflare Worker secret (`wrangler secret put DEMO_CUG --name up-excise-spatial-revenue-optimizer-web`) — never write it into source or docs. This account's `role` is `admin`, so logging in with it lands on `/admin` and can also reach every DEO page (`/home`, `/upload`, `/verify`, `/units`) — one login for testing both portals, separate from the owner's own account (same `district_name`, different `auth_users` row — see roadmap.md's M-17 entry).
 
 ## Sync Button Cooldown
 
