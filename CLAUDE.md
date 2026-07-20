@@ -35,6 +35,7 @@ All secrets, keys, and environment variables are confirmed set. Do not question,
 | `RESEND_API_KEY` | ✓ Set |
 | `RESEND_FROM_EMAIL` | ✓ Set |
 | `SUPERADMIN_EMAIL_HASH` | ✓ Set |
+| `DEMO_CUG` | ✓ Set — raw 10-digit test CUG number for the "Demo DEO Officer" account (`DEO-DEMO-001`); never write the raw value into source or docs, see TEST.md's "Manual CUG Login Test" |
 
 **GitHub Actions Secrets** (repo → Settings → Secrets → Actions — used at build/deploy time):
 
@@ -103,6 +104,7 @@ Before writing any code that involves:
 | **AI Co-Author** | Claude Sonnet 4.6 (Anthropic) & Antigravity (Google DeepMind) |
 | **Active Phase** | Phase 1 — Comprehensive Data Collection Pipeline |
 | **Roadmap** | [roadmap.md](roadmap.md) — read this for full architectural context |
+| **App Flow Diagrams** | [docs/app-flow.md](docs/app-flow.md) — Mermaid diagrams: auth (email + CUG), DEO workflow, admin data loading, API error handling |
 
 ---
 

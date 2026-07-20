@@ -1,6 +1,8 @@
 # State Excise Portal — Spatial & Revenue Optimization System
 ## Official Engineering Roadmap: Phase 1 — Comprehensive Data Collection Pipeline
 
+See also [docs/app-flow.md](docs/app-flow.md) for Mermaid diagrams of the auth flow, DEO workflow, admin data loading, and API error handling.
+
 ---
 
 | Field | Value |
@@ -1582,6 +1584,8 @@ M-6: Auth Migration + Single Worker       [Post-M5]         ✅ Complete
 - [x] `scripts/seed-deo-accounts.ts` — parses department contact sheets (`scripts/data/deo-contact.csv`, `deo-emails.csv`; raw PII, gitignored, never committed), maps Hindi district designations to English `districts.name`, hashes CUG + email, and upserts `auth_users` + `districts`. Seeded all 75 real DEO accounts into prod D1, including Bhadohi (mapped from its pre-renaming "Sant Ravidas Nagar, Bhadohi" designation string to the current `Bhadohi` name used throughout D1). DEO names stored as an English placeholder (`"<District> DEO"`) since the source names are Hindi and §2.9/CLAUDE.md's Data Language rule requires English-only stored data.
 - [x] `apps/web/src/lib/with-error-handling.ts` (`withErrorHandling`) added and applied to all 25 non-trivial API routes (all but `/api/healthz`) — an unhandled exception now returns this app's `{ error }` JSON 500 instead of Next's default non-JSON error page, which previously broke every client-side `res.json()` caller on an unexpected failure.
 - [x] Atomicity audit across all API routes found one gap: `bulk-provision`'s per-row `districts` insert and `auth_users` insert were two separate `await`s — a partial failure could leave them inconsistent. Wrapped in `db.transaction`. Every other multi-write route already used `db.batch()` correctly.
+- [x] `/login`'s CUG/Email toggle defaults to the CUG tab (DEOs are the primary audience; Email is labeled "Email (Admin)"), matching the sibling `excise-revenue-recovery-portal` project's login page.
+- [x] Test CUG number seeded for the existing "Demo DEO Officer" `auth_users` row (`deo_id = DEO-DEMO-001`, `district_name = Demo District`, `role = 'deo'` — distinct from the owner's own `admin`/superadmin row, which shares the same district name but is a different `auth_users` row). Raw digits live only in the `DEMO_CUG` Cloudflare Worker secret, never in source or docs — mirrors the sibling project's `DEMO_CUG` convention exactly, including reusing the same demo number (confirmed by matching SHA-256 hash). Verified end-to-end against prod: `POST /api/auth/verify-cug` with this hash returns `{ redirect: "/home" }`.
 
 **Exit criterion:** A DEO can log in even if magic-link email delivery is unavailable; any unhandled server error returns a parseable JSON response instead of breaking the client; no route performs two related writes outside a single atomic operation.
 
@@ -1589,8 +1593,18 @@ M-6: Auth Migration + Single Worker       [Post-M5]         ✅ Complete
 
 ## Backlog / Not Started
 
-- [ ] **Verify the newly acquired domain in Resend** and switch `RESEND_FROM_EMAIL` off `onboarding@resend.dev`. Domain is acquired; DNS (SPF/DKIM) verification in the Resend dashboard has not yet completed — do not flip the Worker secret until Resend shows the domain as verified, or magic-link delivery breaks. Once switched, magic-link email is the Admin/HQ login channel only (DEOs already use CUG login as of M-17).
+- [ ] **Verify `exciseup.in` in Resend** (or a subdomain of it) and switch `RESEND_FROM_EMAIL` off `onboarding@resend.dev`. Domain is acquired; DNS (SPF/DKIM) verification in the Resend dashboard has not yet completed — do not flip the Worker secret until Resend shows the domain as verified, or magic-link delivery breaks. Once switched, magic-link email is the Admin/HQ login channel only (DEOs already use CUG login as of M-17). The same `exciseup.in` domain is also the planned home for the portal itself (see the SMS OTP template draft below, which references a short subdomain of it) — final subdomain choice (for both the portal URL and the Resend sender) is still open.
 - [ ] **SMS OTP login for DEOs**, replacing (or added alongside) the current CUG-hash login — department is in talks with DoT for template approval on a login-OTP text. Mirrors the sibling `excise-revenue-recovery-portal` project's identical backlog item (see its ROADMAP.md). Two shapes to choose between once this is scoped: (a) real OTP-based auth — send OTP → verify OTP → issue the same session, needs a new `otp`/`otp_expires_at` column (or table) plus per-number rate-limiting, closer to the existing magic-link flow than the CUG flow; or (b) keep CUG-hash as the identity check and use SMS only as a notification/confirmation channel, no new auth flow. (a) is the stronger login (today's CUG hash is effectively a shared static secret, not a one-time code); (b) is the smaller diff. Needs its own scoping pass — new migration, SMS vendor API key as a new Worker secret, rate-limiting story — not a drop-in addition to the current CUG flow. Not a launch blocker: CUG-hash login already works for the DEO campaign.
+
+  **Draft DLT template text** (for DoT/TRAI submission — 3 variables, standard `{#var#}` DLT placeholder syntax):
+
+  ```
+  Dear DEO {#var#}, your OTP for login to {#var#} is {#var#}. Valid for 10 min. Do not share this OTP with anyone. - UP Excise Dept
+  ```
+
+  Variable order: 1) District name, 2) Site domain, 3) 6-digit numeric OTP. Filled example, using a short placeholder subdomain on the newly acquired `exciseup.in` domain (exact subdomain not yet finalized — deliberately kept short to minimize DLT character/segment count, unlike the long `workers.dev` URL):
+  `Dear DEO Lucknow, your OTP for login to portal.exciseup.in is 482913. Valid for 10 min. Do not share this OTP with anyone. - UP Excise Dept`
+  (94 chars with this example — comfortably one SMS segment at 160 GSM-7 chars, with headroom for the longest district name (`Sant Kabir Nagar`, 16 chars) and any subdomain choice up to ~30 chars). Update the domain placeholder once the final subdomain is chosen and pointed at the Worker. The "Valid for 10 min. Do not share." disclaimer is included because DLT OTP-category templates are typically rejected without a security/validity line.
 
 ---
 

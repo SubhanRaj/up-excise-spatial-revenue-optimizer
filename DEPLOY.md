@@ -1,5 +1,7 @@
 # Deployment Guide — UP Excise Spatial Revenue Optimizer
 
+See also [docs/app-flow.md](docs/app-flow.md) for Mermaid diagrams of the auth flow, DEO workflow, admin data loading, and API error handling.
+
 ## Live URL
 
 | Service | URL |

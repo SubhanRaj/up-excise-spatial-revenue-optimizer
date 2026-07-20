@@ -5,7 +5,7 @@ import { requestMagicLink } from '../actions';
 import { sha256HexClient } from '@/lib/crypto-client';
 
 export default function LoginForm() {
-  const [mode, setMode]         = useState<'email' | 'cug'>('email');
+  const [mode, setMode]         = useState<'email' | 'cug'>('cug');
   const [email, setEmail]       = useState('');
   const [cug, setCug]           = useState('');
   const [sent, setSent]         = useState(false);
@@ -53,11 +53,11 @@ export default function LoginForm() {
 
         {!sent && (
           <div className="tabs tabs-boxed">
-            <button type="button" className={`tab flex-1 ${mode === 'email' ? 'tab-active' : ''}`} onClick={() => { setMode('email'); setError(null); }}>
-              Email link
-            </button>
             <button type="button" className={`tab flex-1 ${mode === 'cug' ? 'tab-active' : ''}`} onClick={() => { setMode('cug'); setError(null); }}>
-              CUG number
+              CUG Mobile (DEO)
+            </button>
+            <button type="button" className={`tab flex-1 ${mode === 'email' ? 'tab-active' : ''}`} onClick={() => { setMode('email'); setError(null); }}>
+              Email (Admin)
             </button>
           </div>
         )}
