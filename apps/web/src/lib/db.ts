@@ -203,4 +203,6 @@ export const adminAuditCache = {
   set: (page: string, data: unknown) =>
     getAdminDb().table<AdminKvCache<unknown>>('audit_cache')
       .put({ key: page, data, fetchedAt: Date.now() }),
+  invalidate: () =>
+    getAdminDb().table<AdminKvCache<unknown>>('audit_cache').clear(),
 };
