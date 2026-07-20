@@ -73,7 +73,9 @@ pnpm seed:demo
 
 ## Manual CUG Login Test
 
-For manually testing the CUG login path (`/login` → "CUG Mobile (DEO)" tab, the default tab) without a real DEO's number: the "Demo DEO Officer" `auth_users` row (`deo_id = DEO-DEMO-001`, `district_name = Demo District`) has a test CUG hash set. The raw 10-digit number lives only in the `DEMO_CUG` Cloudflare Worker secret (`wrangler secret put DEMO_CUG --name up-excise-spatial-revenue-optimizer-web`) — never write it into source or docs. This account's `role` is `admin`, so logging in with it lands on `/admin` and can also reach every DEO page (`/home`, `/upload`, `/verify`, `/units`) — one login for testing both portals, separate from the owner's own account (same `district_name`, different `auth_users` row — see roadmap.md's M-17 entry).
+For manually testing the CUG login path (`/login` → "CUG Mobile (DEO)" tab, the default tab) without a real DEO's number: run `pnpm seed:demo` (prod) or `pnpm seed:demo -- --local` to create the "Demo DEO Officer" `auth_users` row (`deo_id = DEO-DEMO-001`, `district_name = Demo District`) with a test CUG hash set. The raw 10-digit number lives only in the `DEMO_CUG` Cloudflare Worker secret (`wrangler secret put DEMO_CUG --name up-excise-spatial-revenue-optimizer-web`) — never write it into source or docs. This account's `role` is `admin`, so logging in with it lands on `/admin` and can also reach every DEO page (`/home`, `/upload`, `/verify`, `/units`) — one login for testing both portals.
+
+**As of 2026-07-20**, this account and the entire Demo District were deleted from prod D1 as part of go-live cleanup (real campaign use, not demo/test data). It no longer exists in prod — re-run `pnpm seed:demo` to recreate it for testing, and remember to `pnpm seed:demo -- --truncate` (or `--reset-all`) again afterward before real DEO data goes in. The `DEMO_CUG` secret itself is unaffected and still valid whenever the account is re-seeded.
 
 ## Sync Button Cooldown
 

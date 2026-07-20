@@ -21,9 +21,9 @@ This system is a **two-phase initiative** to correct that at scale.
 
 ## Live Portal
 
-**https://up-excise-spatial-revenue-optimizer-web.shubhanraj2002.workers.dev**
+**https://sro.exciseup.in**
 
-Single Cloudflare Worker serving both pages and API.
+Single Cloudflare Worker serving both pages and API, on its own custom domain — deliberately branded **SRO** (Spatial Revenue Optimizer), distinct from the sibling `excise-revenue-recovery-portal` project's "Excise Portal" naming. The `exciseup.in` DNS zone (also carrying Google Workspace email and Resend's `mail.exciseup.in`) was migrated to Cloudflare nameservers to support this — see [DEPLOY.md](DEPLOY.md)'s "Custom Domain Migration" section for the full process. The previous `*.workers.dev` URL is disabled now that a custom domain route exists.
 
 ---
 
