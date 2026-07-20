@@ -220,7 +220,7 @@ All API routes are Next.js Route Handlers inside the single `up-excise-spatial-r
 | Database | Cloudflare D1 (SQLite) | `db.batch()` for all multi-row writes; bound to `up-excise-spatial-revenue-optimizer-web` |
 | ORM | Drizzle ORM | D1 adapter, schema at `packages/schema/src/phase1.ts` + `packages/schema/src/auth.ts` |
 | Authentication | Custom HMAC magic-link | No external auth provider. Magic links via Resend → D1 sessions → session cookie auth |
-| Email | Resend | Magic-link delivery, now Admin/HQ-only (DEOs use CUG login — see "CUG-hashed login"). Domain acquired, DNS verification pending in Resend — `RESEND_FROM_EMAIL` stays on `onboarding@resend.dev` until verified. |
+| Email | Resend | Magic-link delivery, Admin/HQ-only (DEOs use CUG login — see "CUG-hashed login"). `mail.exciseup.in` verified in Resend; `RESEND_FROM_EMAIL` is `noreply@mail.exciseup.in`, reused across all UP Excise projects on the same Resend account. |
 | Testing | Vitest + Playwright | unit tests for revenue calc + coord converter |
 
 ### Authentication Architecture
@@ -240,7 +240,7 @@ All API routes are same-origin Next.js Route Handlers. The browser sends the ses
 3. Client pages call `/api/auth/session` on mount → route handler verifies session cookie → returns `{ deoId, name, role, districtName }`. No token issued.
 4. Client calls all `/api/*` routes directly — session cookie authenticates automatically.
 
-**CUG-hashed login (alternate credential):** while `RESEND_FROM_EMAIL`'s domain isn't verified and magic-link delivery can't be relied on, a DEO can sign in with their department CUG mobile number instead. The `/login` page has an Email/CUG toggle; the CUG path hashes the 10-digit number client-side (`apps/web/src/lib/crypto-client.ts`, Web Crypto SHA-256 — the raw number never leaves the browser) and POSTs `{ cugHash }` to `/api/auth/verify-cug`, which looks it up against `auth_users.deo_cug_hash`, creates the same session/cookie as the magic-link path, and returns `{ redirect }`. Both login paths are equally valid and interchangeable per account — a DEO with both an email and a CUG hash on file can use either. `scripts/seed-deo-accounts.ts` populates `deo_cug_hash` (and `deoEmailHash`) for real DEOs from department contact sheets — see "DEO Account Seeding" below.
+**CUG-hashed login (primary DEO credential):** a DEO signs in with their department CUG mobile number rather than email — this remains the primary/default DEO login path even with the domain now verified, since magic-link email is scoped to Admin/HQ only. The `/login` page has an Email/CUG toggle; the CUG path hashes the 10-digit number client-side (`apps/web/src/lib/crypto-client.ts`, Web Crypto SHA-256 — the raw number never leaves the browser) and POSTs `{ cugHash }` to `/api/auth/verify-cug`, which looks it up against `auth_users.deo_cug_hash`, creates the same session/cookie as the magic-link path, and returns `{ redirect }`. Both login paths are equally valid and interchangeable per account — a DEO with both an email and a CUG hash on file can use either. `scripts/seed-deo-accounts.ts` populates `deo_cug_hash` (and `deoEmailHash`) for real DEOs from department contact sheets — see "DEO Account Seeding" below.
 
 **Auth tables in D1** (`packages/schema/src/auth.ts`):
 - `auth_users` — email hash, name, role, deoId, districtName (populated during bulk-provision or `seed-deo-accounts.ts`), `deoCugHash` (SHA-256 of CUG mobile number, unique, nullable — alternate login credential)
@@ -252,7 +252,7 @@ All API routes are same-origin Next.js Route Handlers. The browser sends the ses
 - `SESSION_SECRET` — for session cookie HMAC
 - `API_SECRET` — reserved (used internally; not currently used for inter-service auth since single worker)
 - `RESEND_API_KEY` — for magic link emails
-- `RESEND_FROM_EMAIL` — sender address (start with `onboarding@resend.dev`)
+- `RESEND_FROM_EMAIL` — sender address (`noreply@mail.exciseup.in`, verified custom domain)
 
 ### Frontend CDN Stack
 
@@ -613,7 +613,7 @@ The following are unresolved department-side decisions that block specific miles
 5. **DEO credential and identifier assignment** — `deoId` now auto-assigned as `DEO-<DISTRICT-NAME>` by `seed-deo-accounts.ts` for all 75 districts. DEO *names* are still English placeholders (`"<District> DEO"`) — the source contact sheet's names are in Hindi, which this project's Data Language rule forbids storing; correct real names via the admin District Master page. Provisioning still sends magic-link emails to DEO addresses (or DEOs can sign in with their CUG number — see "CUG-hashed login"). DEOs must also complete circle/sector pre-registration before distributing templates to Inspectors.
 6. **Circle/sector naming convention** — DEOs need a consistent naming standard so pre-registered unit names are clean and unambiguous across all 75 districts.
 7. **Upsert vs. versioning decision** — blocks M-4. If a DEO re-uploads a district, does the system overwrite or version the records?
-8. **Custom email domain** — domain acquired; DNS (SPF/DKIM) verification in Resend not yet complete. Once verified, switch `RESEND_FROM_EMAIL` off `onboarding@resend.dev`. Magic-link email is now scoped to Admin/HQ login only — DEOs use CUG login (see "CUG-hashed login"), so this no longer blocks the DEO upload campaign.
+8. **Custom email domain** — resolved. `mail.exciseup.in` verified in Resend; `RESEND_FROM_EMAIL` is `noreply@mail.exciseup.in`. Same domain/sender reused for the sibling `excise-revenue-recovery-portal` project's `FROM_EMAIL` secret (different env var name there — see that repo's CLAUDE.md). Magic-link email is scoped to Admin/HQ login only — DEOs use CUG login.
 9. **DoT SMS template approval** — in progress, for a DEO login-OTP SMS text. Not a blocker for launch (CUG-hash login already works); see roadmap.md's Backlog section for the planned SMS-OTP upgrade once approved.
 
 ---

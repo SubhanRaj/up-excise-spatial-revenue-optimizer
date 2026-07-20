@@ -441,7 +441,7 @@ Middleware only checks cookie presence and the role cookie — no crypto, no D1.
    - Validates email exists in `auth_users`
    - Rate-limits: 3 requests per email per 15-minute window (checked via `auth_magic_links` count)
    - Generates UUID token, stores `sha256(token)` in `auth_magic_links` with 15-minute expiry
-   - Sends link via Resend (`onboarding@resend.dev` until custom domain verified)
+   - Sends link via Resend (`noreply@mail.exciseup.in`, verified custom domain)
 2. DEO clicks link → `/auth/verify?token=xxx` (client component, shows spinner):
    - POSTs `{ token }` to `POST /api/auth/verify` route handler
    - Route handler verifies `sha256(token)` against D1, marks link used, looks up user, calls `createSession()`, returns `{ redirect }`
@@ -1593,7 +1593,7 @@ M-6: Auth Migration + Single Worker       [Post-M5]         ✅ Complete
 
 ## Backlog / Not Started
 
-- [ ] **Verify `exciseup.in` in Resend** (or a subdomain of it) and switch `RESEND_FROM_EMAIL` off `onboarding@resend.dev`. Domain is acquired; DNS (SPF/DKIM) verification in the Resend dashboard has not yet completed — do not flip the Worker secret until Resend shows the domain as verified, or magic-link delivery breaks. Once switched, magic-link email is the Admin/HQ login channel only (DEOs already use CUG login as of M-17). The same `exciseup.in` domain is also the planned home for the portal itself (see the SMS OTP template draft below, which references a short subdomain of it) — final subdomain choice (for both the portal URL and the Resend sender) is still open.
+- [x] ~~Verify `exciseup.in` in Resend and switch `RESEND_FROM_EMAIL`~~ — Done. `mail.exciseup.in` verified; `RESEND_FROM_EMAIL` set to `noreply@mail.exciseup.in` on this project's Worker, and the same address set as `FROM_EMAIL` on the sibling `excise-revenue-recovery-portal` project's Worker (different env var name there, same Resend account/domain). Magic-link email is now the Admin/HQ login channel only (DEOs use CUG login as of M-17). The portal's own final subdomain (referenced in the SMS OTP template draft below) is still open — `mail.exciseup.in` is only the *sending* domain, not necessarily the portal's own URL.
 - [ ] **SMS OTP login for DEOs**, replacing (or added alongside) the current CUG-hash login — department is in talks with DoT for template approval on a login-OTP text. Mirrors the sibling `excise-revenue-recovery-portal` project's identical backlog item (see its ROADMAP.md). Two shapes to choose between once this is scoped: (a) real OTP-based auth — send OTP → verify OTP → issue the same session, needs a new `otp`/`otp_expires_at` column (or table) plus per-number rate-limiting, closer to the existing magic-link flow than the CUG flow; or (b) keep CUG-hash as the identity check and use SMS only as a notification/confirmation channel, no new auth flow. (a) is the stronger login (today's CUG hash is effectively a shared static secret, not a one-time code); (b) is the smaller diff. Needs its own scoping pass — new migration, SMS vendor API key as a new Worker secret, rate-limiting story — not a drop-in addition to the current CUG flow. Not a launch blocker: CUG-hash login already works for the DEO campaign.
 
   **Draft DLT template text** (for DoT/TRAI submission — 3 variables, standard `{#var#}` DLT placeholder syntax):
@@ -1643,7 +1643,7 @@ The following require department action before the upload campaign can begin:
 5. **DEO credential and identifier assignment:** DEOs must complete circle/sector pre-registration before distributing templates to Inspectors.
 6. **Circle/sector naming convention:** Consistent naming (e.g., "Circle 1" vs "Kotwali Circle") ensures clean unit names across districts.
 7. **Upsert vs. versioning decision:** If a DEO re-uploads corrected data, does the system overwrite or version records? Resolved to upsert (`UNIQUE` constraint on `shop_id + district_name`, `ON CONFLICT DO UPDATE`).
-8. **Custom email domain:** Switch `RESEND_FROM_EMAIL` from `onboarding@resend.dev` to a verified custom domain (e.g., `noreply@up-excise.in`) before campaign launch for deliverability.
+8. ~~**Custom email domain**~~ — Resolved: `mail.exciseup.in` verified in Resend, `RESEND_FROM_EMAIL` is `noreply@mail.exciseup.in`.
 
 ---
 
@@ -1657,7 +1657,7 @@ The following require department action before the upload campaign can begin:
 | Database | Cloudflare D1 (SQLite) | Serverless SQLite at the edge, native `db.batch()`, free tier covers Phase 1 |
 | ORM | Drizzle ORM | Type-safe, SQLite-native, generates clean migrations, zero runtime overhead |
 | Authentication | Custom HMAC magic-link | HMAC-SHA256 session cookies + UUID tokens hashed in D1 + Resend email. No external auth provider. Session cookie `excise-session` (HttpOnly, 24h); role cookie `excise-role` (client-readable). |
-| Email | Resend | Magic-link delivery. `onboarding@resend.dev` until custom domain verified. Key set as CF Worker Secret. |
+| Email | Resend | Magic-link delivery. `noreply@mail.exciseup.in` (verified custom domain), reused across all UP Excise projects on the same Resend account. Key set as CF Worker Secret. |
 | UI Components | DaisyUI 5.6.3 | Requires Tailwind v4. Semantic component classes, zero JS runtime, loaded from jsDelivr CDN. |
 | CSS Utilities | Tailwind v4 Browser CDN | `@tailwindcss/browser@4` — runtime utility generation; loaded from CDN, no PostCSS build step. |
 | Excel I/O | ExcelJS 4.4.0 | Loaded from jsDelivr CDN, never bundled. Single library for reading uploads, generating templates, and exporting — replaced SheetJS + hand-patched worksheet XML in M-14 because that combination produced corrupted `.xlsx` output. |

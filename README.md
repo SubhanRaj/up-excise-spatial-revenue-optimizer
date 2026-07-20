@@ -87,7 +87,7 @@ up-excise-spatial-revenue-optimizer/
 5. Session cookies set (`excise-session` HttpOnly HMAC, `excise-role` client-readable)
 6. DEO redirected to `/home` (or `/admin` for admin role)
 
-**Alternate flow — CUG login:** while `RESEND_FROM_EMAIL`'s domain isn't verified, DEOs can sign in with their department CUG mobile number instead. `/login` has an Email/CUG toggle; the browser SHA-256-hashes the 10-digit number and POSTs it to `POST /api/auth/verify-cug`, which checks it against `auth_users.deo_cug_hash` and issues the same session cookie. The raw number never leaves the browser.
+**Alternate flow — CUG login:** DEOs can also sign in with their department CUG mobile number instead of email — this remains the default/primary DEO login path even after the domain switch below, since magic-link email is now scoped to Admin/HQ. `/login` has an Email/CUG toggle; the browser SHA-256-hashes the 10-digit number and POSTs it to `POST /api/auth/verify-cug`, which checks it against `auth_users.deo_cug_hash` and issues the same session cookie. The raw number never leaves the browser.
 
 **Session:** 24 hours clock-based. IndexedDB data preserved through re-login.
 
@@ -288,7 +288,7 @@ Engineering is complete. Department action required before rollout:
 3. **Shop count estimates per district** — for dashboard progress metrics
 4. **DEO credential/identifier assignment** — `deo_id` auto-assigned for all 75 seeded districts; DEO names are English placeholders pending correction (source names are Hindi)
 5. **Circle/sector naming convention** — consistent names across all 75 districts
-6. **Custom email domain** — domain acquired, not yet verified in Resend; `RESEND_FROM_EMAIL` will switch off `onboarding@resend.dev` once DNS verification completes. Once done, magic-link email is the Admin/HQ login channel; DEOs sign in via CUG number (see "CUG-hashed login")
+6. **Custom email domain** — resolved. `mail.exciseup.in` verified in Resend; `RESEND_FROM_EMAIL` is `noreply@mail.exciseup.in`. Magic-link email is the Admin/HQ login channel; DEOs sign in via CUG number (see "CUG-hashed login")
 7. **DoT SMS template approval** — in progress. Blocks real SMS-OTP login for DEOs (see roadmap.md's Backlog section); the current CUG-hash login (a static shared secret, not a one-time code) remains the DEO login mechanism until approval lands
 
 ---

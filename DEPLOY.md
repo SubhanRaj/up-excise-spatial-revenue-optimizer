@@ -69,7 +69,7 @@ Set via `wrangler secret put` — never committed to files. All confirmed set on
 | `SESSION_SECRET` | HMAC-SHA256 signing key for `excise-session` cookie |
 | `API_SECRET` | Reserved (not currently used) |
 | `RESEND_API_KEY` | Resend email delivery for magic links |
-| `RESEND_FROM_EMAIL` | Sender address (`onboarding@resend.dev` until custom domain) |
+| `RESEND_FROM_EMAIL` | Sender address — `noreply@mail.exciseup.in` (verified custom domain) |
 | `SUPERADMIN_EMAIL_HASH` | SHA-256 hash of the superadmin email for emergency/testing access |
 
 To rotate a secret:
