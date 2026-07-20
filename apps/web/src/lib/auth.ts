@@ -16,6 +16,7 @@ export type SessionUser = {
   role: 'deo' | 'admin' | 'superadmin';
   deoId: string;
   districtName: string | null;
+  designation: string | null;
 };
 
 // ── Crypto ────────────────────────────────────────────────────────────────────
@@ -87,6 +88,7 @@ export async function getSession(): Promise<SessionUser | null> {
       role:         authUsers.role,
       deoId:        authUsers.deoId,
       districtName: authUsers.districtName,
+      designation:  authUsers.designation,
     })
     .from(authSessions)
     .innerJoin(authUsers, eq(authUsers.id, authSessions.userId))
@@ -110,6 +112,7 @@ export async function getSession(): Promise<SessionUser | null> {
       role:         'superadmin',
       deoId:        row.deoId ?? '',
       districtName: 'Demo District',
+      designation:  row.designation ?? null,
     };
   }
 
@@ -120,6 +123,7 @@ export async function getSession(): Promise<SessionUser | null> {
     role:         row.role as 'deo' | 'admin',
     deoId:        row.deoId ?? '',
     districtName: row.districtName ?? null,
+    designation:  row.designation ?? null,
   };
 }
 

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useSession } from '@/hooks/useSession';
 
 // ── Search ────────────────────────────────────────────────────────────────────
 
@@ -184,6 +185,22 @@ async function signOut() {
   window.location.href = '/login';
 }
 
+// Admin-only identity display (designation + name — see packages/schema/src/auth.ts's
+// authUsers.designation). No email tooltip here unlike a plaintext-email system would show:
+// this project only ever stores email_hash (Zero-Knowledge PII, see CLAUDE.md), so there is no
+// readable email to display even on hover.
+function AdminIdentity() {
+  const { session } = useSession();
+  if (!session || session.role === 'deo') return null;
+  const designation = session.designation ?? (session.role === 'superadmin' ? 'Superadmin' : 'Admin');
+  return (
+    <div className="hidden md:flex flex-col items-end leading-tight mr-1">
+      <span className="text-xs font-semibold text-base-content">{session.name}</span>
+      <span className="text-[10px] text-base-content/60">{designation}</span>
+    </div>
+  );
+}
+
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const crumbs = getBreadcrumbs(pathname);
@@ -212,6 +229,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <Link href="/admin/audit" className={`btn btn-ghost btn-sm ${pathname === '/admin/audit' ? 'btn-active' : ''}`}>Audit</Link>
           <Link href="/admin/export" className={`btn btn-ghost btn-sm ${pathname === '/admin/export' ? 'btn-active' : ''}`}>Export</Link>
           <Link href="/home" className="btn btn-outline btn-primary btn-sm ml-1">DEO Portal</Link>
+          <AdminIdentity />
           <button className="btn btn-ghost btn-sm ml-1" onClick={signOut}>Sign out</button>
         </div>
       </nav>

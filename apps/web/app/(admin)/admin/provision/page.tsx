@@ -8,8 +8,6 @@ import { useAdminDistricts } from '@/hooks/useAdminDistricts';
 import { adminDistrictsCache } from '@/lib/db';
 import { useSession } from '@/hooks/useSession';
 
-const SUPERADMIN_EMAIL = 'shubhanraj2002@gmail.com';
-
 interface DistrictRow {
   name: string; division: string | null; deoName: string | null; deoEmail: string | null;
   deoId: string | null; expectedVendCount: number | null; status: string;
@@ -481,7 +479,7 @@ export default function DistrictMasterPage() {
         )}
       </div>
 
-      {session?.email === SUPERADMIN_EMAIL && (
+      {session?.role === 'superadmin' && (
         <div className="card bg-base-100 shadow p-6 border border-error/30">
           <h2 className="text-xl font-bold text-error mb-1">Danger Zone</h2>
           <p className="text-sm text-base-content/90 mb-4">

@@ -7,7 +7,10 @@ export interface SessionInfo {
   name: string;
   role: string;
   districtName: string | null;
-  email: string;
+  // Admin-only in practice (e.g. "Excise Commissioner") — null for DEOs. No plaintext email
+  // field exists here by design — only email_hash is ever stored (Zero-Knowledge PII, see
+  // CLAUDE.md), so there's nothing readable to expose to the client.
+  designation: string | null;
 }
 
 // ponytail: module-level cache — one fetch per tab, shared across all components

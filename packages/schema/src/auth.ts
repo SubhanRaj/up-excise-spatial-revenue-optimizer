@@ -12,6 +12,9 @@ export const authUsers = sqliteTable('auth_users', {
   // number. Alternate credential to magic-link email, for when RESEND_FROM_EMAIL's domain
   // isn't verified yet and email delivery can't be relied on.
   deoCugHash:   text('deo_cug_hash').unique(),
+  // Admin-only in practice (e.g. "Excise Commissioner") — shown in the admin navbar next to
+  // the person's name. Null for DEOs, whose identity display is district-driven instead.
+  designation:  text('designation'),
   createdAt:    text('created_at').default(sql`(datetime('now'))`),
 });
 

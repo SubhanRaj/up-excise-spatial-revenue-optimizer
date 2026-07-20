@@ -5,8 +5,6 @@ import { sql } from 'drizzle-orm';
 import { getSession } from '@/lib/auth';
 import { withErrorHandling } from '@/lib/with-error-handling';
 
-const SUPERADMIN_EMAIL = 'shubhanraj2002@gmail.com';
-
 async function POST_(): Promise<NextResponse> {
   const session = await getSession();
   const { env } = await getCloudflareContext({ async: true }) as { env: CloudflareEnv };

@@ -1606,6 +1606,8 @@ M-6: Auth Migration + Single Worker       [Post-M5]         ✅ Complete
   `Dear DEO Lucknow, your OTP for login to portal.exciseup.in is 482913. Valid for 10 min. Do not share this OTP with anyone. - UP Excise Dept`
   (94 chars with this example — comfortably one SMS segment at 160 GSM-7 chars, with headroom for the longest district name (`Sant Kabir Nagar`, 16 chars) and any subdomain choice up to ~30 chars). Update the domain placeholder once the final subdomain is chosen and pointed at the Worker. The "Valid for 10 min. Do not share." disclaimer is included because DLT OTP-category templates are typically rejected without a security/validity line.
 
+- [ ] **Self-service admin provisioning UI** — as of M-19, additional `role: 'admin'` accounts (department officials beyond the one superadmin-bypass owner) are supported by the schema/session/UI (name + designation display), but adding one is still a direct D1 insert, not a form. A small addition to `/admin/provision` (name, email, designation fields, hashes client-side, one `INSERT`) would close this — same shape as the existing DEO bulk-provision flow, just single-row and admin-role.
+
 ---
 
 ### Timeline Summary
