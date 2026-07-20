@@ -3,9 +3,10 @@ import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { drizzle } from 'drizzle-orm/d1';
 import { getSession } from '@/lib/auth';
 import { phase1RawCollection } from '@excise/schema';
+import { withErrorHandling } from '@/lib/with-error-handling';
 
 
-export async function GET() {
+async function GET_(): Promise<NextResponse> {
   const user = await getSession();
   if (!user || !['admin', 'superadmin'].includes(user.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
@@ -15,3 +16,5 @@ export async function GET() {
 
   return NextResponse.json({ rows });
 }
+
+export const GET = withErrorHandling('admin/export/all:GET', GET_);

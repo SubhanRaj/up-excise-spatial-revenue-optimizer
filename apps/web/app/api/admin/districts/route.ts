@@ -4,9 +4,10 @@ import { drizzle } from 'drizzle-orm/d1';
 import { asc, count, sum } from 'drizzle-orm';
 import { getSession } from '@/lib/auth';
 import { districts, phase1RawCollection } from '@excise/schema';
+import { withErrorHandling } from '@/lib/with-error-handling';
 
 
-export async function GET() {
+async function GET_(): Promise<NextResponse> {
   const user = await getSession();
   if (!user || !['admin', 'superadmin'].includes(user.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
@@ -48,3 +49,5 @@ export async function GET() {
 
   return NextResponse.json({ districts: rows, stateTotals });
 }
+
+export const GET = withErrorHandling('admin/districts:GET', GET_);

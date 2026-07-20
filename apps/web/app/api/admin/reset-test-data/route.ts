@@ -3,10 +3,11 @@ import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { drizzle } from 'drizzle-orm/d1';
 import { sql } from 'drizzle-orm';
 import { getSession } from '@/lib/auth';
+import { withErrorHandling } from '@/lib/with-error-handling';
 
 const SUPERADMIN_EMAIL = 'shubhanraj2002@gmail.com';
 
-export async function POST() {
+async function POST_(): Promise<NextResponse> {
   const session = await getSession();
   const { env } = await getCloudflareContext({ async: true }) as { env: CloudflareEnv };
 
@@ -29,3 +30,5 @@ export async function POST() {
 
   return NextResponse.json({ ok: true });
 }
+
+export const POST = withErrorHandling('admin/reset-test-data:POST', POST_);

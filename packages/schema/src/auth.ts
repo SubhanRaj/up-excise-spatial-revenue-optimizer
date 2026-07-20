@@ -8,6 +8,10 @@ export const authUsers = sqliteTable('auth_users', {
   role:         text('role').notNull().default('deo'),  // 'deo' | 'admin'
   deoId:        text('deo_id'),
   districtName: text('district_name'),
+  // SHA-256 of the DEO's 10-digit CUG mobile number, hashed in-browser — never the raw
+  // number. Alternate credential to magic-link email, for when RESEND_FROM_EMAIL's domain
+  // isn't verified yet and email delivery can't be relied on.
+  deoCugHash:   text('deo_cug_hash').unique(),
   createdAt:    text('created_at').default(sql`(datetime('now'))`),
 });
 

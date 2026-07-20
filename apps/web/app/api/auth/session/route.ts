@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
+import { withErrorHandling } from '@/lib/with-error-handling';
 
 
-export async function GET() {
+async function GET_(): Promise<NextResponse> {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -13,3 +14,5 @@ export async function GET() {
     districtName: session.districtName,
   });
 }
+
+export const GET = withErrorHandling('auth/session:GET', GET_);

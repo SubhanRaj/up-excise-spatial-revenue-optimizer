@@ -4,6 +4,7 @@ import { drizzle } from 'drizzle-orm/d1';
 import { eq, and } from 'drizzle-orm';
 import { authMagicLinks, authUsers } from '@excise/schema';
 import { hashToken, createSession } from '@/lib/auth';
+import { withErrorHandling } from '@/lib/with-error-handling';
 
 async function verifyToken(token: string): Promise<{ redirect: string } | { error: string; status: number }> {
   const tokenHash = await hashToken(token);
@@ -34,7 +35,7 @@ async function verifyToken(token: string): Promise<{ redirect: string } | { erro
 }
 
 /** GET /api/auth/verify?token=... — used by magic-link emails and Playwright browser navigation */
-export async function GET(req: NextRequest) {
+async function GET_(req: NextRequest): Promise<NextResponse> {
   const token = req.nextUrl.searchParams.get('token');
   if (!token) return NextResponse.redirect(new URL('/login?error=missing_token', req.url));
 
@@ -46,7 +47,7 @@ export async function GET(req: NextRequest) {
 }
 
 /** POST /api/auth/verify — used by the login form (token in JSON body) */
-export async function POST(req: NextRequest) {
+async function POST_(req: NextRequest): Promise<NextResponse> {
   const { token } = await req.json() as { token?: string };
   if (!token) return NextResponse.json({ error: 'Missing token' }, { status: 400 });
 
@@ -56,3 +57,6 @@ export async function POST(req: NextRequest) {
   }
   return NextResponse.json(result);
 }
+
+export const GET = withErrorHandling('auth/verify:GET', GET_);
+export const POST = withErrorHandling('auth/verify:POST', POST_);

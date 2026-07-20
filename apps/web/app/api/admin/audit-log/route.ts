@@ -4,11 +4,12 @@ import { drizzle } from 'drizzle-orm/d1';
 import { desc } from 'drizzle-orm';
 import { getSession } from '@/lib/auth';
 import { auditLog } from '@excise/schema';
+import { withErrorHandling } from '@/lib/with-error-handling';
 
 
 const PAGE_SIZE = 100;
 
-export async function GET(req: NextRequest) {
+async function GET_(req: NextRequest): Promise<NextResponse> {
   const user = await getSession();
   if (!user || !['admin', 'superadmin'].includes(user.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
@@ -19,3 +20,5 @@ export async function GET(req: NextRequest) {
     .orderBy(desc(auditLog.createdAt)).limit(PAGE_SIZE).offset((page - 1) * PAGE_SIZE).all();
   return NextResponse.json({ rows, page, pageSize: PAGE_SIZE });
 }
+
+export const GET = withErrorHandling('admin/audit-log:GET', GET_);

@@ -4,11 +4,12 @@ import { drizzle } from 'drizzle-orm/d1';
 import { eq, count, like, and } from 'drizzle-orm';
 import { getSession } from '@/lib/auth';
 import { phase1RawCollection } from '@excise/schema';
+import { withErrorHandling } from '@/lib/with-error-handling';
 
 
 const PAGE_SIZE = 50;
 
-export async function GET(req: NextRequest) {
+async function GET_(req: NextRequest): Promise<NextResponse> {
   const user = await getSession();
   if (!user || !['admin', 'superadmin'].includes(user.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
@@ -37,3 +38,5 @@ export async function GET(req: NextRequest) {
   ]);
   return NextResponse.json({ rows, total: total?.n ?? 0, page, pageSize: PAGE_SIZE });
 }
+
+export const GET = withErrorHandling('admin/search:GET', GET_);

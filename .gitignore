@@ -89,3 +89,7 @@ logs/
 # ─── Drizzle ORM ─────────────────────────────────────────────────────────────
 drizzle/meta/
 # Keep migration SQL files — exclude only generated snapshots if any
+
+# ─── Raw DEO PII (never committed — see scripts/seed-deo-accounts.ts) ─────────
+scripts/data/deo-contact.csv
+scripts/data/deo-emails.csv

@@ -6,6 +6,7 @@ import { getSession } from '@/lib/auth';
 import { validateRow } from '@/lib/validate';
 import { phase1RawCollection, districtCirclesSectors, auditLog } from '@excise/schema';
 import type { Phase1RowInput } from '@/lib/types';
+import { withErrorHandling } from '@/lib/with-error-handling';
 
 
 interface ChunkBody {
@@ -16,7 +17,7 @@ interface ChunkBody {
   chunkIndex: number;
 }
 
-export async function POST(req: NextRequest) {
+async function POST_(req: NextRequest): Promise<NextResponse> {
   const user = await getSession();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -137,3 +138,5 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({ accepted: accepted.length, rejected });
 }
+
+export const POST = withErrorHandling('upload/chunk:POST', POST_);

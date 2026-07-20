@@ -87,9 +87,11 @@ up-excise-spatial-revenue-optimizer/
 5. Session cookies set (`excise-session` HttpOnly HMAC, `excise-role` client-readable)
 6. DEO redirected to `/home` (or `/admin` for admin role)
 
+**Alternate flow — CUG login:** while `RESEND_FROM_EMAIL`'s domain isn't verified, DEOs can sign in with their department CUG mobile number instead. `/login` has an Email/CUG toggle; the browser SHA-256-hashes the 10-digit number and POSTs it to `POST /api/auth/verify-cug`, which checks it against `auth_users.deo_cug_hash` and issues the same session cookie. The raw number never leaves the browser.
+
 **Session:** 24 hours clock-based. IndexedDB data preserved through re-login.
 
-**Accounts:** Provisioned by admin via `POST /api/admin/bulk-provision` (Excel upload). No self-registration.
+**Accounts:** Provisioned by admin via `POST /api/admin/bulk-provision` (Excel upload) or `pnpm seed:deo-accounts` (bulk-seeds real DEO email + CUG hashes from department contact sheets — see DEPLOY.md). No self-registration.
 
 ---
 
@@ -235,6 +237,9 @@ npx wrangler d1 migrations apply up-excise-spatial-revenue-optimizer-prod --remo
 # Seed the 75 districts + 18 divisions + bbox (idempotent, safe to re-run)
 pnpm seed:districts
 
+# Seed real DEO accounts (email + CUG hash) from department contact sheets (idempotent)
+pnpm seed:deo-accounts
+
 # Run unit tests
 pnpm test
 
@@ -248,7 +253,7 @@ cd apps/web && pnpm exec opennextjs-cloudflare build
 cd apps/web && pnpm exec opennextjs-cloudflare deploy
 ```
 
-See [DEPLOY.md](DEPLOY.md) for secrets, CI/CD, and account management.
+See [DEPLOY.md](DEPLOY.md) for secrets, CI/CD, and account management. See [docs/app-flow.md](docs/app-flow.md) for Mermaid diagrams of the auth flow, DEO workflow, admin data loading, and API error handling.
 
 ---
 
@@ -267,6 +272,8 @@ See [DEPLOY.md](DEPLOY.md) for secrets, CI/CD, and account management.
 | M-8: Admin Portal Navigation & Divisions | **Completed** |
 | M-9: SPA Navigation Parity & Polish | **Completed** |
 | M-10: District Master & Migration Consolidation | **Completed** |
+| M-11 – M-16 | **Completed** — see CLAUDE.md's milestone table for full detail |
+| M-17: CUG Login, API Error Handling & Atomicity Hardening | **Completed** |
 
 See [roadmap.md](roadmap.md) for full specs, entry/exit criteria, and deliverable checklists.
 
@@ -276,12 +283,12 @@ See [roadmap.md](roadmap.md) for full specs, entry/exit criteria, and deliverabl
 
 Engineering is complete. Department action required before rollout:
 
-1. **DEO email addresses** — all 75 required for bulk provisioning
+1. **DEO email addresses** — resolved for 74 of 75 districts via `pnpm seed:deo-accounts`; Bhadohi needs manual provisioning (deprecated designation string in the source sheet)
 2. **Excel template column layout** — must be locked before column mapping is built
 3. **Shop count estimates per district** — for dashboard progress metrics
-4. **DEO credential/identifier assignment** — for `deo_id` scoping and circle/sector pre-registration
+4. **DEO credential/identifier assignment** — `deo_id` auto-assigned for the 74 seeded districts; DEO names are English placeholders pending correction (source names are Hindi)
 5. **Circle/sector naming convention** — consistent names across all 75 districts
-6. **Custom email domain** — switch `RESEND_FROM_EMAIL` from `onboarding@resend.dev` to verified domain
+6. **Custom email domain** — switch `RESEND_FROM_EMAIL` from `onboarding@resend.dev` to verified domain (CUG login is the current login path in the meantime)
 
 ---
 

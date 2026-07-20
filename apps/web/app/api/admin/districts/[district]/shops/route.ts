@@ -4,14 +4,15 @@ import { drizzle } from 'drizzle-orm/d1';
 import { eq, count } from 'drizzle-orm';
 import { getSession } from '@/lib/auth';
 import { phase1RawCollection } from '@excise/schema';
+import { withErrorHandling } from '@/lib/with-error-handling';
 
 
 const MAX_PAGE_SIZE = 2000;
 
-export async function GET(
+async function GET_(
   req: NextRequest,
   { params }: { params: Promise<{ district: string }> },
-) {
+): Promise<NextResponse> {
   const user = await getSession();
   if (!user || !['admin', 'superadmin'].includes(user.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
@@ -32,3 +33,5 @@ export async function GET(
   ]);
   return NextResponse.json({ rows, total: total?.n ?? 0, page, pageSize });
 }
+
+export const GET = withErrorHandling('admin/districts/[district]/shops:GET', GET_);

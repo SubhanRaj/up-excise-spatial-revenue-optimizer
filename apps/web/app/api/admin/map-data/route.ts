@@ -4,9 +4,10 @@ import { drizzle } from 'drizzle-orm/d1';
 import { count, sum } from 'drizzle-orm';
 import { getSession } from '@/lib/auth';
 import { districts, phase1RawCollection } from '@excise/schema';
+import { withErrorHandling } from '@/lib/with-error-handling';
 
 
-export async function GET() {
+async function GET_(): Promise<NextResponse> {
   const user = await getSession();
   if (!user || !['admin', 'superadmin'].includes(user.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
@@ -35,3 +36,5 @@ export async function GET() {
     totalRevenue: aggMap[d.name]?.totalRevenue ?? 0,
   })));
 }
+
+export const GET = withErrorHandling('admin/map-data:GET', GET_);

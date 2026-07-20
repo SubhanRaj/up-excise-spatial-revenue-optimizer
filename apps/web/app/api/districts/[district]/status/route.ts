@@ -4,12 +4,13 @@ import { drizzle } from 'drizzle-orm/d1';
 import { eq, count } from 'drizzle-orm';
 import { getSession } from '@/lib/auth';
 import { districtCirclesSectors, phase1RawCollection } from '@excise/schema';
+import { withErrorHandling } from '@/lib/with-error-handling';
 
 
-export async function GET(
+async function GET_(
   _req: NextRequest,
   { params }: { params: Promise<{ district: string }> },
-) {
+): Promise<NextResponse> {
   const user = await getSession();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -29,3 +30,5 @@ export async function GET(
   const summary = units.map((u) => ({ name: u.name, rowCount: uploadedMap[u.name] ?? 0 }));
   return NextResponse.json({ units: summary, canSubmit: summary.every((s) => s.rowCount > 0) });
 }
+
+export const GET = withErrorHandling('districts/[district]/status:GET', GET_);

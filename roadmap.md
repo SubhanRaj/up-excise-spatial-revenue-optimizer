@@ -463,7 +463,7 @@ Middleware only checks cookie presence and the role cookie — no crypto, no D1.
 Application-level events (upload chunk, district submission, circle/sector registration, login) are written to `audit_log` directly by route handlers on every successful operation. 45-day rolling retention (cron purge deferred — see CLAUDE.md note).
 
 **Auth tables in D1** (`packages/schema/src/auth.ts`):
-- `auth_users` — email, name, role ('deo'|'admin'), deoId, districtName
+- `auth_users` — email hash, name, role ('deo'|'admin'), deoId, districtName, deoCugHash (SHA-256 of CUG mobile number, unique nullable, added in migration `0002_add_deo_cug_hash.sql` — alternate login credential to magic-link email)
 - `auth_magic_links` — tokenHash (sha256), expiresAt, used flag, createdAt (for rate-limit window)
 - `auth_sessions` — id=sha256(rawId), userId FK, expiresAt
 
@@ -1568,6 +1568,22 @@ M-6: Auth Migration + Single Worker       [Post-M5]         ✅ Complete
 - [x] "Reference Data" sheet hidden and sheet-protected read-only (still feeds the circle/sector dropdown, no longer editable or a visible redundant tab — it's rebuilt fresh from the live units list on every download, so there's no legitimate reason to edit it). Instructions sheet fully translated to Hindi, with Thana Name / Adjacent Thanas copy corrected twice: first to drop a non-enforced "Excise-authoritative, not police" distinction and stop describing adjacency as district-wide, then again to stop overclaiming server-side rejection — the portal has no state-wide Thana-to-district master list (§2.7 Pre-Campaign Blockers item 3), so the actual check is the Verify page flagging (not blocking) any adjacent-Thana name not already present in that district's own uploaded data.
 
 **Exit criterion:** A DEO never sees an unexplained freeze during a mutating action, has a documented path to recover from a locking mistake, and can fill the Excel template correctly without needing to understand the underlying data model.
+
+---
+
+### M-17: CUG Login, API Error Handling & Atomicity Hardening ✅ Complete
+
+**Objective:** Add a login path that doesn't depend on Resend's unverified sending domain, and close gaps found in an audit for unhandled-error responses and non-atomic multi-writes.
+
+**Deliverables:**
+
+- [x] `auth_users.deo_cug_hash` column added (migration `0002_add_deo_cug_hash.sql`, unique, nullable) — SHA-256 of a DEO's 10-digit department CUG mobile number, hashed client-side (`apps/web/src/lib/crypto-client.ts`) so the raw number never reaches the server.
+- [x] `POST /api/auth/verify-cug` — looks up the hash, creates the same session as the magic-link path, audit-logs `login_cug`. `/login` (`app/login/_components/LoginForm.tsx`) gained an Email/CUG toggle.
+- [x] `scripts/seed-deo-accounts.ts` — parses department contact sheets (`scripts/data/deo-contact.csv`, `deo-emails.csv`; raw PII, gitignored, never committed), maps Hindi district designations to English `districts.name`, hashes CUG + email, and upserts `auth_users` + `districts`. Seeded 74 of 75 real DEO accounts into prod D1; Bhadohi's designation string uses a deprecated pre-renaming district name with no mapping entry, skipped by design. DEO names stored as an English placeholder (`"<District> DEO"`) since the source names are Hindi and §2.9/CLAUDE.md's Data Language rule requires English-only stored data.
+- [x] `apps/web/src/lib/with-error-handling.ts` (`withErrorHandling`) added and applied to all 25 non-trivial API routes (all but `/api/healthz`) — an unhandled exception now returns this app's `{ error }` JSON 500 instead of Next's default non-JSON error page, which previously broke every client-side `res.json()` caller on an unexpected failure.
+- [x] Atomicity audit across all API routes found one gap: `bulk-provision`'s per-row `districts` insert and `auth_users` insert were two separate `await`s — a partial failure could leave them inconsistent. Wrapped in `db.transaction`. Every other multi-write route already used `db.batch()` correctly.
+
+**Exit criterion:** A DEO can log in even if magic-link email delivery is unavailable; any unhandled server error returns a parseable JSON response instead of breaking the client; no route performs two related writes outside a single atomic operation.
 
 ---
 

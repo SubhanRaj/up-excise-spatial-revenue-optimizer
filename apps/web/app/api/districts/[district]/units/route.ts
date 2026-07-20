@@ -4,12 +4,11 @@ import { drizzle } from 'drizzle-orm/d1';
 import { eq } from 'drizzle-orm';
 import { getSession } from '@/lib/auth';
 import { districtCirclesSectors, auditLog } from '@excise/schema';
+import { withErrorHandling } from '@/lib/with-error-handling';
 
+type Ctx = { params: Promise<{ district: string }> };
 
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: Promise<{ district: string }> },
-) {
+async function GET_(_req: NextRequest, { params }: Ctx): Promise<NextResponse> {
   const user = await getSession();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -24,13 +23,12 @@ export async function GET(
   return NextResponse.json(rows);
 }
 
+export const GET = withErrorHandling('districts/[district]/units:GET', GET_);
+
 // Bulk, one-shot creation — the ONLY way to register circles/sectors. Once a district
 // has any unit row, this rejects: the DEO submits the full list once, then it's locked.
 // ponytail: "locked" derived from existence of rows, no separate flag/migration needed.
-export async function POST(
-  req: NextRequest,
-  { params }: { params: Promise<{ district: string }> },
-) {
+async function POST_(req: NextRequest, { params }: Ctx): Promise<NextResponse> {
   const user = await getSession();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -84,12 +82,11 @@ export async function POST(
   return NextResponse.json({ ok: true, count: unitInserts.length });
 }
 
+export const POST = withErrorHandling('districts/[district]/units:POST', POST_);
+
 // Admin-only escape hatch — the DEO has no edit/delete path for units by design (see POST
 // above), so a wrong name requires an admin to unlock the district's circles/sectors here.
-export async function DELETE(
-  req: NextRequest,
-  { params }: { params: Promise<{ district: string }> },
-) {
+async function DELETE_(req: NextRequest, { params }: Ctx): Promise<NextResponse> {
   const user = await getSession();
   if (!user || !['admin', 'superadmin'].includes(user.role)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
@@ -114,3 +111,5 @@ export async function DELETE(
 
   return NextResponse.json({ ok: true });
 }
+
+export const DELETE = withErrorHandling('districts/[district]/units:DELETE', DELETE_);

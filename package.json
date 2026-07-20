@@ -11,7 +11,8 @@
     "test:e2e": "pnpm --filter web test:e2e",
     "lint": "pnpm -r lint",
     "seed:demo": "tsx scripts/seed-demo.ts",
-    "seed:districts": "tsx scripts/seed-districts.ts"
+    "seed:districts": "tsx scripts/seed-districts.ts",
+    "seed:deo-accounts": "tsx scripts/seed-deo-accounts.ts"
   },
   "devDependencies": {
     "@faker-js/faker": "^10.5.0",

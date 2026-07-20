@@ -4,11 +4,11 @@ import { drizzle } from 'drizzle-orm/d1';
 import { eq, count, sum } from 'drizzle-orm';
 import { getSession, sha256hex } from '@/lib/auth';
 import { districts, districtCirclesSectors, phase1RawCollection, authUsers } from '@excise/schema';
+import { withErrorHandling } from '@/lib/with-error-handling';
 
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: Promise<{ district: string }> },
-) {
+type Ctx = { params: Promise<{ district: string }> };
+
+async function GET_(_req: NextRequest, { params }: Ctx): Promise<NextResponse> {
   const user = await getSession();
   if (!user || !['admin', 'superadmin'].includes(user.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
@@ -26,6 +26,8 @@ export async function GET(
   if (!meta) return NextResponse.json({ error: 'District not found' }, { status: 404 });
   return NextResponse.json({ ...meta, units, vendCount: agg?.vendCount ?? 0, totalRevenue: Number(agg?.totalRevenue ?? 0) });
 }
+
+export const GET = withErrorHandling('admin/districts/[district]:GET', GET_);
 
 interface DistrictPatchBody {
   division?: string; deoName?: string; deoEmail?: string; deoId?: string;
@@ -52,10 +54,7 @@ function normalizeNumber(value: unknown): number | null | undefined {
 
 // District Master inline edit — minor corrections (division, DEO assignment, expected
 // vend count, bbox). Bulk Excel provisioning remains the path for initial campaign setup.
-export async function PATCH(
-  req: NextRequest,
-  { params }: { params: Promise<{ district: string }> },
-) {
+async function PATCH_(req: NextRequest, { params }: Ctx): Promise<NextResponse> {
   const user = await getSession();
   if (!user || !['admin', 'superadmin'].includes(user.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
@@ -137,3 +136,5 @@ export async function PATCH(
 
   return NextResponse.json({ ok: true });
 }
+
+export const PATCH = withErrorHandling('admin/districts/[district]:PATCH', PATCH_);

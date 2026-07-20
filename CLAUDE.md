@@ -167,6 +167,7 @@ All API routes are Next.js Route Handlers inside the single `up-excise-spatial-r
 | `GET` | `/api/healthz` | `api/healthz/route.ts` |
 | `GET` | `/api/auth/session` | `api/auth/session/route.ts` — returns `{ deoId, role, districtName, name }` |
 | `POST` | `/api/auth/verify` | `api/auth/verify/route.ts` — verifies magic-link token, creates session, returns `{ redirect }` |
+| `POST` | `/api/auth/verify-cug` | `api/auth/verify-cug/route.ts` — alternate login: browser hashes the DEO's 10-digit CUG mobile number (SHA-256), server looks it up against `auth_users.deo_cug_hash`, creates session, returns `{ redirect }` |
 | `POST` | `/api/auth/logout` | `api/auth/logout/route.ts` |
 
 **DEO (`role: deo`):**
@@ -237,8 +238,10 @@ All API routes are same-origin Next.js Route Handlers. The browser sends the ses
 3. Client pages call `/api/auth/session` on mount → route handler verifies session cookie → returns `{ deoId, name, role, districtName }`. No token issued.
 4. Client calls all `/api/*` routes directly — session cookie authenticates automatically.
 
+**CUG-hashed login (alternate credential):** while `RESEND_FROM_EMAIL`'s domain isn't verified and magic-link delivery can't be relied on, a DEO can sign in with their department CUG mobile number instead. The `/login` page has an Email/CUG toggle; the CUG path hashes the 10-digit number client-side (`apps/web/src/lib/crypto-client.ts`, Web Crypto SHA-256 — the raw number never leaves the browser) and POSTs `{ cugHash }` to `/api/auth/verify-cug`, which looks it up against `auth_users.deo_cug_hash`, creates the same session/cookie as the magic-link path, and returns `{ redirect }`. Both login paths are equally valid and interchangeable per account — a DEO with both an email and a CUG hash on file can use either. `scripts/seed-deo-accounts.ts` populates `deo_cug_hash` (and `deoEmailHash`) for real DEOs from department contact sheets — see "DEO Account Seeding" below.
+
 **Auth tables in D1** (`packages/schema/src/auth.ts`):
-- `auth_users` — email, name, role, deoId, districtName (populated during bulk-provision)
+- `auth_users` — email hash, name, role, deoId, districtName (populated during bulk-provision or `seed-deo-accounts.ts`), `deoCugHash` (SHA-256 of CUG mobile number, unique, nullable — alternate login credential)
 - `auth_magic_links` — tokenHash, expiresAt, used flag
 - `auth_sessions` — id=sha256(rawId), userId, expiresAt (24h)
 
@@ -422,6 +425,10 @@ Do not fetch `/api/auth/session` directly from page components — always go thr
 - Never leave two related writes as separate `await` calls — if the second fails, the first cannot be rolled back and the database is left inconsistent.
 - External I/O (Resend email calls in bulk-provision) cannot participate in a D1 transaction. Write DB state first, then send emails; on email failure, log the error in the result but do not roll back the already-committed DB row.
 
+### API Error Handling — `withErrorHandling`
+
+Every API route handler (except the trivial `/api/healthz` liveness check) is exported wrapped in `withErrorHandling(routeName, handler)` from `apps/web/src/lib/with-error-handling.ts`. Pattern: rename the handler function to `GET_`/`POST_`/etc. (unexported), then `export const GET = withErrorHandling('route:GET', GET_);` at the bottom of the file. This only catches what nothing anticipated — a D1 blip, an unhandled exception — and returns it as this app's own `{ error: string }` JSON 500 instead of letting it bubble to Next's default (non-JSON) error response, which breaks every client-side `res.json()` caller. It does **not** replace a route's own validation/expected-error responses (400/401/403/404/409) — those remain ordinary early `return`s inside the handler. New routes must follow this pattern.
+
 ### Cloudflare Free Tier
 - The Worker must never perform CPU-heavy work. Excel parsing, DMS-to-DD conversion, and revenue calculation all happen **in the browser**.
 - Batch inserts use `db.batch()`. Never issue individual `INSERT` calls in a loop.
@@ -505,8 +512,8 @@ The canonical schema is split across two files in `packages/schema/src/`:
 - `district_circles_sectors` — circles/sectors per district (Section 5.4)
 - `audit_log` — 45-day rolling event log (Section 5.5)
 
-**`auth.ts`** — auth tables (all 7 tables, including these, live in the single consolidated `migrations/0001_initial.sql`):
-- `auth_users` — email, name, role ('deo'|'admin'), deoId, districtName
+**`auth.ts`** — auth tables (all 7 tables live in `migrations/0001_initial.sql`; `deoCugHash` was added afterward in `migrations/0002_add_deo_cug_hash.sql`):
+- `auth_users` — email hash, name, role ('deo'|'admin'), deoId, districtName, deoCugHash (SHA-256 of CUG mobile number, nullable — alternate login credential)
 - `auth_magic_links` — tokenHash, expiresAt, used flag, rate-limit support
 - `auth_sessions` — id=sha256(rawId), userId FK, expiresAt (24h)
 
@@ -533,6 +540,11 @@ wrangler d1 migrations apply up-excise-spatial-revenue-optimizer-prod
 # Seed the districts master table (all 75 UP districts + 18 divisions + bbox; re-run if
 # the GeoJSON or division mapping ever changes — safe to re-run, upserts by district name)
 pnpm seed:districts
+
+# Seed real DEO accounts (email hash + CUG hash) from department contact sheets.
+# Source CSVs (scripts/data/deo-contact.csv, deo-emails.csv) contain raw PII — gitignored,
+# never committed. Idempotent upsert by email hash. See "CUG-hashed login" above.
+pnpm seed:deo-accounts
 
 # Run unit tests
 pnpm test
@@ -581,6 +593,7 @@ Track which milestone is currently active. Update this table as milestones are c
 | M-14: Single-Library Spreadsheet Rewrite | **Completed** | Replaced SheetJS + hand-patched JSZip XML with ExcelJS as the one spreadsheet library for the entire app (CDN global `window.ExcelJS`, `apps/web/src/lib/excel.ts`) — fixes the corrupted DEO Excel template (missing workbook-level `_xlnm.Print_Titles` defined name from the old XML patch) and removes the SheetJS/ExcelJS duplication. Every generated/exported workbook (`generateTemplate`, `generateProvisionTemplate`, `exportRowsToXlsx`) now gets landscape orientation, fit-to-width printing, a header row repeated on every printed page, frozen header panes, and wrapped cell text. Added shared `readWorkbookRows`/`rowsFromSheet` helpers for reading uploads (DEO district file, admin bulk-provision file). Removed `xlsx` and `jszip` from the CDN stack, Service Worker precache list, and dependencies. |
 | M-15: Foolproof Gated DEO Workflow | **Completed** | Rebuilt the DEO portal around a strict, one-step-at-a-time flow so a first-time DEO cannot get lost: `POST /api/districts/[district]/units` is now bulk-only (`{ circles, sectors }`) and rejects with 409 once any unit row exists for the district — the lock is derived from row existence, no schema change. `/units` is a 2-step wizard (enter counts → fill pre-generated name boxes → SweetAlert2-confirmed one-shot submit) replacing the old add-one-at-a-time form. `/home` and the DEO nav bar (`app/(deo)/layout.tsx`) no longer show Upload/Verify at all until units are locked (previously shown greyed-out/disabled). Added a SweetAlert2 confirmation before the final `/verify` district submission. Added Hindi subtitles to DEO portal page titles/step headings (bilingual, DEO-portal-only — admin stays English-only). Darkened `--color-base-content`/`--color-base-300` and deepened primary/secondary/accent in the light theme (`app/layout.tsx`) for stronger contrast. |
 | M-16: DEO Portal Polish & Bilingual Excel Template Overhaul | **Completed** | `HelpPanel` (`app/_components/HelpPanel.tsx`) gained optional `titleHi`/`childrenHi` props with an English/हिन्दी tab, shown only when Hindi content is supplied — all four DEO help panels (home, units, upload, verify) fully translated; all seven admin help panels untouched (English-only by design). `/units` circle/sector submission now shows a blocking "Locking circles & sectors…" loader overlay instead of freezing silently; the locked view tells the DEO to contact Admin/HQ for corrections. Added `DELETE /api/districts/[district]/units` (admin/superadmin only, audit-logged as `units_unlocked`) and an "Unlock Circles/Sectors" action on the admin district detail page — the actual recovery path for DEO mistakes. DEO Excel template (`apps/web/src/lib/excel.ts`) header row replaced raw snake_case DB column names (`basic_license_fee_blf`) with bilingual human-readable labels; parsing switched from header-text matching to fixed column-position mapping (`rowsFromSheetByPosition`) so the visible label is fully decoupled from field identity. Added per-cell Excel data validation gating every financial column to the shop types it applies to per the Revenue Formulas table (e.g. `basic_license_fee_blf` only accepts input when `shop_type = COUNTRY_LIQUOR`) — enforced by Excel itself, not just the Worker on upload. The Shop Type dropdown itself shows friendly labels ("Model Shop", "Country Liquor"...) instead of the raw `MODEL_SHOP`/`COUNTRY_LIQUOR` enum constants — `parseExcelFile` maps the friendly label back to the exact enum string via a reverse lookup (`SHOP_TYPE_REVERSE`) before it reaches `StagedRow`/the Worker, so the backend enum contract in "Shop Type Enum" is unchanged. `has_cl5cc` is now gated the same way as the financial fields — Excel rejects `true` unless that row's Shop Type is Country Liquor, matching the "CL5CC Rule". "Reference Data" sheet hidden (`ws.state = 'hidden'`) rather than removed — it still feeds the circle/sector dropdown's list-validation range, which Excel requires to live in an actual cell range, but is no longer a visible redundant tab — and sheet-protected read-only (`ws.protect('', {...})`, no password — a guardrail, not a security boundary) so it can't be accidentally edited even if unhidden, since it's rebuilt fresh from the live units list on every download. Instructions sheet fully translated to Hindi; Thana Name and Adjacent Thanas Instructions copy corrected twice — first to stop claiming a non-enforced "Excise-authoritative, not police" distinction and to stop describing adjacency as district-wide, then again to stop overclaiming enforcement: the portal has no state-wide Thana-to-district master list (Pre-Campaign Blocker #3), so the actual check is client-side only — the Verify page (`app/(deo)/verify/page.tsx`) flags an adjacent-Thana name red if it isn't already present in that district's own uploaded `thanaName` values; nothing is server-rejected or blocked from submission. |
+| M-17: CUG Login, API Error Handling & Atomicity Hardening | **Completed** | Added `deo_cug_hash` column to `auth_users` (migration `0002_add_deo_cug_hash.sql`) and a `POST /api/auth/verify-cug` route so a DEO can sign in with their department CUG mobile number (hashed client-side, SHA-256, never sent raw) as an alternate to magic-link email — unblocks login while `RESEND_FROM_EMAIL`'s domain isn't verified. `/login` gained an Email/CUG toggle (`app/login/_components/LoginForm.tsx`). `scripts/seed-deo-accounts.ts` parses department contact sheets (`scripts/data/deo-contact.csv`, `deo-emails.csv` — raw PII, gitignored, never committed) and seeded 74 of 75 real DEO accounts into prod D1 (Bhadohi's designation string uses a deprecated pre-renaming district name with no mapping entry — skipped by design, provisionable later via the admin District Master page). Added `apps/web/src/lib/with-error-handling.ts` (`withErrorHandling` wrapper — see "API Error Handling" below) and applied it to all 25 non-trivial API routes, so an unhandled exception now returns this app's own `{ error }` JSON 500 instead of Next's default non-JSON error response. Fixed the one atomicity gap found across all routes: `bulk-provision`'s per-row `districts` insert + `auth_users` insert were two separate `await`s (a partial failure could leave them inconsistent) — now wrapped in `db.transaction`. |
 
 See [roadmap.md Section 6](roadmap.md#6-development-milestones--action-plan) for full milestone specs, entry/exit criteria, and deliverable checklists.
 
@@ -590,11 +603,11 @@ See [roadmap.md Section 6](roadmap.md#6-development-milestones--action-plan) for
 
 The following are unresolved department-side decisions that block specific milestones. Do not implement the affected features until these are resolved.
 
-1. **DEO email addresses** — All 75 DEO department emails must be provided before accounts can be provisioned via `POST /api/admin/bulk-provision`.
+1. **DEO email addresses** — Resolved for 74 of 75 districts via `scripts/seed-deo-accounts.ts` (department contact sheets). Bhadohi's designation string uses a deprecated pre-renaming district name with no mapping entry — provision it manually via the admin District Master page.
 2. **Excel template column layout** — column mapping cannot be built until column names and order are locked.
 3. **Thana master list** — blocks the adjacent Thana cross-district filter (best-effort; proceed with runtime check if unavailable).
 4. **Shop count estimates per district** — blocks dashboard "X of Y uploaded" progress metrics.
-5. **DEO credential and identifier assignment** — blocks the upload campaign. Provisioning sends magic-link emails to DEO addresses. DEOs must also complete circle/sector pre-registration before distributing templates to Inspectors.
+5. **DEO credential and identifier assignment** — `deoId` now auto-assigned as `DEO-<DISTRICT-NAME>` by `seed-deo-accounts.ts` for the 74 seeded districts. DEO *names* are still English placeholders (`"<District> DEO"`) — the source contact sheet's names are in Hindi, which this project's Data Language rule forbids storing; correct real names via the admin District Master page. Provisioning still sends magic-link emails to DEO addresses (or DEOs can sign in with their CUG number — see "CUG-hashed login"). DEOs must also complete circle/sector pre-registration before distributing templates to Inspectors.
 6. **Circle/sector naming convention** — DEOs need a consistent naming standard so pre-registered unit names are clean and unambiguous across all 75 districts.
 7. **Upsert vs. versioning decision** — blocks M-4. If a DEO re-uploads a district, does the system overwrite or version the records?
 8. **Custom email domain** — Resend initially sends from `onboarding@resend.dev`. Switch `RESEND_FROM_EMAIL` to a verified custom domain (e.g. `noreply@up-excise.in`) before campaign launch for deliverability.

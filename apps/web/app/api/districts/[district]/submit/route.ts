@@ -4,12 +4,13 @@ import { drizzle } from 'drizzle-orm/d1';
 import { eq } from 'drizzle-orm';
 import { getSession } from '@/lib/auth';
 import { districts, districtCirclesSectors, phase1RawCollection, auditLog } from '@excise/schema';
+import { withErrorHandling } from '@/lib/with-error-handling';
 
 
-export async function POST(
+async function POST_(
   req: NextRequest,
   { params }: { params: Promise<{ district: string }> },
-) {
+): Promise<NextResponse> {
   const user = await getSession();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -47,3 +48,5 @@ export async function POST(
 
   return NextResponse.json({ ok: true, submittedAt: now.toISOString() });
 }
+
+export const POST = withErrorHandling('districts/[district]/submit:POST', POST_);

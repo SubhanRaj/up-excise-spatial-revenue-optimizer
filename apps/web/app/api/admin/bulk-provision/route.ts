@@ -3,6 +3,7 @@ import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { drizzle } from 'drizzle-orm/d1';
 import { getSession, sha256hex } from '@/lib/auth';
 import { districts, authUsers } from '@excise/schema';
+import { withErrorHandling } from '@/lib/with-error-handling';
 
 
 interface ProvisionRow {
@@ -11,7 +12,7 @@ interface ProvisionRow {
   bboxMinLat?: number; bboxMaxLat?: number; bboxMinLon?: number; bboxMaxLon?: number;
 }
 
-export async function POST(req: NextRequest) {
+async function POST_(req: NextRequest): Promise<NextResponse> {
   const user = await getSession();
   if (!user || !['admin', 'superadmin'].includes(user.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
@@ -25,27 +26,31 @@ export async function POST(req: NextRequest) {
     try {
       const emailHashStr = await sha256hex(row.deoEmail);
 
-      await db.insert(districts).values({
-        name: row.districtName, division: row.division, deoName: row.deoName,
-        deoEmailHash: emailHashStr, deoId: row.deoId, expectedVendCount: row.expectedVendCount,
-        bboxMinLat: row.bboxMinLat ?? null, bboxMaxLat: row.bboxMaxLat ?? null,
-        bboxMinLon: row.bboxMinLon ?? null, bboxMaxLon: row.bboxMaxLon ?? null,
-        status: 'pending', createdAt: now,
-      }).onConflictDoUpdate({
-        target: districts.name,
-        set: {
-          division: row.division, deoName: row.deoName, deoEmailHash: emailHashStr,
-          deoId: row.deoId, expectedVendCount: row.expectedVendCount,
+      // district row + auth_users row must land together — see CLAUDE.md's
+      // "Database Writes — Always Atomic" rule.
+      await db.transaction(async (tx) => {
+        await tx.insert(districts).values({
+          name: row.districtName, division: row.division, deoName: row.deoName,
+          deoEmailHash: emailHashStr, deoId: row.deoId, expectedVendCount: row.expectedVendCount,
           bboxMinLat: row.bboxMinLat ?? null, bboxMaxLat: row.bboxMaxLat ?? null,
           bboxMinLon: row.bboxMinLon ?? null, bboxMaxLon: row.bboxMaxLon ?? null,
-        },
-      });
-      await db.insert(authUsers).values({
-        emailHash: emailHashStr, name: row.deoName, role: 'deo',
-        deoId: row.deoId, districtName: row.districtName,
-      }).onConflictDoUpdate({
-        target: authUsers.emailHash,
-        set: { name: row.deoName, deoId: row.deoId, districtName: row.districtName },
+          status: 'pending', createdAt: now,
+        }).onConflictDoUpdate({
+          target: districts.name,
+          set: {
+            division: row.division, deoName: row.deoName, deoEmailHash: emailHashStr,
+            deoId: row.deoId, expectedVendCount: row.expectedVendCount,
+            bboxMinLat: row.bboxMinLat ?? null, bboxMaxLat: row.bboxMaxLat ?? null,
+            bboxMinLon: row.bboxMinLon ?? null, bboxMaxLon: row.bboxMaxLon ?? null,
+          },
+        });
+        await tx.insert(authUsers).values({
+          emailHash: emailHashStr, name: row.deoName, role: 'deo',
+          deoId: row.deoId, districtName: row.districtName,
+        }).onConflictDoUpdate({
+          target: authUsers.emailHash,
+          set: { name: row.deoName, deoId: row.deoId, districtName: row.districtName },
+        });
       });
       results.push({ email: row.deoEmail, status: 'provisioned' });
     } catch (err) {
@@ -54,3 +59,5 @@ export async function POST(req: NextRequest) {
   }
   return NextResponse.json({ results });
 }
+
+export const POST = withErrorHandling('admin/bulk-provision:POST', POST_);

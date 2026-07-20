@@ -91,6 +91,7 @@ npx wrangler d1 migrations apply up-excise-spatial-revenue-optimizer-prod --remo
 
 Applied migrations:
 - `0001_initial.sql` — single consolidated migration: phase1_raw_collection, districts, district_circles_sectors, audit_log, auth_users, auth_magic_links, auth_sessions (all 7 tables, matches `packages/schema` exactly)
+- `0002_add_deo_cug_hash.sql` — adds `auth_users.deo_cug_hash` (unique, nullable) for CUG-number login as an alternate to magic-link email
 
 Note: wrangler tracks applied migrations by **filename**, not content. If `0001_initial.sql` is ever edited in place again (rather than adding a new numbered file), `migrations apply` will report "No migrations to apply!" even though the SQL changed — force-apply with `npx wrangler d1 execute up-excise-spatial-revenue-optimizer-prod --remote --file=migrations/0001_initial.sql` instead.
 
@@ -98,6 +99,12 @@ After migrating, seed the district reference data (idempotent, safe to re-run):
 ```bash
 pnpm seed:districts   # all 75 districts + 18 divisions + bbox, from up-districts.geojson
 ```
+
+Then seed real DEO accounts (idempotent, upserts by email hash):
+```bash
+pnpm seed:deo-accounts   # email hash + CUG hash, from scripts/data/deo-contact.csv + deo-emails.csv
+```
+Source CSVs contain raw PII (mobile numbers, emails) — they're gitignored and must be placed at `scripts/data/deo-contact.csv` / `deo-emails.csv` locally before running; never commit them. The script hashes both fields before any D1 write (per SECURITY.md's Zero-Knowledge PII rule) and skips any district missing either a valid CUG or an email. DEO *names* are written as an English placeholder (`"<District> DEO"`) since the source sheet's names are in Hindi and this project's Data Language rule requires English-only stored data — correct real names via the admin District Master page (`/admin/provision`).
 
 ---
 
@@ -123,7 +130,9 @@ pnpm exec opennextjs-cloudflare deploy
 |---|---|---|
 | `shubhanraj2002@gmail.com` | `admin` + superadmin bypass | Single owner account — accesses both `/admin` and all DEO pages (`/home`, `/upload`, `/verify`, `/units`). `deo_id = DEO-DEMO-001`, `district_name = Demo District` stored in DB so the DEO portal is fully functional under the superadmin bypass. |
 
-> **One email, full access.** There is no separate DEO account. The `SUPERADMIN_EMAIL_HASH` worker secret identifies this email and grants elevated access automatically on every login.
+> **One admin email, full access.** The `SUPERADMIN_EMAIL_HASH` worker secret identifies the owner's email and grants elevated access automatically on every login.
+
+**Real DEO accounts:** 74 of 75 districts have a real DEO account (`role = 'deo'`) seeded via `pnpm seed:deo-accounts` — see "D1 Migrations" above. Each can sign in via magic-link email or CUG number (see README's Authentication & PII Hashing section). Bhadohi is unprovisioned (deprecated designation string in the source contact sheet) — provision it manually via the District Master page.
 
 **Provision a real DEO** (via admin UI or direct D1 insert):
 ```sql

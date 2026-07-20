@@ -4,12 +4,13 @@ import { drizzle } from 'drizzle-orm/d1';
 import { eq, asc } from 'drizzle-orm';
 import { getSession } from '@/lib/auth';
 import { phase1RawCollection } from '@excise/schema';
+import { withErrorHandling } from '@/lib/with-error-handling';
 
 
-export async function GET(
+async function GET_(
   _req: NextRequest,
   { params }: { params: Promise<{ district: string }> },
-) {
+): Promise<NextResponse> {
   const user = await getSession();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -24,3 +25,5 @@ export async function GET(
     .all();
   return NextResponse.json({ rows });
 }
+
+export const GET = withErrorHandling('districts/[district]/shops:GET', GET_);
