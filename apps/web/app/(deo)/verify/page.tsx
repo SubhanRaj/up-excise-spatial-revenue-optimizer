@@ -33,12 +33,18 @@ function PillList({ raw, districtThanas, onChange, readOnly = false }: {
   return (
     <div className="flex flex-wrap gap-1" role="group" aria-label="Adjacent Thanas">
       {pills.map((p) => {
-        const isCross = !districtThanas.has(p);
+        // Not a real cross-district check — there is no state-wide Thana master list, and
+        // districtThanas is built only from this DEO's own district's own rows (staged or
+        // uploaded), never other districts' or other DEOs' data. A red pill just means this
+        // name doesn't (yet) appear as a Thana elsewhere in this district's own upload —
+        // usually a typo, but could also be a real Thana this dataset has no shop for. Purely
+        // informational: it does not block submission (see canSubmit below).
+        const unrecognized = !districtThanas.has(p);
         return (
           <span
             key={p}
-            className={`badge gap-1 ${isCross ? 'badge-error' : 'badge-outline'}`}
-            title={isCross ? 'Cross-district adjacency — must be removed' : p}
+            className={`badge gap-1 ${unrecognized ? 'badge-error' : 'badge-outline'}`}
+            title={unrecognized ? "Not found elsewhere in this district's own Thana data — check spelling, or confirm it belongs here" : p}
           >
             {p}
             {!readOnly && (
@@ -159,7 +165,10 @@ export default function VerifyPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [district, unitsReady]);
 
-  // All Thana names within this district's staged data — used for cross-district pill check
+  // All Thana names within THIS district's own data (staged or uploaded) — feeds the Adjacent
+  // Thana pill check in PillList above. Self-referential to one district's one dataset only;
+  // not a cross-district or state-wide check (no Thana master list exists — see CLAUDE.md
+  // Pre-Campaign Blocker #3).
   const districtThanas = useMemo(() => new Set((viewMode === 'uploaded' ? uploadedRows : rows).map((r) => r.thanaName)), [rows, uploadedRows, viewMode]);
 
   const visibleRows = viewMode === 'uploaded' ? uploadedRows : rows;
@@ -314,7 +323,7 @@ export default function VerifyPage() {
               <p><strong>Unit tabs</strong> — circles/sectors के बीच स्विच करने के लिए किसी unit card पर क्लिक करें। हर card दिखाता है कि कितनी rows अपलोड हो चुकी हैं। सबमिशन की अनुमति देने से पहले सभी units में कम से कम एक row होनी चाहिए।</p>
               <p><strong>Workflow gate</strong> — जब तक कम से कम एक circle या sector मौजूद न हो, district डेटा अपलोड करना लॉक रहता है। पहले units बनाएं, फिर अपलोड करें, फिर verify करें।</p>
               <p><strong>View mode</strong> — <em>Staged Data</em> (आपकी local upload queue) और <em>Uploaded Data</em> (D1 से लोड की गई read-only district rows) के बीच स्विच करें। यदि अभी तक locally कुछ भी staged नहीं है, तो Demo DEO डेटा uploaded view में दिखाई देगा।</p>
-              <p><strong>Adjacent Thana pills</strong> — &quot;Adjacent Thanas&quot; column में Thana के नाम pills के रूप में दिखाए जाते हैं। <span className="text-error font-semibold">लाल pills</span> cross-district adjacency दर्शाते हैं — row सबमिट करने से पहले इन्हें हटाना (× पर क्लिक करके) ज़रूरी है। same-district Thanas outlined pills के रूप में दिखते हैं।</p>
+              <p><strong>Adjacent Thana pills</strong> — &quot;Adjacent Thanas&quot; कॉलम में Thana के नाम pills के रूप में दिखाए जाते हैं। <span className="text-error font-semibold">लाल pills</span> का मतलब है कि यह नाम अभी तक इस district के अपने डेटा में कहीं और Thana के रूप में मौजूद नहीं है — आमतौर पर यह टाइपो होता है, लेकिन यह किसी वास्तविक Thana का नाम भी हो सकता है जिसकी कोई दुकान अभी अपलोड नहीं हुई। स्पेलिंग जांच लें; लाल pill होने से सबमिशन नहीं रुकता, और जांचने के लिए कोई राज्य-स्तरीय Thana मास्टर लिस्ट भी मौजूद नहीं है। जैसे ही वह नाम district के डेटा में कहीं आता है, pill अपने आप outlined हो जाती है।</p>
               <p><strong>Coordinates</strong> — <span className="text-warning">⚠ warning icon</span> का मतलब है coordinate UP bounding box के बाहर है। <span className="text-success">✓ icon</span> का मतलब valid है। सबमिट करने से पहले warnings की समीक्षा करें — इन्हें block नहीं किया जाता, लेकिन जांचना चाहिए।</p>
               <p><strong>Revenue column</strong> — financial fields से अपने-आप calculate होता है। अगर कोई value गलत लगे, तो Excel फ़ाइल में वापस जाकर सही version दोबारा अपलोड करें।</p>
               <p><strong>Submit District</strong> — यह बटन तभी सक्रिय होता है जब सभी registered units में बिना किसी error वाली कम से कम एक row हो। इस पर क्लिक करने से सभी pending rows अपलोड हो जाती हैं और district headquarters को सबमिट के रूप में मार्क हो जाता है।</p>
@@ -323,7 +332,7 @@ export default function VerifyPage() {
             <p><strong>Unit tabs</strong> — Click a unit card to switch between circles/sectors. Each card shows how many rows have been uploaded. All units must have at least one row before submission is allowed.</p>
             <p><strong>Workflow gate</strong> — Uploading district data is locked until at least one circle or sector exists. Create units first, then upload, then verify.</p>
             <p><strong>View mode</strong> — Switch between <em>Staged Data</em> (your local upload queue) and <em>Uploaded Data</em> (read-only district rows loaded from D1). Demo DEO data appears in the uploaded view if nothing has been staged locally yet.</p>
-            <p><strong>Adjacent Thana pills</strong> — Thana names in the &quot;Adjacent Thanas&quot; column are shown as pills. <span className="text-error font-semibold">Red pills</span> indicate cross-district adjacency — these must be removed (click ×) before the row can be submitted. Same-district Thanas show as outlined pills.</p>
+            <p><strong>Adjacent Thana pills</strong> — Thana names in the &quot;Adjacent Thanas&quot; column are shown as pills. <span className="text-error font-semibold">Red pills</span> mean that name doesn&apos;t (yet) appear as a Thana elsewhere in this district&apos;s own data — usually a typo, but it could also be a real Thana with no shop uploaded here. Double-check the spelling; a red pill does not block submission, and there is no state-wide Thana master list to check against. Once the name appears somewhere in this district&apos;s data, its pill turns outlined automatically.</p>
             <p><strong>Coordinates</strong> — A <span className="text-warning">⚠ warning icon</span> means the coordinate is outside the UP bounding box. A <span className="text-success">✓ icon</span> means valid. Review warnings before submitting — they are not blocked, but should be verified.</p>
             <p><strong>Revenue column</strong> — Calculated automatically from the financial fields. If a value looks wrong, go back to the Excel file and re-upload a corrected version.</p>
             <p><strong>Submit District</strong> — The button activates only when all registered units have at least one row with no errors. Clicking it uploads all pending rows and marks the district as submitted to headquarters.</p>

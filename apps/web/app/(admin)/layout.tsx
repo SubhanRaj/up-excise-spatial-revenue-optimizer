@@ -222,7 +222,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
         <SearchBar />
 
-        <div className="flex-none gap-1">
+        <div className="flex-none flex items-center flex-wrap justify-end gap-1">
           <Link href="/admin" className={`btn btn-ghost btn-sm ${pathname === '/admin' ? 'btn-active' : ''}`}>Overview</Link>
           <Link href="/admin/districts" className={`btn btn-ghost btn-sm ${pathname.startsWith('/admin/districts') ? 'btn-active' : ''}`}>Districts</Link>
           <Link href="/admin/divisions" className={`btn btn-ghost btn-sm ${pathname.startsWith('/admin/divisions') ? 'btn-active' : ''}`}>Divisions</Link>

@@ -121,8 +121,8 @@ up-excise-spatial-revenue-optimizer/
 Strictly gated, one step at a time — nothing is shown before its prerequisite is met, and nothing is left to the DEO's memory of "the right order."
 
 1. **Circles & Sectors (`/units`)** — the only thing a new DEO can do. Enter how many circles and how many sectors the district has, fill in the pre-generated name boxes, confirm via a SweetAlert2 dialog, submit once. This locks permanently (enforced server-side — a district that already has any unit row rejects further registration).
-2. **Upload (`/upload`)** — unlocks automatically once circles/sectors are locked; download the district template, consolidate Inspector sections, upload the single `.xlsx` file.
-3. **Verify & Submit (`/verify`)** — review staged rows, fix flagged adjacent-Thana pills, then submit to headquarters behind a final SweetAlert2 confirmation.
+2. **Upload (`/upload`)** — unlocks automatically once circles/sectors are locked; download the district template (3 sheets: Data Entry with a locked, tooltip-annotated header row; Instructions; a hidden Reference Data sheet feeding the circle/sector dropdown), consolidate Inspector sections, upload the single `.xlsx` file.
+3. **Verify & Submit (`/verify`)** — review staged rows (a red adjacent-Thana pill is a same-district typo hint, not a hard block — see "Adjacent Thana Cross-District Rule" in CLAUDE.md), then submit to headquarters behind a final SweetAlert2 confirmation.
 
 Upload and Verify are not rendered — not merely disabled — until circles/sectors are locked, on both `/home` and the DEO nav bar. Page titles and step headings carry a Hindi subtitle; underlying data stays English-only.
 

@@ -47,7 +47,7 @@ export default function DeoLayout({ children }: { children: React.ReactNode }) {
             </div>
           </Link>
         </div>
-        <div className="flex-none gap-1">
+        <div className="flex-none flex items-center flex-wrap justify-end gap-1">
           <Link href="/home" className={`btn btn-ghost btn-sm ${pathname === '/home' ? 'btn-active' : ''}`}>Dashboard</Link>
           <Link href="/units" className={`btn btn-ghost btn-sm ${pathname === '/units' ? 'btn-active' : ''}`}>Circles</Link>
 

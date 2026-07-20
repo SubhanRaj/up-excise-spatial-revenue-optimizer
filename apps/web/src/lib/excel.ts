@@ -92,6 +92,10 @@ function styleHeaderRow(ws: ExcelJSNamespace.Worksheet, rowNum: number) {
     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E3A5F' } };
     cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
     cell.border = { bottom: { style: 'thin' } };
+    // Explicit lock — must be set on the cell itself, after any column-level unlock, or
+    // ExcelJS's Column._applyStyle overwrites it (see buildShopDataSheet's column-protection
+    // ordering note). A no-op on sheets that never call ws.protect().
+    cell.protection = { locked: true };
   });
   row.height = 28;
 }
@@ -260,7 +264,7 @@ const TEMPLATE_HEADERS = [
 const FRIENDLY_LABELS: Record<string, string> = {
   circle_sector_name: 'Circle / Sector Name\nसर्कल/सेक्टर का नाम',
   thana_name: 'Thana Name\nथाना नाम',
-  adjacent_thanas_raw: 'Adjacent Thanas (comma-separated)\nसंलग्न थाने (अल्पविराम से अलग)',
+  adjacent_thanas_raw: 'Adjacent Thanas — e.g. Kotwali, Hazratganj\nसंलग्न थाने — उदा. कोतवाली, हज़रतगंज',
   shop_id: 'Shop ID\nदुकान आईडी',
   shop_name: 'Shop Name\nदुकान का नाम',
   shop_type: 'Shop Type\nदुकान का प्रकार',
@@ -302,7 +306,7 @@ const COLUMN_GUIDE: unknown[][] = [
   ['Field / फ़ील्ड', 'Description / विवरण', 'Required For / किसके लिए आवश्यक', 'Notes / नोट्स'],
   [FRIENDLY_LABELS.circle_sector_name, 'Circle or sector name — must exactly match a pre-registered unit.\nसर्कल या सेक्टर का नाम — पहले से रजिस्टर्ड unit से बिल्कुल मेल खाना चाहिए।', 'All shop types / सभी प्रकार', 'Pre-registered in the portal before template download.\nटेम्पलेट डाउनलोड करने से पहले पोर्टल में रजिस्टर होता है।'],
   [FRIENDLY_LABELS.thana_name, 'Enter the Thana name.\nथाना नाम दर्ज करें।', 'All shop types / सभी प्रकार', 'English only. Free text — no master list enforced in Phase 1.\nकेवल अंग्रेज़ी में। स्वतंत्र टेक्स्ट है।'],
-  [FRIENDLY_LABELS.adjacent_thanas_raw, 'Names of Thanas adjacent to this Thana, comma-separated.\nइस थाने से सटे (adjacent) थानों के नाम, अल्पविराम (,) से अलग करके।', 'Optional / वैकल्पिक', 'Only list Thanas within this district — the portal flags any name it doesn\'t recognize from this district\'s own data.\nकेवल इसी जिले के थाने लिखें — जो नाम इस जिले के डेटा में नहीं मिलता, पोर्टल उसे हाइलाइट कर देता है।'],
+  [FRIENDLY_LABELS.adjacent_thanas_raw, 'Names of Thanas adjacent to this Thana, comma-separated. Example: Kotwali, Hazratganj\nइस थाने से सटे (adjacent) थानों के नाम, अल्पविराम (,) से अलग करके। उदाहरण: Kotwali, Hazratganj', 'Optional / वैकल्पिक', 'Only list Thanas within this district. On the Verify page, a name is highlighted red if it doesn\'t (yet) appear as a Thana elsewhere in this district\'s own uploaded data — usually a typo. This does not block submission and is not checked against any district master list.\nकेवल इसी जिले के थाने लिखें। Verify पेज पर, अगर कोई नाम अभी तक इस जिले के अपने अपलोड किए गए डेटा में कहीं और Thana के रूप में मौजूद नहीं है, तो उसे लाल रंग में हाइलाइट किया जाता है — आमतौर पर यह टाइपो होता है। इससे सबमिशन नहीं रुकता और यह किसी जिला मास्टर लिस्ट से नहीं जांचा जाता।'],
   [FRIENDLY_LABELS.shop_id, 'Department-assigned license/registration ID.\nविभाग द्वारा दिया गया लाइसेंस/पंजीकरण आईडी।', 'All shop types / सभी प्रकार', 'Alphanumeric. Must be unique within the district.\nअक्षर व अंक। जिले में अद्वितीय होना चाहिए।'],
   [FRIENDLY_LABELS.shop_name, 'Official name of the retail vend.\nदुकान का आधिकारिक नाम।', 'All shop types / सभी प्रकार', 'English only.\nकेवल अंग्रेज़ी में।'],
   [FRIENDLY_LABELS.shop_type, 'Shop classification — choose from the dropdown.\nदुकान का वर्गीकरण — dropdown से चुनें।', 'All shop types / सभी प्रकार', 'MODEL_SHOP | COMPOSITE_SHOP | PRV | BHANG_SHOP | COUNTRY_LIQUOR'],
@@ -322,15 +326,35 @@ const COLUMN_GUIDE: unknown[][] = [
   [FRIENDLY_LABELS.special_beer_mgr, 'Annual beer Minimum Guaranteed Revenue (INR).\nवार्षिक बियर न्यूनतम गारंटीड राजस्व (INR)।', 'COUNTRY_LIQUOR + CL5CC only / केवल CL5CC', 'Locked to 0 unless shop_type is COUNTRY_LIQUOR and has_cl5cc = true.\nतभी भरा जा सकता है जब shop_type COUNTRY_LIQUOR हो और has_cl5cc = true हो।'],
 ];
 
-/** Builds the "Data Entry" or "Demo Data" sheet: title row, header row, optional example rows. */
-function buildShopDataSheet(
+// Per-column hover tooltip (Excel cell "note" — small red triangle, shows on mouseover)
+// on the Data Entry header row, so a DEO doesn't have to flip to the Instructions sheet
+// for a field's rules. Derived from COLUMN_GUIDE (same row order as TEMPLATE_HEADERS) so
+// the two never drift apart — English-only, the Instructions sheet already carries Hindi.
+const HEADER_HELP: Record<string, string> = Object.fromEntries(
+  TEMPLATE_HEADERS.map((h, i) => {
+    const [, description, requiredFor, notes] = COLUMN_GUIDE[i + 1] as string[];
+    const englishOf = (s: string) => s.split('\n')[0];
+    return [h, `${englishOf(description!)}\nRequired for: ${requiredFor}\n${englishOf(notes!)}`];
+  }),
+);
+
+/** Builds the "Data Entry" sheet: title row (locked), header row (locked, with hover help), blank data rows (unlocked). */
+async function buildShopDataSheet(
   wb: ExcelJSNamespace.Workbook,
   name: string,
   titleText: string,
-  exampleRows: unknown[][],
   units: string[],
-) {
+): Promise<ExcelJSNamespace.Worksheet> {
   const ws = wb.addWorksheet(name);
+
+  // Column widths + unlock-by-default must be set BEFORE any cell in these columns gets a
+  // style (title/header below) — ExcelJS's Column.protection setter walks every cell that
+  // already exists in the column and overwrites its protection (Column._applyStyle), so
+  // setting it after styling the header would silently unlock the header too. Data rows
+  // typed in later by the DEO pick up this column default automatically — no explicit
+  // per-row loop needed (and none would be affordable at 5,000 rows × 19 columns).
+  ws.columns = TEMPLATE_HEADERS.map((h) => ({ width: Math.max(22, (FRIENDLY_LABELS[h]!.split('\n')[0]?.length ?? 16) + 2) }));
+  for (let c = 1; c <= TEMPLATE_HEADERS.length; c++) ws.getColumn(c).protection = { locked: false };
 
   ws.mergeCells(1, 1, 1, TEMPLATE_HEADERS.length);
   const titleCell = ws.getCell(1, 1);
@@ -338,20 +362,13 @@ function buildShopDataSheet(
   titleCell.font = { bold: true, size: 12, color: { argb: 'FFFFFFFF' } };
   titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F2A44' } };
   titleCell.alignment = { vertical: 'middle', horizontal: 'center' };
+  titleCell.protection = { locked: true };
   ws.getRow(1).height = 26;
 
   ws.getRow(2).values = TEMPLATE_HEADERS.map((h) => FRIENDLY_LABELS[h]!) as ExcelJSNamespace.CellValue[];
   styleHeaderRow(ws, 2);
   ws.getRow(2).height = 42; // two-line bilingual header
-
-  for (const ex of exampleRows) ws.addRow(ex);
-
-  ws.columns = TEMPLATE_HEADERS.map((h) => ({ width: Math.max(22, (FRIENDLY_LABELS[h]!.split('\n')[0]?.length ?? 16) + 2) }));
-  for (let r = 3; r <= ws.rowCount; r++) {
-    ws.getRow(r).eachCell({ includeEmpty: false }, (cell) => {
-      cell.alignment = { wrapText: true, vertical: 'top' };
-    });
-  }
+  TEMPLATE_HEADERS.forEach((h, i) => { ws.getCell(2, i + 1).note = HEADER_HELP[h]!; });
 
   applyPrintSetup(ws, 2, TEMPLATE_HEADERS.length);
   ws.pageSetup.printTitlesRow = '1:2';
@@ -406,41 +423,43 @@ function buildShopDataSheet(
     });
   }
 
+  // No password — a guardrail against accidentally overtyping a header, not a security
+  // boundary (same pattern as the Reference Data sheet below). Data cells stay unlocked via
+  // the column-level default set above, so typing/sorting/filtering data rows is unaffected.
+  await ws.protect('', {
+    selectLockedCells: true, selectUnlockedCells: true,
+    formatCells: false, formatColumns: false, formatRows: false,
+    insertRows: true, insertColumns: false, deleteRows: true, deleteColumns: false,
+    sort: true, autoFilter: true,
+  });
+
   return ws;
 }
 
 /**
  * Generates the district Excel template as a downloadable Blob.
  * Sheet 1 "Data Entry": bilingual (English/Hindi) column headers only (blank for DEO to fill).
- * Sheet 2 "Demo Data": same headers + one example row per shop type.
- * Sheet 3 "Instructions": bilingual description of every column.
- * Sheet 4 "Reference Data" (hidden): registered circle/sector units, feeds the dropdown on sheets 1-2.
+ *   Header row is locked (sheet-protected, no password) so it can't be overtyped by mistake;
+ *   every data cell stays unlocked. Each header cell also carries a hover note (Excel cell
+ *   comment) with that field's rules, sourced from COLUMN_GUIDE.
+ * Sheet 2 "Instructions": bilingual description of every column.
+ * Sheet 3 "Reference Data" (hidden): registered circle/sector units, feeds the dropdown on sheet 1.
+ *
+ * No separate "Demo Data" sheet — DEOs mistook the example rows there for a second copy of
+ * the district's own data and got confused about which sheet to actually fill in.
  *
  * Built with ExcelJS (loaded from CDN, global `ExcelJS`) instead of SheetJS's writer —
  * ExcelJS produces spec-compliant OOXML natively (freeze panes, print setup, data
  * validation) so there is no hand-edited worksheet XML that can corrupt the file.
  */
 export async function generateTemplate(districtName: string, units: string[]): Promise<Blob> {
-  const exUnit = units[0] ?? 'Circle 1';
-  const exThana = 'Kotwali';
-
-  const examples: unknown[][] = [
-    [exUnit, exThana, '', 'SHOP001', 'Example Model Liquor Store', SHOP_TYPE_LABELS.MODEL_SHOP, 'false', '', '', 100000, 0, 200000, 0, 0, 0, 0, 0, 0, 0, 0],
-    [exUnit, exThana, '', 'SHOP002', 'Example Composite Wine Shop', SHOP_TYPE_LABELS.COMPOSITE_SHOP, 'false', '', '', 0, 0, 0, 50000, 50000, 100000, 100000, 0, 0, 0, 0],
-    [exUnit, exThana, '', 'SHOP003', 'Example Premium Retail Vend', SHOP_TYPE_LABELS.PRV, 'false', '', '', 80000, 0, 150000, 0, 0, 0, 0, 0, 0, 0, 0],
-    [exUnit, exThana, '', 'SHOP004', 'Example Bhang Shop', SHOP_TYPE_LABELS.BHANG_SHOP, 'false', '', '', 20000, 0, 0, 0, 0, 0, 0, 500, 0, 0, 0],
-    [exUnit, exThana, '', 'SHOP005', 'Example Country Liquor Shop', SHOP_TYPE_LABELS.COUNTRY_LIQUOR, 'false', '', '', 0, 75000, 0, 0, 0, 0, 0, 0, 60000, 0, 0],
-    [exUnit, exThana, '', 'SHOP006', 'Example CL5CC Beer Endorsed Shop', SHOP_TYPE_LABELS.COUNTRY_LIQUOR, 'true', '', '', 0, 75000, 0, 0, 0, 0, 0, 0, 60000, 25000, 50000],
-  ];
-
   const titleText = `District: ${districtName.toUpperCase()}   |   UP Excise Spatial Revenue Optimizer   |   DEO Data Entry Template`;
 
   const wb = new ExcelJS.Workbook();
   wb.creator = 'UP Excise Spatial Revenue Optimizer';
   wb.created = new Date();
 
-  buildShopDataSheet(wb, 'Data Entry', titleText, [], units);
-  buildShopDataSheet(wb, 'Demo Data', titleText, examples, units);
+  await buildShopDataSheet(wb, 'Data Entry', titleText, units);
 
   const wsGuide = wb.addWorksheet('Instructions');
   wsGuide.getRow(1).values = COLUMN_GUIDE[0] as ExcelJSNamespace.CellValue[];
@@ -455,7 +474,7 @@ export async function generateTemplate(districtName: string, units: string[]): P
   applyPrintSetup(wsGuide, 1, (COLUMN_GUIDE[0] as unknown[]).length);
   wsGuide.views = [{ state: 'frozen', ySplit: 1, xSplit: 0 }];
 
-  // Hidden, not deleted — the circle/sector dropdown on Data Entry/Demo Data still
+  // Hidden, not deleted — the circle/sector dropdown on Data Entry still
   // references it by name. Hidden because it's pure repetition of data the DEO already
   // knows (their own circle/sector list) and adds no value as a visible tab.
   const wsRef = wb.addWorksheet('Reference Data');
