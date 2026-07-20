@@ -132,7 +132,7 @@ pnpm exec opennextjs-cloudflare deploy
 
 > **One admin email, full access.** The `SUPERADMIN_EMAIL_HASH` worker secret identifies the owner's email and grants elevated access automatically on every login.
 
-**Real DEO accounts:** 74 of 75 districts have a real DEO account (`role = 'deo'`) seeded via `pnpm seed:deo-accounts` — see "D1 Migrations" above. Each can sign in via magic-link email or CUG number (see README's Authentication & PII Hashing section). Bhadohi is unprovisioned (deprecated designation string in the source contact sheet) — provision it manually via the District Master page.
+**Real DEO accounts:** all 75 districts have a real DEO account (`role = 'deo'`) seeded via `pnpm seed:deo-accounts` — see "D1 Migrations" above. Each can sign in via magic-link email or CUG number (see README's Authentication & PII Hashing section).
 
 **Provision a real DEO** (via admin UI or direct D1 insert):
 ```sql

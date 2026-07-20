@@ -283,12 +283,13 @@ See [roadmap.md](roadmap.md) for full specs, entry/exit criteria, and deliverabl
 
 Engineering is complete. Department action required before rollout:
 
-1. **DEO email addresses** — resolved for 74 of 75 districts via `pnpm seed:deo-accounts`; Bhadohi needs manual provisioning (deprecated designation string in the source sheet)
+1. **DEO email addresses** — resolved for all 75 districts via `pnpm seed:deo-accounts`
 2. **Excel template column layout** — must be locked before column mapping is built
 3. **Shop count estimates per district** — for dashboard progress metrics
-4. **DEO credential/identifier assignment** — `deo_id` auto-assigned for the 74 seeded districts; DEO names are English placeholders pending correction (source names are Hindi)
+4. **DEO credential/identifier assignment** — `deo_id` auto-assigned for all 75 seeded districts; DEO names are English placeholders pending correction (source names are Hindi)
 5. **Circle/sector naming convention** — consistent names across all 75 districts
-6. **Custom email domain** — switch `RESEND_FROM_EMAIL` from `onboarding@resend.dev` to verified domain (CUG login is the current login path in the meantime)
+6. **Custom email domain** — domain acquired, not yet verified in Resend; `RESEND_FROM_EMAIL` will switch off `onboarding@resend.dev` once DNS verification completes. Once done, magic-link email is the Admin/HQ login channel; DEOs sign in via CUG number (see "CUG-hashed login")
+7. **DoT SMS template approval** — in progress. Blocks real SMS-OTP login for DEOs (see roadmap.md's Backlog section); the current CUG-hash login (a static shared secret, not a one-time code) remains the DEO login mechanism until approval lands
 
 ---
 
