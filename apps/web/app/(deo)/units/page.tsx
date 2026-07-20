@@ -146,7 +146,13 @@ export default function UnitsPage() {
   }
 
   if (!session) {
-    return <div className="text-sm text-base-content/60 p-6">Loading…</div>;
+    return (
+      <div className="card bg-base-100 shadow p-8 space-y-4 max-w-2xl mx-auto animate-pulse">
+        <div className="h-6 w-1/2 bg-base-300 rounded mx-auto" />
+        <div className="h-24 bg-base-300 rounded" />
+        <div className="h-10 bg-base-300 rounded" />
+      </div>
+    );
   }
 
   const savingOverlay = submitting && (
@@ -199,7 +205,14 @@ export default function UnitsPage() {
       </HelpPanel>
 
       {unitsLoading ? (
-        <div className="card bg-base-100 shadow p-6 text-sm text-base-content/70">Loading…</div>
+        <div className="card bg-base-100 shadow p-8 space-y-4 max-w-2xl mx-auto animate-pulse">
+          <div className="h-5 w-2/3 bg-base-300 rounded mx-auto" />
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div className="h-16 bg-base-300 rounded" />
+            <div className="h-16 bg-base-300 rounded" />
+          </div>
+          <div className="h-10 bg-base-300 rounded" />
+        </div>
       ) : locked ? (
         <div className="card bg-base-100 shadow p-8 space-y-5 max-w-3xl mx-auto">
           <div className="alert alert-success">
@@ -286,14 +299,16 @@ export default function UnitsPage() {
                 {sectorNames.map((name, i) => {
                   const blank = triedSubmit && !name.trim();
                   return (
-                    <input
-                      key={`sector-${i}`}
-                      className={`input input-bordered w-full ${blank ? 'input-error' : ''}`}
-                      value={name}
-                      placeholder={`Sector ${i + 1}`}
-                      aria-label={`Sector ${i + 1} name`}
-                      onChange={(e) => setSectorNames((prev) => prev.map((v, idx) => (idx === i ? e.target.value : v)))}
-                    />
+                    <div key={`sector-${i}`}>
+                      <input
+                        className={`input input-bordered w-full ${blank ? 'input-error' : ''}`}
+                        value={name}
+                        placeholder={`Sector ${i + 1}`}
+                        aria-label={`Sector ${i + 1} name`}
+                        onChange={(e) => setSectorNames((prev) => prev.map((v, idx) => (idx === i ? e.target.value : v)))}
+                      />
+                      {blank && <span className="mt-1 block text-xs font-bold text-error">Required — यह आवश्यक है</span>}
+                    </div>
                   );
                 })}
               </div>
@@ -307,14 +322,16 @@ export default function UnitsPage() {
                 {circleNames.map((name, i) => {
                   const blank = triedSubmit && !name.trim();
                   return (
-                    <input
-                      key={`circle-${i}`}
-                      className={`input input-bordered w-full ${blank ? 'input-error' : ''}`}
-                      value={name}
-                      placeholder={`Circle ${i + 1}`}
-                      aria-label={`Circle ${i + 1} name`}
-                      onChange={(e) => setCircleNames((prev) => prev.map((v, idx) => (idx === i ? e.target.value : v)))}
-                    />
+                    <div key={`circle-${i}`}>
+                      <input
+                        className={`input input-bordered w-full ${blank ? 'input-error' : ''}`}
+                        value={name}
+                        placeholder={`Circle ${i + 1}`}
+                        aria-label={`Circle ${i + 1} name`}
+                        onChange={(e) => setCircleNames((prev) => prev.map((v, idx) => (idx === i ? e.target.value : v)))}
+                      />
+                      {blank && <span className="mt-1 block text-xs font-bold text-error">Required — यह आवश्यक है</span>}
+                    </div>
                   );
                 })}
               </div>

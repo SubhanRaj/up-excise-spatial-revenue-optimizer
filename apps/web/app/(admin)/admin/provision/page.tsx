@@ -328,7 +328,17 @@ export default function DistrictMasterPage() {
   }
 
   async function resetTestData() {
-    if (!confirm('This will delete ALL shop data, circles/sectors, audit log, DEO accounts, and reset all districts to pending. Your admin account is preserved. Continue?')) return;
+    const Swal = (window as unknown as { Swal?: { fire: (o: Record<string, unknown>) => Promise<{ isConfirmed: boolean }> } }).Swal;
+    const confirmed = await Swal?.fire({
+      icon: 'warning',
+      title: 'Reset all test data?',
+      html: '<p>This will delete <b>ALL</b> shop data, circles/sectors, audit log, and DEO accounts, and reset all 75 districts to <b>pending</b>.</p><p style="margin-top:8px">Your admin account is preserved. This cannot be undone.</p>',
+      showCancelButton: true,
+      confirmButtonText: 'Yes, Reset Everything',
+      cancelButtonText: 'Cancel',
+      confirmButtonColor: '#b91c1c',
+    });
+    if (!confirmed?.isConfirmed) return;
     setResetting(true);
     await fetch('/api/admin/reset-test-data', { method: 'POST' });
     adminDistrictsCache.invalidate();
@@ -337,6 +347,17 @@ export default function DistrictMasterPage() {
   }
 
   async function provision() {
+    const Swal = (window as unknown as { Swal?: { fire: (o: Record<string, unknown>) => Promise<{ isConfirmed: boolean }> } }).Swal;
+    const confirmed = await Swal?.fire({
+      icon: 'warning',
+      title: `Provision ${preview.length} DEO account(s)?`,
+      html: `<p>This creates/updates <b>${preview.length}</b> login account(s) and sends a magic-link sign-in email to each address in the preview table.</p><p style="margin-top:8px">Double-check the emails before continuing — a typo sends portal access to the wrong inbox.</p>`,
+      showCancelButton: true,
+      confirmButtonText: 'Yes, Provision',
+      cancelButtonText: 'Go Back',
+    });
+    if (!confirmed?.isConfirmed) return;
+
     setProvisioning(true);
     const res = await fetch('/api/admin/bulk-provision', {
       method: 'POST',
@@ -364,14 +385,20 @@ export default function DistrictMasterPage() {
           Reference data for all 75 districts — division assignment, DEO identity, expected vend counts, and map coordinates. Edit a single district inline, or use bulk Excel upload for initial provisioning.
         </p>
 
-        {loading ? (
-          <div className="flex justify-center py-10"><span className="loading loading-spinner loading-lg" /></div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="table table-sm w-full" role="grid" aria-label="District master table">
-              <thead><tr><th>District</th><th>Division</th><th>DEO</th><th>Expected Vends</th><th>Uploaded</th><th>Status</th><th></th></tr></thead>
-              <tbody>
-                {districtRows.map((d) => (
+        <div className="overflow-x-auto">
+          <table className="table table-sm w-full" role="grid" aria-label="District master table">
+            <thead><tr><th>District</th><th>Division</th><th>DEO</th><th>Expected Vends</th><th>Uploaded</th><th>Status</th><th></th></tr></thead>
+            <tbody>
+              {loading ? (
+                Array.from({ length: 10 }, (_, i) => (
+                  <tr key={i} className="animate-pulse">
+                    {Array.from({ length: 7 }, (_, j) => (
+                      <td key={j}><div className="h-3 bg-base-300 rounded" /></td>
+                    ))}
+                  </tr>
+                ))
+              ) : (
+                districtRows.map((d) => (
                   <tr key={d.name} role="row">
                     <td className="font-medium">{d.name}</td>
                     <td>{d.division ?? <span className="text-base-content/50">—</span>}</td>
@@ -389,11 +416,11 @@ export default function DistrictMasterPage() {
                       </button>
                     </td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <div className="card bg-base-100 shadow p-6">
