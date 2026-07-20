@@ -87,6 +87,11 @@ export default function UnitsPage() {
     setStep('names');
   }
 
+  // Rural circles are numbered from 1 only when a district has no urban sectors.
+  // Once sectors exist, Circle 1 is reserved for the sector-covered urban area and
+  // is never (re-)issued to a rural circle — rural circles start at 2.
+  const circleNumber = (i: number) => (sectorNames.length === 0 ? i + 1 : i + 2);
+
   const allFilled = sectorNames.every((n) => n.trim()) && circleNames.every((n) => n.trim());
   const canSubmit = allFilled && (sectorNames.length + circleNames.length) > 0;
 
@@ -192,14 +197,14 @@ export default function UnitsPage() {
         childrenHi={<>
           <p><strong>चरण 1 — सभी circles और sectors रजिस्टर करें</strong> अपने district के लिए, एक ही बार में, कुछ और करने से पहले। सिस्टम को बताएं कि आपके पास कितने sectors और कितने circles हैं, फिर हर नाम दिए गए box में टाइप करें।</p>
           <p><strong>यह एक बार होने वाला चरण है।</strong> सबमिट करने के बाद, list लॉक हो जाती है और इसे edit नहीं किया जा सकता — पहले हर नाम ध्यान से जांच लें।</p>
-          <p><strong>नामकरण:</strong> Sector के नाम आमतौर पर सिर्फ एक नंबर होते हैं, जैसे &quot;Sector 1&quot;, लेकिन इसमें कोई area भी शामिल हो सकता है, जैसे &quot;Sector 1 Hazratganj&quot;। Circle के नाम आमतौर पर area सहित होते हैं, जैसे &quot;Circle 1 Mall, Malihabad&quot;।</p>
+          <p><strong>नामकरण:</strong> Sector के नाम आमतौर पर सिर्फ एक नंबर होते हैं, जैसे &quot;Sector 1&quot;, लेकिन इसमें कोई area भी शामिल हो सकता है, जैसे &quot;Sector 1 Hazratganj&quot;। Circle के नाम आमतौर पर area सहित होते हैं, जैसे &quot;Circle 1 Mall, Malihabad&quot;। <strong>यदि आपके district में कोई sector नहीं है</strong> (शुद्ध rural district), तो circles की गिनती Circle 1 से शुरू होती है। <strong>यदि sector हैं</strong> (urban area को cover करते हुए), तो Circle 1 issue नहीं होता — rural circles Circle 2 से शुरू होते हैं।</p>
           <p><strong>चरण 2 — Download the district template</strong> Upload page से (आपके circles/sectors लॉक होते ही यह अपने-आप unlock हो जाता है)।</p>
           <p><strong>चरण 3 — Upload &amp; Verify</strong> करें consolidated district Excel फ़ाइल को, फिर headquarters को सबमिट करें।</p>
         </>}
       >
         <p><strong>Step 1 — Register all circles and sectors</strong> for your district, in one go, before doing anything else. Tell the system how many sectors and how many circles you have, then type each name in the box provided.</p>
         <p><strong>This is a one-time step.</strong> Once you submit, the list is locked and cannot be edited — check every name carefully first.</p>
-        <p><strong>Naming:</strong> Sector names are usually just a number, e.g. &quot;Sector 1&quot;, but can also include an area, e.g. &quot;Sector 1 Hazratganj&quot;. Circle names usually include the area, e.g. &quot;Circle 1 Mall, Malihabad&quot;.</p>
+        <p><strong>Naming:</strong> Sector names are usually just a number, e.g. &quot;Sector 1&quot;, but can also include an area, e.g. &quot;Sector 1 Hazratganj&quot;. Circle names usually include the area, e.g. &quot;Circle 1 Mall, Malihabad&quot;. <strong>If your district has no sectors</strong> (a purely rural district), circles are numbered starting from Circle 1. <strong>If sectors exist</strong> (covering the urban area), Circle 1 is never issued — rural circles start numbering from Circle 2.</p>
         <p><strong>Step 2 — Download the district template</strong> from the Upload page (unlocked automatically once your circles/sectors are locked).</p>
         <p><strong>Step 3 — Upload &amp; Verify</strong> the consolidated district Excel file, then submit to headquarters.</p>
       </HelpPanel>
@@ -326,8 +331,8 @@ export default function UnitsPage() {
                       <input
                         className={`input input-bordered w-full ${blank ? 'input-error' : ''}`}
                         value={name}
-                        placeholder={`Circle ${i + 1}`}
-                        aria-label={`Circle ${i + 1} name`}
+                        placeholder={`Circle ${circleNumber(i)}`}
+                        aria-label={`Circle ${circleNumber(i)} name`}
                         onChange={(e) => setCircleNames((prev) => prev.map((v, idx) => (idx === i ? e.target.value : v)))}
                       />
                       {blank && <span className="mt-1 block text-xs font-bold text-error">Required — यह आवश्यक है</span>}

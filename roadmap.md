@@ -156,6 +156,7 @@ A district typically comprises multiple circles and sectors, each overseen by an
 **Workflow:**
 
 1. **Pre-registration — one-shot and locked (M-15):** The DEO does not add circles/sectors one at a time. The Circle/Sector Management UI first asks how many circles and how many sectors the district has, generates that exact number of pre-labelled name boxes, and the DEO fills each one in (circle names conventionally carry an area, e.g. "Circle 1 Mall, Malihabad"; sector names are usually just a number, e.g. "Sector 1", but may also carry an area). A SweetAlert2 confirmation warns this cannot be changed afterward, then the full list is submitted in a single request and stored in D1 in the `district_circles_sectors` table, scoped to the DEO's district. The registration endpoint then rejects any further attempt to add units for that district — the DEO cannot partially register, come back later, and add more. Upload and Verify are not shown to the DEO at all until this step is complete.
+   - **Circle numbering convention (M-23):** sectors cover a district's urban area, circles cover its rural area. If a district has no sectors (purely rural), circle name placeholders start at "Circle 1". If a district has any sectors, "Circle 1" belongs to the sector-covered urban area and is never reused for a rural circle, so circle placeholders start at "Circle 2" instead. This is a UI placeholder-text convention only (`apps/web/app/(deo)/units/page.tsx`) — the DEO always types the real name, and neither the schema nor `POST /api/districts/[district]/units` enforces or depends on the number.
 
 2. **Template generation:** The portal generates **one district-wide Excel template** (`.xlsx`) with the district name pre-filled in the header and a `circle_sector_name` column included for every data row. There is one template per district — not one per circle/sector. The DEO downloads this single template and distributes blank copies to each Inspector.
 
@@ -1695,7 +1696,7 @@ The following require department action before the upload campaign can begin:
 3. **Thana master list (best-effort):** A reference list of Thana names per district for the adjacent Thana cross-district filter. If unavailable, the filter uses a runtime check against already-uploaded Thana names.
 4. **Shop count estimates per district:** Allows the dashboard to display accurate "X of Y uploaded" progress metrics.
 5. **DEO credential and identifier assignment:** DEOs must complete circle/sector pre-registration before distributing templates to Inspectors.
-6. **Circle/sector naming convention:** Consistent naming (e.g., "Circle 1" vs "Kotwali Circle") ensures clean unit names across districts.
+6. ~~**Circle/sector naming convention**~~ — Resolved (M-23): sectors cover the urban area, circles cover the rural area. Circle numbering starts at "Circle 1" only when a district has no sectors; if it has any sectors, "Circle 1" belongs to the urban area and rural circles start at "Circle 2".
 7. **Upsert vs. versioning decision:** If a DEO re-uploads corrected data, does the system overwrite or version records? Resolved to upsert (`UNIQUE` constraint on `shop_id + district_name`, `ON CONFLICT DO UPDATE`).
 8. ~~**Custom email domain**~~ — Resolved: `mail.exciseup.in` verified in Resend, `RESEND_FROM_EMAIL` is `noreply@mail.exciseup.in`.
 

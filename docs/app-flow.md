@@ -45,7 +45,7 @@ flowchart TD
 
     HomeCheck -->|no| UnitsOnly["/home shows ONLY\nCreate Circles & Sectors card"]
     UnitsOnly --> UnitsPage["/units: enter circle + sector counts"]
-    UnitsPage --> NameBoxes[Fill pre-generated name boxes\nCircle 1, Circle 2, ... Sector 1, ...]
+    UnitsPage --> NameBoxes[Fill pre-generated name boxes\nSector 1, Sector 2, ...\nCircle N.. starts at 1 if no sectors, else 2]
     NameBoxes --> ConfirmLock[SweetAlert2: confirm - cannot change afterward]
     ConfirmLock --> PostUnits[POST /api/districts/district/units]
     PostUnits --> LockCheck{Any existing unit row?}
