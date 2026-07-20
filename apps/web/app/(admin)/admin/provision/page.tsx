@@ -278,6 +278,7 @@ function EditDrawer({ district, onClose, onSaved }: { district: DistrictRow; onC
 
 export default function DistrictMasterPage() {
   const { session } = useSession();
+  const restricted = session != null && session.role !== 'superadmin';
   const { districts: hookDistricts, loading } = useAdminDistricts();
   const [districtRows, setDistrictRows] = useState<DistrictRow[]>([]);
   const [editing, setEditing] = useState<DistrictRow | null>(null);
@@ -365,6 +366,17 @@ export default function DistrictMasterPage() {
     const data = await res.json() as { results: { email: string; status: string }[] };
     setResult(data.results);
     setProvisioning(false);
+  }
+
+  if (restricted) {
+    return (
+      <div className="card bg-base-100 shadow p-6">
+        <h2 className="text-xl font-bold mb-1">District Master</h2>
+        <p className="text-sm text-base-content/80">
+          District Master (DEO reassignment, bbox/vend-count edits, and bulk DEO provisioning) is restricted to the portal owner's account, since it sends real magic-link emails and reassigns live DEO credentials.
+        </p>
+      </div>
+    );
   }
 
   return (

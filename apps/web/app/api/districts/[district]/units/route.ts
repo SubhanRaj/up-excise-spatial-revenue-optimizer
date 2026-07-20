@@ -100,11 +100,13 @@ async function DELETE_(req: NextRequest, { params }: Ctx): Promise<NextResponse>
     db.delete(districtCirclesSectors).where(eq(districtCirclesSectors.districtName, district)),
     db.insert(auditLog).values({
       eventType: 'units_unlocked',
-      deoId: user.deoId,
+      deoId: user.deoId ?? '',
       districtName: district,
       ipAddress: req.headers.get('CF-Connecting-IP') ?? null,
       userAgent: req.headers.get('User-Agent') ?? null,
       metadata: null,
+      actorName: user.name,
+      actorDesignation: user.designation,
       createdAt: new Date(),
     }),
   ]);

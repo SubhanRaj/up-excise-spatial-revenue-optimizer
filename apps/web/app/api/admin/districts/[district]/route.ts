@@ -3,7 +3,7 @@ import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { drizzle } from 'drizzle-orm/d1';
 import { eq, count, sum } from 'drizzle-orm';
 import { getSession, sha256hex } from '@/lib/auth';
-import { districts, districtCirclesSectors, phase1RawCollection, authUsers } from '@excise/schema';
+import { districts, districtCirclesSectors, phase1RawCollection, authUsers, auditLog } from '@excise/schema';
 import { withErrorHandling } from '@/lib/with-error-handling';
 
 type Ctx = { params: Promise<{ district: string }> };
@@ -54,9 +54,10 @@ function normalizeNumber(value: unknown): number | null | undefined {
 
 // District Master inline edit — minor corrections (division, DEO assignment, expected
 // vend count, bbox). Bulk Excel provisioning remains the path for initial campaign setup.
+// District Master edits are owner/superadmin-only — see /admin/provision's page-level gate.
 async function PATCH_(req: NextRequest, { params }: Ctx): Promise<NextResponse> {
   const user = await getSession();
-  if (!user || !['admin', 'superadmin'].includes(user.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (!user || user.role !== 'superadmin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const { district } = await params;
   const body = await req.json() as DistrictPatchBody;
@@ -110,7 +111,18 @@ async function PATCH_(req: NextRequest, { params }: Ctx): Promise<NextResponse> 
   }
 
   const batchStmts: any[] = [
-    db.update(districts).set(updates).where(eq(districts.name, district))
+    db.update(districts).set(updates).where(eq(districts.name, district)),
+    db.insert(auditLog).values({
+      eventType: 'district_master_updated',
+      deoId: '',
+      districtName: district,
+      ipAddress: req.headers.get('CF-Connecting-IP') ?? null,
+      userAgent: req.headers.get('User-Agent') ?? null,
+      metadata: JSON.stringify({ fields: Object.keys(updates), emailChanged: newEmailHashStr !== undefined }),
+      actorName: user.name,
+      actorDesignation: user.designation,
+      createdAt: new Date(),
+    }),
   ];
 
   if (body.deoEmail !== undefined && existing.deoEmailHash && existing.deoEmailHash !== newEmailHashStr) {

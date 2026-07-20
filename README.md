@@ -147,10 +147,11 @@ Upload and Verify are not rendered — not merely disabled — until circles/sec
 - 18 division cards with progress bars; each card opens a division detail page
 - Division detail: summary stats (districts, submitted, vends, revenue) + districts table sorted by revenue
 
-**District Master (`/admin/provision`):**
+**District Master (`/admin/provision`) — owner/superadmin-only:**
 - All-75-district table; each row's edit icon opens a right-side drawer to update division, DEO name/email/identifier, expected vend count, and bbox coordinates in place via `PATCH /api/admin/districts/[district]` (Coordinates and Vend Count can optionally be cleared)
 - Bulk Excel provisioning retained below the table for initial campaign setup — `generateProvisionTemplate()` pre-fills District Name and Division from the live district list
 - The only place district/DEO master data can be edited; `districts` and `districts/[district]` pages remain read-only
+- Restricted to `role: 'superadmin'` — nav link hidden and page content replaced with a restricted message for a plain `admin` session; the underlying PATCH/bulk-provision routes 403 non-superadmins server-side too. Every edit/provision run is audit-logged with the acting superadmin's identity.
 
 **District detail (`/admin/districts/[district]`):**
 - All `phase1_raw_collection` fields: shop ID, name, circle/sector, thana, adjacent thanas (flex-wrap pills), type + CL5CC sub-badge, coordinates, revenue
@@ -171,7 +172,7 @@ Upload and Verify are not rendered — not merely disabled — until circles/sec
 - `HelpPanel` on every page — balloon popover with background blur (`backdrop-blur-[2px]`), auto-flips on/off-screen, scrollable content, closes on Escape or outside click
 - `ViewPrefsPanel` FAB (bottom-right) — theme (Light/Auto/Dark, respects and live-tracks system preference), font size, row density, content width; all persisted to `localStorage`
 - Full-state CSV export (never rendered in UI — `/api/admin/export/all` only)
-- Audit log viewer (last 45 days, paginated)
+- Audit log viewer (last 45 days, paginated) — shows admin/superadmin actor name + designation for admin-initiated events (login, logout, unlock, District Master edits, bulk-provision), `deoId` for DEO-actor events
 - Bulk DEO provisioning via Excel upload
 
 ---

@@ -85,13 +85,18 @@ export const districtCirclesSectors = sqliteTable('district_circles_sectors', {
 
 export const auditLog = sqliteTable('audit_log', {
   id: integer('id').primaryKey({ autoIncrement: true }),
-  // 'login' | 'logout' | 'session_revoked' | 'upload_chunk' | 'district_submitted' | 'unit_registered'
+  // 'login' | 'logout' | 'login_cug' | 'upload_chunk' | 'district_submitted' | 'unit_registered'
+  // | 'units_unlocked' | 'district_master_updated' | 'bulk_provision'
   eventType: text('event_type').notNull(),
   deoId: text('deo_id').notNull(),
   districtName: text('district_name'),
   ipAddress: text('ip_address'),
   userAgent: text('user_agent'),
   metadata: text('metadata'), // JSON string for event-specific detail
+  // Admin-actor identity, captured at write time — null for DEO-actor events (deoId already
+  // identifies those). See CLAUDE.md's audit_log actor-identity note.
+  actorName: text('actor_name'),
+  actorDesignation: text('actor_designation'),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
 }, (t) => ({
   deoIdx: index('al_deo_idx').on(t.deoId),

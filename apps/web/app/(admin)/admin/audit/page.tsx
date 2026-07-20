@@ -12,21 +12,22 @@ interface AuditRow {
   ipAddress?: string | null;
   userAgent?: string | null;
   metadata?: string | null;
+  actorName?: string | null;
+  actorDesignation?: string | null;
   createdAt: number;
 }
 
-// All event types written across apps/web/app/api/** (see grep for `eventType:`), plus the
-// ones CLAUDE.md documents as possible (login/logout/session_revoked aren't wired to an
-// auditLog insert yet — labeled here so they render correctly once they are).
+// All event types written across apps/web/app/api/** — see grep for `eventType:`.
 const EVENT_LABELS: Record<string, string> = {
   login: 'Login (magic link)',
   login_cug: 'Login (CUG)',
   logout: 'Logout',
-  session_revoked: 'Session revoked',
   upload_chunk: 'Upload chunk',
   district_submitted: 'District submitted',
   unit_registered: 'Circles/Sectors registered',
   units_unlocked: 'Circles/Sectors unlocked',
+  district_master_updated: 'District Master updated',
+  bulk_provision: 'Bulk DEO provisioning',
 };
 
 // Raw metadata JSON keys, as actually written across every auditLog insert — human labels
@@ -38,7 +39,19 @@ const METADATA_KEY_LABELS: Record<string, string> = {
   accepted: 'Accepted',
   rejected: 'Rejected',
   submittedAt: 'Submitted at',
+  fields: 'Fields changed',
+  emailChanged: 'Email changed',
+  total: 'Total rows',
+  provisioned: 'Provisioned',
+  failed: 'Failed',
 };
+
+// Admin-actor events carry actorName/actorDesignation (captured at write time). DEO-actor
+// events don't — deoId already identifies those (e.g. "DEO-AGRA").
+function describeActor(row: AuditRow): string {
+  if (row.actorName) return row.actorDesignation ? `${row.actorName} (${row.actorDesignation})` : row.actorName;
+  return row.deoId || '—';
+}
 
 function describeMetadata(row: AuditRow): string {
   const parts: string[] = [];
@@ -151,7 +164,7 @@ export default function AuditPage() {
               <tr>
                 <th>When</th>
                 <th>Event</th>
-                <th>DEO ID</th>
+                <th>Actor</th>
                 <th>District</th>
                 <th>Details</th>
               </tr>
@@ -172,7 +185,7 @@ export default function AuditPage() {
                   <tr key={r.id} className="hover:bg-base-50">
                     <td className="whitespace-nowrap text-xs">{new Date(r.createdAt * 1000).toLocaleString('en-IN')}</td>
                     <td><span className="badge badge-outline badge-sm">{EVENT_LABELS[r.eventType] ?? r.eventType}</span></td>
-                    <td className="font-mono text-xs">{r.deoId}</td>
+                    <td className="font-mono text-xs">{describeActor(r)}</td>
                     <td className="text-xs">{r.districtName ?? <span className="text-base-content/50">—</span>}</td>
                     <td className="text-xs text-base-content/70">{describeMetadata(r)}</td>
                   </tr>

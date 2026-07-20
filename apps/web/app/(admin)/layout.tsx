@@ -204,6 +204,7 @@ function AdminIdentity() {
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const crumbs = getBreadcrumbs(pathname);
+  const { session } = useSession();
 
   return (
     <div className="min-h-screen bg-base-200">
@@ -225,7 +226,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <Link href="/admin" className={`btn btn-ghost btn-sm ${pathname === '/admin' ? 'btn-active' : ''}`}>Overview</Link>
           <Link href="/admin/districts" className={`btn btn-ghost btn-sm ${pathname.startsWith('/admin/districts') ? 'btn-active' : ''}`}>Districts</Link>
           <Link href="/admin/divisions" className={`btn btn-ghost btn-sm ${pathname.startsWith('/admin/divisions') ? 'btn-active' : ''}`}>Divisions</Link>
-          <Link href="/admin/provision" className={`btn btn-ghost btn-sm ${pathname === '/admin/provision' ? 'btn-active' : ''}`}>District Master</Link>
+          {session?.role === 'superadmin' && (
+            <Link href="/admin/provision" className={`btn btn-ghost btn-sm ${pathname === '/admin/provision' ? 'btn-active' : ''}`}>District Master</Link>
+          )}
           <Link href="/admin/audit" className={`btn btn-ghost btn-sm ${pathname === '/admin/audit' ? 'btn-active' : ''}`}>Audit</Link>
           <Link href="/admin/export" className={`btn btn-ghost btn-sm ${pathname === '/admin/export' ? 'btn-active' : ''}`}>Export</Link>
           <Link href="/home" className="btn btn-outline btn-primary btn-sm ml-1">DEO Portal</Link>

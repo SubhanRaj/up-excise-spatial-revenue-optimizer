@@ -37,6 +37,8 @@ async function POST_(req: NextRequest): Promise<NextResponse> {
     ipAddress: req.headers.get('CF-Connecting-IP') ?? null,
     userAgent: req.headers.get('User-Agent') ?? null,
     metadata: null,
+    actorName: effectiveRole === 'deo' ? null : user.name,
+    actorDesignation: effectiveRole === 'deo' ? null : user.designation,
     createdAt: new Date(),
   });
 

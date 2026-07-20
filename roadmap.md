@@ -1117,7 +1117,8 @@ Every significant event in the system — DEO login, session revocation, upload 
 export const auditLog = sqliteTable('audit_log', {
   id: integer('id').primaryKey({ autoIncrement: true }),
 
-  // 'login' | 'logout' | 'session_revoked' | 'upload_chunk' | 'district_submitted' | 'unit_registered'
+  // 'login' | 'logout' | 'login_cug' | 'upload_chunk' | 'district_submitted' | 'unit_registered'
+  // | 'units_unlocked' | 'district_master_updated' | 'bulk_provision'
   eventType: text('event_type').notNull(),
 
   deoId: text('deo_id').notNull(),
@@ -1129,6 +1130,11 @@ export const auditLog = sqliteTable('audit_log', {
 
   // JSON string for event-specific detail (e.g., chunk index, row count, unit name)
   metadata: text('metadata'),
+
+  // Admin/superadmin actor identity, captured at write time (added M-20) — null for DEO-actor
+  // events, where deoId already identifies the actor.
+  actorName: text('actor_name'),
+  actorDesignation: text('actor_designation'),
 
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
 
@@ -1588,6 +1594,21 @@ M-6: Auth Migration + Single Worker       [Post-M5]         ✅ Complete
 - [x] Test CUG number seeded for the existing "Demo DEO Officer" `auth_users` row (`deo_id = DEO-DEMO-001`, `district_name = Demo District` — distinct from the owner's own admin/superadmin row, which shares the same district name but is a different `auth_users` row). Raw digits live only in the `DEMO_CUG` Cloudflare Worker secret, never in source or docs — mirrors the sibling project's `DEMO_CUG` convention exactly, including reusing the same demo number (confirmed by matching SHA-256 hash). Its `role` was changed from `deo` to `admin` so this one login can reach both portals for testing — `middleware.ts` already lets `role: 'admin'` through the DEO route gates (`/home`, `/upload`, `/verify`, `/units`), the same mechanism the owner's superadmin bypass relies on, so this doesn't need a new code path. Verified end-to-end against prod: `POST /api/auth/verify-cug` with this hash returns `{ redirect: "/admin" }`, and the account can still reach the DEO pages (via the DEO layout's "HQ Admin" link in reverse, or direct navigation).
 
 **Exit criterion:** A DEO can log in even if magic-link email delivery is unavailable; any unhandled server error returns a parseable JSON response instead of breaking the client; no route performs two related writes outside a single atomic operation.
+
+---
+
+### M-20: Audit Actor Identity & Owner-Only District Master ✅ Complete
+
+**Objective:** Close four gaps found by comparing this project against UX/accountability work already done in the sibling `excise-revenue-recovery-portal` project.
+
+**Deliverables:**
+
+- [x] `audit_log.actor_name`/`actor_designation` columns added (migration `0004_add_audit_actor_identity.sql`, nullable, additive, applied to prod D1 before the code deploy). Populated at write time for every admin/superadmin-initiated event (`login`, `logout`, `login_cug`, `units_unlocked`, `district_master_updated`, `bulk_provision`); left `null` for DEO-actor events, where `deoId` already identifies the actor. `/admin/audit`'s new `describeActor()` prefers `actorName`(+`actorDesignation`), falling back to `deoId` — previously that column showed the raw (and, for admin actions, empty) `deoId` for every row.
+- [x] `login` (magic link) and `logout` events, previously only documented in the schema comment and the audit page's label map, are now actually written — `api/auth/verify/route.ts` and `api/auth/logout/route.ts` each insert an `audit_log` row. `logout` fetches the session (for actor identity) before deleting it.
+- [x] `PATCH /api/admin/districts/[district]` now writes a `district_master_updated` audit row (metadata: which fields changed, whether the email changed — never the raw email itself, keeping the Zero-Knowledge PII rule intact in audit metadata too) as part of the same `db.batch`. `POST /api/admin/bulk-provision` writes one summary `bulk_provision` row per run (total/provisioned/failed counts, no raw emails).
+- [x] District Master (`/admin/provision`) restricted to `role: 'superadmin'` — it reassigns any district's DEO and bulk-provisions real accounts with real magic-link emails, which should not be available to every department admin account now that more than one exists. Nav link hidden for a plain `admin` session; direct navigation renders a restricted message; `PATCH /api/admin/districts/[district]` and `POST /api/admin/bulk-provision` independently 403 non-superadmins server-side — the actual security boundary, not just the UI hide.
+
+**Exit criterion:** Every admin-initiated audit row shows a human-readable actor (name + designation); login and logout are both audit-logged; District Master's two mutating routes reject a plain `admin` session with 403.
 
 ---
 

@@ -94,6 +94,8 @@ npx wrangler d1 migrations apply up-excise-spatial-revenue-optimizer-prod --remo
 Applied migrations:
 - `0001_initial.sql` — single consolidated migration: phase1_raw_collection, districts, district_circles_sectors, audit_log, auth_users, auth_magic_links, auth_sessions (all 7 tables, matches `packages/schema` exactly)
 - `0002_add_deo_cug_hash.sql` — adds `auth_users.deo_cug_hash` (unique, nullable) for CUG-number login as an alternate to magic-link email
+- `0003_add_designation.sql` — adds `auth_users.designation` (nullable) for admin navbar name/designation display
+- `0004_add_audit_actor_identity.sql` — adds `audit_log.actor_name`/`actor_designation` (nullable) so admin-initiated audit rows show who did it, not just a blank `deo_id`
 
 Note: wrangler tracks applied migrations by **filename**, not content. If `0001_initial.sql` is ever edited in place again (rather than adding a new numbered file), `migrations apply` will report "No migrations to apply!" even though the SQL changed — force-apply with `npx wrangler d1 execute up-excise-spatial-revenue-optimizer-prod --remote --file=migrations/0001_initial.sql` instead.
 
@@ -143,7 +145,7 @@ INSERT INTO auth_users (email_hash, name, role, deo_id, district_name)
 VALUES ('<sha256_of_email>', 'DEO Name', 'deo', 'DEO-XXX-001', 'District Name');
 ```
 
-Or use the admin portal's **District Master** page (`/admin/provision`) — either the per-district edit drawer (`PATCH /api/admin/districts/[district]`, where coordinates and vend counts can be explicitly cleared to `null` if needed) for a single DEO, or bulk Excel upload (`POST /api/admin/bulk-provision`) for many at once.
+Or use the admin portal's **District Master** page (`/admin/provision`) — either the per-district edit drawer (`PATCH /api/admin/districts/[district]`, where coordinates and vend counts can be explicitly cleared to `null` if needed) for a single DEO, or bulk Excel upload (`POST /api/admin/bulk-provision`) for many at once. This page is restricted to `role: 'superadmin'` — a plain `admin` account gets a restricted message in the UI and a 403 from both routes.
 
 ---
 

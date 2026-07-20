@@ -2,11 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { drizzle } from 'drizzle-orm/d1';
 import { eq, and } from 'drizzle-orm';
-import { authMagicLinks, authUsers } from '@excise/schema';
+import { authMagicLinks, authUsers, auditLog } from '@excise/schema';
 import { hashToken, createSession } from '@/lib/auth';
 import { withErrorHandling } from '@/lib/with-error-handling';
 
-async function verifyToken(token: string): Promise<{ redirect: string } | { error: string; status: number }> {
+async function verifyToken(token: string, req: NextRequest): Promise<{ redirect: string } | { error: string; status: number }> {
   const tokenHash = await hashToken(token);
   const { env } = await getCloudflareContext({ async: true }) as { env: CloudflareEnv };
   const db = drizzle(env.DB);
@@ -31,6 +31,17 @@ async function verifyToken(token: string): Promise<{ redirect: string } | { erro
   const effectiveRole = isSuper ? 'superadmin' : user.role;
   const effectiveDistrict = isSuper ? (user.districtName ?? 'Demo District') : (user.districtName ?? null);
   await createSession(user.id, effectiveRole, effectiveDistrict);
+  await db.insert(auditLog).values({
+    eventType: 'login',
+    deoId: user.deoId ?? '',
+    districtName: effectiveDistrict,
+    ipAddress: req.headers.get('CF-Connecting-IP') ?? null,
+    userAgent: req.headers.get('User-Agent') ?? null,
+    metadata: null,
+    actorName: effectiveRole === 'deo' ? null : user.name,
+    actorDesignation: effectiveRole === 'deo' ? null : user.designation,
+    createdAt: new Date(),
+  });
   return { redirect: effectiveRole === 'superadmin' || user.role === 'admin' ? '/admin' : '/home' };
 }
 
@@ -39,7 +50,7 @@ async function GET_(req: NextRequest): Promise<NextResponse> {
   const token = req.nextUrl.searchParams.get('token');
   if (!token) return NextResponse.redirect(new URL('/login?error=missing_token', req.url));
 
-  const result = await verifyToken(token);
+  const result = await verifyToken(token, req);
   if ('error' in result) {
     return NextResponse.redirect(new URL(`/login?error=${result.error}`, req.url));
   }
@@ -51,7 +62,7 @@ async function POST_(req: NextRequest): Promise<NextResponse> {
   const { token } = await req.json() as { token?: string };
   if (!token) return NextResponse.json({ error: 'Missing token' }, { status: 400 });
 
-  const result = await verifyToken(token);
+  const result = await verifyToken(token, req);
   if ('error' in result) {
     return NextResponse.json({ error: result.error }, { status: result.status });
   }

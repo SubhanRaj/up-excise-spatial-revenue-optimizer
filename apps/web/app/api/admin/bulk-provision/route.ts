@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { drizzle } from 'drizzle-orm/d1';
 import { getSession, sha256hex } from '@/lib/auth';
-import { districts, authUsers } from '@excise/schema';
+import { districts, authUsers, auditLog } from '@excise/schema';
 import { withErrorHandling } from '@/lib/with-error-handling';
 
 
@@ -12,9 +12,10 @@ interface ProvisionRow {
   bboxMinLat?: number; bboxMaxLat?: number; bboxMinLon?: number; bboxMaxLon?: number;
 }
 
+// Owner/superadmin-only — see /admin/provision's page-level gate.
 async function POST_(req: NextRequest): Promise<NextResponse> {
   const user = await getSession();
-  if (!user || !['admin', 'superadmin'].includes(user.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (!user || user.role !== 'superadmin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const body = await req.json() as { rows: ProvisionRow[] };
   const { env } = await getCloudflareContext({ async: true }) as { env: CloudflareEnv };
@@ -57,6 +58,23 @@ async function POST_(req: NextRequest): Promise<NextResponse> {
       results.push({ email: row.deoEmail, status: 'error', error: String(err) });
     }
   }
+
+  await db.insert(auditLog).values({
+    eventType: 'bulk_provision',
+    deoId: '',
+    districtName: null,
+    ipAddress: req.headers.get('CF-Connecting-IP') ?? null,
+    userAgent: req.headers.get('User-Agent') ?? null,
+    metadata: JSON.stringify({
+      total: body.rows.length,
+      provisioned: results.filter((r) => r.status === 'provisioned').length,
+      failed: results.filter((r) => r.status === 'error').length,
+    }),
+    actorName: user.name,
+    actorDesignation: user.designation,
+    createdAt: now,
+  });
+
   return NextResponse.json({ results });
 }
 
