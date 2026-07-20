@@ -14,7 +14,7 @@ export async function sendMagicLinkEmail(toEmail: string, verifyUrl: string, nam
     method: 'POST',
     headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      from,
+      from: `UP Excise Spatial Revenue Optimizer <${from}>`,
       to: toEmail,
       subject: 'Your UP Excise Spatial Revenue Optimizer sign-in link',
       html: magicLinkHtml(name, verifyUrl),
