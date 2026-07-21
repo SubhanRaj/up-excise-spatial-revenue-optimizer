@@ -28,6 +28,8 @@ const EVENT_LABELS: Record<string, string> = {
   units_unlocked: 'Circles/Sectors unlocked',
   district_master_updated: 'District Master updated',
   bulk_provision: 'Bulk DEO provisioning',
+  unlock_requested: 'Unlock requested',
+  unlock_request_denied: 'Unlock request denied',
 };
 
 // Raw metadata JSON keys, as actually written across every auditLog insert — human labels
@@ -44,6 +46,8 @@ const METADATA_KEY_LABELS: Record<string, string> = {
   total: 'Total rows',
   provisioned: 'Provisioned',
   failed: 'Failed',
+  reason: 'Reason',
+  note: 'Note',
 };
 
 // Admin-actor events carry actorName/actorDesignation (captured at write time). DEO-actor

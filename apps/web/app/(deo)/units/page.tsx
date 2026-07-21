@@ -6,8 +6,9 @@ import { useSession } from '@/hooks/useSession';
 import HelpPanel from '@/app/_components/HelpPanel';
 
 interface Unit { id: number; name: string; type: 'circle' | 'sector' }
+interface UnlockRequest { id: number; status: 'pending' | 'approved' | 'denied'; reason: string; adminNote: string | null }
 
-type Swal = { fire: (o: Record<string, unknown>) => Promise<{ isConfirmed: boolean }> };
+type Swal = { fire: (o: Record<string, unknown>) => Promise<{ isConfirmed: boolean; value?: string }> };
 
 function toastError(en: string, hi: string) {
   const SwalG = (window as unknown as { Swal?: Swal }).Swal;
@@ -62,17 +63,62 @@ export default function UnitsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [triedSubmit, setTriedSubmit] = useState(false);
 
+  const [unlockRequest, setUnlockRequest] = useState<UnlockRequest | null>(null);
+  const [requestingUnlock, setRequestingUnlock] = useState(false);
+
   const load = useCallback(async () => {
     if (!district) return;
     setUnitsLoading(true);
-    const res = await fetch(`/api/districts/${encodeURIComponent(district)}/units`);
-    if (res.ok) setUnits(await res.json());
+    const [unitsRes, reqRes] = await Promise.all([
+      fetch(`/api/districts/${encodeURIComponent(district)}/units`),
+      fetch(`/api/districts/${encodeURIComponent(district)}/request-unlock`),
+    ]);
+    if (unitsRes.ok) setUnits(await unitsRes.json());
+    if (reqRes.ok) setUnlockRequest((await reqRes.json()).request ?? null);
     setUnitsLoading(false);
   }, [district]);
 
   useEffect(() => { void load(); }, [load]);
 
   const locked = units.length > 0;
+
+  async function requestUnlock() {
+    const SwalG = (window as unknown as { Swal?: Swal }).Swal;
+    const result = await SwalG?.fire({
+      icon: 'question',
+      title: 'Request unlock?',
+      html: `<p style="text-align:left">Explain why your circles/sectors list for <b>${district}</b> needs to be unlocked. An Admin will review and either unlock it or deny the request.</p>
+             <p style="text-align:left;margin-top:6px;color:#64748b">बताएं कि आपकी सर्कल/सेक्टर सूची को अनलॉक करने की आवश्यकता क्यों है। एक Admin इसे देखकर या तो अनलॉक करेगा या अस्वीकार करेगा।</p>`,
+      input: 'textarea',
+      inputPlaceholder: 'Reason (required)',
+      showCancelButton: true,
+      confirmButtonText: 'Submit Request',
+      cancelButtonText: 'Cancel',
+      inputValidator: (value: string) => (value && value.trim() ? undefined : 'Please enter a reason.'),
+    });
+    if (!result?.isConfirmed) return;
+
+    setRequestingUnlock(true);
+    try {
+      const res = await fetch(`/api/districts/${encodeURIComponent(district)}/request-unlock`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: String(result.value ?? '').trim() }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({})) as { error?: string };
+        await SwalG?.fire({ icon: 'error', title: 'Could not submit request', text: body.error ?? 'Please try again.' });
+        return;
+      }
+      void SwalG?.fire({
+        toast: true, position: 'top-end', icon: 'success', title: 'Unlock request submitted.',
+        showConfirmButton: false, timer: 3500, timerProgressBar: true,
+      });
+      await load();
+    } finally {
+      setRequestingUnlock(false);
+    }
+  }
 
   function goToNames() {
     const ns = Math.max(0, Math.min(50, Number(sectorCount) || 0));
@@ -200,6 +246,7 @@ export default function UnitsPage() {
           <p><strong>नामकरण:</strong> Sector के नाम आमतौर पर सिर्फ एक नंबर होते हैं, जैसे &quot;Sector 1&quot;, लेकिन इसमें कोई area भी शामिल हो सकता है, जैसे &quot;Sector 1 Hazratganj&quot;। Circle के नाम आमतौर पर area सहित होते हैं, जैसे &quot;Circle 1 Mall, Malihabad&quot;। <strong>यदि आपके district में कोई sector नहीं है</strong> (शुद्ध rural district), तो circles की गिनती Circle 1 से शुरू होती है। <strong>यदि sector हैं</strong> (urban area को cover करते हुए), तो Circle 1 issue नहीं होता — rural circles Circle 2 से शुरू होते हैं।</p>
           <p><strong>चरण 2 — Download the district template</strong> Upload page से (आपके circles/sectors लॉक होते ही यह अपने-आप unlock हो जाता है)।</p>
           <p><strong>चरण 3 — Upload &amp; Verify</strong> करें consolidated district Excel फ़ाइल को, फिर headquarters को सबमिट करें।</p>
+          <p><strong>गलती हुई?</strong> लॉक होने के बाद, कारण बताते हुए एक &quot;अनलॉक अनुरोध&quot; सबमिट करें — एक Admin इसकी समीक्षा करके सूची को अनलॉक कर सकता है ताकि आप दोबारा रजिस्टर कर सकें।</p>
         </>}
       >
         <p><strong>Step 1 — Register all circles and sectors</strong> for your district, in one go, before doing anything else. Tell the system how many sectors and how many circles you have, then type each name in the box provided.</p>
@@ -207,6 +254,7 @@ export default function UnitsPage() {
         <p><strong>Naming:</strong> Sector names are usually just a number, e.g. &quot;Sector 1&quot;, but can also include an area, e.g. &quot;Sector 1 Hazratganj&quot;. Circle names usually include the area, e.g. &quot;Circle 1 Mall, Malihabad&quot;. <strong>If your district has no sectors</strong> (a purely rural district), circles are numbered starting from Circle 1. <strong>If sectors exist</strong> (covering the urban area), Circle 1 is never issued — rural circles start numbering from Circle 2.</p>
         <p><strong>Step 2 — Download the district template</strong> from the Upload page (unlocked automatically once your circles/sectors are locked).</p>
         <p><strong>Step 3 — Upload &amp; Verify</strong> the consolidated district Excel file, then submit to headquarters.</p>
+        <p><strong>Made a mistake?</strong> Once locked, submit an &quot;unlock request&quot; explaining why — an Admin can review and unlock the list so you can re-register.</p>
       </HelpPanel>
 
       {unitsLoading ? (
@@ -246,13 +294,31 @@ export default function UnitsPage() {
             </div>
           </div>
           <Link href="/upload" className="btn btn-primary self-start">Continue to Upload →</Link>
-          <div className="alert alert-warning text-sm">
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-            <div>
-              <p>Made a mistake or entered wrong data? This list cannot be edited by you. Contact your Admin / UP Excise Headquarters to have it unlocked.</p>
-              <p className="text-xs opacity-80 mt-1">क्या कोई गलती हुई या गलत डेटा दर्ज हुआ? यह सूची आपके द्वारा edit नहीं की जा सकती। इसे अनलॉक कराने के लिए अपने Admin / UP Excise मुख्यालय से संपर्क करें।</p>
+
+          {unlockRequest?.status === 'pending' ? (
+            <div className="alert alert-info text-sm">
+              <span className="loading loading-spinner loading-sm shrink-0" />
+              <div>
+                <p className="font-semibold">Unlock request pending Admin review.</p>
+                <p className="text-xs opacity-80 mt-1">&quot;{unlockRequest.reason}&quot;</p>
+                <p className="text-xs opacity-70 mt-1">अनलॉक अनुरोध Admin की समीक्षा के लिए लंबित है।</p>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="alert alert-warning text-sm">
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              <div className="flex-1">
+                <p>Made a mistake or entered wrong data? This list cannot be edited by you — submit an unlock request explaining why, and an Admin will review it.</p>
+                <p className="text-xs opacity-80 mt-1">क्या कोई गलती हुई या गलत डेटा दर्ज हुआ? यह सूची आपके द्वारा edit नहीं की जा सकती — कारण बताते हुए एक अनलॉक अनुरोध सबमिट करें, एक Admin इसकी समीक्षा करेगा।</p>
+                {unlockRequest?.status === 'denied' && (
+                  <p className="text-xs mt-2 text-error">Your last request was denied{unlockRequest.adminNote ? `: "${unlockRequest.adminNote}"` : '.'}</p>
+                )}
+                <button className="btn btn-sm btn-outline btn-warning mt-3" onClick={requestUnlock} disabled={requestingUnlock}>
+                  {requestingUnlock ? <span className="loading loading-spinner loading-xs" /> : 'Request Unlock'}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       ) : step === 'count' ? (
         <div className="card bg-base-100 shadow p-8 space-y-6 max-w-2xl mx-auto">

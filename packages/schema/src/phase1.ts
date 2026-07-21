@@ -83,10 +83,26 @@ export const districtCirclesSectors = sqliteTable('district_circles_sectors', {
   districtIdx: index('dcs_district_idx').on(t.districtName),
 }));
 
+export const districtUnlockRequests = sqliteTable('district_unlock_requests', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  districtName: text('district_name').notNull(),
+  reason: text('reason').notNull(),
+  status: text('status').default('pending').notNull(), // 'pending' | 'approved' | 'denied'
+  requestedByDeo: text('requested_by_deo').notNull(),
+  requestedAt: integer('requested_at', { mode: 'timestamp' }).notNull(),
+  resolvedAt: integer('resolved_at', { mode: 'timestamp' }),
+  resolvedBy: text('resolved_by'), // resolving admin's display name
+  adminNote: text('admin_note'),
+}, (t) => ({
+  districtIdx: index('dur_district_idx').on(t.districtName),
+  statusIdx: index('dur_status_idx').on(t.status),
+}));
+
 export const auditLog = sqliteTable('audit_log', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   // 'login' | 'logout' | 'login_cug' | 'upload_chunk' | 'district_submitted' | 'unit_registered'
-  // | 'units_unlocked' | 'district_master_updated' | 'bulk_provision'
+  // | 'units_unlocked' | 'district_master_updated' | 'bulk_provision' | 'unlock_requested'
+  // | 'unlock_request_denied'
   eventType: text('event_type').notNull(),
   deoId: text('deo_id').notNull(),
   districtName: text('district_name'),

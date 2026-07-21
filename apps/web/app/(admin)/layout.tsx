@@ -172,6 +172,7 @@ function getBreadcrumbs(pathname: string): { label: string; href: string | null 
     '/admin/districts': [{ label: 'Overview', href: '/admin' }, { label: 'Districts', href: null }],
     '/admin/divisions': [{ label: 'Overview', href: '/admin' }, { label: 'Divisions', href: null }],
     '/admin/provision': [{ label: 'Overview', href: '/admin' }, { label: 'District Master', href: null }],
+    '/admin/unlock-requests': [{ label: 'Overview', href: '/admin' }, { label: 'Unlock Requests', href: null }],
     '/admin/audit': [{ label: 'Overview', href: '/admin' }, { label: 'Audit Log', href: null }],
     '/admin/export': [{ label: 'Overview', href: '/admin' }, { label: 'Export', href: null }],
   };
@@ -229,6 +230,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           {session?.role === 'superadmin' && (
             <Link href="/admin/provision" className={`btn btn-ghost btn-sm ${pathname === '/admin/provision' ? 'btn-active' : ''}`}>District Master</Link>
           )}
+          <Link href="/admin/unlock-requests" className={`btn btn-ghost btn-sm ${pathname === '/admin/unlock-requests' ? 'btn-active' : ''}`}>Unlock Requests</Link>
           <Link href="/admin/audit" className={`btn btn-ghost btn-sm ${pathname === '/admin/audit' ? 'btn-active' : ''}`}>Audit</Link>
           <Link href="/admin/export" className={`btn btn-ghost btn-sm ${pathname === '/admin/export' ? 'btn-active' : ''}`}>Export</Link>
           <AdminIdentity />

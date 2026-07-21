@@ -112,6 +112,7 @@ function getAdminDb(): DexieInstance {
     _adminDb.version(1).stores({ export_cache: 'key' });
     _adminDb.version(2).stores({ export_cache: 'key', districts_cache: 'key' });
     _adminDb.version(3).stores({ export_cache: 'key', districts_cache: 'key', map_cache: 'key', shops_cache: 'key', audit_cache: 'key' });
+    _adminDb.version(4).stores({ export_cache: 'key', districts_cache: 'key', map_cache: 'key', shops_cache: 'key', audit_cache: 'key', unlock_requests_cache: 'key' });
   }
   return _adminDb;
 }
@@ -205,4 +206,24 @@ export const adminAuditCache = {
       .put({ key: page, data, fetchedAt: Date.now() }),
   invalidate: () =>
     getAdminDb().table<AdminKvCache<unknown>>('audit_cache').clear(),
+};
+
+// ── Unlock requests cache (manual sync, same convention as adminAuditCache) ─────
+
+const UNLOCK_REQUESTS_KEY = 'unlock_requests';
+
+export const adminUnlockRequestsCache = {
+  get: () =>
+    getAdminDb().table<AdminKvCache<unknown>>('unlock_requests_cache')
+      .where('key').equals(UNLOCK_REQUESTS_KEY).toArray()
+      .then((r) => {
+        const entry = r[0];
+        if (!entry) return null;
+        return entry.data;
+      }),
+  set: (data: unknown) =>
+    getAdminDb().table<AdminKvCache<unknown>>('unlock_requests_cache')
+      .put({ key: UNLOCK_REQUESTS_KEY, data, fetchedAt: Date.now() }),
+  invalidate: () =>
+    getAdminDb().table<AdminKvCache<unknown>>('unlock_requests_cache').clear(),
 };

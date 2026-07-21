@@ -1,5 +1,6 @@
 'use client';
 
+import { usePathname } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 
 interface Prefs {
@@ -35,6 +36,7 @@ function applyTheme(mode: ThemeMode) {
 }
 
 export default function ViewPrefsPanel() {
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [prefs, setPrefs] = useState<Prefs>(DEFAULT_PREFS);
   const [themeMode, setThemeMode] = useState<ThemeMode>('system');
@@ -91,6 +93,10 @@ export default function ViewPrefsPanel() {
     `flex-1 py-1 rounded-lg text-xs font-medium transition-colors ${
       active ? 'bg-primary text-primary-content' : 'hover:bg-base-200 text-base-content/80'
     }`;
+
+  // Login/verify pages show only the device/localStorage-resolved theme (handled by the
+  // anti-flash script in layout.tsx) — no customization FAB before a user is signed in.
+  if (pathname === '/login' || pathname?.startsWith('/auth')) return null;
 
   return (
     <>
