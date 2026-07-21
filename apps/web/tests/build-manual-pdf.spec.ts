@@ -41,8 +41,8 @@ const SECTIONS: Section[] = [
     file: '01-login-page.png',
     titleEn: '1. Signing In',
     titleHi: '१. साइन इन करें',
-    textEn: 'Open the portal in your browser. DEOs sign in with their department CUG mobile number — tap the "CUG Mobile (DEO)" tab (selected by default), enter your 10-digit CUG number, and tap "Sign in". Your number is hashed on your own device before it is sent — the raw number is never stored or transmitted. You do not need a password.',
-    textHi: 'अपने ब्राउज़र में पोर्टल खोलें। DEO अपने विभागीय CUG मोबाइल नंबर से साइन इन करते हैं — "CUG Mobile (DEO)" टैब चुनें (यह डिफ़ॉल्ट रूप से चयनित है), अपना 10-अंकीय CUG नंबर दर्ज करें, और "Sign in" पर टैप करें। आपका नंबर भेजे जाने से पहले आपके अपने डिवाइस पर ही हैश कर दिया जाता है — असली नंबर कभी संग्रहीत या प्रसारित नहीं होता। आपको किसी पासवर्ड की आवश्यकता नहीं है।',
+    textEn: 'Open the portal in your browser. DEOs sign in with their department CUG mobile number — tap the "CUG Mobile (DEO)" tab (selected by default), enter your 10-digit CUG number, and tap "Sign in". Your number is kept fully secure and private. You do not need a password.',
+    textHi: 'अपने ब्राउज़र में पोर्टल खोलें। DEO अपने विभागीय CUG मोबाइल नंबर से साइन इन करते हैं — "CUG Mobile (DEO)" टैब चुनें (यह डिफ़ॉल्ट रूप से चयनित है), अपना 10-अंकीय CUG नंबर दर्ज करें, और "Sign in" पर टैप करें। आपका नंबर पूरी तरह सुरक्षित और निजी रखा जाता है। आपको किसी पासवर्ड की आवश्यकता नहीं है।',
   },
   {
     file: '02-home-step1-gate.png',
@@ -322,8 +322,8 @@ test('build bilingual DEO User Manual PDF from captured screenshots', async ({ p
 <div class="toc">
   <h2>Contents / विषय-सूची</h2>
   <div class="about">
-    <p class="en"><strong>About this manual:</strong> Every page in the portal has a small "?" <strong>Help</strong> button (top of the page) with a brief, page-specific tip — that in-app help is intentionally short. This PDF is the detailed companion it links to, with every screen, the full Excel template contents, and the revenue formulas explained in full. Open it any time from the Dashboard's Help button, or from this same GitHub link.</p>
-    <p class="hi"><strong>इस मैनुअल के बारे में:</strong> पोर्टल के हर पेज पर एक छोटा "?" <strong>Help</strong> बटन (पेज के ऊपर) होता है जिसमें उस पेज से जुड़ी संक्षिप्त जानकारी होती है — यह in-app help जानबूझकर छोटी रखी गई है। यह PDF उसी की विस्तृत साथी है, जिसमें हर स्क्रीन, पूरा Excel template और राजस्व सूत्र विस्तार से समझाए गए हैं। इसे कभी भी Dashboard के Help बटन से, या इसी GitHub लिंक से खोला जा सकता है।</p>
+    <p class="en"><strong>About this manual:</strong> Every page in the portal has a small "?" <strong>Help</strong> button (top of the page) with a brief, page-specific tip — that in-app help is intentionally short. This PDF is the detailed companion, with every screen, the full Excel template contents, and the revenue formulas explained in full. It can be downloaded any time from the Dashboard's Help button.</p>
+    <p class="hi"><strong>इस मैनुअल के बारे में:</strong> पोर्टल के हर पेज पर एक छोटा "?" <strong>Help</strong> बटन (पेज के ऊपर) होता है जिसमें उस पेज से जुड़ी संक्षिप्त जानकारी होती है — यह in-app help जानबूझकर छोटी रखी गई है। यह PDF उसी की विस्तृत साथी है, जिसमें हर स्क्रीन, पूरा Excel template और राजस्व सूत्र विस्तार से समझाए गए हैं। इसे कभी भी Dashboard के Help बटन से डाउनलोड किया जा सकता है।</p>
   </div>
   <ol>
     ${allSections.map((s) => `<li>${s.titleEn} <span class="hi">— ${s.titleHi}</span></li>`).join('\n    ')}
