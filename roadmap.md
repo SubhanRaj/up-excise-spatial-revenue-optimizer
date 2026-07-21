@@ -155,8 +155,23 @@ A district typically comprises multiple circles and sectors, each overseen by an
 
 **Workflow:**
 
+```mermaid
+flowchart LR
+    A["1. Pre-register circles/sectors\n(one-shot, then locked)"] --> B["2. Download district template\n(.xlsx, one per district)"]
+    B --> C["3. Distribute to Inspectors\n(no portal access)"]
+    C --> D["4. DEO consolidates\nreturned sections"]
+    D --> E["5. Upload consolidated file\n(parsed in-browser, staged to IndexedDB)"]
+    E --> F["6. Grouped verification\n(by circle/sector)"]
+    F --> G["7. Submit to HQ\n(one atomic district event)"]
+
+    A -.->|mistake found after lock| U["Request Unlock\n(reason required)"]
+    U -.->|Admin approves| A
+    U -.->|Admin denies| A
+```
+
 1. **Pre-registration — one-shot and locked (M-15):** The DEO does not add circles/sectors one at a time. The Circle/Sector Management UI first asks how many circles and how many sectors the district has, generates that exact number of pre-labelled name boxes, and the DEO fills each one in (circle names conventionally carry an area, e.g. "Circle 1 Mall, Malihabad"; sector names are usually just a number, e.g. "Sector 1", but may also carry an area). A SweetAlert2 confirmation warns this cannot be changed afterward, then the full list is submitted in a single request and stored in D1 in the `district_circles_sectors` table, scoped to the DEO's district. The registration endpoint then rejects any further attempt to add units for that district — the DEO cannot partially register, come back later, and add more. Upload and Verify are not shown to the DEO at all until this step is complete.
    - **Circle numbering convention (M-23):** sectors cover a district's urban area, circles cover its rural area. If a district has no sectors (purely rural), circle name placeholders start at "Circle 1". If a district has any sectors, "Circle 1" belongs to the sector-covered urban area and is never reused for a rural circle, so circle placeholders start at "Circle 2" instead. This is a UI placeholder-text convention only (`apps/web/app/(deo)/units/page.tsx`) — the DEO always types the real name, and neither the schema nor `POST /api/districts/[district]/units` enforces or depends on the number.
+   - **Self-service unlock requests (M-24):** since there is no edit/delete path for a locked unit list, a wrong entry previously required the DEO to contact an Admin outside the app. `/units` now offers a "Request Unlock" button once locked — the DEO types a reason (required), stored in `district_unlock_requests` (409 if a pending request already exists). Admins review and resolve every request on `/admin/unlock-requests`; approving deletes the district's `district_circles_sectors` rows (same effect as the pre-existing manual admin-side unlock) and denying requires the admin's own note, same as approving.
 
 2. **Template generation:** The portal generates **one district-wide Excel template** (`.xlsx`) with the district name pre-filled in the header and a `circle_sector_name` column included for every data row. There is one template per district — not one per circle/sector. The DEO downloads this single template and distributes blank copies to each Inspector.
 
@@ -195,51 +210,33 @@ Phase 1 must operate with **zero infrastructure cost**. This is not a preference
 
 ### 3.2 System Architecture Overview
 
-```
-┌──────────────────────────────────────────────────────────────────────┐
-│                        DEO / ADMIN BROWSER (CLIENT)                  │
-│                                                                      │
-│   ┌─────────────┐    ┌──────────────────┐    ┌───────────────────┐  │
-│   │  Excel File │───▶│  SheetJS Parser  │───▶│  DMS → DD         │  │
-│   │  (.xlsx)    │    │  (100% in-browser│    │  Coordinate       │  │
-│   └─────────────┘    │   0ms server CPU)│    │  Normalizer       │  │
-│                      └──────────────────┘    └────────┬──────────┘  │
-│                                                        │             │
-│                      ┌─────────────────────────────────▼──────────┐ │
-│                      │         Dexie.js (IndexedDB Cache)         │ │
-│                      │   Refresh-resilient local persistence      │ │
-│                      │   Survives: tab close, refresh, power cut  │ │
-│                      └─────────────────────────────────┬──────────┘ │
-│                                                        │             │
-│   ┌────────────────────────────────────────────────────▼──────────┐ │
-│   │  up-excise-spatial-revenue-optimizer-web                      │ │
-│   │  Single CF Worker (Next.js via @opennextjs/cloudflare)        │ │
-│   │                                                               │ │
-│   │  Pages (SSR):                                                 │ │
-│   │  • /login — magic-link request form                           │ │
-│   │  • /auth/verify — client component, POSTs token to API        │ │
-│   │  • /home, /upload, /verify, /units — DEO portal              │ │
-│   │  • /admin, /admin/* — HQ dashboard                           │ │
-│   │                                                               │ │
-│   │  API Route Handlers (same worker, same D1 binding):           │ │
-│   │  • POST /api/auth/verify — token verify, session create       │ │
-│   │  • POST /api/upload/chunk — 500-row batch insert (db.batch()) │ │
-│   │  • GET/POST /api/districts/[d]/units — unit registration      │ │
-│   │  • POST /api/districts/[d]/submit — district submission       │ │
-│   │  • GET /api/admin/* — aggregate queries, export, audit log    │ │
-│   └────────────────────────────────────────────────────┬──────────┘ │
-└───────────────────────────────────────────────────────┼─────────────┘
-                                                        │
-                              ┌─────────────────────────▼──────────────┐
-                              │         Cloudflare D1 (SQLite)         │
-                              │                                        │
-                              │  • phase1_raw_collection               │
-                              │  • districts, district_circles_sectors │
-                              │  • auth_users, auth_magic_links,       │
-                              │    auth_sessions                       │
-                              │  • audit_log                           │
-                              │  • Indexed on district, thana, shop_id │
-                              └────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph Browser["DEO / Admin Browser (client)"]
+        Excel["Excel file (.xlsx)"] -->|ExcelJS, 100% in-browser, 0ms server CPU| Parse["ExcelJS parser"]
+        Parse --> Coord["DMS → DD coordinate normalizer"]
+        Coord --> IDB[("Dexie.js — IndexedDB cache\nsurvives tab close / refresh / power cut")]
+    end
+
+    IDB --> Worker
+
+    subgraph Worker["up-excise-spatial-revenue-optimizer-web — single CF Worker (Next.js via @opennextjs/cloudflare)"]
+        direction TB
+        Pages["Pages (SSR)\n/login · /auth/verify\n/home · /upload · /verify · /units — DEO portal\n/admin, /admin/* — HQ dashboard"]
+        Routes["API Route Handlers (same worker, same D1 binding)\nPOST /api/auth/verify — token verify, session create\nPOST /api/upload/chunk — 500-row batch insert (db.batch())\nGET/POST/DELETE /api/districts/[d]/units — unit registration/unlock\nGET/POST /api/districts/[d]/request-unlock — self-service unlock request\nPOST /api/districts/[d]/submit — district submission\nGET /api/admin/* — aggregate queries, export, audit log\nPOST /api/admin/unlock-requests/resolve — approve/deny unlock requests"]
+    end
+
+    Worker --> D1
+
+    subgraph D1["Cloudflare D1 (SQLite)"]
+        direction TB
+        T1["phase1_raw_collection"]
+        T2["districts · district_circles_sectors"]
+        T3["district_unlock_requests"]
+        T4["auth_users · auth_magic_links · auth_sessions"]
+        T5["audit_log"]
+        T6["Indexed on district, thana, shop_id"]
+    end
 ```
 
 **One Worker, no Pages, no separate API worker:**
@@ -1121,7 +1118,8 @@ export const auditLog = sqliteTable('audit_log', {
   id: integer('id').primaryKey({ autoIncrement: true }),
 
   // 'login' | 'logout' | 'login_cug' | 'upload_chunk' | 'district_submitted' | 'unit_registered'
-  // | 'units_unlocked' | 'district_master_updated' | 'bulk_provision'
+  // | 'units_unlocked' | 'district_master_updated' | 'bulk_provision' | 'unlock_requested'
+  // | 'unlock_request_denied'
   eventType: text('event_type').notNull(),
 
   deoId: text('deo_id').notNull(),
@@ -1147,6 +1145,29 @@ export const auditLog = sqliteTable('audit_log', {
   createdAtIdx: index('al_created_at_idx').on(table.createdAt),
 }));
 ```
+
+### 5.5a District Unlock Requests Table (M-24)
+
+Since a locked `district_circles_sectors` list has no DEO-facing edit/delete path, a DEO who spots a mistake previously had no in-app recourse beyond contacting an Admin outside the portal. This table (migration `0005_add_unlock_requests.sql`, additive, applied directly to prod D1) lets the DEO submit a reason in-app; an Admin reviews and resolves it on `/admin/unlock-requests`. Mirrors the sibling `excise-revenue-recovery-portal` project's `unlock_requests` table, minus the PDF-attachment column — this project has no R2 binding and none was requested.
+
+```typescript
+export const districtUnlockRequests = sqliteTable('district_unlock_requests', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  districtName: text('district_name').notNull(),
+  reason: text('reason').notNull(),
+  status: text('status').default('pending').notNull(), // 'pending' | 'approved' | 'denied'
+  requestedByDeo: text('requested_by_deo').notNull(),
+  requestedAt: integer('requested_at', { mode: 'timestamp' }).notNull(),
+  resolvedAt: integer('resolved_at', { mode: 'timestamp' }),
+  resolvedBy: text('resolved_by'),   // resolving admin's display name
+  adminNote: text('admin_note'),
+}, (table) => ({
+  districtIdx: index('dur_district_idx').on(table.districtName),
+  statusIdx: index('dur_status_idx').on(table.status),
+}));
+```
+
+"Only one pending request per district" is enforced in application code (a check-then-insert in `POST /api/districts/[district]/request-unlock`), not a DB constraint — same TOCTOU trade-off the sibling project accepts for the same reason (low-stakes race, worst case two pending rows which the admin UI just shows both of). Approving a request (`POST /api/admin/unlock-requests/resolve`) deletes the district's `district_circles_sectors` rows — identical effect to the pre-existing manual `DELETE /api/districts/[district]/units` unlock — and both approve/deny require the resolving admin to type their own note.
 
 ### 5.6 Schema Notes & Constraints
 
@@ -1640,6 +1661,37 @@ M-6: Auth Migration + Single Worker       [Post-M5]         ✅ Complete
 - [x] **Custom domain — `sro.exciseup.in`:** Cloudflare's onboarding only accepts root/registrable domains for a new zone, not bare subdomains, so getting a subdomain on Cloudflare required migrating the whole `exciseup.in` zone's nameservers — not just delegating the one subdomain. `exciseup.in` also carries Google Workspace email (MX/SPF/DMARC on the root) and was DNSSEC-signed, both of which had to survive: DNSSEC was disabled at the registrar before the nameserver switch and re-enabled via Cloudflare afterward (skipping this ordering would break domain resolution mid-migration for validating resolvers), and Workspace's MX/SPF/DMARC were verified byte-for-byte identical post-migration. Hit one real regression in the process: Cloudflare's DNS auto-scan did not correctly preserve `mail.exciseup.in`'s original `CNAME → ext-sq.squarespace.com` record (Resend's sending domain) — documented in DEPLOY.md as a known gotcha for any future domain migration. `apps/web/wrangler.jsonc` gained `routes: [{ pattern: "sro.exciseup.in", custom_domain: true }]`; `wrangler deploy` provisions the domain and TLS cert automatically, no manual DNS record needed. The name "SRO" (Spatial Revenue Optimizer) was chosen deliberately over "Excise Portal," since the sibling `excise-revenue-recovery-portal` project already owns that branding. `apps/web/app/login/actions.ts`'s `ALLOWED_HOSTS`/`FALLBACK_HOST` (the open-redirect guard used to build magic-link email URLs) updated to `sro.exciseup.in`. The old `*.workers.dev` URL is now disabled — Cloudflare's default behavior once a `custom_domain` route exists.
 
 **Exit criterion:** Prod D1 has zero shop/unit/audit rows and no demo district or demo account, while all 75 real districts and all admin accounts are intact; the admin navbar has no dead link to a nonexistent test account; `https://sro.exciseup.in` serves the live Worker with a valid cert and correctly redirects unauthenticated requests to `/login`.
+
+---
+
+### M-23: Circle Numbering Convention (Rural vs. Urban) ✅ Complete
+
+**Objective:** Fix `/units`' circle name placeholders to match the department's real numbering rule — sectors cover a district's urban area, circles cover the rural area, so "Circle 1" conceptually belongs to the sector-covered urban zone.
+
+**Deliverables:**
+
+- [x] `circleNumber(i)` placeholder helper (`apps/web/app/(deo)/units/page.tsx`) — circle placeholders start at "Circle 1" only when a district registers zero sectors; once any sectors exist, circle placeholders start at "Circle 2" instead. Pure client-side placeholder-text convention — the DEO always types the real name, and neither the schema nor `POST /api/districts/[district]/units` depends on or enforces the number.
+- [x] Both English and Hindi help-panel copy on `/units` updated to state the rule explicitly.
+
+**Exit criterion:** A district with any sectors never shows "Circle 1" as a placeholder; a purely rural district (zero sectors) still starts circle numbering at 1.
+
+---
+
+### M-24: Self-Service Unlock Requests & Login-Page ViewPrefs Cleanup ✅ Complete
+
+**Objective:** Give a locked-out DEO an in-app way to request a unit-list unlock instead of only a "contact your Admin" message — mirroring the sibling `excise-revenue-recovery-portal` project's unlock-request feature — and stop showing the view-customization FAB before a user is signed in.
+
+**Deliverables:**
+
+- [x] New `district_unlock_requests` table (migration `0005_add_unlock_requests.sql`, additive, applied directly to prod D1 — verified all 75 `districts` rows and existing data untouched before and after). See Section 5.5a for the full schema. No PDF-attachment column — this project has no R2 binding and none was requested, unlike the sibling project's version of this table.
+- [x] `GET`/`POST /api/districts/[district]/request-unlock` — DEO-only, scoped to the caller's own `session.districtName` (403 otherwise). `POST` rejects (409) if the district isn't locked yet, or if a pending request already exists for it; stores the reason and audit-logs `unlock_requested`.
+- [x] `/units`' locked view now shows a "Request Unlock" button (SweetAlert2 textarea, reason required, bilingual copy) instead of only static contact text, and polls its own latest request on load to show a pending (info banner) or denied (with the admin's note) state.
+- [x] New `/admin/unlock-requests` page — nav link added to `app/(admin)/layout.tsx` (open to plain `admin`, not owner/superadmin-gated, same access level as the pre-existing manual unlock), IndexedDB-first per the project's Admin Data Loading rule (`adminUnlockRequestsCache` in `db.ts`, manual "Sync from Server" button, same convention as `/admin/audit`). Lists every request with a pending/all filter.
+- [x] `POST /api/admin/unlock-requests/resolve` — `{ id, action: 'approve'|'deny', note }`, both actions require the admin's own note. Approving deletes the district's `district_circles_sectors` rows (identical effect to the pre-existing manual `DELETE /api/districts/[district]/units` unlock) and audit-logs `units_unlocked` (reusing the existing event type so `/admin/audit`'s label mapping needed no new entry for the approval path); denying audit-logs the new `unlock_request_denied` event. Re-checks the request's status server-side before resolving (rejects 409 if already resolved) to close a double-resolve race.
+- [x] `/admin/audit`'s `EVENT_LABELS`/`METADATA_KEY_LABELS` extended with `unlock_requested`, `unlock_request_denied`, and the `reason`/`note` metadata keys.
+- [x] **Login-page ViewPrefs cleanup:** the theme/font-size/density/width customization FAB (`ViewPrefsPanel.tsx`) was rendering on `/login` and `/auth/verify` — pages reached before a session exists, where a customization control serves no purpose. It now reads `usePathname()` and renders nothing on those two routes; the anti-flash inline script in `layout.tsx` (untouched) still resolves the correct theme from `localStorage`/OS preference before first paint on every route, so login/verify still respect the device's theme, just without a visible FAB.
+
+**Exit criterion:** A DEO whose district is locked can submit a reason-required unlock request from `/units`; an admin can approve (which unlocks the district, same as the manual path) or deny (with a required note) from `/admin/unlock-requests`; both outcomes are visible back on `/units` and in the audit log. `/login` and `/auth/verify` show no view-customization FAB, on any theme/device.
 
 ---
 
