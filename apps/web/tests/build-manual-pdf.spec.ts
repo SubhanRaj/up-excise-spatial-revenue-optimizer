@@ -205,7 +205,7 @@ function buildRevenueFormulasSection(): Section {
     ['MODEL_SHOP', 'license_fee_lf + mgr_amount + ₹3,00,000 (fixed On Premises Consumption Fee)', 'The ₹3,00,000 fee is a fixed department-set constant — it is not a field you fill in.'],
     ['COMPOSITE_SHOP', 'composite_lf_fl + composite_lf_beer + composite_mgr_fl + composite_mgr_beer', 'All four sub-component fields are required — the Foreign Liquor and Beer portions of both LF and MGR.'],
     ['PRV', 'license_fee_lf + mgr_amount', '—'],
-    ['BHANG_SHOP', `license_fee_lf + (mgq_quantity × ₹${BHANG_MGQ_MULTIPLIER}/unit)`, 'mgq_quantity is a COUNT of units, not a rupee amount — the Excel and the Worker both multiply it by ₹20 automatically.'],
+    ['BHANG_SHOP', `license_fee_lf + (mgq_quantity × ₹${BHANG_MGQ_MULTIPLIER}/unit)`, 'mgq_quantity is a COUNT of units, not a rupee amount — the Excel and the system both multiply it by ₹20 automatically.'],
     ['COUNTRY_LIQUOR (standard)', 'basic_license_fee_blf + consideration_fee', 'Used when Has CL5CC? is false.'],
     ['COUNTRY_LIQUOR + CL5CC', 'basic_license_fee_blf + consideration_fee + special_beer_lf + special_beer_mgr', 'Only when Has CL5CC? is true — the two special_beer_* fields only unlock in Excel for this combination.'],
   ];
