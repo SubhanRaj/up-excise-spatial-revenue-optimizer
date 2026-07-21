@@ -81,3 +81,45 @@ For manually testing the CUG login path (`/login` → "CUG Mobile (DEO)" tab, th
 
 The DEO dashboard **Sync from Server** button enforces a 12-hour cooldown stored in `localStorage['last-sync-time']`. During testing or demos you can reset it instantly with the **Reset** link that appears next to the button while it is in cooldown — no DevTools required.
 
+## DEO User Manual — Screenshot Walkthrough & PDF Generation
+
+Two additional Playwright specs (`apps/web/tests/manual-screenshots.spec.ts` and `apps/web/tests/build-manual-pdf.spec.ts`) generate the bilingual (English/Hindi) DEO User Manual at `docs/manual/DEO-User-Manual.pdf`, screenshotting the real portal UI end to end rather than mocking it up. `docs/manual/screenshots/*.png` are the raw captures; the PDF is built from them via Chromium's own print-to-PDF (`page.pdf()`) — no new dependency, no external PDF library.
+
+Since the removed-from-prod Demo District (see "Manual CUG Login Test" above) can no longer be used, this walkthrough runs against a real seeded district (**Agra**) on a local D1 instance instead, with the test/superadmin account's `deo_id`/`district_name` temporarily repointed at it — never against prod.
+
+**Critical gotcha found while building this — `pnpm --filter web dev` (plain `next dev`) has no D1 binding.** `next dev` alone cannot satisfy `getCloudflareContext()` — any route touching D1 throws, which is invisible in the manual click-through UI test in TEST.md above only because that flow was never actually exercised against a fresh `next dev` process during this discovery (magic-link verify silently 500'd). Screenshotting/PDF generation must instead run against the **real built worker** via the OpenNext Cloudflare preview server, which has proper D1/secret bindings:
+
+```bash
+# 1. Build the worker (once, or after any code change)
+cd apps/web && npx @opennextjs/cloudflare build
+
+# 2. Provide dummy local-only secrets — .dev.vars is gitignored, never commit it.
+#    SUPERADMIN_EMAIL_HASH here must be the SHA-256 hex of whatever test email you use
+#    to insert the magic link (see manual-screenshots.spec.ts for the exact flow).
+cat > apps/web/.dev.vars <<'EOF'
+SESSION_SECRET=local-dev-only-session-secret-not-real
+API_SECRET=local-dev-only-api-secret-not-real
+RESEND_API_KEY=local-dev-only-not-real
+RESEND_FROM_EMAIL=noreply@example.local
+SUPERADMIN_EMAIL_HASH=<sha256 of your test email>
+DEMO_CUG=0000000000
+EOF
+
+# 3. Run the preview server (real D1 + secret bindings, unlike `next dev`)
+npx @opennextjs/cloudflare preview   # → http://localhost:8787
+
+# 4. Seed a real district's row + point the test account at it (local D1 only), e.g. Agra —
+#    see manual-screenshots.spec.ts's header comment for the exact SQL used.
+
+# 5. Capture screenshots, then build the PDF
+PLAYWRIGHT_TEST_BASE_URL=http://localhost:8787 SUPERADMIN_TEST_EMAIL=<your test email> \
+  npx playwright test tests/manual-screenshots.spec.ts
+npx playwright test tests/build-manual-pdf.spec.ts
+```
+
+`playwright.config.ts`'s `baseURL` now reads `PLAYWRIGHT_TEST_BASE_URL` (falls back to `http://localhost:3000`) so both the plain-`next-dev` demo above and this worker-preview walkthrough can coexist without editing the config each time.
+
+**Real bug found and fixed during this work:** `getSession()` (`apps/web/src/lib/auth.ts`) hardcoded the superadmin-bypass session's `districtName` to the literal `'Demo District'` regardless of the account's actual assigned district — inconsistent with `api/auth/verify/route.ts`'s own `user.districtName ?? 'Demo District'` fallback used at login time. Since Demo District no longer exists in prod (M-22 cleanup), this silently broke the superadmin bypass account's ability to reach any DEO page in production. Fixed to `row.districtName ?? 'Demo District'`, matching the verify route's own logic.
+
+Screenshots and the PDF are committed to the repo (`docs/manual/`) so the manual can be regenerated or handed to DEOs without re-running the walkthrough.
+

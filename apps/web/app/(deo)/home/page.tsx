@@ -10,6 +10,11 @@ import { drizzle } from 'drizzle-orm/d1';
 import { districtCirclesSectors } from '@excise/schema';
 import { eq } from 'drizzle-orm';
 
+// Fetched from GitHub (public repo) rather than served from this Worker — the manual is a
+// static reference doc regenerated ad hoc (see TEST.md), not something that needs to ship in
+// the bundle or be redeployed to update.
+const DEO_MANUAL_URL = 'https://raw.githubusercontent.com/SubhanRaj/up-excise-spatial-revenue-optimizer/main/docs/manual/DEO-User-Manual.pdf';
+
 export default async function DeoDashboard() {
   const session = await requireAuth('deo');
   const district = session.districtName ?? 'Unknown District';
@@ -84,6 +89,7 @@ export default async function DeoDashboard() {
             <li><strong>Verify &amp; Submit</strong> — सभी rows की समीक्षा करें, कोई भी अमान्य adjacent Thana entry (लाल रंग में दिखाई गई) हटाएं, फिर headquarters को सबमिट करें।</li>
           </ol>
           <p className="mt-1">सारा डेटा पहले offline सेव होता है। आप बिना इंटरनेट के भी काम कर सकते हैं — connectivity वापस आते ही records अपने-आप अपलोड हो जाते हैं।</p>
+          <p className="mt-2 pt-2 border-t border-base-200">यह सारांश संक्षिप्त है। स्क्रीनशॉट सहित पूरी चरण-दर-चरण मार्गदर्शिका (अंग्रेज़ी और हिन्दी दोनों में) — जिसमें Excel template के columns, validation और राजस्व सूत्र भी शामिल हैं — देखें: <a href={DEO_MANUAL_URL} target="_blank" rel="noopener noreferrer" className="link link-primary font-medium">DEO उपयोगकर्ता मैनुअल (PDF) खोलें</a></p>
         </>}
       >
         <p>Your task is to submit shop data for <strong>{district}</strong> to headquarters. The workflow has three steps, done strictly in order:</p>
@@ -93,6 +99,7 @@ export default async function DeoDashboard() {
           <li><strong>Verify &amp; Submit</strong> — Review all rows, remove any invalid adjacent Thana entries (shown in red), then submit to headquarters.</li>
         </ol>
         <p className="mt-1">All data is saved offline first. You can work without internet — records upload automatically when connectivity is restored.</p>
+        <p className="mt-2 pt-2 border-t border-base-200">This summary is brief. For the full step-by-step guide with screenshots (English &amp; Hindi) — including what's inside the Excel template, its validation rules, and the revenue formulas — see the <a href={DEO_MANUAL_URL} target="_blank" rel="noopener noreferrer" className="link link-primary font-medium">DEO User Manual (PDF)</a></p>
       </HelpPanel>
 
       <div className="alert alert-info">

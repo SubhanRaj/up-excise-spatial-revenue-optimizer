@@ -67,7 +67,7 @@ function magicLinkHtml(name: string, verifyUrl: string): string {
         </tr>
         <tr>
           <td style="padding:20px 32px;border-top:1px solid #e2e8f0;background:#f8fafc;">
-            <p style="margin:0;font-size:12px;color:#94a3b8;">UP Excise Spatial Revenue Optimizer · SIBIN Tech Solutions for Department of Excise, Government of Uttar Pradesh</p>
+            <p style="margin:0;font-size:12px;color:#94a3b8;">UP Excise Spatial Revenue Optimizer · Department of Excise, Government of Uttar Pradesh</p>
           </td>
         </tr>
       </table>
