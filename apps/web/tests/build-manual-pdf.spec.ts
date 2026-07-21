@@ -305,6 +305,9 @@ test('build bilingual DEO User Manual PDF from captured screenshots', async ({ p
   .toc h2 { font-size: 20px; margin-bottom: 14px; }
   .toc ol { padding-left: 20px; font-size: 13px; }
   .toc li { margin-bottom: 6px; }
+  .toc .about { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 10px 14px; margin-bottom: 18px; }
+  .toc .about p { margin: 0 0 6px; font-size: 12px; }
+  .toc .about p:last-child { margin-bottom: 0; }
 </style>
 </head>
 <body>
@@ -318,6 +321,10 @@ test('build bilingual DEO User Manual PDF from captured screenshots', async ({ p
 
 <div class="toc">
   <h2>Contents / विषय-सूची</h2>
+  <div class="about">
+    <p class="en"><strong>About this manual:</strong> Every page in the portal has a small "?" <strong>Help</strong> button (top of the page) with a brief, page-specific tip — that in-app help is intentionally short. This PDF is the detailed companion it links to, with every screen, the full Excel template contents, and the revenue formulas explained in full. Open it any time from the Dashboard's Help button, or from this same GitHub link.</p>
+    <p class="hi"><strong>इस मैनुअल के बारे में:</strong> पोर्टल के हर पेज पर एक छोटा "?" <strong>Help</strong> बटन (पेज के ऊपर) होता है जिसमें उस पेज से जुड़ी संक्षिप्त जानकारी होती है — यह in-app help जानबूझकर छोटी रखी गई है। यह PDF उसी की विस्तृत साथी है, जिसमें हर स्क्रीन, पूरा Excel template और राजस्व सूत्र विस्तार से समझाए गए हैं। इसे कभी भी Dashboard के Help बटन से, या इसी GitHub लिंक से खोला जा सकता है।</p>
+  </div>
   <ol>
     ${allSections.map((s) => `<li>${s.titleEn} <span class="hi">— ${s.titleHi}</span></li>`).join('\n    ')}
   </ol>
