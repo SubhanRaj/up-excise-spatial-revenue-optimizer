@@ -9,7 +9,7 @@ test.describe('E2E Local Demo - Superadmin Bypass & Excel Upload Flow', () => {
 
   test.beforeAll(() => {
     console.log('Seeding demo data locally...');
-    // Seed the database to ensure shubhanraj2002@gmail.com exist
+    // Seed the database to ensure the superadmin test account exists
     execSync('pnpm -w run seed:demo -- --local', { stdio: 'inherit' });
   });
 
@@ -21,8 +21,10 @@ test.describe('E2E Local Demo - Superadmin Bypass & Excel Upload Flow', () => {
     const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
     
-    // auth_magic_links uses email_hash — compute SHA-256 of the single owner email
-    const OWNER_EMAIL = 'shubhanraj2002@gmail.com';
+    // auth_magic_links uses email_hash — compute SHA-256 of the superadmin's email.
+    // Never hardcode the raw address (see CLAUDE.md "Superadmin Configuration").
+    const OWNER_EMAIL = process.env.SUPERADMIN_TEST_EMAIL;
+    if (!OWNER_EMAIL) throw new Error('SUPERADMIN_TEST_EMAIL env var is required to run this test');
     const emailHash = crypto.createHash('sha256').update(OWNER_EMAIL.trim().toLowerCase()).digest('hex');
 
     const insertCmd = `pnpm --filter web exec wrangler d1 execute up-excise-spatial-revenue-optimizer-prod --local --command="INSERT INTO auth_magic_links (email_hash, token_hash, expires_at, used) VALUES ('${emailHash}', '${tokenHash}', '${expiresAt}', 0);"`;

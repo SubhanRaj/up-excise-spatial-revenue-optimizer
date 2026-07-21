@@ -58,7 +58,6 @@ export default function DeoLayout({ children }: { children: React.ReactNode }) {
             </>
           )}
 
-          <Link href="/admin" className="btn btn-outline btn-secondary btn-sm ml-1">HQ Admin</Link>
           <button className="btn btn-ghost btn-sm ml-1" onClick={signOut}>Sign out</button>
         </div>
       </nav>

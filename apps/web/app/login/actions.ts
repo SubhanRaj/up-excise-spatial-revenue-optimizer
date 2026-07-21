@@ -10,7 +10,6 @@ import { sendMagicLinkEmail } from '@/lib/email';
 
 const ALLOWED_HOSTS: ReadonlySet<string> = new Set([
   'sro.exciseup.in',
-  'up-excise-spatial-revenue-optimizer-web.shubhanraj2002.workers.dev',
   'localhost:3000',
 ]);
 const FALLBACK_HOST = 'sro.exciseup.in';
