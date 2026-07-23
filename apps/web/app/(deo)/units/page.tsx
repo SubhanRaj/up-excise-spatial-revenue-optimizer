@@ -127,8 +127,13 @@ export default function UnitsPage() {
       toastError('Enter at least 1 circle or sector.', 'कम से कम 1 सर्कल या सेक्टर दर्ज करें।');
       return;
     }
-    setSectorNames(Array.from({ length: ns }, (_, i) => sectorNames[i] ?? ''));
-    setCircleNames(Array.from({ length: nc }, (_, i) => circleNames[i] ?? ''));
+    // Boxes start pre-filled with "Sector 1 - " / "Circle 1 - " (a real value, not just a
+    // placeholder) so the DEO can type an area name straight after the dash — many DEOs were
+    // typing only the area name and dropping the circle/sector number entirely, leaving no way
+    // to tell which unit a shop belongs to. Pressing Enter without adding anything strips the
+    // trailing "- " back down to the bare "Sector 1" (see stripEmptySuffix below).
+    setSectorNames(Array.from({ length: ns }, (_, i) => sectorNames[i] ?? `Sector ${i + 1} - `));
+    setCircleNames(Array.from({ length: nc }, (_, i) => circleNames[i] ?? `Circle ${ns === 0 ? i + 1 : i + 2} - `));
     setTriedSubmit(false);
     setStep('names');
   }
@@ -138,7 +143,15 @@ export default function UnitsPage() {
   // is never (re-)issued to a rural circle — rural circles start at 2.
   const circleNumber = (i: number) => (sectorNames.length === 0 ? i + 1 : i + 2);
 
-  const allFilled = sectorNames.every((n) => n.trim()) && circleNames.every((n) => n.trim());
+  // Turns an untouched "Sector 1 - " box into "Sector 1" once no area name was typed after the
+  // dash. Runs on Enter and again just before submit, so it applies whether or not the DEO
+  // pressed Enter in each box.
+  function stripEmptySuffix(name: string): string {
+    const t = name.trim();
+    return t.endsWith('-') ? t.slice(0, -1).trim() : t;
+  }
+
+  const allFilled = sectorNames.every((n) => stripEmptySuffix(n)) && circleNames.every((n) => stripEmptySuffix(n));
   const canSubmit = allFilled && (sectorNames.length + circleNames.length) > 0;
 
   async function submitUnits() {
@@ -147,8 +160,8 @@ export default function UnitsPage() {
       toastError('Fill in every box before submitting — none can be left blank.', 'सबमिट करने से पहले हर बॉक्स भरें — कोई भी खाली नहीं छोड़ा जा सकता।');
       return;
     }
-    const sectors = sectorNames.map((n) => n.trim());
-    const circles = circleNames.map((n) => n.trim());
+    const sectors = sectorNames.map(stripEmptySuffix);
+    const circles = circleNames.map(stripEmptySuffix);
 
     const SwalG = (window as unknown as { Swal?: Swal }).Swal;
     const confirm = await SwalG?.fire({
@@ -368,7 +381,7 @@ export default function UnitsPage() {
               <h3 className="font-semibold text-sm mb-3 text-center">Sectors / सेक्टर</h3>
               <div className="flex flex-col gap-3 max-w-md mx-auto">
                 {sectorNames.map((name, i) => {
-                  const blank = triedSubmit && !name.trim();
+                  const blank = triedSubmit && !stripEmptySuffix(name);
                   return (
                     <div key={`sector-${i}`}>
                       <input
@@ -377,6 +390,11 @@ export default function UnitsPage() {
                         placeholder={`Sector ${i + 1}`}
                         aria-label={`Sector ${i + 1} name`}
                         onChange={(e) => setSectorNames((prev) => prev.map((v, idx) => (idx === i ? e.target.value : v)))}
+                        onKeyDown={(e) => {
+                          if (e.key !== 'Enter') return;
+                          e.preventDefault();
+                          setSectorNames((prev) => prev.map((v, idx) => (idx === i ? stripEmptySuffix(v) : v)));
+                        }}
                       />
                       {blank && <span className="mt-1 block text-xs font-bold text-error">Required — यह आवश्यक है</span>}
                     </div>
@@ -391,7 +409,7 @@ export default function UnitsPage() {
               <h3 className="font-semibold text-sm mb-3 text-center">Circles / सर्कल</h3>
               <div className="flex flex-col gap-3 max-w-md mx-auto">
                 {circleNames.map((name, i) => {
-                  const blank = triedSubmit && !name.trim();
+                  const blank = triedSubmit && !stripEmptySuffix(name);
                   return (
                     <div key={`circle-${i}`}>
                       <input
@@ -400,6 +418,11 @@ export default function UnitsPage() {
                         placeholder={`Circle ${circleNumber(i)}`}
                         aria-label={`Circle ${circleNumber(i)} name`}
                         onChange={(e) => setCircleNames((prev) => prev.map((v, idx) => (idx === i ? e.target.value : v)))}
+                        onKeyDown={(e) => {
+                          if (e.key !== 'Enter') return;
+                          e.preventDefault();
+                          setCircleNames((prev) => prev.map((v, idx) => (idx === i ? stripEmptySuffix(v) : v)));
+                        }}
                       />
                       {blank && <span className="mt-1 block text-xs font-bold text-error">Required — यह आवश्यक है</span>}
                     </div>

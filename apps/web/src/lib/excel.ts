@@ -428,7 +428,7 @@ async function buildShopDataSheet(
   // the column-level default set above, so typing/sorting/filtering data rows is unaffected.
   await ws.protect('', {
     selectLockedCells: true, selectUnlockedCells: true,
-    formatCells: false, formatColumns: false, formatRows: false,
+    formatCells: false, formatColumns: true, formatRows: false,
     insertRows: true, insertColumns: false, deleteRows: true, deleteColumns: false,
     sort: true, autoFilter: true,
   });
