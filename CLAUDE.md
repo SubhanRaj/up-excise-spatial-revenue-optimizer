@@ -460,7 +460,8 @@ Every API route handler (except the trivial `/api/healthz` liveness check) is ex
 - Session expiry must not destroy IndexedDB data. The DEO re-authenticates via magic link and resumes with all staged data intact.
 - The Service Worker pre-caches all CDN assets on install: DaisyUI, Tailwind v4 browser CDN, Dexie.js, SweetAlert2, Notyf, ExcelJS. After first load the entire app runs offline with no network dependency.
 - **The fetch handler also opportunistically caches every same-origin GET response** (`apps/web/public/sw.js`), including Next.js's own `_next/static/*` JS chunks and rendered HTML — network-first, falling back to this cache when offline. This is a single static cache name (`CACHE` constant), not tied to deploys — if a bug fix ships without bumping that constant, a browser tab that already has the buggy bundle cached can keep serving it (see M-26). **Bump `CACHE` in `sw.js` whenever a fix needs to reach already-cached browsers deterministically**, not just on every deploy.
-- Minimum supported viewport is **768px**. No small-screen mobile layouts. Do not write `sm:` or `xs:` responsive prefixes in any layout.
+- **Navbars and dashboards are mobile-responsive** (as of the M-33 mobile pass) — both `(admin)/layout.tsx` and `(deo)/layout.tsx` collapse into a hamburger + slide-in drawer below `md`, and the DEO/admin dashboard pages (`/home`, `/admin`) use responsive grid stacking (`grid-cols-1 sm:grid-cols-3`, etc.), matching the pattern in the sibling `excise-revenue-recovery-portal` project's `AppHeader.tsx`. `sm:`/`md:` prefixes are expected and correct in these files.
+- **Forms, the Excel upload flow, and data tables remain desktop-oriented by design** — `/units`, `/upload`, `/verify`, and every admin data table (`/admin/districts`, district detail's shop table, `/admin/audit`, `/admin/unlock-requests`, `/admin/provision`) are not redesigned for phone-width use; they already wrap in `overflow-x-auto` where needed so they're at least usable (horizontally scrollable) on a phone, but are not a mobile-first redesign target. The goal of the mobile pass is "a DEO or admin can at least check status from a phone," not full mobile parity with desktop.
 
 ### Data Language
 - All data fields — shop names, Thana names, district names, DEO identifiers, circle/sector names — are **English only**. No Hindi, Devanagari, Urdu, or any other script. Enforce this with input validation in the UI.
@@ -627,6 +628,8 @@ Full per-milestone delivery history (Objective, Deliverables, Exit Criterion, bu
 | M-29: SEO Metadata, robots.txt, Favicon & Social-Preview Image | **Completed** |
 | M-30: District Detail Circles/Sectors Modal | **Completed** |
 | M-31: Fixed has_cl5cc Excel Validation Always Rejecting Both TRUE and FALSE | **Completed** |
+| M-32: OG Image Middleware Fix & Doc Reorg (roadmap.md/summary.md split) | **Completed** |
+| M-33: Mobile-Responsive Navbars & Dashboards | **Completed** |
 
 See [summary.md](summary.md) for full milestone specs, entry/exit criteria, deliverable checklists, the backlog, and pre-campaign-blocker history.
 
@@ -683,7 +686,7 @@ Do not implement, suggest, or encode any of the following:
 - Password-based authentication. The system is magic-link only — no password fields, no password reset flows.
 - Inspector-level portal access. Inspectors fill Excel files and hand them to the DEO. They have no accounts and no portal access.
 - Self-registration for DEO accounts. All accounts are provisioned by the administrator from the department email list.
-- Small-screen mobile (< 768px) optimized layouts. Do not build or suggest responsive layouts for phones.
+- Full mobile-first redesign of forms, the Excel upload flow, or admin data tables — see "PWA & Offline" above for what mobile support *does* cover (navbars, dashboards) as of the M-33 mobile pass.
 - Any field, route, or UI component not grounded in a roadmap milestone deliverable.
 
 ---

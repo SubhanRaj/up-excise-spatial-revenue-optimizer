@@ -25,14 +25,14 @@ export default async function DeoDashboard() {
 
   return (
     <div className="space-y-8">
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold">Welcome back / नमस्ते</h1>
           <p className="text-base-content/80 mt-1">
             District: <span className="font-semibold text-base-content">{district}</span>
           </p>
         </div>
-        <div className="badge badge-primary badge-outline p-3 text-sm font-medium">Phase 1 — Data Collection</div>
+        <div className="badge badge-primary badge-outline p-3 text-sm font-medium self-start">Phase 1 — Data Collection</div>
       </div>
 
       <HomeStats district={district} />

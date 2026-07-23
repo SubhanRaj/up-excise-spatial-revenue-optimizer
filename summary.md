@@ -687,6 +687,37 @@ flowchart LR
 
 ---
 
+### M-32: OG Image Middleware Fix & Doc Reorg ✅ Complete
+
+**Objective:** Diagnose why `sro.exciseup.in`'s social-share previews (added in M-29) still didn't show an image or, in a plain browser/curl check, any meta tags at all — and split this project's sprawling documentation (roadmap.md's milestone tracking duplicated across two files, a stale `docs/templates/README.md`, an incomplete `docs/app-flow.md`) back into a maintainable structure.
+
+**Findings and fixes:**
+
+- [x] **Root cause of the missing social preview image:** `/opengraph-image` (the `next/og` route added in M-29) has no file extension in its URL, so it didn't match `middleware.ts`'s static-asset exclusion pattern (`.*\..*`) the way `/icon.svg`, `/robots.txt`, and `/manifest.json` do (all of which have a literal dot and bypass the middleware matcher entirely). Every request to it — including from real crawlers — was being redirected to `/login` by the "everything except `/login`/`/auth/verify` requires a session" rule, confirmed empirically by curling the live site with spoofed `facebookexternalhit`, `Twitterbot`, and `WhatsApp` user-agents and observing a `307` to `/login` in every case. Fixed by adding `/opengraph-image` to `middleware.ts`'s `PUBLIC` allowlist.
+- [x] **Not a bug, but worth recording:** the `<title>`/`og:*`/`twitter:*` meta tags themselves were never actually broken for real crawlers. Next.js 15.3's newer streaming-metadata behavior defers these tags into `<body>` (moved into `<head>` via client-side JS after hydration) for ordinary browser/curl requests as a TTFB optimization on dynamically-rendered routes — but Next's built-in bot-detection (`HTML_LIMITED_BOT_UA_RE`, which already covers `facebookexternalhit`, `Twitterbot`, `LinkedInBot`, `Slackbot`, `WhatsApp`, `redditbot`, `Discordbot`, etc.) correctly serves the synchronous, tags-in-`<head>` version to real crawler UAs through the OpenNext Cloudflare deployment, verified directly against the live site. A plain `curl`/view-source looking "broken" is expected Next.js 15 behavior, not a defect — only the image was actually broken.
+- [x] **Documentation reorg:** split roadmap.md's "Development Milestones & Action Plan" section (M-0 through M-31, Backlog, Timeline Summary, Pre-Campaign Blockers — previously duplicated in less-structured form across CLAUDE.md's own growing "Milestone Progress" table) into this file, `summary.md`, so roadmap.md can stay the pure technical/business-logic spec it was originally meant to be. While moving it, found and fixed a real gap: roadmap.md's own milestone write-ups had silently skipped M-18 and M-19 entirely (they only ever existed in CLAUDE.md's table) — reconstructed both here in the same Objective/Deliverables/Exit-criterion format. CLAUDE.md's milestone table slimmed to a status-only pointer linking here. Also rewrote `docs/templates/README.md` (was still describing the pre-M-6 Clerk-based provisioning flow, `has_cl5cc` as `1`/`0`, and 4 separate DMS/decimal coordinate columns — none of which have matched the actual template since M-12b/M-16/M-31) and added the M-24 self-service unlock-request path to `docs/app-flow.md`'s DEO workflow diagram, which was otherwise already accurate.
+- [x] **Also caught and fixed while auditing the docs:** CLAUDE.md's Pre-Campaign Blockers list still described Bhadohi's DEO record as unresolved ("provision it manually") — verified directly against prod D1 that it's actually correctly mapped (`districts.deo_id = "DEO-BHADOHI"`, `auth_users.district_name = "Bhadohi"`, real `deo_email_hash` set) and corrected the blocker list accordingly across CLAUDE.md, README.md, and this file.
+
+**Exit criterion:** `curl -A "facebookexternalhit/1.1" https://sro.exciseup.in/opengraph-image?...` returns the actual PNG, not a redirect; roadmap.md contains no milestone write-ups, only a linked index; `docs/templates/README.md` and `docs/app-flow.md` match the current codebase.
+
+---
+
+### M-33: Mobile-Responsive Navbars & Dashboards ✅ Complete
+
+**Objective:** Reverse this project's prior "no small-screen mobile" policy for navbars and dashboards specifically — a DEO or admin should be able to at least check status from a phone — while deliberately leaving forms, the Excel upload flow, and admin data tables desktop-oriented (those remain out of scope; they already have `overflow-x-auto` where needed). Modeled on the sibling `excise-revenue-recovery-portal` project's `AppHeader.tsx` hamburger + slide-in drawer pattern.
+
+**Deliverables:**
+
+- [x] **Admin navbar** (`app/(admin)/layout.tsx`): nav links, the district/division search bar, and the "Sync All" button move into a left-side slide-in drawer (React state, not DaisyUI's checkbox-driven drawer, since closing on link-click needs real state) below `md`; the header itself shrinks to a hamburger button + logo + sign-out. `SearchBar` gained a `mobile`/`onNavigate` variant so the same component renders full-width inside the drawer and closes it on navigation. Caught and fixed a real bug during this: `AdminIdentity` (name + designation display) has its own internal `hidden md:flex`, so placing it in the "mobile-only" header row rendered nothing on mobile — moved the identity block into the drawer instead, where it actually shows.
+- [x] **DEO navbar** (`app/(deo)/layout.tsx`): same hamburger + drawer pattern, simpler (only 2–4 links depending on whether units are locked yet).
+- [x] **DEO dashboard** (`app/(deo)/home/`): `HomeStats.tsx`'s three stat cards were a fixed `grid-cols-3` with no mobile stacking — changed to `grid-cols-1 sm:grid-cols-3`. The page header's district-name/Phase-1-badge row changed from a fixed `flex justify-between` to `flex-col sm:flex-row` so it stacks instead of squeezing on narrow screens.
+- [x] **Admin dashboard** (`app/(admin)/admin/page.tsx`): already had solid responsive foundations from earlier work (`md:grid-cols-3` state totals, `md:grid-cols-2` charts, a divisions grid already 2-column on mobile, and the district table already wrapped in `overflow-x-auto`) — no changes needed here beyond the navbar fix above.
+- [x] **CLAUDE.md updated**: replaced the old hard "minimum viewport 768px, no `sm:`/`xs:` prefixes" rule and the "small-screen mobile is out of scope" bullet with an explicit scoping note — navbars and dashboards are mobile-responsive as of this milestone; forms, Excel upload, and data tables remain desktop-oriented by design, not an oversight.
+
+**Exit criterion:** both portals' navbars collapse to a working hamburger + drawer below `md` with every nav link, search (admin), sync (admin), and sign-out reachable from the drawer; `/home` and `/admin` stat-card grids stack to one column on a phone-width viewport; `pnpm typecheck` passes.
+
+---
+
 ## Backlog / Not Started
 
 - [x] ~~Verify `exciseup.in` in Resend and switch `RESEND_FROM_EMAIL`~~ — Done. `mail.exciseup.in` verified; `RESEND_FROM_EMAIL` set to `noreply@mail.exciseup.in` on this project's Worker, and the same address set as `FROM_EMAIL` on the sibling `excise-revenue-recovery-portal` project's Worker (different env var name there, same Resend account/domain). Magic-link email is now the Admin/HQ login channel only (DEOs use CUG login as of M-17).

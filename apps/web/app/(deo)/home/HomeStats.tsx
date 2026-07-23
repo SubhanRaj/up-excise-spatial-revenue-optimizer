@@ -134,7 +134,7 @@ export default function HomeStats({ district }: { district: string }) {
         </button>
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="stat bg-base-100 rounded-2xl shadow">
           <div className="stat-title">Circles / Sectors</div>
           <div className="stat-value text-primary">{circles ?? '—'}</div>

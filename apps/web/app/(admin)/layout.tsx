@@ -37,7 +37,7 @@ async function loadSearchItems(): Promise<SearchItem[]> {
   } catch { return []; }
 }
 
-function SearchBar() {
+function SearchBar({ mobile, onNavigate }: { mobile?: boolean; onNavigate?: () => void }) {
   const router = useRouter();
   const [query, setQuery] = useState('');
   const [items, setItems] = useState<SearchItem[]>([]);
@@ -67,15 +67,22 @@ function SearchBar() {
     return () => document.removeEventListener('mousedown', onDown);
   }, []);
 
+  function goTo(href: string) {
+    router.push(href);
+    setOpen(false);
+    setQuery('');
+    onNavigate?.();
+  }
+
   function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === 'ArrowDown') { e.preventDefault(); setActiveIdx((i) => Math.min(i + 1, results.length - 1)); }
     else if (e.key === 'ArrowUp') { e.preventDefault(); setActiveIdx((i) => Math.max(i - 1, 0)); }
-    else if (e.key === 'Enter') { if (results[activeIdx]) { router.push(results[activeIdx]!.href); setOpen(false); setQuery(''); } }
+    else if (e.key === 'Enter') { if (results[activeIdx]) goTo(results[activeIdx]!.href); }
     else if (e.key === 'Escape') setOpen(false);
   }
 
   return (
-    <div ref={wrapperRef} className="relative hidden lg:flex mx-4">
+    <div ref={wrapperRef} className={`relative ${mobile ? 'flex w-full' : 'hidden lg:flex mx-4'}`}>
       <label className="input input-sm input-bordered flex items-center gap-2 w-64 cursor-text focus-within:border-primary transition-colors">
         <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-base-content/60 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
         <input
@@ -230,18 +237,39 @@ function AdminIdentity() {
   );
 }
 
+const NAV_LINKS = (session: ReturnType<typeof useSession>['session']) => [
+  { href: '/admin', label: 'Overview', active: (p: string) => p === '/admin' },
+  { href: '/admin/districts', label: 'Districts', active: (p: string) => p.startsWith('/admin/districts') },
+  { href: '/admin/divisions', label: 'Divisions', active: (p: string) => p.startsWith('/admin/divisions') },
+  ...(session?.role === 'superadmin' ? [{ href: '/admin/provision', label: 'District Master', active: (p: string) => p === '/admin/provision' }] : []),
+  { href: '/admin/unlock-requests', label: 'Unlock Requests', active: (p: string) => p === '/admin/unlock-requests' },
+  { href: '/admin/audit', label: 'Audit', active: (p: string) => p === '/admin/audit' },
+  { href: '/admin/export', label: 'Export', active: (p: string) => p === '/admin/export' },
+];
+
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const crumbs = getBreadcrumbs(pathname);
   const { session } = useSession();
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const navLinks = NAV_LINKS(session);
 
   return (
     <div className="min-h-screen bg-base-200">
       {/* z-[1000] — must exceed Leaflet tooltip pane (z-index 650) */}
-      <nav className="navbar bg-base-100 shadow-sm px-6 sticky top-0 z-[1000]">
-        <div className="flex-1 flex items-center gap-3">
+      <nav className="navbar bg-base-100 shadow-sm px-3 sm:px-6 sticky top-0 z-[1000]">
+        <div className="flex-1 flex items-center gap-2 sm:gap-3">
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm btn-square md:hidden"
+            aria-label="Open navigation menu"
+            aria-expanded={drawerOpen}
+            onClick={() => setDrawerOpen(true)}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+          </button>
           <Link href="/admin" className="flex items-center gap-3 group">
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-10 h-10 text-primary shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18"/><path d="M9 8h1"/><path d="M9 12h1"/><path d="M9 16h1"/><path d="M14 8h1"/><path d="M14 12h1"/><path d="M14 16h1"/><path d="M5 21V6l7-3 7 3v15"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-9 h-9 sm:w-10 sm:h-10 text-primary shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18"/><path d="M9 8h1"/><path d="M9 12h1"/><path d="M9 16h1"/><path d="M14 8h1"/><path d="M14 12h1"/><path d="M14 16h1"/><path d="M5 21V6l7-3 7 3v15"/></svg>
             <div className="hidden md:block">
               <div className="font-bold text-sm leading-tight group-hover:text-primary transition-colors">UP Excise SRO</div>
               <div className="text-xs text-base-content/70 leading-tight">Headquarters Dashboard</div>
@@ -251,25 +279,67 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
         <SearchBar />
 
-        <div className="flex-none flex items-center flex-wrap justify-end gap-1">
-          <Link href="/admin" className={`btn btn-ghost btn-sm ${pathname === '/admin' ? 'btn-active' : ''}`}>Overview</Link>
-          <Link href="/admin/districts" className={`btn btn-ghost btn-sm ${pathname.startsWith('/admin/districts') ? 'btn-active' : ''}`}>Districts</Link>
-          <Link href="/admin/divisions" className={`btn btn-ghost btn-sm ${pathname.startsWith('/admin/divisions') ? 'btn-active' : ''}`}>Divisions</Link>
-          {session?.role === 'superadmin' && (
-            <Link href="/admin/provision" className={`btn btn-ghost btn-sm ${pathname === '/admin/provision' ? 'btn-active' : ''}`}>District Master</Link>
-          )}
-          <Link href="/admin/unlock-requests" className={`btn btn-ghost btn-sm ${pathname === '/admin/unlock-requests' ? 'btn-active' : ''}`}>Unlock Requests</Link>
-          <Link href="/admin/audit" className={`btn btn-ghost btn-sm ${pathname === '/admin/audit' ? 'btn-active' : ''}`}>Audit</Link>
-          <Link href="/admin/export" className={`btn btn-ghost btn-sm ${pathname === '/admin/export' ? 'btn-active' : ''}`}>Export</Link>
+        <div className="hidden md:flex flex-none items-center flex-wrap justify-end gap-1">
+          {navLinks.map((l) => (
+            <Link key={l.href} href={l.href} className={`btn btn-ghost btn-sm ${l.active(pathname) ? 'btn-active' : ''}`}>{l.label}</Link>
+          ))}
           <SyncAllButton />
           <AdminIdentity />
           <button className="btn btn-ghost btn-sm ml-1" onClick={signOut}>Sign out</button>
         </div>
+
+        {/* Mobile-only: sign out stays reachable in the header itself (identity + everything
+            else — nav links, search, sync — moves into the drawer, see below) — matching the
+            hasDrawer pattern in the sibling excise-revenue-recovery-portal project's
+            AppHeader.tsx. */}
+        <div className="flex md:hidden flex-none items-center gap-1">
+          <button className="btn btn-ghost btn-sm btn-square" onClick={signOut} aria-label="Sign out">
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+          </button>
+        </div>
       </nav>
 
+      {drawerOpen && (
+        <>
+          <div className="fixed inset-0 z-[1100] bg-black/40 md:hidden" onClick={() => setDrawerOpen(false)} aria-hidden="true" />
+          <div className="fixed inset-y-0 left-0 z-[1101] w-72 max-w-[85vw] bg-base-100 shadow-xl p-4 flex flex-col gap-4 overflow-y-auto md:hidden">
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-sm">Menu</span>
+              <button className="btn btn-ghost btn-sm btn-square" onClick={() => setDrawerOpen(false)} aria-label="Close navigation menu">
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+              </button>
+            </div>
+
+            {session && session.role !== 'deo' && (
+              <div className="leading-tight border-t border-base-200 pt-3">
+                <p className="text-sm font-semibold text-base-content">{session.name}</p>
+                <p className="text-xs text-base-content/60">{session.designation ?? (session.role === 'superadmin' ? 'Superadmin' : 'Admin')}</p>
+              </div>
+            )}
+
+            <SearchBar mobile onNavigate={() => setDrawerOpen(false)} />
+
+            <ul className="menu menu-sm p-0 gap-1 border-t border-base-200 pt-3">
+              {navLinks.map((l) => (
+                <li key={l.href}>
+                  <Link href={l.href} onClick={() => setDrawerOpen(false)} className={l.active(pathname) ? 'active' : ''}>{l.label}</Link>
+                </li>
+              ))}
+            </ul>
+
+            <button
+              className="btn btn-ghost btn-sm justify-start border-t border-base-200 rounded-none pt-4"
+              onClick={() => { setDrawerOpen(false); void invalidateAllAdminCaches().then(() => window.location.reload()); }}
+            >
+              Sync All
+            </button>
+          </div>
+        </>
+      )}
+
       {crumbs.length > 0 && (
-        <div className="bg-base-100 border-b border-base-200 px-6 py-2">
-          <nav aria-label="Breadcrumb" className="text-xs text-base-content/70 flex items-center gap-1.5">
+        <div className="bg-base-100 border-b border-base-200 px-3 sm:px-6 py-2 overflow-x-auto">
+          <nav aria-label="Breadcrumb" className="text-xs text-base-content/70 flex items-center gap-1.5 whitespace-nowrap">
             {crumbs.map((c, i) => (
               <span key={i} className="flex items-center gap-1.5">
                 {i > 0 && <span aria-hidden>›</span>}
@@ -283,7 +353,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </div>
       )}
 
-      <main className="admin-content container mx-auto px-4 py-8 md:px-8">{children}</main>
+      <main className="admin-content container mx-auto px-3 sm:px-4 py-6 sm:py-8 md:px-8">{children}</main>
     </div>
   );
 }
