@@ -14,7 +14,7 @@ interface AuditRow {
   metadata?: string | null;
   actorName?: string | null;
   actorDesignation?: string | null;
-  createdAt: number;
+  createdAt: string; // ISO string — Drizzle's `mode: 'timestamp'` columns serialize to this over JSON, not raw epoch seconds
 }
 
 // All event types written across apps/web/app/api/** — see grep for `eventType:`.
@@ -117,7 +117,7 @@ export default function AuditPage() {
   // it for a 45-day-retention, single-reader table.
   const visibleRows = useMemo(() => {
     const filtered = eventFilter === 'all' ? rows : rows.filter((r) => r.eventType === eventFilter);
-    const sorted = [...filtered].sort((a, b) => a.createdAt - b.createdAt);
+    const sorted = [...filtered].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
     return sortDir === 'desc' ? sorted.reverse() : sorted;
   }, [rows, eventFilter, sortDir]);
 
@@ -187,7 +187,7 @@ export default function AuditPage() {
               ) : (
                 visibleRows.map((r) => (
                   <tr key={r.id} className="hover:bg-base-50">
-                    <td className="whitespace-nowrap text-xs">{new Date(r.createdAt * 1000).toLocaleString('en-IN')}</td>
+                    <td className="whitespace-nowrap text-xs">{new Date(r.createdAt).toLocaleString('en-IN')}</td>
                     <td><span className="badge badge-outline badge-sm">{EVENT_LABELS[r.eventType] ?? r.eventType}</span></td>
                     <td className="font-mono text-xs">{describeActor(r)}</td>
                     <td className="text-xs">{r.districtName ?? <span className="text-base-content/50">—</span>}</td>

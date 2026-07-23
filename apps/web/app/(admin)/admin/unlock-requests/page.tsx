@@ -10,8 +10,8 @@ interface RequestRow {
   reason: string;
   status: 'pending' | 'approved' | 'denied';
   requestedByDeo: string;
-  requestedAt: number;
-  resolvedAt: number | null;
+  requestedAt: string; // ISO string — Drizzle's `mode: 'timestamp'` columns serialize to this over JSON, not raw epoch seconds
+  resolvedAt: string | null;
   resolvedBy: string | null;
   adminNote: string | null;
 }
@@ -158,12 +158,12 @@ export default function UnlockRequestsPage() {
                 visibleRows.map((r) => (
                   <tr key={r.id} className="hover:bg-base-50 align-top">
                     <td className="whitespace-nowrap font-medium text-xs">{r.districtName}</td>
-                    <td className="whitespace-nowrap text-xs">{new Date(r.requestedAt * 1000).toLocaleString('en-IN')}</td>
+                    <td className="whitespace-nowrap text-xs">{new Date(r.requestedAt).toLocaleString('en-IN')}</td>
                     <td className="text-xs max-w-sm">
                       {r.reason}
                       {r.status !== 'pending' && r.adminNote && (
                         <p className="mt-1 text-[11px] text-base-content/60">
-                          Admin note: {r.adminNote} ({r.resolvedBy}, {r.resolvedAt ? new Date(r.resolvedAt * 1000).toLocaleString('en-IN') : ''})
+                          Admin note: {r.adminNote} ({r.resolvedBy}, {r.resolvedAt ? new Date(r.resolvedAt).toLocaleString('en-IN') : ''})
                         </p>
                       )}
                     </td>

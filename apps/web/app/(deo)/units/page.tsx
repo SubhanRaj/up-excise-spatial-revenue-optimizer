@@ -24,6 +24,14 @@ function toastError(en: string, hi: string) {
   });
 }
 
+// Unit names are stored as "Sector 1 - Hazratganj" / "Circle 2 - Mall" (see submitUnits below).
+// Split for display so the number renders as a distinct badge from the area name — falls back
+// to showing the raw name if it doesn't match (e.g. a unit registered before this convention).
+function splitUnitName(name: string): { label: string; area: string } {
+  const idx = name.indexOf(' - ');
+  return idx === -1 ? { label: name, area: '' } : { label: name.slice(0, idx), area: name.slice(idx + 3) };
+}
+
 function StepHeader({ step }: { step: 1 | 2 }) {
   return (
     <div className="flex items-center gap-3 mb-2" aria-label={`Step ${step} of 2`}>
@@ -272,34 +280,33 @@ export default function UnitsPage() {
         </div>
       ) : locked ? (
         <div className="card bg-base-100 shadow p-8 space-y-5 max-w-3xl mx-auto">
-          <div className="alert alert-success">
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><path d="m9 12 2 2 4-4"/></svg>
-            <div>
-              <p className="font-semibold">Circles &amp; sectors are locked in.</p>
-              <p className="text-xs opacity-80">सर्कल एवं सेक्टर लॉक हो चुके हैं — अब इन्हें बदला नहीं जा सकता</p>
+          {/* Header: lock confirmation + a standalone Request Unlock button — kept out of any
+              colored alert so its own color never blends into a same-colored banner background. */}
+          <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-base-200">
+            <div className="flex items-center gap-3">
+              <span className="flex items-center justify-center w-10 h-10 rounded-full bg-success/15 text-success shrink-0">
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><path d="m9 12 2 2 4-4"/></svg>
+              </span>
+              <div>
+                <p className="font-semibold">Circles &amp; sectors are locked in.</p>
+                <p className="text-xs text-base-content/60">सर्कल एवं सेक्टर लॉक हो चुके हैं — अब इन्हें बदला नहीं जा सकता</p>
+              </div>
             </div>
+            {unlockRequest?.status !== 'pending' && (
+              <button className="btn btn-sm btn-outline btn-primary shrink-0" onClick={requestUnlock} disabled={requestingUnlock}>
+                {requestingUnlock ? <span className="loading loading-spinner loading-xs" /> : (
+                  <>
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.79-1.3"/></svg>
+                    Request Unlock
+                  </>
+                )}
+              </button>
+            )}
           </div>
-          <div className="grid sm:grid-cols-2 gap-6">
-            <div>
-              <h3 className="font-semibold text-sm mb-2">Sectors ({units.filter((u) => u.type === 'sector').length})</h3>
-              <ul className="space-y-1">
-                {units.filter((u) => u.type === 'sector').map((u) => (
-                  <li key={u.id} className="text-sm bg-base-200 rounded px-3 py-1.5">{u.name}</li>
-                ))}
-              </ul>
-            </div>
-            <div>
-              <h3 className="font-semibold text-sm mb-2">Circles ({units.filter((u) => u.type === 'circle').length})</h3>
-              <ul className="space-y-1">
-                {units.filter((u) => u.type === 'circle').map((u) => (
-                  <li key={u.id} className="text-sm bg-base-200 rounded px-3 py-1.5">{u.name}</li>
-                ))}
-              </ul>
-            </div>
-          </div>
-          <Link href="/upload" className="btn btn-primary self-start">Continue to Upload →</Link>
 
-          {unlockRequest?.status === 'pending' ? (
+          {/* Unlock-request status — shown up top, before the sector/circle list, so a DEO sees
+              the state of their request before scrolling past their own data. */}
+          {unlockRequest?.status === 'pending' && (
             <div className="alert alert-info text-sm">
               <span className="loading loading-spinner loading-sm shrink-0" />
               <div>
@@ -308,21 +315,65 @@ export default function UnitsPage() {
                 <p className="text-xs opacity-70 mt-1">अनलॉक अनुरोध Admin की समीक्षा के लिए लंबित है।</p>
               </div>
             </div>
-          ) : (
-            <div className="alert alert-warning text-sm">
+          )}
+          {unlockRequest?.status === 'denied' && (
+            <div className="alert alert-error text-sm">
               <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-              <div className="flex-1">
-                <p>Made a mistake or entered wrong data? This list cannot be edited by you — submit an unlock request explaining why, and an Admin will review it.</p>
-                <p className="text-xs opacity-80 mt-1">क्या कोई गलती हुई या गलत डेटा दर्ज हुआ? यह सूची आपके द्वारा edit नहीं की जा सकती — कारण बताते हुए एक अनलॉक अनुरोध सबमिट करें, एक Admin इसकी समीक्षा करेगा।</p>
-                {unlockRequest?.status === 'denied' && (
-                  <p className="text-xs mt-2 text-error">Your last request was denied{unlockRequest.adminNote ? `: "${unlockRequest.adminNote}"` : '.'}</p>
-                )}
-                <button className="btn btn-sm btn-outline btn-warning mt-3" onClick={requestUnlock} disabled={requestingUnlock}>
-                  {requestingUnlock ? <span className="loading loading-spinner loading-xs" /> : 'Request Unlock'}
-                </button>
+              <div>
+                <p className="font-semibold">Your last unlock request was denied.</p>
+                {unlockRequest.adminNote && <p className="text-xs opacity-80 mt-1">&quot;{unlockRequest.adminNote}&quot;</p>}
+                <p className="text-xs opacity-70 mt-1">आपका पिछला अनलॉक अनुरोध अस्वीकार कर दिया गया — फिर से अनुरोध करने के लिए ऊपर बटन दबाएं।</p>
               </div>
             </div>
           )}
+          {!unlockRequest && (
+            <p className="text-xs text-base-content/60">Made a mistake? Use the &quot;Request Unlock&quot; button above — an Admin will review it. / गलती हुई? ऊपर &quot;Request Unlock&quot; बटन का उपयोग करें।</p>
+          )}
+
+          <div className="grid sm:grid-cols-2 gap-6">
+            <div>
+              <h3 className="font-semibold text-sm mb-2 flex items-center gap-2">
+                Sectors <span className="badge badge-primary badge-sm">{units.filter((u) => u.type === 'sector').length}</span>
+              </h3>
+              <ul className="space-y-1.5">
+                {units.filter((u) => u.type === 'sector').map((u) => {
+                  const { label, area } = splitUnitName(u.name);
+                  return (
+                    <li key={u.id} className="flex items-center gap-2 text-sm bg-base-200 rounded px-3 py-2">
+                      {area ? (
+                        <>
+                          <span className="badge badge-primary badge-outline badge-sm shrink-0">{label}</span>
+                          <span className="truncate">{area}</span>
+                        </>
+                      ) : <span className="truncate">{u.name}</span>}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+            <div>
+              <h3 className="font-semibold text-sm mb-2 flex items-center gap-2">
+                Circles <span className="badge badge-primary badge-sm">{units.filter((u) => u.type === 'circle').length}</span>
+              </h3>
+              <ul className="space-y-1.5">
+                {units.filter((u) => u.type === 'circle').map((u) => {
+                  const { label, area } = splitUnitName(u.name);
+                  return (
+                    <li key={u.id} className="flex items-center gap-2 text-sm bg-base-200 rounded px-3 py-2">
+                      {area ? (
+                        <>
+                          <span className="badge badge-primary badge-outline badge-sm shrink-0">{label}</span>
+                          <span className="truncate">{area}</span>
+                        </>
+                      ) : <span className="truncate">{u.name}</span>}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          </div>
+
+          <Link href="/upload" className="btn btn-primary self-start">Continue to Upload →</Link>
         </div>
       ) : step === 'count' ? (
         <div className="card bg-base-100 shadow p-8 space-y-6 max-w-2xl mx-auto">
