@@ -127,13 +127,12 @@ export default function UnitsPage() {
       toastError('Enter at least 1 circle or sector.', 'कम से कम 1 सर्कल या सेक्टर दर्ज करें।');
       return;
     }
-    // Boxes start pre-filled with "Sector 1 - " / "Circle 1 - " (a real value, not just a
-    // placeholder) so the DEO can type an area name straight after the dash — many DEOs were
-    // typing only the area name and dropping the circle/sector number entirely, leaving no way
-    // to tell which unit a shop belongs to. Pressing Enter without adding anything strips the
-    // trailing "- " back down to the bare "Sector 1" (see stripEmptySuffix below).
-    setSectorNames(Array.from({ length: ns }, (_, i) => sectorNames[i] ?? `Sector ${i + 1} - `));
-    setCircleNames(Array.from({ length: nc }, (_, i) => circleNames[i] ?? `Circle ${ns === 0 ? i + 1 : i + 2} - `));
+    // Boxes hold ONLY the area name the DEO types — "Sector N -" / "Circle N -" is fixed,
+    // non-editable UI next to the box, not part of the value, so the unit number can never be
+    // dropped or overwritten (previously a free-text box let DEOs erase the number and type
+    // only an area name, losing which unit a shop belongs to).
+    setSectorNames(Array.from({ length: ns }, (_, i) => sectorNames[i] ?? ''));
+    setCircleNames(Array.from({ length: nc }, (_, i) => circleNames[i] ?? ''));
     setTriedSubmit(false);
     setStep('names');
   }
@@ -143,36 +142,17 @@ export default function UnitsPage() {
   // is never (re-)issued to a rural circle — rural circles start at 2.
   const circleNumber = (i: number) => (sectorNames.length === 0 ? i + 1 : i + 2);
 
-  // Turns an untouched "Sector 1 - " box into "Sector 1" once no area name was typed after the
-  // dash. Runs on Enter and again just before submit, so it applies whether or not the DEO
-  // pressed Enter in each box.
-  function stripEmptySuffix(name: string): string {
-    const t = name.trim();
-    return t.endsWith('-') ? t.slice(0, -1).trim() : t;
-  }
-
-  // A box must still start with its assigned "Sector N" / "Circle N" number — this is the
-  // whole point of pre-filling it that way, so a DEO can't blank it out and type only an area
-  // name (which was the original problem this feature fixes). Accepts the bare number
-  // ("Sector 1") or the number followed by "- <area>" with any spacing.
-  function hasRequiredPrefix(name: string, expected: string): boolean {
-    const escaped = expected.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    return new RegExp(`^${escaped}(\\s*-.*)?$`, 'i').test(name.trim());
-  }
-
-  const allFilled =
-    sectorNames.every((n, i) => stripEmptySuffix(n) && hasRequiredPrefix(n, `Sector ${i + 1}`)) &&
-    circleNames.every((n, i) => stripEmptySuffix(n) && hasRequiredPrefix(n, `Circle ${circleNumber(i)}`));
+  const allFilled = sectorNames.every((n) => n.trim()) && circleNames.every((n) => n.trim());
   const canSubmit = allFilled && (sectorNames.length + circleNames.length) > 0;
 
   async function submitUnits() {
     setTriedSubmit(true);
     if (!canSubmit) {
-      toastError('Fill in every box, and keep its "Sector N" / "Circle N" number — none can be blank or missing the number.', 'हर बॉक्स भरें और उसका "Sector N" / "Circle N" नंबर बनाए रखें — कोई भी खाली या नंबर-रहित नहीं होना चाहिए।');
+      toastError('Enter a name for every sector and circle — none can be left blank.', 'हर सेक्टर और सर्कल के लिए एक नाम दर्ज करें — कोई भी खाली नहीं छोड़ा जा सकता।');
       return;
     }
-    const sectors = sectorNames.map(stripEmptySuffix);
-    const circles = circleNames.map(stripEmptySuffix);
+    const sectors = sectorNames.map((n, i) => `Sector ${i + 1} - ${n.trim()}`);
+    const circles = circleNames.map((n, i) => `Circle ${circleNumber(i)} - ${n.trim()}`);
 
     const SwalG = (window as unknown as { Swal?: Swal }).Swal;
     const confirm = await SwalG?.fire({
@@ -267,7 +247,7 @@ export default function UnitsPage() {
         childrenHi={<>
           <p><strong>चरण 1 — सभी circles और sectors रजिस्टर करें</strong> अपने district के लिए, एक ही बार में, कुछ और करने से पहले। सिस्टम को बताएं कि आपके पास कितने sectors और कितने circles हैं, फिर हर नाम दिए गए box में टाइप करें।</p>
           <p><strong>यह एक बार होने वाला चरण है।</strong> सबमिट करने के बाद, list लॉक हो जाती है और इसे edit नहीं किया जा सकता — पहले हर नाम ध्यान से जांच लें।</p>
-          <p><strong>नामकरण:</strong> Sector के नाम आमतौर पर सिर्फ एक नंबर होते हैं, जैसे &quot;Sector 1&quot;, लेकिन इसमें कोई area भी शामिल हो सकता है, जैसे &quot;Sector 1 Hazratganj&quot;। Circle के नाम आमतौर पर area सहित होते हैं, जैसे &quot;Circle 1 Mall, Malihabad&quot;। <strong>यदि आपके district में कोई sector नहीं है</strong> (शुद्ध rural district), तो circles की गिनती Circle 1 से शुरू होती है। <strong>यदि sector हैं</strong> (urban area को cover करते हुए), तो Circle 1 issue नहीं होता — rural circles Circle 2 से शुरू होते हैं।</p>
+          <p><strong>नामकरण:</strong> &quot;Sector 1 -&quot;, &quot;Circle 1 -&quot; जैसा नंबर हर बॉक्स के आगे पहले से तय है और इसे बदला नहीं जा सकता — आपको बस बगल के बॉक्स में area का नाम टाइप करना है, जैसे &quot;Sector 1 -&quot; के आगे &quot;Hazratganj&quot;। <strong>यदि आपके district में कोई sector नहीं है</strong> (शुद्ध rural district), तो circles की गिनती Circle 1 से शुरू होती है। <strong>यदि sector हैं</strong> (urban area को cover करते हुए), तो Circle 1 issue नहीं होता — rural circles Circle 2 से शुरू होते हैं।</p>
           <p><strong>चरण 2 — Download the district template</strong> Upload page से (आपके circles/sectors लॉक होते ही यह अपने-आप unlock हो जाता है)।</p>
           <p><strong>चरण 3 — Upload &amp; Verify</strong> करें consolidated district Excel फ़ाइल को, फिर headquarters को सबमिट करें।</p>
           <p><strong>गलती हुई?</strong> लॉक होने के बाद, कारण बताते हुए एक &quot;अनलॉक अनुरोध&quot; सबमिट करें — एक Admin इसकी समीक्षा करके सूची को अनलॉक कर सकता है ताकि आप दोबारा रजिस्टर कर सकें।</p>
@@ -275,7 +255,7 @@ export default function UnitsPage() {
       >
         <p><strong>Step 1 — Register all circles and sectors</strong> for your district, in one go, before doing anything else. Tell the system how many sectors and how many circles you have, then type each name in the box provided.</p>
         <p><strong>This is a one-time step.</strong> Once you submit, the list is locked and cannot be edited — check every name carefully first.</p>
-        <p><strong>Naming:</strong> Sector names are usually just a number, e.g. &quot;Sector 1&quot;, but can also include an area, e.g. &quot;Sector 1 Hazratganj&quot;. Circle names usually include the area, e.g. &quot;Circle 1 Mall, Malihabad&quot;. <strong>If your district has no sectors</strong> (a purely rural district), circles are numbered starting from Circle 1. <strong>If sectors exist</strong> (covering the urban area), Circle 1 is never issued — rural circles start numbering from Circle 2.</p>
+        <p><strong>Naming:</strong> The &quot;Sector 1 -&quot;, &quot;Circle 1 -&quot; number in front of each box is fixed and cannot be changed — just type the area name next to it, e.g. &quot;Hazratganj&quot; next to &quot;Sector 1 -&quot;. <strong>If your district has no sectors</strong> (a purely rural district), circles are numbered starting from Circle 1. <strong>If sectors exist</strong> (covering the urban area), Circle 1 is never issued — rural circles start numbering from Circle 2.</p>
         <p><strong>Step 2 — Download the district template</strong> from the Upload page (unlocked automatically once your circles/sectors are locked).</p>
         <p><strong>Step 3 — Upload &amp; Verify</strong> the consolidated district Excel file, then submit to headquarters.</p>
         <p><strong>Made a mistake?</strong> Once locked, submit an &quot;unlock request&quot; explaining why — an Admin can review and unlock the list so you can re-register.</p>
@@ -383,8 +363,8 @@ export default function UnitsPage() {
         <div className="card bg-base-100 shadow p-8 space-y-6 max-w-2xl mx-auto">
           <StepHeader step={2} />
           <div className="text-center">
-            <p className="text-sm text-base-content">Type the name of each sector and circle below. Include the area name if you have one. Every box is required.</p>
-            <p className="text-xs text-base-content/60">नीचे प्रत्येक सेक्टर और सर्कल का नाम दर्ज करें। हर बॉक्स भरना अनिवार्य है।</p>
+            <p className="text-sm text-base-content">The sector/circle number is fixed — just type the area name next to it. Every box is required.</p>
+            <p className="text-xs text-base-content/60">सेक्टर/सर्कल नंबर तय है — बगल में केवल area का नाम टाइप करें। हर बॉक्स भरना अनिवार्य है।</p>
           </div>
 
           {sectorNames.length > 0 && (
@@ -392,25 +372,20 @@ export default function UnitsPage() {
               <h3 className="font-semibold text-sm mb-3 text-center">Sectors / सेक्टर</h3>
               <div className="flex flex-col gap-3 max-w-md mx-auto">
                 {sectorNames.map((name, i) => {
-                  const expected = `Sector ${i + 1}`;
-                  const blank = triedSubmit && !stripEmptySuffix(name);
-                  const prefixBroken = !blank && name.trim() && !hasRequiredPrefix(name, expected);
+                  const blank = triedSubmit && !name.trim();
                   return (
                     <div key={`sector-${i}`}>
-                      <input
-                        className={`input input-bordered w-full ${blank || prefixBroken ? 'input-error' : ''}`}
-                        value={name}
-                        placeholder={expected}
-                        aria-label={`${expected} name`}
-                        onChange={(e) => setSectorNames((prev) => prev.map((v, idx) => (idx === i ? e.target.value : v)))}
-                        onKeyDown={(e) => {
-                          if (e.key !== 'Enter') return;
-                          e.preventDefault();
-                          setSectorNames((prev) => prev.map((v, idx) => (idx === i ? stripEmptySuffix(v) : v)));
-                        }}
-                      />
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-sm whitespace-nowrap shrink-0">Sector {i + 1} -</span>
+                        <input
+                          className={`input input-bordered w-full ${blank ? 'input-error' : ''}`}
+                          value={name}
+                          placeholder="Area name"
+                          aria-label={`Sector ${i + 1} area name`}
+                          onChange={(e) => setSectorNames((prev) => prev.map((v, idx) => (idx === i ? e.target.value : v)))}
+                        />
+                      </div>
                       {blank && <span className="mt-1 block text-xs font-bold text-error">Required — यह आवश्यक है</span>}
-                      {prefixBroken && <span className="mt-1 block text-xs font-bold text-error">Keep the &quot;{expected}&quot; number — &quot;{expected}&quot; नंबर हटाएं नहीं</span>}
                     </div>
                   );
                 })}
@@ -423,25 +398,20 @@ export default function UnitsPage() {
               <h3 className="font-semibold text-sm mb-3 text-center">Circles / सर्कल</h3>
               <div className="flex flex-col gap-3 max-w-md mx-auto">
                 {circleNames.map((name, i) => {
-                  const expected = `Circle ${circleNumber(i)}`;
-                  const blank = triedSubmit && !stripEmptySuffix(name);
-                  const prefixBroken = !blank && name.trim() && !hasRequiredPrefix(name, expected);
+                  const blank = triedSubmit && !name.trim();
                   return (
                     <div key={`circle-${i}`}>
-                      <input
-                        className={`input input-bordered w-full ${blank || prefixBroken ? 'input-error' : ''}`}
-                        value={name}
-                        placeholder={expected}
-                        aria-label={`${expected} name`}
-                        onChange={(e) => setCircleNames((prev) => prev.map((v, idx) => (idx === i ? e.target.value : v)))}
-                        onKeyDown={(e) => {
-                          if (e.key !== 'Enter') return;
-                          e.preventDefault();
-                          setCircleNames((prev) => prev.map((v, idx) => (idx === i ? stripEmptySuffix(v) : v)));
-                        }}
-                      />
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-sm whitespace-nowrap shrink-0">Circle {circleNumber(i)} -</span>
+                        <input
+                          className={`input input-bordered w-full ${blank ? 'input-error' : ''}`}
+                          value={name}
+                          placeholder="Area name"
+                          aria-label={`Circle ${circleNumber(i)} area name`}
+                          onChange={(e) => setCircleNames((prev) => prev.map((v, idx) => (idx === i ? e.target.value : v)))}
+                        />
+                      </div>
                       {blank && <span className="mt-1 block text-xs font-bold text-error">Required — यह आवश्यक है</span>}
-                      {prefixBroken && <span className="mt-1 block text-xs font-bold text-error">Keep the &quot;{expected}&quot; number — &quot;{expected}&quot; नंबर हटाएं नहीं</span>}
                     </div>
                   );
                 })}
