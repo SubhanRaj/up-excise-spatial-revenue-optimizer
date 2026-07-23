@@ -3,6 +3,8 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState, useEffect } from 'react';
+import { useSession } from '@/hooks/useSession';
+import ProfileMenu from '@/components/ProfileMenu';
 
 async function signOut() {
   await fetch('/api/auth/logout', { method: 'POST' });
@@ -11,6 +13,7 @@ async function signOut() {
 
 export default function DeoLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const { session } = useSession();
 
   const crumbMap: Record<string, string> = {
     '/home': 'Dashboard',
@@ -67,7 +70,7 @@ export default function DeoLayout({ children }: { children: React.ReactNode }) {
           {navLinks.map((l) => (
             <Link key={l.href} href={l.href} className={`btn btn-ghost btn-sm ${pathname === l.href ? 'btn-active' : ''}`}>{l.label}</Link>
           ))}
-          <button className="btn btn-ghost btn-sm ml-1" onClick={signOut}>Sign out</button>
+          {session && <ProfileMenu session={session} />}
         </div>
         <div className="flex md:hidden flex-none">
           <button className="btn btn-ghost btn-sm btn-square" onClick={signOut} aria-label="Sign out">

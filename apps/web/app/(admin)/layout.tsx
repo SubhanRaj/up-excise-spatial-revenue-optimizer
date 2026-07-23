@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useSession } from '@/hooks/useSession';
 import { invalidateAllAdminCaches } from '@/lib/db';
+import ProfileMenu from '@/components/ProfileMenu';
 
 // ── Search ────────────────────────────────────────────────────────────────────
 
@@ -221,22 +222,6 @@ function SyncAllButton() {
   );
 }
 
-// Admin-only identity display (designation + name — see packages/schema/src/auth.ts's
-// authUsers.designation). No email tooltip here unlike a plaintext-email system would show:
-// this project only ever stores email_hash (Zero-Knowledge PII, see CLAUDE.md), so there is no
-// readable email to display even on hover.
-function AdminIdentity() {
-  const { session } = useSession();
-  if (!session || session.role === 'deo') return null;
-  const designation = session.designation ?? (session.role === 'superadmin' ? 'Superadmin' : 'Admin');
-  return (
-    <div className="hidden md:flex flex-col items-end leading-tight mr-1">
-      <span className="text-xs font-semibold text-base-content">{session.name}</span>
-      <span className="text-[10px] text-base-content/60">{designation}</span>
-    </div>
-  );
-}
-
 const NAV_LINKS = (session: ReturnType<typeof useSession>['session']) => [
   { href: '/admin', label: 'Overview', active: (p: string) => p === '/admin' },
   { href: '/admin/districts', label: 'Districts', active: (p: string) => p.startsWith('/admin/districts') },
@@ -284,8 +269,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <Link key={l.href} href={l.href} className={`btn btn-ghost btn-sm ${l.active(pathname) ? 'btn-active' : ''}`}>{l.label}</Link>
           ))}
           <SyncAllButton />
-          <AdminIdentity />
-          <button className="btn btn-ghost btn-sm ml-1" onClick={signOut}>Sign out</button>
+          {session && <ProfileMenu session={session} />}
         </div>
 
         {/* Mobile-only: sign out stays reachable in the header itself (identity + everything
