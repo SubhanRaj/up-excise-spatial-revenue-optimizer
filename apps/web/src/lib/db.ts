@@ -172,6 +172,8 @@ export const adminMapCache = {
   set: (data: unknown) =>
     getAdminDb().table<AdminKvCache<unknown>>('map_cache')
       .put({ key: 'map_data', data, fetchedAt: Date.now() }),
+  invalidate: () =>
+    getAdminDb().table<AdminKvCache<unknown>>('map_cache').clear(),
 };
 
 // ── Shops cache (TTL: 5 min) ───────────────────────────────────────────────
@@ -188,6 +190,8 @@ export const adminShopsCache = {
   set: (districtName: string, data: unknown) =>
     getAdminDb().table<AdminKvCache<unknown>>('shops_cache')
       .put({ key: districtName, data, fetchedAt: Date.now() }),
+  invalidate: () =>
+    getAdminDb().table<AdminKvCache<unknown>>('shops_cache').clear(),
 };
 
 // ── Audit cache (TTL: 1 min) ───────────────────────────────────────────────
@@ -227,3 +231,19 @@ export const adminUnlockRequestsCache = {
   invalidate: () =>
     getAdminDb().table<AdminKvCache<unknown>>('unlock_requests_cache').clear(),
 };
+
+// ── Global sync ──────────────────────────────────────────────────────────────
+// One button (in the admin navbar) clears every admin cache table at once, instead of each
+// page owning its own "Sync from Server" button. The caller still needs to force a refetch
+// (e.g. window.location.reload()) — clearing IndexedDB alone doesn't re-run a mounted page's
+// already-resolved state.
+export async function invalidateAllAdminCaches(): Promise<void> {
+  await Promise.all([
+    adminDistrictsCache.invalidate(),
+    adminMapCache.invalidate(),
+    adminShopsCache.invalidate(),
+    adminAuditCache.invalidate(),
+    adminUnlockRequestsCache.invalidate(),
+    adminExportCache.clear(),
+  ]);
+}

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useSession } from '@/hooks/useSession';
+import { invalidateAllAdminCaches } from '@/lib/db';
 
 // ── Search ────────────────────────────────────────────────────────────────────
 
@@ -186,6 +187,33 @@ async function signOut() {
   window.location.href = '/login';
 }
 
+// One button for the whole admin portal instead of every page owning its own "Sync from
+// Server" button (districts, overview map, district detail, unlock requests all had separate
+// ones). Clears every admin IndexedDB cache table, then reloads so whichever page is currently
+// open refetches fresh from D1 — a full reload is used rather than router.refresh() because
+// these are client components that read their own already-resolved state, not server
+// components Next can re-render on command.
+function SyncAllButton() {
+  const [syncing, setSyncing] = useState(false);
+  return (
+    <button
+      className="btn btn-ghost btn-sm"
+      title="Sync all admin data from the server"
+      disabled={syncing}
+      onClick={async () => {
+        setSyncing(true);
+        await invalidateAllAdminCaches();
+        window.location.reload();
+      }}
+    >
+      {syncing ? <span className="loading loading-spinner loading-xs" /> : (
+        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21v-5h5"/></svg>
+      )}
+      <span className="hidden lg:inline">Sync All</span>
+    </button>
+  );
+}
+
 // Admin-only identity display (designation + name — see packages/schema/src/auth.ts's
 // authUsers.designation). No email tooltip here unlike a plaintext-email system would show:
 // this project only ever stores email_hash (Zero-Knowledge PII, see CLAUDE.md), so there is no
@@ -233,6 +261,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <Link href="/admin/unlock-requests" className={`btn btn-ghost btn-sm ${pathname === '/admin/unlock-requests' ? 'btn-active' : ''}`}>Unlock Requests</Link>
           <Link href="/admin/audit" className={`btn btn-ghost btn-sm ${pathname === '/admin/audit' ? 'btn-active' : ''}`}>Audit</Link>
           <Link href="/admin/export" className={`btn btn-ghost btn-sm ${pathname === '/admin/export' ? 'btn-active' : ''}`}>Export</Link>
+          <SyncAllButton />
           <AdminIdentity />
           <button className="btn btn-ghost btn-sm ml-1" onClick={signOut}>Sign out</button>
         </div>

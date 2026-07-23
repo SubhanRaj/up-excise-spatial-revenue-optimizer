@@ -85,17 +85,13 @@ export default function AuditPage() {
   const [eventFilter, setEventFilter] = useState('all');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
 
-  function load(p: number, forceRefresh = false) {
+  // Always fetches fresh from the server on every load — unlike every other admin page, the
+  // audit log has no manual "Sync" button. It's a live activity feed (logins, uploads,
+  // unlocks), so a stale cached page would be actively misleading; the global Sync All button
+  // in the navbar also covers this table, but there's no reason to ever show a stale page here.
+  function load(p: number) {
     setLoading(true);
     (async () => {
-      if (!forceRefresh) {
-        const cached = await adminAuditCache.get(String(p));
-        if (cached) {
-          setRows((cached as { rows: AuditRow[] }).rows ?? []);
-          setLoading(false);
-          return;
-        }
-      }
       const res = await fetch(`/api/admin/audit-log?page=${p}`);
       if (!res.ok) { setLoading(false); return; }
       const data = await res.json() as { rows: AuditRow[] };
@@ -106,11 +102,6 @@ export default function AuditPage() {
   }
 
   useEffect(() => { load(page); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [page]);
-
-  async function sync() {
-    await adminAuditCache.invalidate();
-    load(page, true);
-  }
 
   // Filters + re-sorts only the currently-loaded page — the log is already newest-first and
   // server-paginated, so a true global filter/sort would need a server-side query; not worth
@@ -129,10 +120,6 @@ export default function AuditPage() {
           <p className="text-sm text-base-content/70 mt-0.5">Every login, upload, and district/unit lifecycle event, newest first. Entries older than 45 days are removed automatically.</p>
         </div>
         <div className="ml-auto flex items-center gap-2">
-          <button className="btn btn-sm btn-outline gap-1" onClick={sync} disabled={loading}>
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21v-5h5"/></svg>
-            Sync from Server
-          </button>
           <HelpPanel pageKey="admin_audit" title="Reading the audit log">
             <ul className="list-disc list-inside space-y-1">
               <li><strong>Event types</strong> — magic-link/CUG login, circle-sector registration and unlock, Excel chunk uploads, district submission.</li>

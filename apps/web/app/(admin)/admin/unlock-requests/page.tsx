@@ -68,11 +68,6 @@ export default function UnlockRequestsPage() {
 
   useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
 
-  async function sync() {
-    await adminUnlockRequestsCache.invalidate();
-    load(true);
-  }
-
   async function resolve(row: RequestRow, action: 'approve' | 'deny') {
     const note = await promptNote(action, row.districtName);
     if (!note) return;
@@ -114,10 +109,6 @@ export default function UnlockRequestsPage() {
           <p className="text-sm text-base-content/70 mt-0.5">DEO-submitted requests to unlock a locked circles/sectors list.</p>
         </div>
         <div className="ml-auto flex items-center gap-2">
-          <button className="btn btn-sm btn-outline gap-1" onClick={sync} disabled={loading}>
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21v-5h5"/></svg>
-            Sync from Server
-          </button>
           <HelpPanel pageKey="admin_unlock_requests" title="Unlock requests">
             <p>A locked-out DEO can submit an in-app request here instead of contacting an Admin outside the portal. Approving deletes that district&apos;s circles/sectors rows — same effect as the manual &quot;Unlock Circles/Sectors&quot; button on the district detail page — letting the DEO re-register from scratch. Denying leaves it locked. Both require you to type your own note.</p>
           </HelpPanel>
