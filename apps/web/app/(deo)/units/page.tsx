@@ -24,6 +24,11 @@ function toastError(en: string, hi: string) {
   });
 }
 
+// Catches a DEO re-typing the fixed prefix into the area box (e.g. "Circle 2 Fatehabad" instead
+// of just "Fatehabad") — the #1 real-world mistake reported via unlock requests (Bijnor, Aligarh).
+// Soft warning only, does not block submission — a real area could coincidentally start this way.
+const REPEATS_PREFIX = /^\s*(circle|sector)\b[\s\-–]*\d*/i;
+
 // Unit names are stored as "Sector 1 - Hazratganj" / "Circle 2 - Mall" (see submitUnits below).
 // Split for display so the number renders as a distinct badge from the area name — falls back
 // to showing the raw name if it doesn't match (e.g. a unit registered before this convention).
@@ -256,6 +261,7 @@ export default function UnitsPage() {
           <p><strong>चरण 1 — सभी circles और sectors रजिस्टर करें</strong> अपने district के लिए, एक ही बार में, कुछ और करने से पहले। सिस्टम को बताएं कि आपके पास कितने sectors और कितने circles हैं, फिर हर नाम दिए गए box में टाइप करें।</p>
           <p><strong>यह एक बार होने वाला चरण है।</strong> सबमिट करने के बाद, list लॉक हो जाती है और इसे edit नहीं किया जा सकता — पहले हर नाम ध्यान से जांच लें।</p>
           <p><strong>नामकरण:</strong> &quot;Sector 1 -&quot;, &quot;Circle 1 -&quot; जैसा नंबर हर बॉक्स के आगे पहले से तय है और इसे बदला नहीं जा सकता — आपको बस बगल के बॉक्स में area का नाम टाइप करना है, जैसे &quot;Sector 1 -&quot; के आगे &quot;Hazratganj&quot;। <strong>यदि आपके district में कोई sector नहीं है</strong> (शुद्ध rural district), तो circles की गिनती Circle 1 से शुरू होती है। <strong>यदि sector हैं</strong> (urban area को cover करते हुए), तो Circle 1 issue नहीं होता — rural circles Circle 2 से शुरू होते हैं।</p>
+          <p><strong>आम गलती:</strong> बॉक्स में नंबर दोबारा मत लिखें। &quot;Circle 2 -&quot; के आगे केवल <strong>Fatehabad</strong> लिखें, <strong className="line-through">Circle 2 Fatehabad</strong> नहीं — नंबर पहले से बॉक्स के बाहर दिखाया गया है। ऐसा करने पर बॉक्स के नीचे एक पीली चेतावनी दिखेगी।</p>
           <p><strong>चरण 2 — Download the district template</strong> Upload page से (आपके circles/sectors लॉक होते ही यह अपने-आप unlock हो जाता है)।</p>
           <p><strong>चरण 3 — Upload &amp; Verify</strong> करें consolidated district Excel फ़ाइल को, फिर headquarters को सबमिट करें।</p>
           <p><strong>गलती हुई?</strong> लॉक होने के बाद, कारण बताते हुए एक &quot;अनलॉक अनुरोध&quot; सबमिट करें — एक Admin इसकी समीक्षा करके सूची को अनलॉक कर सकता है ताकि आप दोबारा रजिस्टर कर सकें।</p>
@@ -264,6 +270,7 @@ export default function UnitsPage() {
         <p><strong>Step 1 — Register all circles and sectors</strong> for your district, in one go, before doing anything else. Tell the system how many sectors and how many circles you have, then type each name in the box provided.</p>
         <p><strong>This is a one-time step.</strong> Once you submit, the list is locked and cannot be edited — check every name carefully first.</p>
         <p><strong>Naming:</strong> The &quot;Sector 1 -&quot;, &quot;Circle 1 -&quot; number in front of each box is fixed and cannot be changed — just type the area name next to it, e.g. &quot;Hazratganj&quot; next to &quot;Sector 1 -&quot;. <strong>If your district has no sectors</strong> (a purely rural district), circles are numbered starting from Circle 1. <strong>If sectors exist</strong> (covering the urban area), Circle 1 is never issued — rural circles start numbering from Circle 2.</p>
+        <p><strong>Common mistake:</strong> Don&apos;t retype the number into the box. Next to &quot;Circle 2 -&quot;, type only <strong>Fatehabad</strong> — not <strong className="line-through">Circle 2 Fatehabad</strong> — the number is already shown outside the box. Doing this shows a yellow warning below the box.</p>
         <p><strong>Step 2 — Download the district template</strong> from the Upload page (unlocked automatically once your circles/sectors are locked).</p>
         <p><strong>Step 3 — Upload &amp; Verify</strong> the consolidated district Excel file, then submit to headquarters.</p>
         <p><strong>Made a mistake?</strong> Once locked, submit an &quot;unlock request&quot; explaining why — an Admin can review and unlock the list so you can re-register.</p>
@@ -416,6 +423,9 @@ export default function UnitsPage() {
           <div className="text-center">
             <p className="text-sm text-base-content">The sector/circle number is fixed — just type the area name next to it. Every box is required.</p>
             <p className="text-xs text-base-content/60">सेक्टर/सर्कल नंबर तय है — बगल में केवल area का नाम टाइप करें। हर बॉक्स भरना अनिवार्य है।</p>
+            <p className="text-xs mt-2 bg-base-200 rounded px-3 py-2 inline-block">
+              For &quot;Circle 2 -&quot; type only <span className="font-semibold text-success">Fatehabad</span> — not <span className="font-semibold text-error line-through">Circle 2 Fatehabad</span>.
+            </p>
           </div>
 
           {sectorNames.length > 0 && (
@@ -424,12 +434,13 @@ export default function UnitsPage() {
               <div className="flex flex-col gap-3 max-w-md mx-auto">
                 {sectorNames.map((name, i) => {
                   const blank = triedSubmit && !name.trim();
+                  const repeatsPrefix = REPEATS_PREFIX.test(name);
                   return (
                     <div key={`sector-${i}`}>
                       <div className="flex items-center gap-2">
                         <span className="font-semibold text-sm whitespace-nowrap shrink-0">Sector {i + 1} -</span>
                         <input
-                          className={`input input-bordered w-full ${blank ? 'input-error' : ''}`}
+                          className={`input input-bordered w-full ${blank ? 'input-error' : repeatsPrefix ? 'input-warning' : ''}`}
                           value={name}
                           placeholder="Area name"
                           aria-label={`Sector ${i + 1} area name`}
@@ -437,6 +448,11 @@ export default function UnitsPage() {
                         />
                       </div>
                       {blank && <span className="mt-1 block text-xs font-bold text-error">Required — यह आवश्यक है</span>}
+                      {!blank && repeatsPrefix && (
+                        <span className="mt-1 block text-xs font-medium text-warning">
+                          Don&apos;t retype &quot;Sector {i + 1}&quot; here — the number is already shown. Just type the area name. / यहां &quot;Sector {i + 1}&quot; दोबारा न लिखें — केवल area का नाम टाइप करें।
+                        </span>
+                      )}
                     </div>
                   );
                 })}
@@ -450,12 +466,13 @@ export default function UnitsPage() {
               <div className="flex flex-col gap-3 max-w-md mx-auto">
                 {circleNames.map((name, i) => {
                   const blank = triedSubmit && !name.trim();
+                  const repeatsPrefix = REPEATS_PREFIX.test(name);
                   return (
                     <div key={`circle-${i}`}>
                       <div className="flex items-center gap-2">
                         <span className="font-semibold text-sm whitespace-nowrap shrink-0">Circle {circleNumber(i)} -</span>
                         <input
-                          className={`input input-bordered w-full ${blank ? 'input-error' : ''}`}
+                          className={`input input-bordered w-full ${blank ? 'input-error' : repeatsPrefix ? 'input-warning' : ''}`}
                           value={name}
                           placeholder="Area name"
                           aria-label={`Circle ${circleNumber(i)} area name`}
@@ -463,6 +480,11 @@ export default function UnitsPage() {
                         />
                       </div>
                       {blank && <span className="mt-1 block text-xs font-bold text-error">Required — यह आवश्यक है</span>}
+                      {!blank && repeatsPrefix && (
+                        <span className="mt-1 block text-xs font-medium text-warning">
+                          Don&apos;t retype &quot;Circle {circleNumber(i)}&quot; here — the number is already shown. Just type the area name. / यहां &quot;Circle {circleNumber(i)}&quot; दोबारा न लिखें — केवल area का नाम टाइप करें।
+                        </span>
+                      )}
                     </div>
                   );
                 })}
