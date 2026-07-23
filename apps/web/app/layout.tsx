@@ -1,14 +1,42 @@
 import type { Metadata, Viewport } from 'next';
 import ViewPrefsPanel from '@/app/_components/ViewPrefsPanel';
 
+const TITLE = 'UP Excise Spatial & Revenue Optimization Portal | आबकारी विभाग, उत्तर प्रदेश';
+const DESCRIPTION = 'State Excise Portal — Spatial & Revenue Optimization System for the Department of Excise, Government of Uttar Pradesh. Shop-level spatial and revenue data collection across all 75 districts.';
+
 export const metadata: Metadata = {
-  title: 'UP Excise Spatial Revenue Optimizer',
-  description: 'State Excise Portal — Spatial & Revenue Optimization System',
+  metadataBase: new URL('https://sro.exciseup.in'),
+  title: TITLE,
+  description: DESCRIPTION,
+  keywords: [
+    'UP Excise Spatial Revenue Optimizer',
+    'Department of Excise Uttar Pradesh',
+    'आबकारी विभाग उत्तर प्रदेश',
+    'excise shop mapping',
+    'excise revenue optimization',
+    'district excise data collection',
+  ],
   manifest: '/manifest.json',
+  // robots.txt (apps/web/public/robots.txt) is the actual crawl gate (only /login and
+  // /auth/verify are open) — this stays index/follow at the metadata level since it's shared
+  // by every route in this single-layout app, /login included.
+  openGraph: {
+    title: TITLE,
+    description: DESCRIPTION,
+    siteName: 'UP Excise SRO',
+    url: '/login',
+    type: 'website',
+    locale: 'en_IN',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: TITLE,
+    description: DESCRIPTION,
+  },
 };
 
 export const viewport: Viewport = {
-  themeColor: '#1d4ed8',
+  themeColor: '#0f2a44',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

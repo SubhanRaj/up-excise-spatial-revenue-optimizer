@@ -1,12 +1,11 @@
 {
-  "name": "UP Excise Portal",
-  "short_name": "Excise Portal",
+  "name": "UP Excise SRO — Spatial & Revenue Optimization Portal",
+  "short_name": "UP Excise SRO",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#1d4ed8",
+  "theme_color": "#0f2a44",
   "icons": [
-    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml" }
   ]
 }

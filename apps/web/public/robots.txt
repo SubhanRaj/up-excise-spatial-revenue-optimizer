@@ -1,0 +1,18 @@
+# Every route below is a session-gated app screen (server-enforced auth via requireAuth(),
+# see CLAUDE.md's "Auth Facade — No Public Pages") — no real content in the static shell before
+# a session is verified, so there's nothing here worth a bot's time or this site's request
+# budget. Path-specific Disallow rules on purpose, not a blanket "Disallow: /": if Cloudflare
+# ever injects its own "Allow: /" ahead of this file on this zone (as it does on the sibling
+# excise-revenue-recovery-portal project's), a blanket Disallow could lose an equal-length tie
+# against that Allow per Google's robots.txt spec — a longer, path-specific Disallow always wins
+# regardless of ordering.
+User-agent: *
+Disallow: /home
+Disallow: /upload
+Disallow: /verify
+Disallow: /units
+Disallow: /admin
+Disallow: /api
+Allow: /login
+Allow: /auth/verify
+Allow: /
