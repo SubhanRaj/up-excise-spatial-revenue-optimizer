@@ -38,13 +38,14 @@ up-excise-spatial-revenue-optimizer/
 │           ├── (admin)/  # HQ dashboard: /admin, /admin/*
 │           ├── login/    # Public: /login
 │           ├── auth/     # Public: /auth/verify (client component)
-│           └── api/      # 19 Next.js Route Handlers (same Worker)
+│           └── api/      # 25 Next.js Route Handlers (same Worker)
 ├── packages/
 │   └── schema/       # Shared Drizzle ORM schema (D1/SQLite)
 ├── migrations/       # D1 SQL migration files (single consolidated 0001_initial.sql)
 ├── docs/
 │   └── templates/    # Standardized DEO Excel upload templates
-├── roadmap.md        # Engineering master document
+├── roadmap.md        # Engineering technical/business-logic spec
+├── summary.md        # Milestone delivery history (full write-ups)
 ├── DEPLOY.md         # Deployment and secrets reference
 └── CLAUDE.md         # AI co-author context and conventions
 ```
@@ -161,7 +162,7 @@ Upload and Verify are not rendered — not merely disabled — until circles/sec
 - Client-side search (shop ID / name / thana), type filter, circle/sector filter, sortable columns
 - Group by type — auto-collapses all on enable; per-group expand/collapse persisted to `localStorage`; clears type filter on enable
 - Rows per page: 10 / 25 / 50 / 100 / All — preference persisted to `localStorage`
-- Per-district CSV export
+- Per-district XLSX export (ExcelJS — CSV is never used anywhere in this app, see "Data Rules")
 
 **Navigation:**
 - Navbar search: live dropdown across all 75 districts and 18 divisions, keyboard navigation (↑↓ / Enter / Escape)
@@ -171,7 +172,7 @@ Upload and Verify are not rendered — not merely disabled — until circles/sec
 **Shared UI:**
 - `HelpPanel` on every page — balloon popover with background blur (`backdrop-blur-[2px]`), auto-flips on/off-screen, scrollable content, closes on Escape or outside click
 - `ViewPrefsPanel` FAB (bottom-right) — theme (Light/Auto/Dark, respects and live-tracks system preference), font size, row density, content width; all persisted to `localStorage`
-- Full-state CSV export (never rendered in UI — `/api/admin/export/all` only)
+- Full-state XLSX export (never rendered as an in-UI table — `/api/admin/export/all` only)
 - Audit log viewer (last 45 days, paginated) — shows admin/superadmin actor name + designation for admin-initiated events (login, logout, unlock, District Master edits, bulk-provision), `deoId` for DEO-actor events
 - Bulk DEO provisioning via Excel upload
 
@@ -273,10 +274,9 @@ See [DEPLOY.md](DEPLOY.md) for secrets, CI/CD, and account management. See [docs
 | M-8: Admin Portal Navigation & Divisions | **Completed** |
 | M-9: SPA Navigation Parity & Polish | **Completed** |
 | M-10: District Master & Migration Consolidation | **Completed** |
-| M-11 – M-16 | **Completed** — see CLAUDE.md's milestone table for full detail |
-| M-17: CUG Login, API Error Handling & Atomicity Hardening | **Completed** |
+| M-11 – M-31 | **Completed** — see CLAUDE.md's milestone table for full per-milestone detail (auth/audit hardening, DEO Excel template overhaul, prod go-live cleanup + custom domain, self-service unlock requests, SEO metadata, and UX/bugfix polish) |
 
-See [roadmap.md](roadmap.md) for full specs, entry/exit criteria, and deliverable checklists.
+See [summary.md](summary.md) for full milestone specs, entry/exit criteria, and deliverable checklists — see [roadmap.md](roadmap.md) for the technical and business-logic spec behind them.
 
 ---
 
@@ -286,11 +286,12 @@ Engineering is complete. Department action required before rollout:
 
 1. **DEO email addresses** — resolved for all 75 districts via `pnpm seed:deo-accounts`
 2. **Excel template column layout** — must be locked before column mapping is built
-3. **Shop count estimates per district** — for dashboard progress metrics
-4. **DEO credential/identifier assignment** — `deo_id` auto-assigned for all 75 seeded districts; DEO names are English placeholders pending correction (source names are Hindi)
-5. **Circle/sector naming convention** — consistent names across all 75 districts
-6. **Custom email domain** — resolved. `mail.exciseup.in` verified in Resend; `RESEND_FROM_EMAIL` is `noreply@mail.exciseup.in`. Magic-link email is the Admin/HQ login channel; DEOs sign in via CUG number (see "CUG-hashed login")
-7. **DoT SMS template approval** — in progress. Blocks real SMS-OTP login for DEOs (see roadmap.md's Backlog section); the current CUG-hash login (a static shared secret, not a one-time code) remains the DEO login mechanism until approval lands
+3. **Thana master list** — doesn't exist state-wide; blocks a true cross-district adjacent-Thana check (current check is a same-district, non-blocking heuristic only — see "Adjacent Thana Cross-District Rule" in CLAUDE.md)
+4. **Shop count estimates per district** — for dashboard progress metrics
+5. **DEO credential/identifier assignment** — `deo_id` auto-assigned for all 75 seeded districts; DEO names are English placeholders pending correction (source names are Hindi)
+6. **Circle/sector naming convention** — consistent names across all 75 districts
+7. **Custom email domain** — resolved. `mail.exciseup.in` verified in Resend; `RESEND_FROM_EMAIL` is `noreply@mail.exciseup.in`. Magic-link email is the Admin/HQ login channel; DEOs sign in via CUG number (see "CUG-hashed login")
+8. **DoT SMS template approval** — in progress. Blocks real SMS-OTP login for DEOs (see summary.md's Backlog section); the current CUG-hash login (a static shared secret, not a one-time code) remains the DEO login mechanism until approval lands
 
 ---
 

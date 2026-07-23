@@ -17,7 +17,7 @@ To protect the privacy of District Excise Officers (DEOs) and administrative use
 
 ### CUG Number Hashing (Alternate Login)
 
-- DEOs may sign in with their department CUG mobile number instead of a magic-link email — this is enforced whenever `RESEND_FROM_EMAIL`'s domain can't be relied on for delivery. The raw 10-digit number is hashed with SHA-256 in the browser (`apps/web/src/lib/crypto-client.ts`) before it is ever transmitted; `POST /api/auth/verify-cug` only ever sees and stores the hash (`auth_users.deo_cug_hash`).
+- DEOs sign in with their department CUG mobile number instead of a magic-link email — this remains the default/primary DEO login path even though `RESEND_FROM_EMAIL`'s domain is now verified, since magic-link email is scoped to Admin/HQ login only. The raw 10-digit number is hashed with SHA-256 in the browser (`apps/web/src/lib/crypto-client.ts`) before it is ever transmitted; `POST /api/auth/verify-cug` only ever sees and stores the hash (`auth_users.deo_cug_hash`).
 - `scripts/seed-deo-accounts.ts` bulk-populates this from department contact sheets. The source CSVs contain raw PII (mobile numbers, emails) and are gitignored — they must never be committed to the repository. The script hashes both the CUG number and the email before any value reaches D1.
 
 ## 2. Superadmin Configuration
@@ -25,7 +25,7 @@ To protect the privacy of District Excise Officers (DEOs) and administrative use
 To allow for emergency maintenance and system testing without exposing access vectors:
 - The Superadmin bypass is configured securely via the environment variable: `SUPERADMIN_EMAIL_HASH`.
 - This hash must match the SHA-256 digest of the admin's email address.
-- In production, this allows the admin to log in and instantly receive both the `superadmin` role and an assignment to the dummy `Demo District`, allowing them to view and test both the `/admin` HQ dashboard and the `/home` DEO portal safely.
+- In production, this allows the admin to log in and instantly receive the `superadmin` role, giving them access to both the `/admin` HQ dashboard and the `/home` DEO portal (using whatever district, if any, is assigned to that account — the dummy `Demo District` this previously fell back to was deleted from prod D1 during go-live cleanup, see summary.md's M-22).
 
 ## 3. Worker Edge Security
 

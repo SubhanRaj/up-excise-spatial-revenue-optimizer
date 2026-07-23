@@ -16,7 +16,7 @@ See also [docs/app-flow.md](docs/app-flow.md) for Mermaid diagrams of the auth f
 ```
 Browser
   │
-  └── up-excise-spatial-revenue-optimizer-web.shubhanraj2002.workers.dev
+  └── sro.exciseup.in
         │  (Single Cloudflare Worker — Next.js via @opennextjs/cloudflare)
         │
         ├── Pages: /login, /auth/verify, /home, /upload, /verify, /units
@@ -35,7 +35,7 @@ Browser
 
 ## Custom Domain Migration — `sro.exciseup.in`
 
-The Worker is planned to move from the `*.workers.dev` URL to `sro.exciseup.in` ("SRO" = Spatial Revenue Optimizer — deliberately distinct branding from the sibling `excise-revenue-recovery-portal` project, which already uses "Excise Portal" naming). Cloudflare's "Add a Site" onboarding only accepts root/registrable domains, not bare subdomains, so this requires moving the whole `exciseup.in` zone's DNS to Cloudflare — not just delegating the subdomain.
+**Completed 2026-07-20.** The Worker was moved from the `*.workers.dev` URL to `sro.exciseup.in` ("SRO" = Spatial Revenue Optimizer — deliberately distinct branding from the sibling `excise-revenue-recovery-portal` project, which already uses "Excise Portal" naming). Cloudflare's "Add a Site" onboarding only accepts root/registrable domains, not bare subdomains, so this required moving the whole `exciseup.in` zone's DNS to Cloudflare — not just delegating the subdomain. Steps below are kept as a reference for any future domain work on this or a sibling project.
 
 **Why this needs care:** `exciseup.in` also carries Google Workspace email (MX + SPF on the root) and was DNSSEC-signed. The root domain itself is just a disposable default Squarespace landing page — nothing to preserve there. Resend's magic-link sending domain lives under `mail.exciseup.in`.
 
@@ -60,7 +60,7 @@ Cloudflare's DNS auto-scan did **not** correctly preserve `mail.exciseup.in` —
 
 ### Code touchpoint
 
-`apps/web/app/login/actions.ts` has an `ALLOWED_HOSTS` allowlist (open-redirect guard) that builds the URL inside magic-link emails. `sro.exciseup.in` is already added there and set as `FALLBACK_HOST`, ahead of the DNS work being finished, so no further code change is needed once the domain goes live.
+`apps/web/app/login/actions.ts` has an `ALLOWED_HOSTS` allowlist (open-redirect guard) that builds the URL inside magic-link emails. `sro.exciseup.in` is set there as `FALLBACK_HOST` — no further code change was needed once the domain went live.
 
 ---
 

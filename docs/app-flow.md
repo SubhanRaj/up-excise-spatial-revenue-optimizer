@@ -53,6 +53,14 @@ flowchart TD
     LockCheck -->|no| BatchInsert[db.batch: insert all units + audit_log unit_registered]
     BatchInsert --> Locked[Units locked - Upload/Verify now unlock]
 
+    Locked -.->|DEO made a mistake| ReqUnlock["/units: Request Unlock button\nSweetAlert2 textarea, reason required"]
+    ReqUnlock --> PostUnlock[POST /api/districts/district/request-unlock\naudit_log unlock_requested]
+    PostUnlock --> PendingBanner["/units shows pending banner\n(polls GET on load)"]
+    PendingBanner -.->|Admin reviews on\n/admin/unlock-requests| Resolve{Admin: approve or deny?}
+    Resolve -->|approve, note required| UnlockRows[Delete district_circles_sectors rows\naudit_log units_unlocked]
+    Resolve -->|deny, note required| DenyBanner["/units shows denied banner\n+ admin's note"]
+    UnlockRows --> UnitsPage
+
     HomeCheck -->|yes| FullNav["/home shows Upload + Verify cards\n+ nav links appear"]
     Locked --> FullNav
 
@@ -81,6 +89,8 @@ flowchart TD
     style Rejected fill:#f59e0b,color:#000
     style RowRejected fill:#f59e0b,color:#000
     style SubmitBlocked fill:#f59e0b,color:#000
+    style UnlockRows fill:#16a34a,color:#fff
+    style DenyBanner fill:#f59e0b,color:#000
 ```
 
 ## 3. Admin / HQ dashboard — data loading (IndexedDB-first)

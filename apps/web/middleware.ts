@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-const PUBLIC = new Set(['/login', '/auth/verify']);
+// '/opengraph-image' has no file extension in its URL, so it doesn't match the matcher's
+// static-asset exclusion (.*\..*) the way /icon.svg, /robots.txt, /manifest.json do — it must
+// be listed explicitly or social/SEO crawlers get redirected to /login instead of the image.
+const PUBLIC = new Set(['/login', '/auth/verify', '/opengraph-image']);
 
 export default function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
