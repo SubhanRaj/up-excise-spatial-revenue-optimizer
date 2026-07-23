@@ -1725,6 +1725,20 @@ flowchart LR
 
 ---
 
+### M-26: Circle/Sector Name Prefix Guard & Excel Column Resize Fix ✅ Complete
+
+**Objective:** Close two DEO-reported gaps: (1) many DEOs were typing only an Inspector-supplied area name into the `/units` circle/sector boxes and dropping the circle/sector number entirely, leaving no way to tell which unit a shop belongs to; (2) the downloaded DEO Excel template silently blocked column-width changes.
+
+**Deliverables:**
+
+- [x] **Pre-filled, guarded unit-name boxes** (`apps/web/app/(deo)/units/page.tsx`): each box in the Step 2 "Enter Names" wizard now starts with a real value — `Sector 1 - `, `Circle 1 - `, etc. (not just a placeholder) — so a DEO types the area name straight after the dash instead of overwriting the number. A new `stripEmptySuffix()` helper turns an untouched `Sector 1 - ` box back into the bare `Sector 1` on Enter or on submit, if no area name was added. A new `hasRequiredPrefix()` regex check requires every box to still start with its assigned `Sector N` / `Circle N` number — live red validation text ("Keep the 'Sector N' number") appears the moment a DEO edits the number away, and `canSubmit` is gated on it, so the list can't be locked in with a unit missing its number.
+- [x] **Excel template column resize** (`apps/web/src/lib/excel.ts`, `buildShopDataSheet`): the Data Entry sheet's `ws.protect(...)` call had `formatColumns: false`, the OOXML sheet-protection flag that disables Excel's "Format → Column Width" even on unlocked data cells. Changed to `formatColumns: true`. Header cells remain uneditable regardless — `formatColumns` only governs resize permission, not cell-edit locking, which is set independently per-cell via `cell.protection = { locked: true }` in `styleHeaderRow()`.
+- [x] **Service worker cache bump** (`apps/web/public/sw.js`): `CACHE` constant bumped `excise-v2` → `excise-v3`. Found while investigating a reported `/verify`-page hang: the underlying infinite-toggle bug had already been fixed in M-(prior, `b79320c`, 2026-07-11), but that fix shipped without a cache-name bump, so a browser that had the app's JS cached from before the fix could keep running the stale, buggy bundle indefinitely (the SW's fetch handler opportunistically caches every same-origin GET, including `_next/static/*` chunks, under one static cache name — see CLAUDE.md's "PWA & Offline" section, which only documents CDN-asset pre-caching and doesn't mention this). Bumping the cache name forces every open tab to pick up fresh JS on next activation.
+
+**Exit criterion:** `/units` boxes cannot be locked in with a circle/sector name missing its assigned number; the downloaded DEO Excel template allows column-width resizing without allowing header edits; `pnpm typecheck` and `next build` pass.
+
+---
+
 ## Backlog / Not Started
 
 - [x] ~~Verify `exciseup.in` in Resend and switch `RESEND_FROM_EMAIL`~~ — Done. `mail.exciseup.in` verified; `RESEND_FROM_EMAIL` set to `noreply@mail.exciseup.in` on this project's Worker, and the same address set as `FROM_EMAIL` on the sibling `excise-revenue-recovery-portal` project's Worker (different env var name there, same Resend account/domain). Magic-link email is now the Admin/HQ login channel only (DEOs use CUG login as of M-17).
