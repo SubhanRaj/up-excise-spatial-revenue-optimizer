@@ -188,7 +188,7 @@ export default function AuditPage() {
                 visibleRows.map((r) => (
                   <tr key={r.id} className="hover:bg-base-50">
                     <td className="whitespace-nowrap text-xs">{new Date(r.createdAt).toLocaleString('en-IN')}</td>
-                    <td><span className="badge badge-outline badge-sm">{EVENT_LABELS[r.eventType] ?? r.eventType}</span></td>
+                    <td><span className="badge badge-outline badge-sm h-auto py-1 px-2 whitespace-nowrap">{EVENT_LABELS[r.eventType] ?? r.eventType}</span></td>
                     <td className="font-mono text-xs">{describeActor(r)}</td>
                     <td className="text-xs">{r.districtName ?? <span className="text-base-content/50">—</span>}</td>
                     <td className="text-xs text-base-content/70">{describeMetadata(r)}</td>

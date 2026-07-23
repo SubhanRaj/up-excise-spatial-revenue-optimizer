@@ -10,7 +10,7 @@ export interface AdminDistrictRow {
   centerLat: number | null; centerLon: number | null;
   bboxMinLat: number | null; bboxMaxLat: number | null;
   bboxMinLon: number | null; bboxMaxLon: number | null;
-  submittedAt: number | null;
+  submittedAt: string | null; // ISO string — Drizzle's `mode: 'timestamp'` columns serialize to this over JSON, not raw epoch seconds
 }
 
 interface ApiResponse {

@@ -10,7 +10,7 @@ import { adminMapCache } from '@/lib/db';
 
 interface DistrictRow {
   name: string; division?: string; deoName?: string; expectedVendCount?: number;
-  status: string; submittedAt?: number; vendCount: number; totalRevenue: number;
+  status: string; submittedAt?: string; vendCount: number; totalRevenue: number;
 }
 interface AdminOverview { districts: DistrictRow[]; stateTotals: { totalVendCount: number; totalRevenue: number } }
 interface MapRow { name: string; status: string; expectedVendCount?: number; vendCount: number; totalRevenue: number }
