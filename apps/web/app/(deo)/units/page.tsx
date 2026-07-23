@@ -151,13 +151,24 @@ export default function UnitsPage() {
     return t.endsWith('-') ? t.slice(0, -1).trim() : t;
   }
 
-  const allFilled = sectorNames.every((n) => stripEmptySuffix(n)) && circleNames.every((n) => stripEmptySuffix(n));
+  // A box must still start with its assigned "Sector N" / "Circle N" number — this is the
+  // whole point of pre-filling it that way, so a DEO can't blank it out and type only an area
+  // name (which was the original problem this feature fixes). Accepts the bare number
+  // ("Sector 1") or the number followed by "- <area>" with any spacing.
+  function hasRequiredPrefix(name: string, expected: string): boolean {
+    const escaped = expected.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return new RegExp(`^${escaped}(\\s*-.*)?$`, 'i').test(name.trim());
+  }
+
+  const allFilled =
+    sectorNames.every((n, i) => stripEmptySuffix(n) && hasRequiredPrefix(n, `Sector ${i + 1}`)) &&
+    circleNames.every((n, i) => stripEmptySuffix(n) && hasRequiredPrefix(n, `Circle ${circleNumber(i)}`));
   const canSubmit = allFilled && (sectorNames.length + circleNames.length) > 0;
 
   async function submitUnits() {
     setTriedSubmit(true);
     if (!canSubmit) {
-      toastError('Fill in every box before submitting — none can be left blank.', 'सबमिट करने से पहले हर बॉक्स भरें — कोई भी खाली नहीं छोड़ा जा सकता।');
+      toastError('Fill in every box, and keep its "Sector N" / "Circle N" number — none can be blank or missing the number.', 'हर बॉक्स भरें और उसका "Sector N" / "Circle N" नंबर बनाए रखें — कोई भी खाली या नंबर-रहित नहीं होना चाहिए।');
       return;
     }
     const sectors = sectorNames.map(stripEmptySuffix);
@@ -381,14 +392,16 @@ export default function UnitsPage() {
               <h3 className="font-semibold text-sm mb-3 text-center">Sectors / सेक्टर</h3>
               <div className="flex flex-col gap-3 max-w-md mx-auto">
                 {sectorNames.map((name, i) => {
+                  const expected = `Sector ${i + 1}`;
                   const blank = triedSubmit && !stripEmptySuffix(name);
+                  const prefixBroken = !blank && name.trim() && !hasRequiredPrefix(name, expected);
                   return (
                     <div key={`sector-${i}`}>
                       <input
-                        className={`input input-bordered w-full ${blank ? 'input-error' : ''}`}
+                        className={`input input-bordered w-full ${blank || prefixBroken ? 'input-error' : ''}`}
                         value={name}
-                        placeholder={`Sector ${i + 1}`}
-                        aria-label={`Sector ${i + 1} name`}
+                        placeholder={expected}
+                        aria-label={`${expected} name`}
                         onChange={(e) => setSectorNames((prev) => prev.map((v, idx) => (idx === i ? e.target.value : v)))}
                         onKeyDown={(e) => {
                           if (e.key !== 'Enter') return;
@@ -397,6 +410,7 @@ export default function UnitsPage() {
                         }}
                       />
                       {blank && <span className="mt-1 block text-xs font-bold text-error">Required — यह आवश्यक है</span>}
+                      {prefixBroken && <span className="mt-1 block text-xs font-bold text-error">Keep the &quot;{expected}&quot; number — &quot;{expected}&quot; नंबर हटाएं नहीं</span>}
                     </div>
                   );
                 })}
@@ -409,14 +423,16 @@ export default function UnitsPage() {
               <h3 className="font-semibold text-sm mb-3 text-center">Circles / सर्कल</h3>
               <div className="flex flex-col gap-3 max-w-md mx-auto">
                 {circleNames.map((name, i) => {
+                  const expected = `Circle ${circleNumber(i)}`;
                   const blank = triedSubmit && !stripEmptySuffix(name);
+                  const prefixBroken = !blank && name.trim() && !hasRequiredPrefix(name, expected);
                   return (
                     <div key={`circle-${i}`}>
                       <input
-                        className={`input input-bordered w-full ${blank ? 'input-error' : ''}`}
+                        className={`input input-bordered w-full ${blank || prefixBroken ? 'input-error' : ''}`}
                         value={name}
-                        placeholder={`Circle ${circleNumber(i)}`}
-                        aria-label={`Circle ${circleNumber(i)} name`}
+                        placeholder={expected}
+                        aria-label={`${expected} name`}
                         onChange={(e) => setCircleNames((prev) => prev.map((v, idx) => (idx === i ? e.target.value : v)))}
                         onKeyDown={(e) => {
                           if (e.key !== 'Enter') return;
@@ -425,6 +441,7 @@ export default function UnitsPage() {
                         }}
                       />
                       {blank && <span className="mt-1 block text-xs font-bold text-error">Required — यह आवश्यक है</span>}
+                      {prefixBroken && <span className="mt-1 block text-xs font-bold text-error">Keep the &quot;{expected}&quot; number — &quot;{expected}&quot; नंबर हटाएं नहीं</span>}
                     </div>
                   );
                 })}
