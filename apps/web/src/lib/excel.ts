@@ -58,8 +58,6 @@ const SHOP_TYPE_OPTIONS = Object.values(SHOP_TYPE_LABELS);
 const SHOP_TYPE_REVERSE: Record<string, string> = Object.fromEntries(
   Object.entries(SHOP_TYPE_LABELS).map(([enumKey, label]) => [label.toLowerCase(), enumKey]),
 );
-const CL5CC_OPTIONS = ['true', 'false'] as const;
-
 // Data validation dropdowns are applied to a large-but-finite row range rather than
 // the full 1,048,576-row sheet — 5,000 rows comfortably covers any single district
 // while keeping the sqref range readable.
@@ -310,7 +308,7 @@ const COLUMN_GUIDE: unknown[][] = [
   [FRIENDLY_LABELS.shop_id, 'Department-assigned license/registration ID.\nविभाग द्वारा दिया गया लाइसेंस/पंजीकरण आईडी।', 'All shop types / सभी प्रकार', 'Alphanumeric. Must be unique within the district.\nअक्षर व अंक। जिले में अद्वितीय होना चाहिए।'],
   [FRIENDLY_LABELS.shop_name, 'Official name of the retail vend.\nदुकान का आधिकारिक नाम।', 'All shop types / सभी प्रकार', 'English only.\nकेवल अंग्रेज़ी में।'],
   [FRIENDLY_LABELS.shop_type, 'Shop classification — choose from the dropdown.\nदुकान का वर्गीकरण — dropdown से चुनें।', 'All shop types / सभी प्रकार', 'MODEL_SHOP | COMPOSITE_SHOP | PRV | BHANG_SHOP | COUNTRY_LIQUOR'],
-  [FRIENDLY_LABELS.has_cl5cc, 'true = has CL5CC beer endorsement, false = standard.\ntrue = CL5CC बियर endorsement है, false = सामान्य।', 'COUNTRY_LIQUOR only / केवल COUNTRY_LIQUOR', 'Locked to false for every other Shop Type — cell will reject "true".\nअन्य किसी भी Shop Type के लिए "true" स्वीकार नहीं होगा।'],
+  [FRIENDLY_LABELS.has_cl5cc, 'TRUE = has CL5CC beer endorsement, FALSE = standard. Choose from the dropdown.\nTRUE = CL5CC बियर endorsement है, FALSE = सामान्य। Dropdown से चुनें।', 'COUNTRY_LIQUOR only / केवल COUNTRY_LIQUOR', 'TRUE is only valid when Shop Type = Country Liquor — any other combination is rejected on upload, not by the cell itself.\nTRUE केवल तभी मान्य है जब Shop Type = Country Liquor हो — कोई भी अन्य combination अपलोड पर अस्वीकार कर दिया जाता है, cell द्वारा नहीं।'],
   [FRIENDLY_LABELS.latitude, 'Latitude — DMS or Decimal.\nअक्षांश — DMS या Decimal में।', 'Optional / वैकल्पिक', 'e.g. 26°50\'48.12"N or 26.8467'],
   [FRIENDLY_LABELS.longitude, 'Longitude — DMS or Decimal.\nदेशांतर — DMS या Decimal में।', 'Optional / वैकल्पिक', 'e.g. 80°56\'46.3"E or 80.9462'],
   [FRIENDLY_LABELS.license_fee_lf, 'Annual license fee (INR, whole rupees).\nवार्षिक लाइसेंस शुल्क (INR, पूर्ण रुपयों में)।', 'MODEL_SHOP, PRV, BHANG_SHOP', 'Locked to 0 for other shop types — cell will reject entry.\nअन्य दुकान प्रकार के लिए यह 0 पर locked है — गलत entry स्वीकार नहीं होगी।'],
@@ -385,15 +383,19 @@ async function buildShopDataSheet(
     showInputMessage: true, promptTitle: 'Shop type', prompt: 'Choose a shop type from the dropdown list.',
     showErrorMessage: true, errorStyle: 'error', errorTitle: 'Invalid shop type', error: `Use one of: ${SHOP_TYPE_OPTIONS.join(', ')}`,
   });
-  // has_cl5cc only applies to Country Liquor shops (CLAUDE.md "CL5CC Rule") — locked to
-  // false/blank for every other shop_type. No dropdown arrow (custom validation can't show
-  // one), same tradeoff as the FIELD_GATES loop below; the input message tells the DEO why.
+  // has_cl5cc: a plain TRUE/FALSE dropdown (like shop_type's) rather than a per-row custom
+  // formula. Excel silently auto-converts a typed "true"/"false" token into a native Boolean
+  // cell value, and a custom formula that compares that Boolean against the quoted text
+  // "true"/"false" (as this used to) never matches — every entry was rejected, in both
+  // directions, regardless of shop type. Confirmed empirically (LibreOffice recalculation of
+  // the two formula styles side by side) before fixing. A List validation's own type handling
+  // doesn't have this bug, but List can't also carry the "only true for Country Liquor" gate —
+  // the Worker is the actual enforcement point for that (CLAUDE.md "CL5CC Rule": "the Worker
+  // rejects any other combination"), so the client-side gate wasn't a real guarantee anyway.
   validations.add(`${colLetter(cl5ccCol)}3:${colLetter(cl5ccCol)}${VALIDATION_ROW_LIMIT}`, {
-    type: 'custom', allowBlank: true,
-    formulae: [`=OR($${colLetter(cl5ccCol)}3="",$${colLetter(cl5ccCol)}3="false",AND($${colLetter(cl5ccCol)}3="true",$${colLetter(shopTypeCol)}3="${SHOP_TYPE_LABELS.COUNTRY_LIQUOR}"))`],
-    showInputMessage: true, promptTitle: 'CL5CC', prompt: 'Type true or false. "true" is only allowed when Shop Type is Country Liquor.',
-    showErrorMessage: true, errorStyle: 'error', errorTitle: 'CL5CC not applicable',
-    error: `"true" is only allowed when Shop Type = Country Liquor. Use false otherwise.\n"true" केवल तभी जब Shop Type = Country Liquor हो। अन्यथा false रखें।`,
+    type: 'list', allowBlank: true, formulae: ['"TRUE,FALSE"'],
+    showInputMessage: true, promptTitle: 'CL5CC', prompt: '"TRUE" is only valid when Shop Type is Country Liquor — any other combination is rejected on upload.',
+    showErrorMessage: true, errorStyle: 'error', errorTitle: 'Invalid value', error: 'Choose TRUE or FALSE from the dropdown.',
   });
   if (units.length > 0) {
     validations.add(`${colLetter(unitCol)}3:${colLetter(unitCol)}${VALIDATION_ROW_LIMIT}`, {
@@ -413,7 +415,10 @@ async function buildShopDataSheet(
     const letter = colLetter(col);
     const allowedLabels = gate.allowedTypes.map((t) => SHOP_TYPE_LABELS[t]!);
     const typesCond = allowedLabels.map((label) => `$${shopTypeLetter}3="${label}"`).join(',');
-    const cond = gate.requireCl5cc ? `AND(OR(${typesCond}),$${cl5ccLetter}3="true")` : `OR(${typesCond})`;
+    // $cl5ccLetter}3=TRUE (unquoted boolean literal), not ="true" — Excel auto-converts a
+    // typed "true" token to a native Boolean, which never equals the quoted text "true"
+    // (same bug just fixed on the has_cl5cc column itself).
+    const cond = gate.requireCl5cc ? `AND(OR(${typesCond}),$${cl5ccLetter}3=TRUE)` : `OR(${typesCond})`;
     const [enLabel] = FRIENDLY_LABELS[gate.key]!.split('\n');
     validations.add(`${letter}3:${letter}${VALIDATION_ROW_LIMIT}`, {
       type: 'custom', allowBlank: true, formulae: [`=OR($${letter}3="",$${letter}3=0,${cond})`],
