@@ -151,14 +151,56 @@ function TypeBadge({ type, cl5cc }: { type: string; cl5cc: boolean }) {
 
 // ── Stat card ─────────────────────────────────────────────────────────────────
 
-function StatCard({ label, value, sub, href }: { label: string; value: string; sub?: string; href?: string }) {
-  return (
-    <div className="bg-base-100 rounded-xl border border-base-200 p-4 space-y-1">
+function StatCard({ label, value, sub, href, onClick }: { label: string; value: string; sub?: string; href?: string; onClick?: () => void }) {
+  const inner = (
+    <>
       <p className="text-[11px] uppercase tracking-widest font-medium text-base-content/60">{label}</p>
       {href
         ? <Link href={href} className="block text-xl font-bold text-primary tabular-nums hover:underline underline-offset-2">{value}</Link>
-        : <p className="text-xl font-bold text-base-content tabular-nums">{value}</p>}
+        : <p className={`text-xl font-bold tabular-nums ${onClick ? 'text-primary' : 'text-base-content'}`}>{value}</p>}
       {sub && <p className="text-xs text-base-content/70">{sub}</p>}
+    </>
+  );
+  if (onClick) {
+    return (
+      <button type="button" onClick={onClick} className="bg-base-100 rounded-xl border border-base-200 p-4 space-y-1 text-left hover:border-primary/50 transition-colors">
+        {inner}
+      </button>
+    );
+  }
+  return <div className="bg-base-100 rounded-xl border border-base-200 p-4 space-y-1">{inner}</div>;
+}
+
+function UnitsModal({ units, districtName, onClose }: { units: { name: string; type: string }[]; districtName: string; onClose: () => void }) {
+  const sectors = units.filter((u) => u.type === 'sector');
+  const circles = units.filter((u) => u.type === 'circle');
+  return (
+    <div className="fixed inset-0 z-[1100] flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="bg-base-100 rounded-xl border border-base-200 shadow-xl max-w-lg w-full max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between p-4 border-b border-base-200">
+          <h3 className="font-semibold">{districtName} — Circles &amp; Sectors</h3>
+          <button className="btn btn-sm btn-ghost btn-circle" onClick={onClose} aria-label="Close">✕</button>
+        </div>
+        <div className="overflow-y-auto p-4 space-y-4">
+          {sectors.length > 0 && (
+            <div>
+              <p className="text-[11px] uppercase tracking-widest font-medium text-base-content/60 mb-2">Sectors ({sectors.length})</p>
+              <div className="flex flex-wrap gap-1.5">
+                {sectors.map((u) => <span key={u.name} className="badge badge-outline badge-sm h-auto py-1 px-2 whitespace-nowrap">{u.name}</span>)}
+              </div>
+            </div>
+          )}
+          {circles.length > 0 && (
+            <div>
+              <p className="text-[11px] uppercase tracking-widest font-medium text-base-content/60 mb-2">Circles ({circles.length})</p>
+              <div className="flex flex-wrap gap-1.5">
+                {circles.map((u) => <span key={u.name} className="badge badge-outline badge-sm h-auto py-1 px-2 whitespace-nowrap">{u.name}</span>)}
+              </div>
+            </div>
+          )}
+          {units.length === 0 && <p className="text-sm text-base-content/60">No circles or sectors registered yet.</p>}
+        </div>
+      </div>
     </div>
   );
 }
@@ -177,6 +219,7 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
   const [detail, setDetail] = useState<DistrictDetail | null>(null);
   const [allShops, setAllShops] = useState<ShopRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showUnitsModal, setShowUnitsModal] = useState(false);
 
   // Toolbar state
   const [search, setSearch] = useState('');
@@ -463,12 +506,18 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
           ))}
         </div>
       ) : detail && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           <StatCard label="DEO Officer" value={detail.deoName ?? '—'} />
           <StatCard
             label="Division"
             value={detail.division ?? '—'}
             {...(detail.division ? { href: `/admin/divisions/${encodeURIComponent(detail.division)}` } : {})}
+          />
+          <StatCard
+            label="Circles & Sectors"
+            value={detail.units.length.toLocaleString()}
+            sub={`${detail.units.filter((u) => u.type === 'sector').length} sectors · ${detail.units.filter((u) => u.type === 'circle').length} circles`}
+            {...(detail.units.length > 0 ? { onClick: () => setShowUnitsModal(true) } : {})}
           />
           <StatCard
             label="Total Vends"
@@ -477,6 +526,9 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
           />
           <StatCard label="Total Revenue" value={fmtCr(detail.totalRevenue)} sub={`across ${detail.vendCount.toLocaleString()} vends`} />
         </div>
+      )}
+      {showUnitsModal && detail && (
+        <UnitsModal units={detail.units} districtName={detail.name} onClose={() => setShowUnitsModal(false)} />
       )}
 
       {/* Per-type breakdown bar */}
