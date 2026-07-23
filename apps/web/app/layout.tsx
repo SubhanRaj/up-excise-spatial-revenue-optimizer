@@ -80,6 +80,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           .leaflet-tooltip.district-map-label { background: transparent !important; border: none !important; box-shadow: none !important; font-size: 10px !important; font-weight: 700 !important; color: #1e293b !important; text-shadow: 0 0 4px #fff, 0 0 4px #fff, 0 0 4px #fff !important; padding: 0 !important; white-space: nowrap !important; pointer-events: none !important; }
           .leaflet-tooltip.district-map-label::before { display: none !important; }
           [data-theme="dark"] .leaflet-tooltip.district-map-label { color: #f1f5f9 !important; text-shadow: 0 0 4px #0f172a, 0 0 4px #0f172a, 0 0 4px #0f172a !important; }
+          @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+          @keyframes modalIn { from { opacity: 0; transform: scale(0.96) translateY(4px); } to { opacity: 1; transform: scale(1) translateY(0); } }
         `}} />
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/notyf@3.10.0/notyf.min.css" />
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
