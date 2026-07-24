@@ -27,7 +27,7 @@ async function POST_(req: NextRequest): Promise<NextResponse> {
   const superadminHash = env.SUPERADMIN_EMAIL_HASH || '3d7c1aa91263a2c5b1ed9bc4233205aa2907cdacbb3afcc4eaf09d666bd42610';
   const isSuper = superadminHash && user.emailHash === superadminHash;
   const effectiveRole = isSuper ? 'superadmin' : user.role;
-  const effectiveDistrict = isSuper ? (user.districtName ?? 'Demo District') : (user.districtName ?? null);
+  const effectiveDistrict = user.districtName ?? null;
 
   await createSession(user.id, effectiveRole, effectiveDistrict);
   await db.insert(auditLog).values({

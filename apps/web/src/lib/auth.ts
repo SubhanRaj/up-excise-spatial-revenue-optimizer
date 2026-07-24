@@ -111,7 +111,7 @@ export async function getSession(): Promise<SessionUser | null> {
       name:         row.name,
       role:         'superadmin',
       deoId:        row.deoId ?? '',
-      districtName: row.districtName ?? 'Demo District',
+      districtName: row.districtName ?? null,
       designation:  row.designation ?? null,
     };
   }
