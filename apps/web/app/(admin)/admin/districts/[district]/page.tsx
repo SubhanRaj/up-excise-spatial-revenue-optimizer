@@ -4,6 +4,8 @@ import { memo, use, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import HelpPanel from '@/app/_components/HelpPanel';
 import { adminShopsCache } from '@/lib/db';
+import { useSession } from '@/hooks/useSession';
+import { EditDistrictDrawer } from '@/app/_components/EditDistrictDrawer';
 
 const ON_PREMISES_CONSUMPTION_FEE = 300_000;
 const BHANG_MGQ_MULTIPLIER = 20;
@@ -35,7 +37,9 @@ interface ShopRow {
 }
 
 interface DistrictDetail {
-  name: string; division?: string; deoName?: string; status: string;
+  name: string; division: string | null; deoName: string | null; deoEmail: string | null;
+  deoId: string | null; expectedVendCount: number | null; status: string;
+  bboxMinLat: number | null; bboxMaxLat: number | null; bboxMinLon: number | null; bboxMaxLon: number | null;
   vendCount: number; totalRevenue: number; units: { name: string; type: string }[];
 }
 
@@ -253,11 +257,13 @@ const PAGE_SIZES: PageSizeVal[] = [10, 25, 50, 100, 'all'];
 export default function DistrictDetailPage({ params }: { params: Promise<{ district: string }> }) {
   const { district } = use(params);
   const name = decodeURIComponent(district);
+  const { session } = useSession();
 
   const [detail, setDetail] = useState<DistrictDetail | null>(null);
   const [allShops, setAllShops] = useState<ShopRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [showUnitsModal, setShowUnitsModal] = useState(false);
+  const [editing, setEditing] = useState(false);
 
   // Toolbar state
   const [search, setSearch] = useState('');
@@ -502,6 +508,11 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
         </Link>
         <span className="text-base-content/50">/</span>
         <h1 className="text-2xl font-bold tracking-tight">{name}</h1>
+        {session?.role === 'superadmin' && detail && (
+          <button className="btn btn-ghost btn-xs btn-circle" onClick={() => setEditing(true)} aria-label={`Edit ${name}`} title="Edit district">
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z"/></svg>
+          </button>
+        )}
         {detail && (
           <span className={`badge badge-sm font-medium ${detail.status === 'submitted' ? 'badge-success' : detail.status === 'in_progress' ? 'badge-warning' : 'badge-ghost'}`}>
             {detail.status === 'submitted' ? 'Submitted' : detail.status === 'in_progress' ? 'In Progress' : 'Pending'}
@@ -567,6 +578,13 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
       )}
       {showUnitsModal && detail && (
         <UnitsModal units={detail.units} districtName={detail.name} onClose={() => setShowUnitsModal(false)} />
+      )}
+      {editing && detail && (
+        <EditDistrictDrawer
+          district={detail}
+          onClose={() => setEditing(false)}
+          onSaved={() => { setEditing(false); void refreshShops(); }}
+        />
       )}
 
       {/* Per-type breakdown bar */}

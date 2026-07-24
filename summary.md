@@ -718,6 +718,23 @@ flowchart LR
 
 ---
 
+### M-34: District Detail Inline Edit (Superadmin-Only) ✅ Complete
+
+**Objective:** `/admin/provision` (District Master) has held the only edit drawer for a district's division, DEO identity, expected vend count, and bbox since M-10 — but its nav link is already hidden for plain `admin` sessions (M-20), and bulk provisioning is long finished (all 75 districts pre-filled ahead of the campaign). The one remaining superadmin account had no quick way to correct a single district's details short of navigating to a page with no visible link anywhere in the UI.
+
+**Change:**
+
+- [x] Extracted the `EditDrawer` component (and its `DistrictRow`/`EditForm`/`DistrictPatch` types, `toForm()` helper) out of `app/(admin)/admin/provision/page.tsx` into a shared `app/_components/EditDistrictDrawer.tsx` (exported as `EditDistrictDrawer`) — both pages now use one implementation instead of a duplicated ~230-line copy. Same `PATCH /api/admin/districts/[district]` call underneath, unchanged.
+- [x] Added a pencil-icon button next to the district name on `/admin/districts/[district]`, gated to `session.role === 'superadmin'` only — matches the existing 403 the PATCH route already enforces (see M-20's "Owner-only District Master"). Explicitly confirmed with the user this stays restricted to the one superadmin account (`shubhanraj2002@gmail.com`), not opened to all `admin` users — "why commissioner need to edit? they'll ask me."
+- [x] `DistrictDetail`'s TS interface (district detail page) extended with `deoEmail`, `deoId`, `expectedVendCount`, and the four bbox fields the drawer needs — all already present in `GET /api/admin/districts/[district]`'s response (a spread of the full `districts` row), just not previously declared in the page's own type.
+- [x] `deoEmail` stays permanently blank in the drawer here, exactly as it already did on District Master — this project's Zero-Knowledge PII design means the server only ever stores `deoEmailHash`, never plaintext, so the field is write-only (set a new email, can't display the old one) by design, not a regression from this change.
+- [x] Saving closes the drawer and calls the district detail page's existing `refreshShops()` to refetch fresh data and re-cache it — no new cache-invalidation path needed.
+- [x] Bumped `apps/web/public/sw.js`'s `CACHE` constant (`excise-v4` → `excise-v5`).
+
+**Exit criterion:** `pnpm typecheck` and `next build` pass; the pencil icon on `/admin/districts/[district]` opens the same edit drawer as District Master, visible only to the superadmin account; saving a change refreshes the page's data.
+
+---
+
 ## Backlog / Not Started
 
 - [x] ~~Verify `exciseup.in` in Resend and switch `RESEND_FROM_EMAIL`~~ — Done. `mail.exciseup.in` verified; `RESEND_FROM_EMAIL` set to `noreply@mail.exciseup.in` on this project's Worker, and the same address set as `FROM_EMAIL` on the sibling `excise-revenue-recovery-portal` project's Worker (different env var name there, same Resend account/domain). Magic-link email is now the Admin/HQ login channel only (DEOs use CUG login as of M-17).

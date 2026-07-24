@@ -1226,6 +1226,7 @@ Full per-milestone write-ups (Objective, Deliverables, Exit Criterion) for every
 | [M-29: SEO Metadata, robots.txt, Favicon & Social-Preview Image](summary.md#m-29-seo-metadata-robotstxt-favicon--social-preview-image--complete) | ✅ Complete |
 | [M-30: District Detail Circles/Sectors Modal](summary.md#m-30-district-detail-circlessectors-modal--complete) | ✅ Complete |
 | [M-31: Fixed has_cl5cc Excel Validation Always Rejecting Both TRUE and FALSE](summary.md#m-31-fixed-has_cl5cc-excel-validation-always-rejecting-both-true-and-false--complete) | ✅ Complete |
+| [M-34: District Detail Inline Edit (Superadmin-Only)](summary.md#m-34-district-detail-inline-edit-superadmin-only--complete) | ✅ Complete |
 
 See summary.md's "Backlog / Not Started" section for planned future work (SMS OTP login, self-service admin provisioning UI), and its "Timeline Summary" / "Pre-Campaign Blockers" sections for the original estimates and department-side blockers as originally written. For the live, current-status blockers list, see CLAUDE.md.
 

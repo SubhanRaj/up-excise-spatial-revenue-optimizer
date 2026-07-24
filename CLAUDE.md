@@ -630,6 +630,7 @@ Full per-milestone delivery history (Objective, Deliverables, Exit Criterion, bu
 | M-31: Fixed has_cl5cc Excel Validation Always Rejecting Both TRUE and FALSE | **Completed** |
 | M-32: OG Image Middleware Fix & Doc Reorg (roadmap.md/summary.md split) | **Completed** |
 | M-33: Mobile-Responsive Navbars & Dashboards | **Completed** |
+| M-34: District Detail Inline Edit (Superadmin-Only) | **Completed** |
 
 See [summary.md](summary.md) for full milestone specs, entry/exit criteria, deliverable checklists, the backlog, and pre-campaign-blocker history.
 
