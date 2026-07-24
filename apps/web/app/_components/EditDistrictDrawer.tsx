@@ -213,7 +213,7 @@ export function EditDistrictDrawer({ district, onClose, onSaved }: { district: D
               <input className="input input-bordered input-sm" placeholder="e.g. Rajesh Kumar Sharma" value={form.deoName} onChange={set('deoName')} />
             </label>
             <label className="form-control">
-              <span className="label-text text-xs font-medium mb-1">Email <span className="text-base-content/60 font-normal">(portal login)</span></span>
+              <span className="label-text text-xs font-medium mb-1">Email <span className="text-base-content/60 font-normal">(for records only — DEOs log in via CUG)</span></span>
               <input type="email" className="input input-bordered input-sm font-mono text-xs" placeholder="officer@up-excise.gov.in" value={form.deoEmail} onChange={set('deoEmail')} />
             </label>
             <label className="form-control">

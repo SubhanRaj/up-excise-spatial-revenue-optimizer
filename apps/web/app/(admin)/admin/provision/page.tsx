@@ -82,7 +82,7 @@ export default function DistrictMasterPage() {
     const confirmed = await Swal?.fire({
       icon: 'warning',
       title: `Provision ${preview.length} DEO account(s)?`,
-      html: `<p>This creates/updates <b>${preview.length}</b> login account(s) and sends a magic-link sign-in email to each address in the preview table.</p><p style="margin-top:8px">Double-check the emails before continuing — a typo sends portal access to the wrong inbox.</p>`,
+      html: `<p>This creates/updates <b>${preview.length}</b> DEO account(s) with the details in the preview table. No login email is sent — DEOs sign in with their CUG number.</p><p style="margin-top:8px">Double-check the details before continuing.</p>`,
       showCancelButton: true,
       confirmButtonText: 'Yes, Provision',
       cancelButtonText: 'Go Back',

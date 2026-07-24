@@ -525,7 +525,7 @@ export async function generateProvisionTemplate(rows: ProvisionTemplateRow[] = [
     ['District Name', 'Canonical district name — must be unique and consistent with the portal', 'Used as primary key. 75 rows total for UP.'],
     ['Division', 'Administrative division (18 divisions in UP)', 'Bare division name, e.g. "Lucknow" — no "Division" suffix. Must match districts.division exactly for grouping to work.'],
     ['DEO Name', 'Full name of the District Excise Officer', 'For display in the admin portal only'],
-    ['DEO Email', 'Department-issued email address for this DEO', 'Used to create the portal login account (magic-link auth). Must be unique across all 75 rows.'],
+    ['DEO Email', 'Department-issued email address for this DEO', 'For records only — DEOs sign in via CUG, not email/magic-link. Must be unique across all 75 rows.'],
     ['DEO Identifier', 'Department-assigned alphanumeric ID for this DEO', 'Stored on every shop record as uploaded_by_deo. Must be unique.'],
     ['Expected Vend Count', 'Approximate number of retail vends in the district', 'Used for "X of Y uploaded" progress display in the portal'],
   ];
