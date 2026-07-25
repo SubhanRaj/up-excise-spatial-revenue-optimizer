@@ -67,12 +67,15 @@ test.describe('DEO Manual — screenshot walkthrough', () => {
     await expect(page.locator('h3').filter({ hasText: 'Sectors' })).toBeVisible();
     await shot(page, 'units-step2-names-empty');
 
-    await page.fill('input[aria-label="Sector 1 name"]', 'Sector 1');
-    await page.fill('input[aria-label="Sector 2 name"]', 'Sector 2');
+    // The number prefix ("Sector 1 -") is a fixed UI label, not part of the input value —
+    // only the area name is typed here; submitUnits() composes the full "Sector 1 - Sadar"
+    // registered name client-side (see units/page.tsx).
+    await page.fill('input[aria-label="Sector 1 area name"]', 'Sadar');
+    await page.fill('input[aria-label="Sector 2 area name"]', 'Civil Lines');
     // 2 sectors registered → circle placeholders start at 2, not 1 (Circle 1 is reserved
     // for the sector-covered urban area — see the circleNumber() convention in units/page.tsx)
-    await page.fill('input[aria-label="Circle 2 name"]', 'Circle 2 Fatehabad');
-    await page.fill('input[aria-label="Circle 3 name"]', 'Circle 3 Kheragarh');
+    await page.fill('input[aria-label="Circle 2 area name"]', 'Fatehabad');
+    await page.fill('input[aria-label="Circle 3 area name"]', 'Kheragarh');
     await shot(page, 'units-step2-names-filled');
 
     await page.click('button:has-text("Submit & Lock")');
@@ -113,13 +116,13 @@ test.describe('DEO Manual — screenshot walkthrough', () => {
       'consideration_fee', 'special_beer_lf', 'special_beer_mgr',
     ];
     const rows = [
-      ['Sector 1', 'Hariparvat', '', 'AG0001', 'Sadar Model Shop', 'MODEL_SHOP', 0, 27.18, 78.02, 150000, 0, 300000, 0, 0, 0, 0, 0, 0, 0, 0],
-      ['Sector 2', 'Sadar Bazar', 'Hariparvat', 'AG0002', 'Sadar PRV', 'PRV', 0, 27.19, 78.03, 120000, 0, 200000, 0, 0, 0, 0, 0, 0, 0, 0],
-      ['Circle 2 Fatehabad', 'Fatehabad', 'Hariparvat', 'AG0003', 'Fatehabad Country Liquor', 'COUNTRY_LIQUOR', 1, 27.05, 78.25, 0, 180000, 0, 0, 0, 0, 0, 3000, 60000, 120000, 90000],
+      ['Sector 1 - Sadar', 'Hariparvat', '', 'AG0001', 'Sadar Model Shop', 'MODEL_SHOP', 0, 27.18, 78.02, 150000, 0, 300000, 0, 0, 0, 0, 0, 0, 0, 0],
+      ['Sector 2 - Civil Lines', 'Sadar Bazar', 'Hariparvat', 'AG0002', 'Sadar PRV', 'PRV', 0, 27.19, 78.03, 120000, 0, 200000, 0, 0, 0, 0, 0, 0, 0, 0],
+      ['Circle 2 - Fatehabad', 'Fatehabad', 'Hariparvat', 'AG0003', 'Fatehabad Country Liquor', 'COUNTRY_LIQUOR', 1, 27.05, 78.25, 0, 180000, 0, 0, 0, 0, 0, 3000, 60000, 120000, 90000],
       // adjacent_thanas_raw demonstrates the comma-separated, multi-name format DEOs must use —
       // each Thana name may itself contain spaces (e.g. "Sadar Bazar"); names are separated by
       // a comma, optionally followed by a space, e.g. "Fatehabad, Hariparvat, Sadar Bazar".
-      ['Circle 3 Kheragarh', 'Kheragarh', 'Fatehabad, Hariparvat, Sadar Bazar', 'AG0004', 'Kheragarh Bhang Shop', 'BHANG_SHOP', 0, 26.85, 77.95, 90000, 0, 0, 0, 0, 0, 0, 5000, 0, 0, 0],
+      ['Circle 3 - Kheragarh', 'Kheragarh', 'Fatehabad, Hariparvat, Sadar Bazar', 'AG0004', 'Kheragarh Bhang Shop', 'BHANG_SHOP', 0, 26.85, 77.95, 90000, 0, 0, 0, 0, 0, 0, 5000, 0, 0, 0],
     ];
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet('Data Entry');
