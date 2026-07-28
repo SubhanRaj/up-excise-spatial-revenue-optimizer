@@ -760,6 +760,23 @@ flowchart LR
 
 ---
 
+### M-36: has_cl5cc Hard Cell-Level Gate (Country Liquor Only) ✅ Complete
+
+**Objective:** M-35 fixed `has_cl5cc`'s value *round-trip* (a real TRUE/FALSE selection was silently misread on upload — see that entry). Separately, the user then asked whether the Excel cell itself should also block `TRUE` on a non-Country-Liquor row, not just rely on the Worker's post-upload rejection — which was M-31's deliberate design (a plain List dropdown, since the *previous* custom-formula gate broke on a quoting bug and rejected every entry). Asked the user directly whether to keep the dropdown or trade it for a hard cell-level block; the user chose the hard block.
+
+**Change:**
+
+- [x] `has_cl5cc`'s data validation (`apps/web/src/lib/excel.ts`, `buildShopDataSheet`) changed from a `type: 'list'` dropdown (`"TRUE,FALSE"`) back to a `type: 'custom'` formula — but this time using the same **unquoted boolean literal** comparison (`=TRUE`/`=FALSE`) already proven correct in the `FIELD_GATES` loop's `requireCl5cc` condition, instead of the old comparison against the *quoted text* `"true"`/`"false"` that caused M-31's bug. Formula: `=OR($cell="",$cell=FALSE,AND($cell=TRUE,$shopType="Country Liquor"))` — blank and FALSE are always accepted for any shop type; TRUE is accepted only when Shop Type is Country Liquor.
+- [x] **Tradeoff, confirmed with the user:** Excel cannot combine a `list` validation (dropdown + autofill) and a `custom` validation (conditional formula) on one cell — only one `type` per cell's data validation rule. Gaining the hard block means losing the TRUE/FALSE dropdown; the DEO now types `TRUE` or `FALSE` directly, which Excel still auto-converts to a native Boolean the same way a dropdown selection would have.
+- [x] Verified the fix empirically the same way as M-31 and M-35: generated the exact formula string via a throwaway script, wrote it as a *live* (not pre-cached) formula into a real `.xlsx` via ExcelJS, and had LibreOffice recalculate it fresh. All four cases — Model Shop+TRUE (correctly invalid), Model Shop+FALSE, Country Liquor+TRUE, Country Liquor+FALSE (all correctly valid) — evaluated as expected.
+- [x] Updated the `has_cl5cc` header tooltip/Instructions-sheet copy (`COLUMN_GUIDE` in `excel.ts`, which feeds both) and `docs/templates/README.md` to say the cell itself now rejects the invalid combination, replacing the M-31-era wording that explicitly said it didn't.
+- [x] CLAUDE.md's "CL5CC Rule" updated to describe both layers — the Excel cell's own gate and the Worker's independent re-validation on upload — instead of only the Worker.
+- [x] Bumped `apps/web/public/sw.js`'s `CACHE` constant (`excise-v6` → `excise-v7`) so a browser tab with the old template-generation JS already cached picks up the corrected validation immediately.
+
+**Exit criterion:** `pnpm typecheck` passes; a freshly downloaded template's `has_cl5cc` column has no dropdown arrow, rejects a typed `TRUE` on any non-Country-Liquor row directly in Excel (verified via a live-formula LibreOffice recalculation, not just a read of cached values), and still accepts `TRUE` on Country Liquor and `FALSE`/blank on any shop type.
+
+---
+
 ## Backlog / Not Started
 
 - [x] ~~Verify `exciseup.in` in Resend and switch `RESEND_FROM_EMAIL`~~ — Done. `mail.exciseup.in` verified; `RESEND_FROM_EMAIL` set to `noreply@mail.exciseup.in` on this project's Worker, and the same address set as `FROM_EMAIL` on the sibling `excise-revenue-recovery-portal` project's Worker (different env var name there, same Resend account/domain). Magic-link email is now the Admin/HQ login channel only (DEOs use CUG login as of M-17).

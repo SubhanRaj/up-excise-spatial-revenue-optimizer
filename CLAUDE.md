@@ -487,7 +487,7 @@ No other values are accepted. The Worker validates this on every inbound row.
 
 ### CL5CC Rule
 - CL5CC is **not a separate shop type**. It is `COUNTRY_LIQUOR` with `has_cl5cc = true`.
-- If `has_cl5cc = true`, then `shop_type` must be `COUNTRY_LIQUOR`. The Worker rejects any other combination.
+- If `has_cl5cc = true`, then `shop_type` must be `COUNTRY_LIQUOR`. The DEO Excel template's `has_cl5cc` cell itself rejects `TRUE` unless `shop_type` is Country Liquor (a custom data-validation formula, not a plain dropdown — see `apps/web/src/lib/excel.ts`), and the Worker independently rejects any other combination on upload as a second layer.
 - The frontend shows `special_beer_lf` and `special_beer_mgr` input fields only when `has_cl5cc` is checked. When unchecked, both values must be set to `0` before submission.
 
 ### Adjacent Thana Cross-District Rule
@@ -637,6 +637,7 @@ Full per-milestone delivery history (Objective, Deliverables, Exit Criterion, bu
 | M-33: Mobile-Responsive Navbars & Dashboards | **Completed** |
 | M-34: District Detail Inline Edit (Superadmin-Only) | **Completed** |
 | M-35: has_cl5cc Boolean-Parse Fix & 3-Step Circles/Sectors Wizard | **Completed** |
+| M-36: has_cl5cc Hard Cell-Level Gate (Country Liquor Only) | **Completed** |
 
 See [summary.md](summary.md) for full milestone specs, entry/exit criteria, deliverable checklists, the backlog, and pre-campaign-blocker history.
 

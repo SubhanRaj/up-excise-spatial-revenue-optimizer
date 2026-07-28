@@ -50,7 +50,7 @@ There is no separate "Demo Data" sheet with example rows — an earlier version 
 | `shop_id` | Department-assigned license/registration ID. Unique per district. |
 | `shop_name` | Official name of the vend. English only. |
 | `shop_type` | Dropdown, friendly labels: `Model Shop`, `Composite Shop (FL + Beer)`, `PRV (Premium Retail Vend)`, `Bhang Shop`, `Country Liquor`. Maps back to the exact backend enum (`MODEL_SHOP`, `COMPOSITE_SHOP`, `PRV`, `BHANG_SHOP`, `COUNTRY_LIQUOR`) on parse. |
-| `has_cl5cc` | Dropdown: `TRUE` or `FALSE`. `TRUE` is only valid when Shop Type is Country Liquor — any other combination is rejected on upload by the Worker, not by the cell itself (a plain dropdown can't carry that conditional). |
+| `has_cl5cc` | Type `TRUE` or `FALSE` (no dropdown). `TRUE` means a Country Liquor shop that *also* has the CL5CC beer endorsement — the cell itself rejects `TRUE` on any other shop type. `FALSE` (or leaving it blank) is correct and expected for every shop type, including most Country Liquor shops, which don't have the beer endorsement and sell only country liquor. The Worker independently re-validates the same rule on upload. |
 
 ### Optional columns (all shop types)
 

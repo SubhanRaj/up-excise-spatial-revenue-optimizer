@@ -328,7 +328,7 @@ const COLUMN_GUIDE: unknown[][] = [
   [FRIENDLY_LABELS.shop_id, 'Department-assigned license/registration ID.\nविभाग द्वारा दिया गया लाइसेंस/पंजीकरण आईडी।', 'All shop types / सभी प्रकार', 'Alphanumeric. Must be unique within the district.\nअक्षर व अंक। जिले में अद्वितीय होना चाहिए।'],
   [FRIENDLY_LABELS.shop_name, 'Official name of the retail vend.\nदुकान का आधिकारिक नाम।', 'All shop types / सभी प्रकार', 'English only.\nकेवल अंग्रेज़ी में।'],
   [FRIENDLY_LABELS.shop_type, 'Shop classification — choose from the dropdown.\nदुकान का वर्गीकरण — dropdown से चुनें।', 'All shop types / सभी प्रकार', 'MODEL_SHOP | COMPOSITE_SHOP | PRV | BHANG_SHOP | COUNTRY_LIQUOR'],
-  [FRIENDLY_LABELS.has_cl5cc, 'TRUE = has CL5CC beer endorsement, FALSE = standard. Choose from the dropdown.\nTRUE = CL5CC बियर endorsement है, FALSE = सामान्य। Dropdown से चुनें।', 'COUNTRY_LIQUOR only / केवल COUNTRY_LIQUOR', 'TRUE is only valid when Shop Type = Country Liquor — any other combination is rejected on upload, not by the cell itself.\nTRUE केवल तभी मान्य है जब Shop Type = Country Liquor हो — कोई भी अन्य combination अपलोड पर अस्वीकार कर दिया जाता है, cell द्वारा नहीं।'],
+  [FRIENDLY_LABELS.has_cl5cc, 'TRUE = Country Liquor shop that ALSO has the CL5CC beer endorsement. FALSE = every other case, including a standard Country Liquor shop that sells only country liquor and no beer. Type TRUE or FALSE.\nTRUE = ऐसी Country Liquor दुकान जिसके पास CL5CC बियर endorsement भी है। FALSE = बाकी हर स्थिति, जिसमें एक सामान्य Country Liquor दुकान भी शामिल है जो केवल देशी शराब बेचती है, बियर नहीं। TRUE या FALSE टाइप करें।', 'All shop types (FALSE/blank) — TRUE only for COUNTRY_LIQUOR / सभी प्रकार (FALSE/खाली) — TRUE केवल COUNTRY_LIQUOR के लिए', 'FALSE (or leaving it blank) is correct and expected for every shop type — including most Country Liquor shops, which don\'t have the beer endorsement. The cell itself rejects TRUE unless Shop Type is Country Liquor; FALSE/blank is always accepted.\nFALSE (या खाली छोड़ना) हर दुकान प्रकार के लिए सही और सामान्य है — जिसमें अधिकतर Country Liquor दुकानें भी शामिल हैं, जिनके पास बियर endorsement नहीं होता। Cell खुद TRUE को अस्वीकार कर देगा जब तक Shop Type Country Liquor न हो; FALSE/खाली हमेशा मान्य है।'],
   [FRIENDLY_LABELS.latitude, 'Latitude — DMS or Decimal.\nअक्षांश — DMS या Decimal में।', 'Optional / वैकल्पिक', 'e.g. 26°50\'48.12"N or 26.8467'],
   [FRIENDLY_LABELS.longitude, 'Longitude — DMS or Decimal.\nदेशांतर — DMS या Decimal में।', 'Optional / वैकल्पिक', 'e.g. 80°56\'46.3"E or 80.9462'],
   [FRIENDLY_LABELS.license_fee_lf, 'Annual license fee (INR, whole rupees).\nवार्षिक लाइसेंस शुल्क (INR, पूर्ण रुपयों में)।', 'MODEL_SHOP, PRV, BHANG_SHOP', 'Locked to 0 for other shop types — cell will reject entry.\nअन्य दुकान प्रकार के लिए यह 0 पर locked है — गलत entry स्वीकार नहीं होगी।'],
@@ -403,19 +403,30 @@ async function buildShopDataSheet(
     showInputMessage: true, promptTitle: 'Shop type', prompt: 'Choose a shop type from the dropdown list.',
     showErrorMessage: true, errorStyle: 'error', errorTitle: 'Invalid shop type', error: `Use one of: ${SHOP_TYPE_OPTIONS.join(', ')}`,
   });
-  // has_cl5cc: a plain TRUE/FALSE dropdown (like shop_type's) rather than a per-row custom
-  // formula. Excel silently auto-converts a typed "true"/"false" token into a native Boolean
-  // cell value, and a custom formula that compares that Boolean against the quoted text
-  // "true"/"false" (as this used to) never matches — every entry was rejected, in both
-  // directions, regardless of shop type. Confirmed empirically (LibreOffice recalculation of
-  // the two formula styles side by side) before fixing. A List validation's own type handling
-  // doesn't have this bug, but List can't also carry the "only true for Country Liquor" gate —
-  // the Worker is the actual enforcement point for that (CLAUDE.md "CL5CC Rule": "the Worker
-  // rejects any other combination"), so the client-side gate wasn't a real guarantee anyway.
-  validations.add(`${colLetter(cl5ccCol)}3:${colLetter(cl5ccCol)}${VALIDATION_ROW_LIMIT}`, {
-    type: 'list', allowBlank: true, formulae: ['"TRUE,FALSE"'],
-    showInputMessage: true, promptTitle: 'CL5CC', prompt: '"TRUE" is only valid when Shop Type is Country Liquor — any other combination is rejected on upload.',
-    showErrorMessage: true, errorStyle: 'error', errorTitle: 'Invalid value', error: 'Choose TRUE or FALSE from the dropdown.',
+
+  // Per-cell gate: a financial field only accepts a value when the row's shop_type (and,
+  // for CL5CC fields, has_cl5cc) matches — matches CLAUDE.md's Revenue Formulas table
+  // exactly, so a DEO cannot fill e.g. basic_license_fee_blf on a MODEL_SHOP row.
+  const shopTypeLetter = colLetter(shopTypeCol);
+  const cl5ccLetter = colLetter(cl5ccCol);
+
+  // has_cl5cc: a custom formula, not a plain list dropdown — TRUE is only accepted when
+  // shop_type is Country Liquor; FALSE (and blank) are always accepted regardless of type.
+  // This used to be a `custom` formula comparing the cell against the *quoted text*
+  // "true"/"false", which never matched a real Boolean cell value and rejected every entry
+  // in both directions (fixed to a plain list dropdown in M-31). That old bug was the quoting,
+  // not the custom-formula approach itself — this formula uses the same unquoted boolean
+  // literal comparison (`=TRUE`/`=FALSE`) already proven correct in the FIELD_GATES loop
+  // below. The tradeoff versus the M-31 dropdown: no autofill/dropdown arrow on this cell
+  // anymore (Excel can't combine a `list` and a `custom` validation on one cell) — the DEO
+  // types TRUE or FALSE, which Excel auto-converts to a native Boolean the same way either
+  // input method would.
+  validations.add(`${cl5ccLetter}3:${cl5ccLetter}${VALIDATION_ROW_LIMIT}`, {
+    type: 'custom', allowBlank: true,
+    formulae: [`=OR($${cl5ccLetter}3="",$${cl5ccLetter}3=FALSE,AND($${cl5ccLetter}3=TRUE,$${shopTypeLetter}3="${SHOP_TYPE_LABELS.COUNTRY_LIQUOR}"))`],
+    showInputMessage: true, promptTitle: 'CL5CC', prompt: 'Type TRUE or FALSE. TRUE is only valid when Shop Type is Country Liquor.',
+    showErrorMessage: true, errorStyle: 'error', errorTitle: 'Invalid value',
+    error: 'Type TRUE or FALSE. TRUE is only valid when Shop Type is Country Liquor.\nTRUE या FALSE टाइप करें। TRUE केवल तभी मान्य है जब Shop Type Country Liquor हो।',
   });
   if (units.length > 0) {
     validations.add(`${colLetter(unitCol)}3:${colLetter(unitCol)}${VALIDATION_ROW_LIMIT}`, {
@@ -424,12 +435,6 @@ async function buildShopDataSheet(
       showErrorMessage: true, errorStyle: 'error', errorTitle: 'Invalid Unit', error: 'Please select a unit from the dropdown list.',
     });
   }
-
-  // Per-cell gate: a financial field only accepts a value when the row's shop_type (and,
-  // for CL5CC fields, has_cl5cc) matches — matches CLAUDE.md's Revenue Formulas table
-  // exactly, so a DEO cannot fill e.g. basic_license_fee_blf on a MODEL_SHOP row.
-  const shopTypeLetter = colLetter(shopTypeCol);
-  const cl5ccLetter = colLetter(cl5ccCol);
   for (const gate of FIELD_GATES) {
     const col = TEMPLATE_HEADERS.indexOf(gate.key) + 1;
     const letter = colLetter(col);
