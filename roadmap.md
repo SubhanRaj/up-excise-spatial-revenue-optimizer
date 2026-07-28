@@ -157,20 +157,26 @@ A district typically comprises multiple circles and sectors, each overseen by an
 
 ```mermaid
 flowchart LR
-    A["1. Pre-register circles/sectors\n(one-shot, then locked)"] --> B["2. Download district template\n(.xlsx, one per district)"]
-    B --> C["3. Distribute to Inspectors\n(no portal access)"]
-    C --> D["4. DEO consolidates\nreturned sections"]
-    D --> E["5. Upload consolidated file\n(parsed in-browser, staged to IndexedDB)"]
-    E --> F["6. Grouped verification\n(by circle/sector)"]
-    F --> G["7. Submit to HQ\n(one atomic district event)"]
+    T["1. Choose unit type\n(sectors only / circles only / both)"] --> A["2. Enter counts, then\nconfirm/name & lock"]
+    A --> B["3. Download district template\n(.xlsx, one per district)"]
+    B --> C["4. Distribute to Inspectors\n(no portal access)"]
+    C --> D["5. DEO consolidates\nreturned sections"]
+    D --> E["6. Upload consolidated file\n(parsed in-browser, staged to IndexedDB)"]
+    E --> F["7. Grouped verification\n(by circle/sector)"]
+    F --> G["8. Submit to HQ\n(one atomic district event)"]
 
     A -.->|mistake found after lock| U["Request Unlock\n(reason required)"]
-    U -.->|Admin approves| A
-    U -.->|Admin denies| A
+    U -.->|Admin approves| T
+    U -.->|Admin denies| T
 ```
 
-1. **Pre-registration — one-shot and locked (M-15):** The DEO does not add circles/sectors one at a time. The Circle/Sector Management UI first asks how many circles and how many sectors the district has, generates that exact number of pre-labelled name boxes, and the DEO fills each one in (circle names conventionally carry an area, e.g. "Circle 1 Mall, Malihabad"; sector names are usually just a number, e.g. "Sector 1", but may also carry an area). A SweetAlert2 confirmation warns this cannot be changed afterward, then the full list is submitted in a single request and stored in D1 in the `district_circles_sectors` table, scoped to the DEO's district. The registration endpoint then rejects any further attempt to add units for that district — the DEO cannot partially register, come back later, and add more. Upload and Verify are not shown to the DEO at all until this step is complete.
-   - **Circle numbering convention (M-23):** sectors cover a district's urban area, circles cover its rural area. If a district has no sectors (purely rural), circle name placeholders start at "Circle 1". If a district has any sectors, "Circle 1" belongs to the sector-covered urban area and is never reused for a rural circle, so circle placeholders start at "Circle 2" instead. This is a UI placeholder-text convention only (`apps/web/app/(deo)/units/page.tsx`) — the DEO always types the real name, and neither the schema nor `POST /api/districts/[district]/units` enforces or depends on the number.
+1. **Pre-registration — a 3-step, one-shot wizard, then locked (M-15, redesigned M-35):** The DEO does not add circles/sectors one at a time. The Circle/Sector Management UI (`apps/web/app/(deo)/units/page.tsx`) walks three steps:
+   - **Step 1 — unit type:** a radio choice of "Only Sectors," "Only Circles," or "Both Circles & Sectors," driving what step 2 asks for.
+   - **Step 2 — counts:** how many sectors and/or circles, per the step 1 choice.
+   - **Step 3 — names/confirm:** **sectors have no DEO-entered name at all** — they are generated and stored purely as `Sector - 1`, `Sector - 2`, … and the DEO just reviews the numbered list and confirms it. **Circles keep a free-text area-name box** next to a fixed, non-editable `Circle N -` label (e.g. "Circle 2 -" + typed "Fatehabad"); typing the word "circle" anywhere in that box shows a non-blocking inline warning, the same kind of hint any other form field gives — it does not block submission.
+
+   A SweetAlert2 confirmation warns this cannot be changed afterward, then the full list is submitted in a single request and stored in D1 in the `district_circles_sectors` table, scoped to the DEO's district — sectors as `Sector - N`, circles as `Circle N - <area>`. The registration endpoint then rejects any further attempt to add units for that district — the DEO cannot partially register, come back later, and add more. Upload and Verify are not shown to the DEO at all until this step is complete.
+   - **Circle numbering convention (M-23):** sectors cover a district's urban area, circles cover its rural area. If a district has no sectors (the "Only Circles" wizard path, purely rural), circle name placeholders start at "Circle 1". If a district has any sectors ("Only Sectors" or "Both"), "Circle 1" belongs to the sector-covered urban area and is never reused for a rural circle, so circle placeholders start at "Circle 2" instead. This is a UI placeholder-text convention only (`apps/web/app/(deo)/units/page.tsx`) — the API (`POST /api/districts/[district]/units`) stores whatever string the client composed with no numbering logic of its own.
    - **Self-service unlock requests (M-24):** since there is no edit/delete path for a locked unit list, a wrong entry previously required the DEO to contact an Admin outside the app. `/units` now offers a "Request Unlock" button once locked — the DEO types a reason (required), stored in `district_unlock_requests` (409 if a pending request already exists). Admins review and resolve every request on `/admin/unlock-requests`; approving deletes the district's `district_circles_sectors` rows (same effect as the pre-existing manual admin-side unlock) and denying requires the admin's own note, same as approving.
 
 2. **Template generation:** The portal generates **one district-wide Excel template** (`.xlsx`) with the district name pre-filled in the header and a `circle_sector_name` column included for every data row. There is one template per district — not one per circle/sector. The DEO downloads this single template and distributes blank copies to each Inspector.

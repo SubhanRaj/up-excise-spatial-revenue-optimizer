@@ -38,15 +38,16 @@ test.describe('E2E Local Demo - Superadmin Bypass & Excel Upload Flow', () => {
     await expect(page).toHaveURL(/\/admin/);
     await expect(page.locator('div').filter({ hasText: 'Headquarters Dashboard' }).first()).toBeVisible({ timeout: 10000 });
 
-    // 3. Navigate to DEO Units page and register one sector via the count → name wizard
+    // 3. Navigate to DEO Units page and register one sector via the type → count → name wizard.
+    // Sectors have no DEO-entered name — they're generated as "Sector - N" and just confirmed.
     console.log('Navigating to DEO portal...');
     await page.goto('/units');
     await expect(page.locator('h2').filter({ hasText: 'Circles & Sectors' })).toBeVisible();
 
-    const testSector = `Test Sector ${Date.now()}`;
+    const testSector = 'Sector - 1';
+    await page.click('button[role="radio"]:has-text("Only Sectors")');
     await page.fill('input[aria-label="Number of sectors"]', '1');
     await page.click('button:has-text("Continue")');
-    await page.fill('input[aria-label="Sector 1 name"]', testSector);
     await page.click('button:has-text("Submit & Lock")');
     // SweetAlert2 confirmation before the one-shot, irreversible submit
     await page.click('button:has-text("Yes, Lock & Submit")');

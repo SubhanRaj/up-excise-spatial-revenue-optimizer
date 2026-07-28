@@ -24,12 +24,15 @@ function toastError(en: string, hi: string) {
   });
 }
 
-// Catches a DEO re-typing the fixed prefix into the area box (e.g. "Circle 2 Fatehabad" instead
-// of just "Fatehabad") — the #1 real-world mistake reported via unlock requests (Bijnor, Aligarh).
-// Soft warning only, does not block submission — a real area could coincidentally start this way.
-const REPEATS_PREFIX = /^\s*(circle|sector)\b[\s\-–]*\d*/i;
+// Circles have a free-text area name box; the DEO's #1 real-world mistake (reported via
+// unlock requests, e.g. Bijnor, Aligarh) is retyping the word "Circle" (and often the number)
+// into that box — "Circle 2 - Circle 2 - Fatehabad". Soft, non-blocking inline warning only,
+// same pattern as any other inline form hint — a real area name is never going to legitimately
+// contain the word "circle", so this can't false-positive in practice.
+const CONTAINS_CIRCLE_WORD = /circle/i;
 
-// Unit names are stored as "Sector 1 - Hazratganj" / "Circle 2 - Mall" (see submitUnits below).
+// Sectors are stored as "Sector - 1", "Sector - 2" (fixed, no DEO-entered text — see step 3).
+// Circles are stored as "Circle 2 - Malihabad" (number fixed, area name DEO-entered).
 // Split for display so the number renders as a distinct badge from the area name — falls back
 // to showing the raw name if it doesn't match (e.g. a unit registered before this convention).
 function splitUnitName(name: string): { label: string; area: string } {
@@ -37,23 +40,37 @@ function splitUnitName(name: string): { label: string; area: string } {
   return idx === -1 ? { label: name, area: '' } : { label: name.slice(0, idx), area: name.slice(idx + 3) };
 }
 
-function StepHeader({ step }: { step: 1 | 2 }) {
+type UnitMode = 'circle' | 'sector' | 'both';
+type Step = 'type' | 'count' | 'names';
+
+const STEP_LABELS: Record<Step, { en: string; hi: string }> = {
+  type: { en: 'Circles or Sectors?', hi: 'सर्कल या सेक्टर?' },
+  count: { en: 'Count', hi: 'संख्या' },
+  names: { en: 'Enter Names', hi: 'नाम दर्ज करें' },
+};
+const STEP_ORDER: Step[] = ['type', 'count', 'names'];
+
+function StepHeader({ step }: { step: Step }) {
+  const current = STEP_ORDER.indexOf(step) + 1;
   return (
-    <div className="flex items-center gap-3 mb-2" aria-label={`Step ${step} of 2`}>
-      {[1, 2].map((n) => (
-        <div key={n} className="flex items-center gap-3 flex-1">
-          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${
-            n < step ? 'bg-success text-success-content' : n === step ? 'bg-primary text-primary-content' : 'bg-base-300 text-base-content/60'
-          }`}>
-            {n < step ? '✓' : n}
+    <div className="flex items-center gap-3 mb-2" aria-label={`Step ${current} of 3`}>
+      {STEP_ORDER.map((s, i) => {
+        const n = i + 1;
+        return (
+          <div key={s} className="flex items-center gap-3 flex-1">
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${
+              n < current ? 'bg-success text-success-content' : n === current ? 'bg-primary text-primary-content' : 'bg-base-300 text-base-content/60'
+            }`}>
+              {n < current ? '✓' : n}
+            </div>
+            <span className={`text-sm font-medium ${n === current ? 'text-base-content' : 'text-base-content/50'}`}>
+              {STEP_LABELS[s].en}
+              <span className="block text-xs font-normal text-base-content/50">{STEP_LABELS[s].hi}</span>
+            </span>
+            {i < STEP_ORDER.length - 1 && <div className={`h-0.5 flex-1 ${n < current ? 'bg-success' : 'bg-base-300'}`} />}
           </div>
-          <span className={`text-sm font-medium ${n === step ? 'text-base-content' : 'text-base-content/50'}`}>
-            {n === 1 ? 'Count of Sectors & Circles' : 'Enter Names'}
-            <span className="block text-xs font-normal text-base-content/50">{n === 1 ? 'संख्या दर्ज करें' : 'नाम दर्ज करें'}</span>
-          </span>
-          {n === 1 && <div className={`h-0.5 flex-1 ${step > 1 ? 'bg-success' : 'bg-base-300'}`} />}
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -65,14 +82,19 @@ export default function UnitsPage() {
   const [units, setUnits] = useState<Unit[]>([]);
   const [unitsLoading, setUnitsLoading] = useState(true);
 
-  // Step 1 — how many of each (sectors first, then circles)
+  // Step 1 — does this district have circles only, sectors only, or both?
+  const [unitMode, setUnitMode] = useState<UnitMode | ''>('');
+
+  // Step 2 — how many of each (only the counts relevant to unitMode are shown/used)
   const [sectorCount, setSectorCount] = useState('');
   const [circleCount, setCircleCount] = useState('');
 
-  // Step 2 — the actual names, one box per unit; boxes start blank (numbered placeholder only)
-  const [sectorNames, setSectorNames] = useState<string[]>([]);
+  // Step 3 — locked-in counts once "Continue" is pressed on step 2, plus circle area names.
+  // Sectors have no DEO-entered text at all (see ns below) — only circles need a names array.
+  const [ns, setNs] = useState(0);
+  const [nc, setNc] = useState(0);
   const [circleNames, setCircleNames] = useState<string[]>([]);
-  const [step, setStep] = useState<'count' | 'names'>('count');
+  const [step, setStep] = useState<Step>('type');
   const [submitting, setSubmitting] = useState(false);
   const [triedSubmit, setTriedSubmit] = useState(false);
 
@@ -133,19 +155,28 @@ export default function UnitsPage() {
     }
   }
 
+  function goToType(mode: UnitMode) {
+    setUnitMode(mode);
+    if (mode === 'sector') setCircleCount('0');
+    if (mode === 'circle') setSectorCount('0');
+    setStep('count');
+  }
+
   function goToNames() {
-    const ns = Math.max(0, Math.min(50, Number(sectorCount) || 0));
-    const nc = Math.max(0, Math.min(50, Number(circleCount) || 0));
-    if (nc + ns === 0) {
+    const wantsSector = unitMode === 'sector' || unitMode === 'both';
+    const wantsCircle = unitMode === 'circle' || unitMode === 'both';
+    const nsVal = wantsSector ? Math.max(0, Math.min(50, Number(sectorCount) || 0)) : 0;
+    const ncVal = wantsCircle ? Math.max(0, Math.min(50, Number(circleCount) || 0)) : 0;
+    if (nsVal + ncVal === 0) {
       toastError('Enter at least 1 circle or sector.', 'कम से कम 1 सर्कल या सेक्टर दर्ज करें।');
       return;
     }
-    // Boxes hold ONLY the area name the DEO types — "Sector N -" / "Circle N -" is fixed,
-    // non-editable UI next to the box, not part of the value, so the unit number can never be
-    // dropped or overwritten (previously a free-text box let DEOs erase the number and type
-    // only an area name, losing which unit a shop belongs to).
-    setSectorNames(Array.from({ length: ns }, (_, i) => sectorNames[i] ?? ''));
-    setCircleNames(Array.from({ length: nc }, (_, i) => circleNames[i] ?? ''));
+    setNs(nsVal);
+    setNc(ncVal);
+    // Circle boxes hold ONLY the area name the DEO types — "Circle N -" is fixed, non-editable
+    // UI next to the box, not part of the value, so the unit number can never be dropped or
+    // overwritten. Sectors have no box at all — see the "names" step render below.
+    setCircleNames(Array.from({ length: ncVal }, (_, i) => circleNames[i] ?? ''));
     setTriedSubmit(false);
     setStep('names');
   }
@@ -153,18 +184,20 @@ export default function UnitsPage() {
   // Rural circles are numbered from 1 only when a district has no urban sectors.
   // Once sectors exist, Circle 1 is reserved for the sector-covered urban area and
   // is never (re-)issued to a rural circle — rural circles start at 2.
-  const circleNumber = (i: number) => (sectorNames.length === 0 ? i + 1 : i + 2);
+  const circleNumber = (i: number) => (ns === 0 ? i + 1 : i + 2);
 
-  const allFilled = sectorNames.every((n) => n.trim()) && circleNames.every((n) => n.trim());
-  const canSubmit = allFilled && (sectorNames.length + circleNames.length) > 0;
+  // Sectors carry no DEO-entered text, so they're always "filled" — only circle area names
+  // can be blank. CONTAINS_CIRCLE_WORD is a non-blocking inline warning, not a submit-blocker.
+  const allFilled = circleNames.every((n) => n.trim());
+  const canSubmit = allFilled && (ns + nc) > 0;
 
   async function submitUnits() {
     setTriedSubmit(true);
     if (!canSubmit) {
-      toastError('Enter a name for every sector and circle — none can be left blank.', 'हर सेक्टर और सर्कल के लिए एक नाम दर्ज करें — कोई भी खाली नहीं छोड़ा जा सकता।');
+      toastError('Enter a name for every circle — none can be left blank.', 'हर सर्कल के लिए एक नाम दर्ज करें — कोई भी खाली नहीं छोड़ा जा सकता।');
       return;
     }
-    const sectors = sectorNames.map((n, i) => `Sector ${i + 1} - ${n.trim()}`);
+    const sectors = Array.from({ length: ns }, (_, i) => `Sector - ${i + 1}`);
     const circles = circleNames.map((n, i) => `Circle ${circleNumber(i)} - ${n.trim()}`);
 
     const SwalG = (window as unknown as { Swal?: Swal }).Swal;
@@ -258,21 +291,23 @@ export default function UnitsPage() {
         title="Circles & Sectors — How it works"
         titleHi="Circles & Sectors — यह कैसे काम करता है"
         childrenHi={<>
-          <p><strong>चरण 1 — सभी circles और sectors रजिस्टर करें</strong> अपने district के लिए, एक ही बार में, कुछ और करने से पहले। सिस्टम को बताएं कि आपके पास कितने sectors और कितने circles हैं, फिर हर नाम दिए गए box में टाइप करें।</p>
+          <p><strong>चरण 1 — बताएं कि आपके district में क्या है</strong>: केवल sectors, केवल circles, या दोनों। इसी के आधार पर अगला चरण दिखेगा।</p>
+          <p><strong>चरण 2 — गिनती दर्ज करें</strong> — आपने चरण 1 में जो चुना उसके अनुसार sectors और/या circles की संख्या दर्ज करें।</p>
+          <p><strong>चरण 3 — पुष्टि करें और नाम भरें।</strong> <strong>Sectors का कोई नाम नहीं होता</strong> — वे सिर्फ &quot;Sector - 1&quot;, &quot;Sector - 2&quot; जैसे संख्या से पहचाने जाते हैं; आपको बस list देखकर पुष्टि करनी है। <strong>Circles का एक नाम होता है</strong> — नंबर हर बॉक्स के आगे पहले से तय है (जैसे &quot;Circle 2 -&quot;) और इसे बदला नहीं जा सकता, आपको बगल के बॉक्स में केवल area का नाम टाइप करना है, जैसे &quot;Circle 2 -&quot; के आगे &quot;Fatehabad&quot;। <strong>यदि आपके district में कोई sector नहीं है</strong> (शुद्ध rural district), तो circles की गिनती Circle 1 से शुरू होती है। <strong>यदि sector हैं</strong> (urban area को cover करते हुए), तो Circle 1 issue नहीं होता — rural circles Circle 2 से शुरू होते हैं।</p>
           <p><strong>यह एक बार होने वाला चरण है।</strong> सबमिट करने के बाद, list लॉक हो जाती है और इसे edit नहीं किया जा सकता — पहले हर नाम ध्यान से जांच लें।</p>
-          <p><strong>नामकरण:</strong> &quot;Sector 1 -&quot;, &quot;Circle 1 -&quot; जैसा नंबर हर बॉक्स के आगे पहले से तय है और इसे बदला नहीं जा सकता — आपको बस बगल के बॉक्स में area का नाम टाइप करना है, जैसे &quot;Sector 1 -&quot; के आगे &quot;Hazratganj&quot;। <strong>यदि आपके district में कोई sector नहीं है</strong> (शुद्ध rural district), तो circles की गिनती Circle 1 से शुरू होती है। <strong>यदि sector हैं</strong> (urban area को cover करते हुए), तो Circle 1 issue नहीं होता — rural circles Circle 2 से शुरू होते हैं।</p>
-          <p><strong>आम गलती:</strong> बॉक्स में नंबर दोबारा मत लिखें। &quot;Circle 2 -&quot; के आगे केवल <strong>Fatehabad</strong> लिखें, <strong className="line-through">Circle 2 Fatehabad</strong> नहीं — नंबर पहले से बॉक्स के बाहर दिखाया गया है। ऐसा करने पर बॉक्स के नीचे एक पीली चेतावनी दिखेगी।</p>
-          <p><strong>चरण 2 — Download the district template</strong> Upload page से (आपके circles/sectors लॉक होते ही यह अपने-आप unlock हो जाता है)।</p>
-          <p><strong>चरण 3 — Upload &amp; Verify</strong> करें consolidated district Excel फ़ाइल को, फिर headquarters को सबमिट करें।</p>
+          <p><strong>आम गलती:</strong> circle के नाम वाले बॉक्स में &quot;Circle&quot; शब्द दोबारा मत लिखें। &quot;Circle 2 -&quot; के आगे केवल <strong>Fatehabad</strong> लिखें, <strong className="line-through">Circle Fatehabad</strong> नहीं — ऐसा करने पर बॉक्स के नीचे एक पीली चेतावनी दिखेगी (यह सिर्फ एक सुझाव है, यह सबमिट होने से नहीं रोकता)।</p>
+          <p><strong>चरण 4 — Download the district template</strong> Upload page से (आपके circles/sectors लॉक होते ही यह अपने-आप unlock हो जाता है)।</p>
+          <p><strong>चरण 5 — Upload &amp; Verify</strong> करें consolidated district Excel फ़ाइल को, फिर headquarters को सबमिट करें।</p>
           <p><strong>गलती हुई?</strong> लॉक होने के बाद, कारण बताते हुए एक &quot;अनलॉक अनुरोध&quot; सबमिट करें — एक Admin इसकी समीक्षा करके सूची को अनलॉक कर सकता है ताकि आप दोबारा रजिस्टर कर सकें।</p>
         </>}
       >
-        <p><strong>Step 1 — Register all circles and sectors</strong> for your district, in one go, before doing anything else. Tell the system how many sectors and how many circles you have, then type each name in the box provided.</p>
+        <p><strong>Step 1 — Tell us what your district has:</strong> sectors only, circles only, or both. This decides what the next step shows you.</p>
+        <p><strong>Step 2 — Enter the count</strong> of sectors and/or circles, based on what you picked in Step 1.</p>
+        <p><strong>Step 3 — Confirm and enter names.</strong> <strong>Sectors have no name to enter</strong> — they&apos;re identified purely by number, e.g. &quot;Sector - 1&quot;, &quot;Sector - 2&quot;; you just review the list and confirm. <strong>Circles do have a name</strong> — the number in front of each box is fixed (e.g. &quot;Circle 2 -&quot;) and cannot be changed, you just type the area name next to it, e.g. &quot;Fatehabad&quot; next to &quot;Circle 2 -&quot;. <strong>If your district has no sectors</strong> (a purely rural district), circles are numbered starting from Circle 1. <strong>If sectors exist</strong> (covering the urban area), Circle 1 is never issued — rural circles start numbering from Circle 2.</p>
         <p><strong>This is a one-time step.</strong> Once you submit, the list is locked and cannot be edited — check every name carefully first.</p>
-        <p><strong>Naming:</strong> The &quot;Sector 1 -&quot;, &quot;Circle 1 -&quot; number in front of each box is fixed and cannot be changed — just type the area name next to it, e.g. &quot;Hazratganj&quot; next to &quot;Sector 1 -&quot;. <strong>If your district has no sectors</strong> (a purely rural district), circles are numbered starting from Circle 1. <strong>If sectors exist</strong> (covering the urban area), Circle 1 is never issued — rural circles start numbering from Circle 2.</p>
-        <p><strong>Common mistake:</strong> Don&apos;t retype the number into the box. Next to &quot;Circle 2 -&quot;, type only <strong>Fatehabad</strong> — not <strong className="line-through">Circle 2 Fatehabad</strong> — the number is already shown outside the box. Doing this shows a yellow warning below the box.</p>
-        <p><strong>Step 2 — Download the district template</strong> from the Upload page (unlocked automatically once your circles/sectors are locked).</p>
-        <p><strong>Step 3 — Upload &amp; Verify</strong> the consolidated district Excel file, then submit to headquarters.</p>
+        <p><strong>Common mistake:</strong> don&apos;t type the word &quot;Circle&quot; into the circle name box. Next to &quot;Circle 2 -&quot;, type only <strong>Fatehabad</strong> — not <strong className="line-through">Circle Fatehabad</strong> — this shows a yellow warning below the box (a hint only, it does not block submission).</p>
+        <p><strong>Step 4 — Download the district template</strong> from the Upload page (unlocked automatically once your circles/sectors are locked).</p>
+        <p><strong>Step 5 — Upload &amp; Verify</strong> the consolidated district Excel file, then submit to headquarters.</p>
         <p><strong>Made a mistake?</strong> Once locked, submit an &quot;unlock request&quot; explaining why — an Admin can review and unlock the list so you can re-register.</p>
       </HelpPanel>
 
@@ -343,19 +378,13 @@ export default function UnitsPage() {
                 Sectors <span className="badge badge-primary badge-sm">{units.filter((u) => u.type === 'sector').length}</span>
               </h3>
               <ul className="space-y-1.5">
-                {units.filter((u) => u.type === 'sector').map((u) => {
-                  const { label, area } = splitUnitName(u.name);
-                  return (
-                    <li key={u.id} className="flex items-center gap-2 text-sm bg-base-200 rounded px-3 py-2">
-                      {area ? (
-                        <>
-                          <span className="badge badge-primary badge-outline badge-sm shrink-0">{label}</span>
-                          <span className="truncate">{area}</span>
-                        </>
-                      ) : <span className="truncate">{u.name}</span>}
-                    </li>
-                  );
-                })}
+                {units.filter((u) => u.type === 'sector').map((u) => (
+                  // Sectors carry no area name — "Sector - N" is the whole unit label, shown
+                  // as a single badge (splitUnitName's dash-split is circle-only, see below).
+                  <li key={u.id} className="flex items-center gap-2 text-sm bg-base-200 rounded px-3 py-2">
+                    <span className="badge badge-primary badge-outline badge-sm shrink-0">{u.name}</span>
+                  </li>
+                ))}
               </ul>
             </div>
             <div>
@@ -382,97 +411,113 @@ export default function UnitsPage() {
 
           <Link href="/upload" className="btn btn-primary self-start">Continue to Upload →</Link>
         </div>
+      ) : step === 'type' ? (
+        <div className="card bg-base-100 shadow p-8 space-y-6 max-w-2xl mx-auto">
+          <StepHeader step="type" />
+          <div className="text-center">
+            <p className="text-sm text-base-content">Does <strong>{district}</strong> have circles, sectors, or both?</p>
+            <p className="text-xs text-base-content/60">क्या {district} में सर्कल, सेक्टर, या दोनों हैं?</p>
+          </div>
+          <div className="grid gap-3 max-w-md mx-auto w-full">
+            {([
+              { mode: 'sector' as const, en: 'Only Sectors', hi: 'केवल सेक्टर (शहरी क्षेत्र)' },
+              { mode: 'circle' as const, en: 'Only Circles', hi: 'केवल सर्कल (ग्रामीण क्षेत्र)' },
+              { mode: 'both' as const, en: 'Both Circles & Sectors', hi: 'सर्कल और सेक्टर दोनों' },
+            ]).map((opt) => (
+              <button
+                key={opt.mode}
+                type="button"
+                role="radio"
+                aria-checked={unitMode === opt.mode}
+                className={`btn justify-start ${unitMode === opt.mode ? 'btn-primary' : 'btn-outline'}`}
+                onClick={() => goToType(opt.mode)}
+              >
+                <span className="flex flex-col items-start">
+                  <span>{opt.en}</span>
+                  <span className="text-xs font-normal opacity-70">{opt.hi}</span>
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
       ) : step === 'count' ? (
         <div className="card bg-base-100 shadow p-8 space-y-6 max-w-2xl mx-auto">
-          <StepHeader step={1} />
+          <StepHeader step="count" />
           <div className="text-center">
-            <p className="text-sm text-base-content">Enter the number of sectors and circles for <strong>{district}</strong>.</p>
-            <p className="text-xs text-base-content/60">{district} के सेक्टर और सर्कल की संख्या दर्ज करें</p>
+            <p className="text-sm text-base-content">Enter the number of {unitMode === 'both' ? 'sectors and circles' : unitMode === 'sector' ? 'sectors' : 'circles'} for <strong>{district}</strong>.</p>
+            <p className="text-xs text-base-content/60">{district} के {unitMode === 'sector' ? 'सेक्टर' : unitMode === 'circle' ? 'सर्कल' : 'सेक्टर और सर्कल'} की संख्या दर्ज करें</p>
           </div>
-          <div className="grid grid-cols-2 gap-6">
-            <div>
-              <label className="label justify-center"><span className="label-text font-medium">Number of Sectors<br/>सेक्टर की संख्या</span></label>
-              <input
-                type="number" min={0} max={50} inputMode="numeric"
-                className="input input-bordered input-lg w-full text-center"
-                value={sectorCount}
-                onChange={(e) => setSectorCount(e.target.value)}
-                placeholder="e.g. 6"
-                aria-label="Number of sectors"
-              />
-            </div>
-            <div>
-              <label className="label justify-center"><span className="label-text font-medium">Number of Circles<br/>सर्कल की संख्या</span></label>
-              <input
-                type="number" min={0} max={50} inputMode="numeric"
-                className="input input-bordered input-lg w-full text-center"
-                value={circleCount}
-                onChange={(e) => setCircleCount(e.target.value)}
-                placeholder="e.g. 4"
-                aria-label="Number of circles"
-              />
-            </div>
+          <div className={`grid gap-6 ${unitMode === 'both' ? 'grid-cols-2' : 'grid-cols-1 max-w-xs mx-auto w-full'}`}>
+            {(unitMode === 'sector' || unitMode === 'both') && (
+              <div>
+                <label className="label justify-center"><span className="label-text font-medium">Number of Sectors<br/>सेक्टर की संख्या</span></label>
+                <input
+                  type="number" min={0} max={50} inputMode="numeric"
+                  className="input input-bordered input-lg w-full text-center"
+                  value={sectorCount}
+                  onChange={(e) => setSectorCount(e.target.value)}
+                  placeholder="e.g. 6"
+                  aria-label="Number of sectors"
+                />
+              </div>
+            )}
+            {(unitMode === 'circle' || unitMode === 'both') && (
+              <div>
+                <label className="label justify-center"><span className="label-text font-medium">Number of Circles<br/>सर्कल की संख्या</span></label>
+                <input
+                  type="number" min={0} max={50} inputMode="numeric"
+                  className="input input-bordered input-lg w-full text-center"
+                  value={circleCount}
+                  onChange={(e) => setCircleCount(e.target.value)}
+                  placeholder="e.g. 4"
+                  aria-label="Number of circles"
+                />
+              </div>
+            )}
           </div>
-          <button className="btn btn-primary w-full" onClick={goToNames}>
-            Continue →
-          </button>
+          <div className="flex gap-3 flex-wrap justify-center pt-2">
+            <button className="btn btn-ghost" onClick={() => setStep('type')}>← Change Type</button>
+            <button className="btn btn-primary" onClick={goToNames}>Continue →</button>
+          </div>
         </div>
       ) : (
         <div className="card bg-base-100 shadow p-8 space-y-6 max-w-2xl mx-auto">
-          <StepHeader step={2} />
-          <div className="text-center">
-            <p className="text-sm text-base-content">The sector/circle number is fixed — just type the area name next to it. Every box is required.</p>
-            <p className="text-xs text-base-content/60">सेक्टर/सर्कल नंबर तय है — बगल में केवल area का नाम टाइप करें। हर बॉक्स भरना अनिवार्य है।</p>
-            <p className="text-xs mt-2 bg-base-200 rounded px-3 py-2 inline-block">
-              For &quot;Circle 2 -&quot; type only <span className="font-semibold text-success">Fatehabad</span> — not <span className="font-semibold text-error line-through">Circle 2 Fatehabad</span>.
-            </p>
-          </div>
+          <StepHeader step="names" />
 
-          {sectorNames.length > 0 && (
+          {ns > 0 && (
             <div>
               <h3 className="font-semibold text-sm mb-3 text-center">Sectors / सेक्टर</h3>
-              <div className="flex flex-col gap-3 max-w-md mx-auto">
-                {sectorNames.map((name, i) => {
-                  const blank = triedSubmit && !name.trim();
-                  const repeatsPrefix = REPEATS_PREFIX.test(name);
-                  return (
-                    <div key={`sector-${i}`}>
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold text-sm whitespace-nowrap shrink-0">Sector {i + 1} -</span>
-                        <input
-                          className={`input input-bordered w-full ${blank ? 'input-error' : repeatsPrefix ? 'input-warning' : ''}`}
-                          value={name}
-                          placeholder="Area name"
-                          aria-label={`Sector ${i + 1} area name`}
-                          onChange={(e) => setSectorNames((prev) => prev.map((v, idx) => (idx === i ? e.target.value : v)))}
-                        />
-                      </div>
-                      {blank && <span className="mt-1 block text-xs font-bold text-error">Required — यह आवश्यक है</span>}
-                      {!blank && repeatsPrefix && (
-                        <span className="mt-1 block text-xs font-medium text-warning">
-                          Don&apos;t retype &quot;Sector {i + 1}&quot; here — the number is already shown. Just type the area name. / यहां &quot;Sector {i + 1}&quot; दोबारा न लिखें — केवल area का नाम टाइप करें।
-                        </span>
-                      )}
-                    </div>
-                  );
-                })}
+              <p className="text-xs text-base-content/60 text-center mb-3">
+                Sectors are numbered only — no name to enter. Review and confirm below.<br/>
+                सेक्टर केवल संख्या से पहचाने जाते हैं — कोई नाम दर्ज नहीं करना है। नीचे देखें और पुष्टि करें।
+              </p>
+              <div className="flex flex-wrap gap-2 max-w-md mx-auto justify-center">
+                {Array.from({ length: ns }, (_, i) => (
+                  <span key={`sector-${i}`} className="badge badge-lg badge-primary badge-outline">Sector - {i + 1}</span>
+                ))}
               </div>
             </div>
           )}
 
-          {circleNames.length > 0 && (
+          {nc > 0 && (
             <div>
               <h3 className="font-semibold text-sm mb-3 text-center">Circles / सर्कल</h3>
+              <p className="text-xs text-base-content/60 text-center mb-1">
+                The circle number is fixed — just type the area name next to it. Every box is required.
+              </p>
+              <p className="text-xs mt-2 mb-3 bg-base-200 rounded px-3 py-2 max-w-md mx-auto text-center">
+                For &quot;Circle 2 -&quot; type only <span className="font-semibold text-success">Fatehabad</span> — not <span className="font-semibold text-error line-through">Circle Fatehabad</span>. Don&apos;t type the word &quot;Circle&quot; in the box.
+              </p>
               <div className="flex flex-col gap-3 max-w-md mx-auto">
                 {circleNames.map((name, i) => {
                   const blank = triedSubmit && !name.trim();
-                  const repeatsPrefix = REPEATS_PREFIX.test(name);
+                  const containsCircleWord = CONTAINS_CIRCLE_WORD.test(name);
                   return (
                     <div key={`circle-${i}`}>
                       <div className="flex items-center gap-2">
                         <span className="font-semibold text-sm whitespace-nowrap shrink-0">Circle {circleNumber(i)} -</span>
                         <input
-                          className={`input input-bordered w-full ${blank ? 'input-error' : repeatsPrefix ? 'input-warning' : ''}`}
+                          className={`input input-bordered w-full ${blank ? 'input-error' : containsCircleWord ? 'input-warning' : ''}`}
                           value={name}
                           placeholder="Area name"
                           aria-label={`Circle ${circleNumber(i)} area name`}
@@ -480,9 +525,9 @@ export default function UnitsPage() {
                         />
                       </div>
                       {blank && <span className="mt-1 block text-xs font-bold text-error">Required — यह आवश्यक है</span>}
-                      {!blank && repeatsPrefix && (
+                      {!blank && containsCircleWord && (
                         <span className="mt-1 block text-xs font-medium text-warning">
-                          Don&apos;t retype &quot;Circle {circleNumber(i)}&quot; here — the number is already shown. Just type the area name. / यहां &quot;Circle {circleNumber(i)}&quot; दोबारा न लिखें — केवल area का नाम टाइप करें।
+                          Don&apos;t type the word &quot;Circle&quot; here — the number is already shown above. Just type the area name. / यहां &quot;Circle&quot; शब्द न लिखें — केवल area का नाम टाइप करें।
                         </span>
                       )}
                     </div>

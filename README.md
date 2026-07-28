@@ -121,7 +121,7 @@ up-excise-spatial-revenue-optimizer/
 
 Strictly gated, one step at a time — nothing is shown before its prerequisite is met, and nothing is left to the DEO's memory of "the right order."
 
-1. **Circles & Sectors (`/units`)** — the only thing a new DEO can do. Enter how many circles and how many sectors the district has, fill in the pre-generated name boxes, confirm via a SweetAlert2 dialog, submit once. This locks permanently (enforced server-side — a district that already has any unit row rejects further registration).
+1. **Circles & Sectors (`/units`)** — the only thing a new DEO can do, a 3-step wizard: (1) pick whether the district has only sectors, only circles, or both; (2) enter the relevant count(s); (3) confirm — sectors have no name to enter (numbered only, `Sector - 1`, `Sector - 2`, …), circles get a free-text area-name box next to a fixed `Circle N -` label (typing the word "circle" in that box shows a non-blocking inline warning). Confirm via a SweetAlert2 dialog, submit once. This locks permanently (enforced server-side — a district that already has any unit row rejects further registration).
 2. **Upload (`/upload`)** — unlocks automatically once circles/sectors are locked; download the district template (3 sheets: Data Entry with a locked, tooltip-annotated header row; Instructions; a hidden Reference Data sheet feeding the circle/sector dropdown), consolidate Inspector sections, upload the single `.xlsx` file.
 3. **Verify & Submit (`/verify`)** — review staged rows (a red adjacent-Thana pill is a same-district typo hint, not a hard block — see "Adjacent Thana Cross-District Rule" in CLAUDE.md), then submit to headquarters behind a final SweetAlert2 confirmation.
 

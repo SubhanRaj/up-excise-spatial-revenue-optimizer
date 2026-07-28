@@ -735,6 +735,31 @@ flowchart LR
 
 ---
 
+### M-35: has_cl5cc Boolean-Parse Fix & 3-Step Circles/Sectors Wizard ✅ Complete
+
+**Objective:** Fix a real-world bug where the `has_cl5cc` TRUE/FALSE dropdown (added in M-31) still didn't work for any DEO who actually used it in real Excel, and redesign `/units`' Circles & Sectors wizard per department feedback — a district's unit type (sectors-only, circles-only, or both) should be chosen explicitly up front, sectors don't need a DEO-entered name at all (they're purely numbered), and circle name boxes need a guard against DEOs retyping the word "Circle" into them.
+
+**`has_cl5cc` root cause and fix:**
+
+- [x] **Root cause, confirmed empirically:** the M-31 fix made `has_cl5cc` a plain TRUE/FALSE List dropdown, which was correct, but `parseExcelFile`'s reader (`apps/web/src/lib/excel.ts`) still did `Boolean(val) && val !== 'false' && val !== '0'`. Reproduced by round-tripping a generated template through LibreOffice's recalculation engine (same method as M-31) and reading it back with ExcelJS: a cell containing a real, saved TRUE/FALSE literal comes back not as a JS boolean but as a **formula-cell object** (`{ formula: "TRUE()", result: true }`, and for FALSE, `{ formula: "FALSE()" }` with **no `result` key at all**). An object is always truthy, so `Boolean(val)` was `true` for every DEO who genuinely selected TRUE *or* FALSE and saved in real Excel/LibreOffice — `has_cl5cc` silently became `true` regardless of the actual selection, and the Worker then rejected the row for every shop type except Country Liquor. This is exactly what "TRUE and FALSE don't even work" describes.
+- [x] Replaced the inline check with a `parseBool()` helper that handles all four shapes ExcelJS can hand back: native boolean, string `"TRUE"`/`"FALSE"` (any case), and the formula-object (`.result` first, falling back to matching `.formula` against `TRUE()`/`FALSE()` when `.result` is absent). One root-caused helper, not a per-field patch.
+- [x] Bumped `apps/web/public/sw.js`'s `CACHE` constant (`excise-v5` → `excise-v6`) so a browser tab with the buggy parsing JS already cached picks up the fix immediately — same reasoning as M-26/M-31/M-34's cache bumps.
+
+**Circles/Sectors wizard redesign (`apps/web/app/(deo)/units/page.tsx`):**
+
+- [x] **New step 1 — unit type radio:** "Only Sectors," "Only Circles," or "Both Circles & Sectors," chosen before anything else. Drives which count field(s) step 2 shows and pins the unused count to `'0'` (e.g. picking "Only Circles" sets `sectorCount` to `'0'` so `circleNumber()`'s "starts at Circle 1 when zero sectors" rule applies correctly without the DEO seeing a sector-count box at all).
+- [x] **Step 2 (existing count step, now conditional):** only renders the count input(s) relevant to the step 1 choice, instead of always showing both.
+- [x] **Step 3 (existing name step, restructured):** sectors no longer have an input box or any DEO-entered text — they're generated and displayed as a confirm-only badge list (`Sector - 1`, `Sector - 2`, …), stored in that exact literal form (`Sector - ${i + 1}`) with no area name ever appended. Circles keep their existing free-text area-name box next to the fixed `Circle N -` label; the old prefix-only, both-sector-and-circle `REPEATS_PREFIX` soft warning was replaced with `CONTAINS_CIRCLE_WORD` (`/circle/i`), which flags the word "circle" appearing **anywhere** in the box (not just as a leading prefix) with the same non-blocking inline warning style as before — still a hint, not a submit-blocker, since a legitimate area name will never contain that word.
+- [x] `StepHeader` generalized from a hardcoded 2-step indicator to a 3-entry `STEP_ORDER`/`STEP_LABELS` table.
+- [x] Locked-view sector list (`/units`) and the admin district detail page's `UnitsModal` (`app/(admin)/admin/districts/[district]/page.tsx`) both stopped running sector unit names through `splitUnitName()` — that helper looks for `" - "` to split a label from an area, which now falsely matches inside `"Sector - 1"` (splitting it into label `"Sector"` + area `"1"`). Sectors now render their full stored name as a single badge; `splitUnitName()` remains circle-only, where the format (`Circle 2 - Fatehabad`) is unchanged.
+- [x] Both English and Hindi `HelpPanel` copy on `/units` rewritten for the 3-step flow (renumbered through to "Step 4 — download template" / "Step 5 — upload & verify").
+- [x] `apps/web/tests/manual-screenshots.spec.ts` updated to drive the new 3-step flow (clicks "Both Circles & Sectors," fills only the circle name boxes) and its sample upload Excel's `circle_sector_name` values changed from `Sector 1 - Sadar`/`Sector 2 - Civil Lines` to the new `Sector - 1`/`Sector - 2` literal format, since `POST /api/upload/chunk` requires an exact match against the registered unit name. This adds one screenshot (the new type-selection step), so the manual PDF and its 17 numbered screenshots are stale as of this milestone — regenerating `docs/manual/DEO-User-Manual.pdf` per TEST.md's existing recipe is a fast-follow, not bundled into this change.
+- [x] No backend/API changes were needed — `POST /api/districts/[district]/units` already accepted `{ circles: string[], sectors: string[] }` with no format enforcement of its own, so this redesign is entirely client-side.
+
+**Exit criterion:** `pnpm typecheck` passes; selecting either TRUE or FALSE from the `has_cl5cc` dropdown and uploading a real (LibreOffice/Excel-saved) file correctly round-trips to the intended boolean; `/units` shows the unit-type radio before the count step; a district with any sectors registers them as `Sector - 1`, `Sector - 2`, … with no DEO-entered text; typing "circle" into a circle name box shows an inline warning without blocking submission.
+
+---
+
 ## Backlog / Not Started
 
 - [x] ~~Verify `exciseup.in` in Resend and switch `RESEND_FROM_EMAIL`~~ — Done. `mail.exciseup.in` verified; `RESEND_FROM_EMAIL` set to `noreply@mail.exciseup.in` on this project's Worker, and the same address set as `FROM_EMAIL` on the sibling `excise-revenue-recovery-portal` project's Worker (different env var name there, same Resend account/domain). Magic-link email is now the Admin/HQ login channel only (DEOs use CUG login as of M-17).

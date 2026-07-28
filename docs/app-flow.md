@@ -44,8 +44,9 @@ flowchart TD
     Login([DEO logs in]) --> HomeCheck{district_circles_sectors\nrow exists for district?}
 
     HomeCheck -->|no| UnitsOnly["/home shows ONLY\nCreate Circles & Sectors card"]
-    UnitsOnly --> UnitsPage["/units: enter circle + sector counts"]
-    UnitsPage --> NameBoxes[Fill pre-generated name boxes\nSector 1, Sector 2, ...\nCircle N.. starts at 1 if no sectors, else 2]
+    UnitsOnly --> TypeStep["/units step 1: only sectors /\nonly circles / both - radio"]
+    TypeStep --> UnitsPage["/units step 2: enter counts\n(only the relevant field shown)"]
+    UnitsPage --> NameBoxes["/units step 3: sectors are numbered\nonly (Sector - 1, Sector - 2, confirm\nonly, no name box); circles get a\nname box, Circle N.. starts at 1 if\nno sectors else 2, inline warning if\nthe word 'circle' is typed in the box"]
     NameBoxes --> ConfirmLock[SweetAlert2: confirm - cannot change afterward]
     ConfirmLock --> PostUnits[POST /api/districts/district/units]
     PostUnits --> LockCheck{Any existing unit row?}

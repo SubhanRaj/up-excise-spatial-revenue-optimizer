@@ -54,29 +54,30 @@ test.describe('DEO Manual — screenshot walkthrough', () => {
     await expect(page.locator('h1').filter({ hasText: 'Welcome back' })).toBeVisible({ timeout: 10000 });
     await shot(page, 'home-step1-gate');
 
-    // /units — step 1: counts
+    // /units — step 1: circles, sectors, or both
     await page.goto('/units');
     await expect(page.locator('h2').filter({ hasText: 'Circles & Sectors' })).toBeVisible();
-    await shot(page, 'units-step1-counts');
+    await shot(page, 'units-step1-type');
 
+    await page.click('button[role="radio"]:has-text("Both Circles & Sectors")');
+
+    // /units — step 2: counts
+    await shot(page, 'units-step2-counts');
     await page.fill('input[aria-label="Number of sectors"]', '2');
     await page.fill('input[aria-label="Number of circles"]', '2');
     await page.click('button:has-text("Continue")');
 
-    // /units — step 2: names
+    // /units — step 3: names. Sectors have no name to enter (numbered only, "Sector - N") —
+    // only circles get a free-text area-name box. submitUnits() composes the full "Circle 2 -
+    // Fatehabad" registered name client-side (see units/page.tsx).
     await expect(page.locator('h3').filter({ hasText: 'Sectors' })).toBeVisible();
-    await shot(page, 'units-step2-names-empty');
+    await shot(page, 'units-step3-names-empty');
 
-    // The number prefix ("Sector 1 -") is a fixed UI label, not part of the input value —
-    // only the area name is typed here; submitUnits() composes the full "Sector 1 - Sadar"
-    // registered name client-side (see units/page.tsx).
-    await page.fill('input[aria-label="Sector 1 area name"]', 'Sadar');
-    await page.fill('input[aria-label="Sector 2 area name"]', 'Civil Lines');
     // 2 sectors registered → circle placeholders start at 2, not 1 (Circle 1 is reserved
     // for the sector-covered urban area — see the circleNumber() convention in units/page.tsx)
     await page.fill('input[aria-label="Circle 2 area name"]', 'Fatehabad');
     await page.fill('input[aria-label="Circle 3 area name"]', 'Kheragarh');
-    await shot(page, 'units-step2-names-filled');
+    await shot(page, 'units-step3-names-filled');
 
     await page.click('button:has-text("Submit & Lock")');
     // SweetAlert2 confirmation before the one-shot, irreversible submit
@@ -116,8 +117,8 @@ test.describe('DEO Manual — screenshot walkthrough', () => {
       'consideration_fee', 'special_beer_lf', 'special_beer_mgr',
     ];
     const rows = [
-      ['Sector 1 - Sadar', 'Hariparvat', '', 'AG0001', 'Sadar Model Shop', 'MODEL_SHOP', 0, 27.18, 78.02, 150000, 0, 300000, 0, 0, 0, 0, 0, 0, 0, 0],
-      ['Sector 2 - Civil Lines', 'Sadar Bazar', 'Hariparvat', 'AG0002', 'Sadar PRV', 'PRV', 0, 27.19, 78.03, 120000, 0, 200000, 0, 0, 0, 0, 0, 0, 0, 0],
+      ['Sector - 1', 'Hariparvat', '', 'AG0001', 'Sadar Model Shop', 'MODEL_SHOP', 0, 27.18, 78.02, 150000, 0, 300000, 0, 0, 0, 0, 0, 0, 0, 0],
+      ['Sector - 2', 'Sadar Bazar', 'Hariparvat', 'AG0002', 'Sadar PRV', 'PRV', 0, 27.19, 78.03, 120000, 0, 200000, 0, 0, 0, 0, 0, 0, 0, 0],
       ['Circle 2 - Fatehabad', 'Fatehabad', 'Hariparvat', 'AG0003', 'Fatehabad Country Liquor', 'COUNTRY_LIQUOR', 1, 27.05, 78.25, 0, 180000, 0, 0, 0, 0, 0, 3000, 60000, 120000, 90000],
       // adjacent_thanas_raw demonstrates the comma-separated, multi-name format DEOs must use —
       // each Thana name may itself contain spaces (e.g. "Sadar Bazar"); names are separated by

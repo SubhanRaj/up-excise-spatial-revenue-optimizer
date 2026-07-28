@@ -213,15 +213,13 @@ function UnitsModal({ units, districtName, onClose }: { units: { name: string; t
             <div>
               <p className="text-[11px] uppercase tracking-widest font-semibold text-secondary mb-2.5">Sectors</p>
               <div className="grid sm:grid-cols-2 gap-2">
-                {sectors.map((u) => {
-                  const { label, area } = splitUnitName(u.name);
-                  return (
-                    <div key={u.name} className="flex items-center gap-2.5 rounded-lg border border-base-200 bg-base-200/40 px-3 py-2">
-                      <span className="badge badge-secondary badge-sm h-auto py-1 px-2 shrink-0 whitespace-nowrap font-semibold">{label}</span>
-                      <span className="text-sm truncate">{area || '—'}</span>
-                    </div>
-                  );
-                })}
+                {sectors.map((u) => (
+                  // Sectors carry no area name — "Sector - N" is the whole unit label
+                  // (splitUnitName's dash-split is circle-only, see the Circles block below).
+                  <div key={u.name} className="flex items-center gap-2.5 rounded-lg border border-base-200 bg-base-200/40 px-3 py-2">
+                    <span className="badge badge-secondary badge-sm h-auto py-1 px-2 shrink-0 whitespace-nowrap font-semibold">{u.name}</span>
+                  </div>
+                ))}
               </div>
             </div>
           )}

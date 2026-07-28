@@ -37,6 +37,26 @@ const COL_MAP: Record<string, keyof StagedRow> = {
   special_beer_mgr: 'specialBeerMgr',
 };
 
+// A cell a DEO fills via the has_cl5cc TRUE/FALSE dropdown doesn't always come back from
+// ExcelJS as a plain boolean — Excel/LibreOffice actually save a typed/selected TRUE or
+// FALSE literal as a formula cell (`TRUE()` / `FALSE()`), which ExcelJS returns as
+// `{ formula, result }` (and `result` can be entirely absent for FALSE). The previous
+// `Boolean(val) && val !== 'false' && val !== '0'` check treated that object as truthy no
+// matter its actual value, so every real-world CL5CC selection silently became `true`.
+// Confirmed by round-tripping a generated template through LibreOffice and reading it back.
+function parseBool(val: unknown): boolean {
+  if (val == null) return false;
+  if (typeof val === 'boolean') return val;
+  if (typeof val === 'object') {
+    const obj = val as { formula?: string; result?: unknown };
+    if (typeof obj.result === 'boolean') return obj.result;
+    if (typeof obj.formula === 'string') return /^\s*TRUE\s*\(\s*\)\s*$/i.test(obj.formula);
+    return false;
+  }
+  const s = String(val).trim().toLowerCase();
+  return s === 'true' || s === '1';
+}
+
 const NUM_FIELDS = new Set<keyof StagedRow>([
   'licenseFeeLf', 'basicLicenseFeeBlf', 'mgrAmount',
   'compositeLfFl', 'compositeLfBeer', 'compositeMgrFl', 'compositeMgrBeer',
@@ -207,7 +227,7 @@ export async function parseExcelFile(
       if (val == null) continue;
 
       if (fieldName === 'hasCl5cc') {
-        (row as Record<string, unknown>)[fieldName] = Boolean(val) && val !== 'false' && val !== '0';
+        (row as Record<string, unknown>)[fieldName] = parseBool(val);
       } else if (fieldName === 'shopType') {
         const trimmed = String(val).trim();
         (row as Record<string, unknown>)[fieldName] = SHOP_TYPE_REVERSE[trimmed.toLowerCase()] ?? trimmed;
