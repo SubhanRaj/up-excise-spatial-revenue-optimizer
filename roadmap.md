@@ -63,12 +63,13 @@ This project, the **State Excise Portal Spatial & Revenue Optimization System**,
 
 The following are **outside the boundary of Phase 1** and must not be captured, implied, or encoded in the schema:
 
-- High-end hotel and restaurant bars.
 - Commercial lounges and banquet hall licenses.
 - Wholesale distribution licenses.
-- Any outlet category that does not map to the five retail classifications defined in Section 4.
+- Any outlet category that does not map to the six retail classifications defined in Section 4.
 
 Attempting to force out-of-scope data into Phase 1 fields will corrupt the Phase 2 optimization baseline. DEOs must be briefed on this boundary before the upload campaign begins.
+
+> **Hotel / Bar / Restaurants (HBR) reversal (2026-07-28):** Hotel and restaurant bars were originally excluded here. The department confirmed on 2026-07-28 that HBR is in scope for Phase 1 as a sixth retail classification — see Section 4.3a for its fields and revenue formula. This exclusion list has been updated accordingly; do not reintroduce a hotel/restaurant-bar exclusion elsewhere in this document or in CLAUDE.md.
 
 ---
 
@@ -753,7 +754,7 @@ https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png
 
 ### 4.3 Shop Classification & Revenue Matrix
 
-The five retail vend categories, their active financial fields, and their revenue calculation formulas:
+The six retail vend categories, their active financial fields, and their revenue calculation formulas:
 
 > **All monetary revenue figures in this section are annual values (per license year) and are stored in Indian Rupees as whole-rupee integers (no paise).** Figures are stored as complete values — e.g., ₹1,00,00,000 is stored as `10000000`. No abbreviation or unit scaling is applied in the database; UI formatting (lakhs, crores) is a rendering concern only. Every field named below represents an annual charge unless the field description explicitly states otherwise.
 
@@ -863,6 +864,25 @@ totalRevenue = basicLicenseFeeBlf + considerationFee + specialBeerLf + specialBe
 
 **UI enforcement:** The frontend must dynamically show/hide financial input fields based on `shopType` and `hasCl5cc`. When `hasCl5cc` is checked, `specialBeerLf` and `specialBeerMgr` fields must become visible and required. When `hasCl5cc` is unchecked, they must be hidden and their values set to 0 before submission.
 
+---
+
+#### HBR (Hotel / Bar / Restaurants)
+
+Added 2026-07-28, reversing the prior exclusion (see Section 1.4). No sub-rules, no conditional fields — simplest classification in the matrix. Uses `circleSectorName`, `thanaName`, and `adjacentThanasRaw` identically to every other shop type; `shopId` is free text with no distinct prefix/pattern.
+
+| Field | Active? | Description |
+|---|---|---|
+| `licenseFeeLf` | Yes | Annual license fee (LF) |
+| `considerationFee` | Yes | Total consideration fee involved in the lifting for the previous year |
+| All other financial fields | No (default 0) | Not applicable to this shop type |
+
+**Revenue formula (annual total):**
+```
+totalRevenue = licenseFeeLf + considerationFee
+```
+
+**No new columns required.** `licenseFeeLf` and `considerationFee` already exist on `phase1_raw_collection` (used today by `COUNTRY_LIQUOR`) — HBR reuses both columns with its own formula. No migration is needed for this shop type; only the `SHOP_TYPES` enum constant, `computeRevenue()` dispatch, and Excel field-gating need the new `HBR` case.
+
 ### 4.4 Complete Revenue Dispatch Table (Quick Reference)
 
 All values are **annual figures in Indian Rupees**.
@@ -875,6 +895,7 @@ All values are **annual figures in Indian Rupees**.
 | `BHANG_SHOP` | false | `LF + (MGQ units × ₹20/unit)` |
 | `COUNTRY_LIQUOR` | false | `BLF + Consideration Fee` |
 | `COUNTRY_LIQUOR` | **true** | `BLF + Consideration Fee + Special Beer LF + Special Beer Annual MGR` |
+| `HBR` | n/a | `LF + Total Consideration Fee (previous year's lifting)` |
 
 ### 4.5 Data Classification Summary
 
@@ -944,7 +965,7 @@ export const phase1RawCollection = sqliteTable('phase1_raw_collection', {
   // Shop Classification Details
   shopId: text('shop_id').notNull(),
   shopName: text('shop_name').notNull(),
-  shopType: text('shop_type').notNull(),       // MODEL_SHOP | COMPOSITE_SHOP | COUNTRY_LIQUOR | BHANG_SHOP | PRV
+  shopType: text('shop_type').notNull(),       // MODEL_SHOP | COMPOSITE_SHOP | COUNTRY_LIQUOR | BHANG_SHOP | PRV | HBR
   hasCl5cc: integer('has_cl5cc', { mode: 'boolean' }).default(false).notNull(), // CL5CC Privilege Tracker
 
   // Spatial Coordinates — DMS retained for audit; DD used for all computation
@@ -954,7 +975,7 @@ export const phase1RawCollection = sqliteTable('phase1_raw_collection', {
   longitudeDecimal: real('longitude_decimal'),
 
   // Isolated Financial Variable Tracking (INR, whole rupees, no paise; all values are annual figures; stored as full integers — e.g. 10000000 for one crore)
-  licenseFeeLf: integer('license_fee_lf').default(0),           // MODEL_SHOP, PRV, BHANG_SHOP; COMPOSITE_SHOP stores compositeLfFl + compositeLfBeer here
+  licenseFeeLf: integer('license_fee_lf').default(0),           // MODEL_SHOP, PRV, BHANG_SHOP, HBR; COMPOSITE_SHOP stores compositeLfFl + compositeLfBeer here
   // on_premises_consumption_fee is a fixed constant (₹3,00,000) — not stored per-row, baked into revenue formula
   basicLicenseFeeBlf: integer('basic_license_fee_blf').default(0), // COUNTRY_LIQUOR (standard & CL5CC)
   mgrAmount: integer('mgr_amount').default(0),                   // MODEL_SHOP, PRV; COMPOSITE_SHOP stores compositeMgrFl + compositeMgrBeer here
@@ -963,7 +984,7 @@ export const phase1RawCollection = sqliteTable('phase1_raw_collection', {
   compositeMgrFl: integer('composite_mgr_fl').default(0),       // COMPOSITE_SHOP: annual MGR for Foreign Liquor
   compositeMgrBeer: integer('composite_mgr_beer').default(0),   // COMPOSITE_SHOP: annual MGR for Beer
   mgqQuantity: integer('mgq_quantity').default(0),               // BHANG_SHOP (units, not INR — multiplied by BHANG_MGQ_MULTIPLIER = ₹20/unit)
-  considerationFee: integer('consideration_fee').default(0),     // COUNTRY_LIQUOR (standard & CL5CC)
+  considerationFee: integer('consideration_fee').default(0),     // COUNTRY_LIQUOR (standard & CL5CC); HBR: previous year's lifting consideration fee
   specialBeerLf: integer('special_beer_lf').default(0),         // COUNTRY_LIQUOR + hasCl5cc only
   specialBeerMgr: integer('special_beer_mgr').default(0),       // COUNTRY_LIQUOR + hasCl5cc only; annual MGR for beer
 

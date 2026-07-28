@@ -481,9 +481,9 @@ Every API route handler (except the trivial `/api/healthz` liveness check) is ex
 ### Shop Type Enum
 Valid values for `shop_type` are exactly:
 ```
-MODEL_SHOP | COMPOSITE_SHOP | BHANG_SHOP | PRV | COUNTRY_LIQUOR
+MODEL_SHOP | COMPOSITE_SHOP | BHANG_SHOP | PRV | COUNTRY_LIQUOR | HBR
 ```
-No other values are accepted. The Worker validates this on every inbound row.
+No other values are accepted. The Worker validates this on every inbound row. `HBR` (Hotel / Bar / Restaurants — spell out the full name only in prose/labels, never as the stored value) was added 2026-07-28, reversing the prior hotel/restaurant-bar exclusion — see "What Is Out of Scope" below and roadmap.md §4.3a.
 
 ### CL5CC Rule
 - CL5CC is **not a separate shop type**. It is `COUNTRY_LIQUOR` with `has_cl5cc = true`.
@@ -503,6 +503,12 @@ No other values are accepted. The Worker validates this on every inbound row.
 - If the values differ (zero tolerance), the Worker rejects the row with a reason string.
 - This pattern protects against silent data corruption from frontend formula bugs.
 
+### Client-Side Pre-Flight Validation (Parse-Time)
+- `validateRow()` (`apps/web/src/lib/validate.ts`) mirrors every check `POST /api/upload/chunk` runs — required fields, `shop_type` enum, the CL5CC/`COUNTRY_LIQUOR` rule, composite sub-component sums, UP bbox, and the revenue dual-verification above. It was written as the Worker's own validation and originally only ran there.
+- `parseExcelFile()` (`apps/web/src/lib/excel.ts`) now also calls `validateRow()` on every row immediately after parsing, and marks any row that fails as `status: 'error'` with `errorReason` set to the joined messages — the exact same fields a post-upload Worker rejection already populates, so `/verify` renders both cases identically.
+- **Why this exists:** the `has_cl5cc` Excel cell has a hard data-validation gate (see "CL5CC Rule" below), but Excel's cell-level data validation only fires on typed keystrokes — not on pasted values. A DEO pasting a `has_cl5cc` column from another sheet can silently produce an invalid combination the Excel UI never flags. Without this check, that row would only surface as invalid after a full round trip through `POST /api/upload/chunk` (chunk upload → Worker rejection → DEO re-uploads). With it, `parseExcelFile()` catches the row the moment the file is opened in `/upload`, before any network request — `/verify`'s `submitDistrict()` already filters to `status === 'pending'` rows only, so an `error`-flagged row is never sent at all.
+- This does not replace the Worker's own validation — a DEO could in principle open the app with an old cached JS bundle (mitigated by the Service Worker `CACHE` version bump policy, see "PWA & Offline") or the check could have a bug. The Worker remains the actual authority; this is purely a latency optimization to avoid the round trip for the common case.
+
 ---
 
 ## Revenue Formulas
@@ -517,6 +523,7 @@ These are the canonical formulas. All values are **annual figures in Indian Rupe
 | `BHANG_SHOP` | false | `license_fee_lf + (mgq_quantity × BHANG_MGQ_MULTIPLIER)` |
 | `COUNTRY_LIQUOR` | false | `basic_license_fee_blf + consideration_fee` |
 | `COUNTRY_LIQUOR` | **true** | `basic_license_fee_blf + consideration_fee + special_beer_lf + special_beer_mgr` |
+| `HBR` | n/a | `license_fee_lf + consideration_fee` (consideration fee = total consideration fee involved in the lifting for the previous year) |
 
 `BHANG_MGQ_MULTIPLIER = ₹20 per unit` — this is a **per-unit price in Indian Rupees**, not a dimensionless number. `mgq_quantity` is the count of MGQ units; multiplying by ₹20/unit yields the annual INR contribution. Define as a named constant in `packages/schema` or a shared constants file. Do not hardcode `20` inline anywhere.
 
@@ -689,7 +696,7 @@ All `localStorage` keys used by the portal, their owning component, and what the
 
 Do not implement, suggest, or encode any of the following:
 
-- Hotel/restaurant bars, commercial lounges, banquet hall licenses, wholesale distribution.
+- Commercial lounges, banquet hall licenses, wholesale distribution. (Hotel/restaurant bars are **in scope** as of 2026-07-28 — see `shop_type = HBR` above and roadmap.md §4.3a.)
 - Phase 2 boundary optimization logic (Inspector assignment algorithms, Voronoi-style territory splitting, etc.).
 - Password-based authentication. The system is magic-link only — no password fields, no password reset flows.
 - Inspector-level portal access. Inspectors fill Excel files and hand them to the DEO. They have no accounts and no portal access.

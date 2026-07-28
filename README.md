@@ -201,9 +201,9 @@ Upload and Verify are not rendered — not merely disabled — until circles/sec
 
 ### Shop Types
 ```
-MODEL_SHOP | COMPOSITE_SHOP | BHANG_SHOP | PRV | COUNTRY_LIQUOR
+MODEL_SHOP | COMPOSITE_SHOP | BHANG_SHOP | PRV | COUNTRY_LIQUOR | HBR
 ```
-CL5CC is not a separate shop type — it is `COUNTRY_LIQUOR` with `has_cl5cc = true`.
+CL5CC is not a separate shop type — it is `COUNTRY_LIQUOR` with `has_cl5cc = true`. `HBR` (Hotel / Bar / Restaurants) has no sub-rules or conditional fields.
 
 ### Revenue Formulas
 
@@ -215,6 +215,7 @@ CL5CC is not a separate shop type — it is `COUNTRY_LIQUOR` with `has_cl5cc = t
 | `BHANG_SHOP` | false | `license_fee_lf + (mgq_quantity × ₹20)` |
 | `COUNTRY_LIQUOR` | false | `basic_license_fee_blf + consideration_fee` |
 | `COUNTRY_LIQUOR` | **true** | `basic_license_fee_blf + consideration_fee + special_beer_lf + special_beer_mgr` |
+| `HBR` | n/a | `license_fee_lf + consideration_fee` (consideration fee = previous year's lifting) |
 
 Browser computes `total_revenue`; Worker recomputes independently. Mismatch → row rejected.
 

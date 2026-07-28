@@ -49,8 +49,8 @@ There is no separate "Demo Data" sheet with example rows — an earlier version 
 | `thana_name` | Excise-authoritative Thana name. English only, free text — no state-wide Thana master list exists yet, so nothing is checked against a reference list. |
 | `shop_id` | Department-assigned license/registration ID. Unique per district. |
 | `shop_name` | Official name of the vend. English only. |
-| `shop_type` | Dropdown, friendly labels: `Model Shop`, `Composite Shop (FL + Beer)`, `PRV (Premium Retail Vend)`, `Bhang Shop`, `Country Liquor`. Maps back to the exact backend enum (`MODEL_SHOP`, `COMPOSITE_SHOP`, `PRV`, `BHANG_SHOP`, `COUNTRY_LIQUOR`) on parse. |
-| `has_cl5cc` | Type `TRUE` or `FALSE` (no dropdown). `TRUE` means a Country Liquor shop that *also* has the CL5CC beer endorsement — the cell itself rejects `TRUE` on any other shop type. `FALSE` (or leaving it blank) is correct and expected for every shop type, including most Country Liquor shops, which don't have the beer endorsement and sell only country liquor. The Worker independently re-validates the same rule on upload. |
+| `shop_type` | Dropdown, friendly labels: `Model Shop`, `Composite Shop (FL + Beer)`, `PRV (Premium Retail Vend)`, `Bhang Shop`, `Country Liquor`, `Hotel / Bar / Restaurants`. Maps back to the exact backend enum (`MODEL_SHOP`, `COMPOSITE_SHOP`, `PRV`, `BHANG_SHOP`, `COUNTRY_LIQUOR`, `HBR`) on parse. |
+| `has_cl5cc` | Type `TRUE` or `FALSE` (no dropdown). `TRUE` means a Country Liquor shop that *also* has the CL5CC beer endorsement — the cell itself rejects `TRUE` on any other shop type. `FALSE` (or leaving it blank) is correct and expected for every shop type, including most Country Liquor shops, which don't have the beer endorsement and sell only country liquor. Excel's cell-level gate only fires when a DEO types the value directly — a pasted `TRUE` can bypass it, so `/upload` also re-checks this rule the moment the file is parsed (before anything is uploaded) and flags any bad row as an error locally, avoiding a wasted round trip to the server. The Worker still independently re-validates the same rule on upload as the final authority. |
 
 ### Optional columns (all shop types)
 
@@ -72,12 +72,15 @@ Internally the parsed coordinate is retained in both DMS and decimal-degree form
 | `BHANG_SHOP` | `license_fee_lf`, `mgq_quantity` |
 | `COUNTRY_LIQUOR` (standard) | `basic_license_fee_blf`, `consideration_fee` |
 | `COUNTRY_LIQUOR` + CL5CC (`has_cl5cc = TRUE`) | `basic_license_fee_blf`, `consideration_fee`, `special_beer_lf`, `special_beer_mgr` |
+| `HBR` (Hotel / Bar / Restaurants) | `license_fee_lf`, `consideration_fee` |
 
 Every financial column has a per-cell data-validation gate: it only accepts a value when the row's `shop_type` (and, for the two CL5CC fields, `has_cl5cc = TRUE`) matches the shop types above — Excel itself rejects an entry in a field that doesn't apply to that row's shop type, not just the Worker on upload.
 
 **Important for BHANG_SHOP:** `mgq_quantity` is the **quantity in units**, not a rupee amount. The portal multiplies by ₹20/unit automatically.
 
 **Important for COMPOSITE_SHOP:** Enter the four sub-component values (`composite_lf_fl`, `composite_lf_beer`, `composite_mgr_fl`, `composite_mgr_beer`). Leave `license_fee_lf` and `mgr_amount` as 0 — the portal computes them.
+
+**Important for HBR:** `consideration_fee` here means the total consideration fee involved in the lifting for the *previous* license year, not the current year. No sub-rules or conditional fields apply — same two columns as `COUNTRY_LIQUOR` (standard), different formula.
 
 All financial values are **annual figures in whole Indian Rupees** (no paise). Enter full values — e.g. `100000` for one lakh.
 

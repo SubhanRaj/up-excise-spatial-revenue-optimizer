@@ -2,6 +2,7 @@
 
 import { normalizeCoordinates } from './coordinates';
 import { computeRevenue } from './revenue';
+import { validateRow } from './validate';
 import type { StagedRow } from './types';
 import type ExcelJSNamespace from 'exceljs';
 
@@ -257,6 +258,16 @@ export async function parseExcelFile(
     }
 
     row.totalRevenue = computeRevenue(row as Parameters<typeof computeRevenue>[0]);
+
+    // Same checks the Worker runs on upload (validateRow mirrors it exactly) — running them
+    // here catches paste-bypassed has_cl5cc/shop_type mismatches and other Worker-rejectable
+    // rows at parse time, before a chunk POST round-trip, instead of only after a rejection.
+    const rowErrors = validateRow(row as Parameters<typeof validateRow>[0]);
+    if (rowErrors.length > 0) {
+      row.status = 'error';
+      row.errorReason = rowErrors.map((e) => e.message).join('; ');
+    }
+
     results.push(row as StagedRow);
   }
 
