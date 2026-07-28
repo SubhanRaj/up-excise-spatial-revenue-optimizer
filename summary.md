@@ -777,6 +777,45 @@ flowchart LR
 
 ---
 
+### M-37: HBR (Hotel / Bar / Restaurants) Shop Type Addition ✅ Complete
+
+**Objective:** CLAUDE.md and roadmap.md had explicitly excluded "high-end hotel and restaurant bars" from Phase 1 scope since project inception. The department reversed this on 2026-07-28: HBR becomes a sixth retail shop-type classification, covering every bar-type excise license (FL6, FL7, FL7A, FL7AR — hotel bars, airport bars, restaurant bars, etc.) under one general term already familiar to DEOs from excise policy itself.
+
+**Confirmed decisions (department, 2026-07-28):** `HBR` used verbatim as the enum/stored/dropdown value everywhere — never spelled out as "Hotel / Bar / Restaurants" in anything a DEO sees, since DEOs already know `HBR` as the umbrella term and a spelled-out label reads as one specific venue type. Full name reserved for this repo's own doc prose only. Revenue formula: `licenseFeeLf + considerationFee` (consideration fee = total consideration fee involved in the lifting for the previous license year). No conditional sub-rules (unlike CL5CC or COMPOSITE_SHOP). Standard circle/sector/thana/adjacency handling, free-text `shopId` with no distinct prefix. No legacy HBR data to import.
+
+**Change:**
+
+- [x] **No schema migration needed.** HBR's formula maps exactly onto two columns `phase1_raw_collection` already has (`licenseFeeLf`, `considerationFee`, previously COUNTRY_LIQUOR-only) — confirmed and documented in `HBR.md` before writing any code, so the implementation pass added zero new columns.
+- [x] `packages/schema/src/constants.ts` — `'HBR'` added to `SHOP_TYPES`; `packages/schema/src/phase1.ts`'s `shopType` column comment updated to list it.
+- [x] `apps/web/src/lib/revenue.ts`'s `computeRevenue()` — added `case 'HBR': return r.licenseFeeLf + r.considerationFee;`. This function is imported by both the browser-side pre-flight validator and (transitively) the Worker's dual-verification path, so one case addition covers both sides of the zero-tolerance revenue check.
+- [x] `apps/web/src/lib/excel.ts` — `SHOP_TYPE_LABELS.HBR = 'HBR'` (dropdown shows `HBR` directly, not a spelled-out name), `FIELD_GATES` extended so `license_fee_lf` and `consideration_fee` allow `HBR`, `COLUMN_GUIDE` rows updated (shop_type notes list, license_fee_lf "required for" list, consideration_fee description noting the "previous year's lifting" meaning for HBR).
+- [x] Admin district page (`app/(admin)/admin/districts/[district]/page.tsx`) — `SHOP_TYPES` array, `TYPE_LABEL.HBR = 'Hotel / Bar / Restaurants'` (admin-side prose label, not the DEO-facing Excel dropdown), `TYPE_BADGE.HBR = 'badge-secondary'` (the only unused DaisyUI semantic badge color after the existing five types).
+- [x] Verify page and `GET /api/admin/search`'s `shopType` filter needed **no code changes** — both consume `shopType` dynamically rather than from a hardcoded list, so `HBR` flows through automatically.
+- [x] Docs updated in a dedicated pass before any code was written, per explicit instruction: `HBR.md` (new file, prep notes → implementation log), `roadmap.md` (§1.4 exclusion reversed, §4.3a new HBR subsection with the "why HBR not spelled out" rationale, §4.4 dispatch table, §5.2 schema comments), `CLAUDE.md` ("Shop Type Enum", "Revenue Formulas", "What Is Out of Scope"), `README.md` ("Shop Types", "Revenue Formulas"), `docs/templates/README.md` (required columns, financial columns table, HBR-specific `consideration_fee` note).
+- [x] `pnpm typecheck` passed cleanly (`packages/schema` + `apps/web`) before every commit.
+- [x] DEO manual PDF regeneration — deliberately skipped. `manual-screenshots.spec.ts`'s fixed walkthrough uses one `COUNTRY_LIQUOR` sample row and never screenshots the shop-type dropdown or Instructions sheet, so it doesn't go stale from this addition; regenerate only if a future screenshot pass needs to show HBR explicitly.
+
+**Exit criterion:** `pnpm typecheck` passes on both packages; HBR shops can be entered via the DEO Excel template (dropdown, field gating, revenue formula), uploaded, dual-verified, and displayed on the admin district page with a distinct badge; no plaintext scope-exclusion language referencing hotel/restaurant bars remains in CLAUDE.md or roadmap.md.
+
+---
+
+### M-38: Prod D1 Fresh-Start Reset ✅ Complete
+
+**Objective:** Ahead of a wider re-launch (HBR addition plus other in-flight changes), the DEOs who had already tested the earlier version of the portal and entered data needed a clean slate — their prior circle/sector registrations, uploads, and sessions no longer reflect the current app. The user explicitly authorized a scoped prod D1 wipe after first requesting a status check and a delete/keep plan, approved only after reviewing exact row counts per table.
+
+**Change (executed directly against remote D1 via `wrangler d1 execute --remote`, single multi-statement file, not ad hoc one-off commands):**
+
+- [x] Checked current state first: `phase1_raw_collection` (0 rows — already empty), `district_circles_sectors` (258), `district_unlock_requests` (6), `audit_log` (325), `auth_magic_links` (22), `auth_sessions` (158), `districts` (75), `auth_users` (82). Reported this table before taking any destructive action.
+- [x] `DELETE FROM district_circles_sectors` — clears DEO-entered circle/sector registrations, which also re-unlocks `/units` for every district (the lock is derived from row existence, not a flag — see CLAUDE.md's "DEO Workflow").
+- [x] `DELETE FROM district_unlock_requests`, `DELETE FROM audit_log`, `DELETE FROM auth_magic_links`, `DELETE FROM auth_sessions`, `DELETE FROM phase1_raw_collection` (no-op, already empty).
+- [x] `UPDATE districts SET status = 'pending', submitted_at = NULL` for all 75 rows — flagged separately from the plain deletes since it's a data *mutation* on a table the user said to keep, not a table-level wipe. Needed because `districts.status`/`submitted_at` are stored columns derived from the circle/sector and shop data just deleted; leaving them at their old `submitted`/`in_progress` values would have shown dashboards as complete over empty underlying data. Confirmed with the user before executing.
+- [x] Left fully untouched: `districts` (name, division, DEO name, `deo_email_hash`, `deo_id`, expected vend count, bbox) and `auth_users` (all 82 admin + DEO accounts — email hash, CUG hash, role, designation) — every credential and every district/DEO assignment survives, so DEOs and admins sign back in with existing credentials straight into a portal with no stale data.
+- [x] Verified post-reset via fresh `COUNT(*)` queries on every touched table (all zero) and a `GROUP BY status` on `districts` (all 75 rows `pending`, zero non-null `submitted_at`) before reporting completion.
+
+**Exit criterion:** All 6 DEO-input/session/log tables at 0 rows; `districts` and `auth_users` row counts unchanged (75 / 82) with only `districts.status`/`submitted_at` reset; every existing session invalidated (re-login required for all admin and DEO accounts); no schema or code change involved — this was a data-only operation.
+
+---
+
 ## Backlog / Not Started
 
 - [x] ~~Verify `exciseup.in` in Resend and switch `RESEND_FROM_EMAIL`~~ — Done. `mail.exciseup.in` verified; `RESEND_FROM_EMAIL` set to `noreply@mail.exciseup.in` on this project's Worker, and the same address set as `FROM_EMAIL` on the sibling `excise-revenue-recovery-portal` project's Worker (different env var name there, same Resend account/domain). Magic-link email is now the Admin/HQ login channel only (DEOs use CUG login as of M-17).

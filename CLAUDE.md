@@ -483,7 +483,7 @@ Valid values for `shop_type` are exactly:
 ```
 MODEL_SHOP | COMPOSITE_SHOP | BHANG_SHOP | PRV | COUNTRY_LIQUOR | HBR
 ```
-No other values are accepted. The Worker validates this on every inbound row. `HBR` (Hotel / Bar / Restaurants — spell out the full name only in prose/labels, never as the stored value) was added 2026-07-28, reversing the prior hotel/restaurant-bar exclusion — see "What Is Out of Scope" below and roadmap.md §4.3a.
+No other values are accepted. The Worker validates this on every inbound row. `HBR` was added 2026-07-28, reversing the prior hotel/restaurant-bar exclusion — see "What Is Out of Scope" below and roadmap.md §4.3a. **`HBR` is shown verbatim everywhere, including DEO-facing UI labels and the Excel dropdown — never spelled out as "Hotel / Bar / Restaurants."** DEOs know `HBR` as the excise-policy term covering every bar-type license (FL6, FL7, FL7A, FL7AR — hotel bars, airport bars, restaurant bars, etc.); spelling it out reads as one specific venue type and causes confusion about which licenses it covers. Spell out the full name only in this document's own prose, never in anything a DEO sees.
 
 ### CL5CC Rule
 - CL5CC is **not a separate shop type**. It is `COUNTRY_LIQUOR` with `has_cl5cc = true`.
@@ -645,6 +645,8 @@ Full per-milestone delivery history (Objective, Deliverables, Exit Criterion, bu
 | M-34: District Detail Inline Edit (Superadmin-Only) | **Completed** |
 | M-35: has_cl5cc Boolean-Parse Fix & 3-Step Circles/Sectors Wizard | **Completed** |
 | M-36: has_cl5cc Hard Cell-Level Gate (Country Liquor Only) | **Completed** |
+| M-37: HBR (Hotel / Bar / Restaurants) Shop Type Addition | **Completed** |
+| M-38: Prod D1 Fresh-Start Reset | **Completed** |
 
 See [summary.md](summary.md) for full milestone specs, entry/exit criteria, deliverable checklists, the backlog, and pre-campaign-blocker history.
 

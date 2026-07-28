@@ -17,6 +17,8 @@ export function computeRevenue(r: Phase1RowInput): number {
         return r.basicLicenseFeeBlf + r.considerationFee + r.specialBeerLf + r.specialBeerMgr;
       }
       return r.basicLicenseFeeBlf + r.considerationFee;
+    case 'HBR':
+      return r.licenseFeeLf + r.considerationFee;
     default:
       return 0;
   }

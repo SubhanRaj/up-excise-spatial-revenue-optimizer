@@ -74,6 +74,7 @@ const SHOP_TYPE_LABELS: Record<string, string> = {
   PRV: 'PRV (Premium Retail Vend)',
   BHANG_SHOP: 'Bhang Shop',
   COUNTRY_LIQUOR: 'Country Liquor',
+  HBR: 'HBR',
 };
 const SHOP_TYPE_OPTIONS = Object.values(SHOP_TYPE_LABELS);
 const SHOP_TYPE_REVERSE: Record<string, string> = Object.fromEntries(
@@ -318,7 +319,7 @@ const FRIENDLY_LABELS: Record<string, string> = {
 // cannot type a value into a field that doesn't apply to the row's chosen shop_type —
 // matches the revenue formulas in CLAUDE.md ("Revenue Formulas" section) exactly.
 const FIELD_GATES: { key: string; allowedTypes: string[]; requireCl5cc?: boolean }[] = [
-  { key: 'license_fee_lf', allowedTypes: ['MODEL_SHOP', 'PRV', 'BHANG_SHOP'] },
+  { key: 'license_fee_lf', allowedTypes: ['MODEL_SHOP', 'PRV', 'BHANG_SHOP', 'HBR'] },
   { key: 'basic_license_fee_blf', allowedTypes: ['COUNTRY_LIQUOR'] },
   { key: 'mgr_amount', allowedTypes: ['MODEL_SHOP', 'PRV'] },
   { key: 'composite_lf_fl', allowedTypes: ['COMPOSITE_SHOP'] },
@@ -326,7 +327,7 @@ const FIELD_GATES: { key: string; allowedTypes: string[]; requireCl5cc?: boolean
   { key: 'composite_mgr_fl', allowedTypes: ['COMPOSITE_SHOP'] },
   { key: 'composite_mgr_beer', allowedTypes: ['COMPOSITE_SHOP'] },
   { key: 'mgq_quantity', allowedTypes: ['BHANG_SHOP'] },
-  { key: 'consideration_fee', allowedTypes: ['COUNTRY_LIQUOR'] },
+  { key: 'consideration_fee', allowedTypes: ['COUNTRY_LIQUOR', 'HBR'] },
   { key: 'special_beer_lf', allowedTypes: ['COUNTRY_LIQUOR'], requireCl5cc: true },
   { key: 'special_beer_mgr', allowedTypes: ['COUNTRY_LIQUOR'], requireCl5cc: true },
 ];
@@ -338,11 +339,11 @@ const COLUMN_GUIDE: unknown[][] = [
   [FRIENDLY_LABELS.adjacent_thanas_raw, 'Names of Thanas adjacent to this Thana, comma-separated. Example: Kotwali, Hazratganj\nइस थाने से सटे (adjacent) थानों के नाम, अल्पविराम (,) से अलग करके। उदाहरण: Kotwali, Hazratganj', 'Optional / वैकल्पिक', 'Only list Thanas within this district. On the Verify page, a name is highlighted red if it doesn\'t (yet) appear as a Thana elsewhere in this district\'s own uploaded data — usually a typo. This does not block submission and is not checked against any district master list.\nकेवल इसी जिले के थाने लिखें। Verify पेज पर, अगर कोई नाम अभी तक इस जिले के अपने अपलोड किए गए डेटा में कहीं और Thana के रूप में मौजूद नहीं है, तो उसे लाल रंग में हाइलाइट किया जाता है — आमतौर पर यह टाइपो होता है। इससे सबमिशन नहीं रुकता और यह किसी जिला मास्टर लिस्ट से नहीं जांचा जाता।'],
   [FRIENDLY_LABELS.shop_id, 'Department-assigned license/registration ID.\nविभाग द्वारा दिया गया लाइसेंस/पंजीकरण आईडी।', 'All shop types / सभी प्रकार', 'Alphanumeric. Must be unique within the district.\nअक्षर व अंक। जिले में अद्वितीय होना चाहिए।'],
   [FRIENDLY_LABELS.shop_name, 'Official name of the retail vend.\nदुकान का आधिकारिक नाम।', 'All shop types / सभी प्रकार', 'English only.\nकेवल अंग्रेज़ी में।'],
-  [FRIENDLY_LABELS.shop_type, 'Shop classification — choose from the dropdown.\nदुकान का वर्गीकरण — dropdown से चुनें।', 'All shop types / सभी प्रकार', 'MODEL_SHOP | COMPOSITE_SHOP | PRV | BHANG_SHOP | COUNTRY_LIQUOR'],
+  [FRIENDLY_LABELS.shop_type, 'Shop classification — choose from the dropdown.\nदुकान का वर्गीकरण — dropdown से चुनें।', 'All shop types / सभी प्रकार', 'MODEL_SHOP | COMPOSITE_SHOP | PRV | BHANG_SHOP | COUNTRY_LIQUOR | HBR'],
   [FRIENDLY_LABELS.has_cl5cc, 'TRUE = Country Liquor shop that ALSO has the CL5CC beer endorsement. FALSE = every other case, including a standard Country Liquor shop that sells only country liquor and no beer. Type TRUE or FALSE.\nTRUE = ऐसी Country Liquor दुकान जिसके पास CL5CC बियर endorsement भी है। FALSE = बाकी हर स्थिति, जिसमें एक सामान्य Country Liquor दुकान भी शामिल है जो केवल देशी शराब बेचती है, बियर नहीं। TRUE या FALSE टाइप करें।', 'All shop types (FALSE/blank) — TRUE only for COUNTRY_LIQUOR / सभी प्रकार (FALSE/खाली) — TRUE केवल COUNTRY_LIQUOR के लिए', 'FALSE (or leaving it blank) is correct and expected for every shop type — including most Country Liquor shops, which don\'t have the beer endorsement. The cell itself rejects TRUE unless Shop Type is Country Liquor; FALSE/blank is always accepted.\nFALSE (या खाली छोड़ना) हर दुकान प्रकार के लिए सही और सामान्य है — जिसमें अधिकतर Country Liquor दुकानें भी शामिल हैं, जिनके पास बियर endorsement नहीं होता। Cell खुद TRUE को अस्वीकार कर देगा जब तक Shop Type Country Liquor न हो; FALSE/खाली हमेशा मान्य है।'],
   [FRIENDLY_LABELS.latitude, 'Latitude — DMS or Decimal.\nअक्षांश — DMS या Decimal में।', 'Optional / वैकल्पिक', 'e.g. 26°50\'48.12"N or 26.8467'],
   [FRIENDLY_LABELS.longitude, 'Longitude — DMS or Decimal.\nदेशांतर — DMS या Decimal में।', 'Optional / वैकल्पिक', 'e.g. 80°56\'46.3"E or 80.9462'],
-  [FRIENDLY_LABELS.license_fee_lf, 'Annual license fee (INR, whole rupees).\nवार्षिक लाइसेंस शुल्क (INR, पूर्ण रुपयों में)।', 'MODEL_SHOP, PRV, BHANG_SHOP', 'Locked to 0 for other shop types — cell will reject entry.\nअन्य दुकान प्रकार के लिए यह 0 पर locked है — गलत entry स्वीकार नहीं होगी।'],
+  [FRIENDLY_LABELS.license_fee_lf, 'Annual license fee (INR, whole rupees).\nवार्षिक लाइसेंस शुल्क (INR, पूर्ण रुपयों में)।', 'MODEL_SHOP, PRV, BHANG_SHOP, HBR', 'Locked to 0 for other shop types — cell will reject entry.\nअन्य दुकान प्रकार के लिए यह 0 पर locked है — गलत entry स्वीकार नहीं होगी।'],
   [FRIENDLY_LABELS.basic_license_fee_blf, 'Basic license fee for country liquor (INR).\nदेशी शराब के लिए मूल लाइसेंस शुल्क (INR)।', 'COUNTRY_LIQUOR', 'Locked to 0 for other shop types.\nअन्य दुकान प्रकार के लिए 0 पर locked है।'],
   [FRIENDLY_LABELS.mgr_amount, 'Annual Minimum Guaranteed Revenue (INR).\nवार्षिक न्यूनतम गारंटीड राजस्व (INR)।', 'MODEL_SHOP, PRV', 'Locked to 0 for other shop types.\nअन्य दुकान प्रकार के लिए 0 पर locked है।'],
   [FRIENDLY_LABELS.composite_lf_fl, 'Annual LF for Foreign Liquor component (INR).\nविदेशी शराब भाग के लिए वार्षिक LF (INR)।', 'COMPOSITE_SHOP only / केवल COMPOSITE_SHOP', 'Locked to 0 for other shop types.\nअन्य दुकान प्रकार के लिए 0 पर locked है।'],
@@ -350,7 +351,7 @@ const COLUMN_GUIDE: unknown[][] = [
   [FRIENDLY_LABELS.composite_mgr_fl, 'Annual MGR for Foreign Liquor (INR).\nविदेशी शराब के लिए वार्षिक MGR (INR)।', 'COMPOSITE_SHOP only / केवल COMPOSITE_SHOP', 'Locked to 0 for other shop types.\nअन्य दुकान प्रकार के लिए 0 पर locked है।'],
   [FRIENDLY_LABELS.composite_mgr_beer, 'Annual MGR for Beer (INR).\nबियर के लिए वार्षिक MGR (INR)।', 'COMPOSITE_SHOP only / केवल COMPOSITE_SHOP', 'Locked to 0 for other shop types.\nअन्य दुकान प्रकार के लिए 0 पर locked है।'],
   [FRIENDLY_LABELS.mgq_quantity, 'Minimum Guaranteed QUANTITY in units — NOT rupees.\nन्यूनतम गारंटीड मात्रा, यूनिट में — रुपये में नहीं।', 'BHANG_SHOP only / केवल BHANG_SHOP', 'Multiplied by ₹20/unit for revenue. Locked to 0 for other shop types.\nराजस्व हेतु ₹20 प्रति यूनिट से गुणा होता है। अन्य दुकान प्रकार के लिए 0 पर locked है।'],
-  [FRIENDLY_LABELS.consideration_fee, 'Consideration fee (INR).\nप्रतिफल शुल्क (INR)।', 'COUNTRY_LIQUOR', 'Locked to 0 for other shop types.\nअन्य दुकान प्रकार के लिए 0 पर locked है।'],
+  [FRIENDLY_LABELS.consideration_fee, 'Consideration fee (INR). For HBR, this is the total consideration fee involved in the lifting for the previous license year.\nप्रतिफल शुल्क (INR)। HBR के लिए, यह पिछले लाइसेंस वर्ष की lifting में शामिल कुल प्रतिफल शुल्क है।', 'COUNTRY_LIQUOR, HBR', 'Locked to 0 for other shop types.\nअन्य दुकान प्रकार के लिए 0 पर locked है।'],
   [FRIENDLY_LABELS.special_beer_lf, 'Special beer license fee (INR).\nविशेष बियर लाइसेंस शुल्क (INR)।', 'COUNTRY_LIQUOR + CL5CC only / केवल CL5CC', 'Locked to 0 unless shop_type is COUNTRY_LIQUOR and has_cl5cc = true.\nतभी भरा जा सकता है जब shop_type COUNTRY_LIQUOR हो और has_cl5cc = true हो।'],
   [FRIENDLY_LABELS.special_beer_mgr, 'Annual beer Minimum Guaranteed Revenue (INR).\nवार्षिक बियर न्यूनतम गारंटीड राजस्व (INR)।', 'COUNTRY_LIQUOR + CL5CC only / केवल CL5CC', 'Locked to 0 unless shop_type is COUNTRY_LIQUOR and has_cl5cc = true.\nतभी भरा जा सकता है जब shop_type COUNTRY_LIQUOR हो और has_cl5cc = true हो।'],
 ];

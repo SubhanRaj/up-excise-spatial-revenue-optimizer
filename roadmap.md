@@ -870,6 +870,8 @@ totalRevenue = basicLicenseFeeBlf + considerationFee + specialBeerLf + specialBe
 
 Added 2026-07-28, reversing the prior exclusion (see Section 1.4). No sub-rules, no conditional fields — simplest classification in the matrix. Uses `circleSectorName`, `thanaName`, and `adjacentThanasRaw` identically to every other shop type; `shopId` is free text with no distinct prefix/pattern.
 
+**Why "HBR" and not a spelled-out label:** `HBR` is the term used in excise policy itself, and DEOs know it as the general term covering every bar-type license — FL6, FL7, FL7A, FL7AR (hotel bars, airport bars, restaurant bars, etc.). Spelling it out as "Hotel / Bar / Restaurants" or similar in the UI risks reading as one specific venue type and confusing DEOs about which licenses fall under it. The Excel dropdown and every DEO-facing label show `HBR` verbatim, not a spelled-out name — see `SHOP_TYPE_LABELS.HBR` in `apps/web/src/lib/excel.ts`.
+
 | Field | Active? | Description |
 |---|---|---|
 | `licenseFeeLf` | Yes | Annual license fee (LF) |

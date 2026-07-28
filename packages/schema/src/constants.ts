@@ -10,6 +10,7 @@ export const SHOP_TYPES = [
   'BHANG_SHOP',
   'PRV',
   'COUNTRY_LIQUOR',
+  'HBR',
 ] as const;
 
 export type ShopType = (typeof SHOP_TYPES)[number];

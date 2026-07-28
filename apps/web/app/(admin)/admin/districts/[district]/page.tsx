@@ -43,7 +43,7 @@ interface DistrictDetail {
   vendCount: number; totalRevenue: number; units: { name: string; type: string }[];
 }
 
-const SHOP_TYPES = ['MODEL_SHOP', 'COMPOSITE_SHOP', 'PRV', 'BHANG_SHOP', 'COUNTRY_LIQUOR'] as const;
+const SHOP_TYPES = ['MODEL_SHOP', 'COMPOSITE_SHOP', 'PRV', 'BHANG_SHOP', 'COUNTRY_LIQUOR', 'HBR'] as const;
 
 const TYPE_LABEL: Record<string, string> = {
   MODEL_SHOP: 'Model Shop',
@@ -51,6 +51,7 @@ const TYPE_LABEL: Record<string, string> = {
   PRV: 'PRV (Premium Retail Vend)',
   BHANG_SHOP: 'Bhang Shop',
   COUNTRY_LIQUOR: 'Country Liquor',
+  HBR: 'Hotel / Bar / Restaurants',
 };
 
 // Distinct, non-purple palette using DaisyUI semantic classes
@@ -60,6 +61,7 @@ const TYPE_BADGE: Record<string, string> = {
   PRV: 'badge-success',
   BHANG_SHOP: 'badge-warning',
   COUNTRY_LIQUOR: 'badge-neutral',
+  HBR: 'badge-secondary',
 };
 
 const fmt = (n: number) => `₹${n.toLocaleString('en-IN')}`;

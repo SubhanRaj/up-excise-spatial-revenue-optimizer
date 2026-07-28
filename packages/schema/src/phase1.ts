@@ -11,7 +11,7 @@ export const phase1RawCollection = sqliteTable('phase1_raw_collection', {
 
   shopId: text('shop_id').notNull(),
   shopName: text('shop_name').notNull(),
-  // MODEL_SHOP | COMPOSITE_SHOP | BHANG_SHOP | PRV | COUNTRY_LIQUOR
+  // MODEL_SHOP | COMPOSITE_SHOP | BHANG_SHOP | PRV | COUNTRY_LIQUOR | HBR
   shopType: text('shop_type').notNull(),
   hasCl5cc: integer('has_cl5cc', { mode: 'boolean' }).default(false).notNull(),
 
