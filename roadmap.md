@@ -13,14 +13,10 @@ See also [docs/app-flow.md](docs/app-flow.md) for Mermaid diagrams of the auth f
 | **Prepared By** | Subhan Raj, CSE Engineer — SIBIN Tech Solutions |
 | **Consulting For** | Department of Excise, Government of Uttar Pradesh |
 | **Authored** | 2026-06-25 |
-| **Last Updated** | 2026-07-11 |
+| **Last Updated** | 2026-07-28 |
 | **Status** | Phase 1 Code-Complete — Running on Cloudflare Free Tier — Pending Departmental DEO Rollout |
 
-> **Authority note:** This document is the original engineering *plan* and is kept for business-rule and schema-rationale context. For the authoritative **current implementation state** — what actually shipped, exact file paths, and the live milestone log — see [CLAUDE.md](CLAUDE.md), which is updated on every change. Two architecture pivots happened after this document's early sections (§3.3–§3.12) were written and were not retrofitted into that prose everywhere it's mentioned:
-> - **Auth (M-6):** Clerk was fully removed and replaced with custom HMAC magic-link auth (no external auth provider). Any reference to Clerk, `clerkMiddleware`, `publicMetadata.role`, or Clerk webhooks below describes the superseded original design — see CLAUDE.md's "Authentication Architecture" section for what's actually running.
-> - **Spreadsheets (M-14):** SheetJS + hand-patched worksheet XML was fully replaced with ExcelJS as the single spreadsheet library. Any reference to SheetJS or the `xlsx` npm package below is superseded — see CLAUDE.md's "Frontend CDN Stack" section.
->
-> Section 6 (Development Milestones) is up to date through M-16 as of this revision.
+> **Authority note:** This document describes the system as it actually runs — the business rules, architecture, data dictionary, and schema behind the live portal. For exact file paths, live secrets/infrastructure status, and per-change operating instructions, see [CLAUDE.md](CLAUDE.md), which is updated on every change. For the chronological delivery history — what shipped in which milestone and why — see [summary.md](summary.md).
 
 ---
 
@@ -113,7 +109,7 @@ Adjacency data is critical for Phase 2's contiguity-based remapping. If Inspecto
 
 **Storage format:** Adjacent Thanas are stored in `adjacentThanasRaw` as a comma-separated string (e.g., `"Gomti Nagar,Chinhat,Alambagh"`). The frontend parses this into interactive pills for DEO review. The raw string is retained in D1 for simplicity; Phase 2 will parse and normalize it.
 
-**Current implementation status (as of M-21) — this is the policy target above, not what runs today:** there is no state-wide Thana master list (Pre-Campaign Blocker #3 below), so nothing in the system can actually check "does this Thana belong to district X." The Worker (`api/upload/chunk/route.ts`) does not validate `adjacentThanasRaw` at all. The verify page's red-pill highlight (`app/(deo)/verify/page.tsx`) is a same-district, same-upload self-consistency heuristic only — it flags a name if it doesn't (yet) also appear as a `thanaName` elsewhere in that same DEO's own district data, which catches typos but can't detect a genuine cross-district name and can false-positive on a real same-district Thana with no shop in this particular upload. It does not block submission. Closing this gap for real requires the Thana master list.
+**What actually runs — the policy above is a target, not an enforced rule:** there is no state-wide Thana master list (Pre-Campaign Blocker #3 below), so nothing in the system can actually check "does this Thana belong to district X." The Worker (`api/upload/chunk/route.ts`) does not validate `adjacentThanasRaw` at all. The verify page's red-pill highlight (`app/(deo)/verify/page.tsx`) is a same-district, same-upload self-consistency heuristic only — it flags a name if it doesn't (yet) also appear as a `thanaName` elsewhere in that same DEO's own district data, which catches typos but can't detect a genuine cross-district name and can false-positive on a real same-district Thana with no shop in this particular upload. It does not block submission. Closing this gap for real requires the Thana master list.
 
 ### 2.4 Coordinate Input & Normalization Rules
 
@@ -170,14 +166,14 @@ flowchart LR
     U -.->|Admin denies| T
 ```
 
-1. **Pre-registration — a 3-step, one-shot wizard, then locked (M-15, redesigned M-35):** The DEO does not add circles/sectors one at a time. The Circle/Sector Management UI (`apps/web/app/(deo)/units/page.tsx`) walks three steps:
+1. **Pre-registration — a 3-step, one-shot wizard, then locked:** The DEO does not add circles/sectors one at a time. The Circle/Sector Management UI (`apps/web/app/(deo)/units/page.tsx`) walks three steps:
    - **Step 1 — unit type:** a radio choice of "Only Sectors," "Only Circles," or "Both Circles & Sectors," driving what step 2 asks for.
    - **Step 2 — counts:** how many sectors and/or circles, per the step 1 choice.
    - **Step 3 — names/confirm:** **sectors have no DEO-entered name at all** — they are generated and stored purely as `Sector - 1`, `Sector - 2`, … and the DEO just reviews the numbered list and confirms it. **Circles keep a free-text area-name box** next to a fixed, non-editable `Circle N -` label (e.g. "Circle 2 -" + typed "Fatehabad"); typing the word "circle" anywhere in that box shows a non-blocking inline warning, the same kind of hint any other form field gives — it does not block submission.
 
    A SweetAlert2 confirmation warns this cannot be changed afterward, then the full list is submitted in a single request and stored in D1 in the `district_circles_sectors` table, scoped to the DEO's district — sectors as `Sector - N`, circles as `Circle N - <area>`. The registration endpoint then rejects any further attempt to add units for that district — the DEO cannot partially register, come back later, and add more. Upload and Verify are not shown to the DEO at all until this step is complete.
-   - **Circle numbering convention (M-23):** sectors cover a district's urban area, circles cover its rural area. If a district has no sectors (the "Only Circles" wizard path, purely rural), circle name placeholders start at "Circle 1". If a district has any sectors ("Only Sectors" or "Both"), "Circle 1" belongs to the sector-covered urban area and is never reused for a rural circle, so circle placeholders start at "Circle 2" instead. This is a UI placeholder-text convention only (`apps/web/app/(deo)/units/page.tsx`) — the API (`POST /api/districts/[district]/units`) stores whatever string the client composed with no numbering logic of its own.
-   - **Self-service unlock requests (M-24):** since there is no edit/delete path for a locked unit list, a wrong entry previously required the DEO to contact an Admin outside the app. `/units` now offers a "Request Unlock" button once locked — the DEO types a reason (required), stored in `district_unlock_requests` (409 if a pending request already exists). Admins review and resolve every request on `/admin/unlock-requests`; approving deletes the district's `district_circles_sectors` rows (same effect as the pre-existing manual admin-side unlock) and denying requires the admin's own note, same as approving.
+   - **Circle numbering convention:** sectors cover a district's urban area, circles cover its rural area. If a district has no sectors (the "Only Circles" wizard path, purely rural), circle name placeholders start at "Circle 1". If a district has any sectors ("Only Sectors" or "Both"), "Circle 1" belongs to the sector-covered urban area and is never reused for a rural circle, so circle placeholders start at "Circle 2" instead. This is a UI placeholder-text convention only (`apps/web/app/(deo)/units/page.tsx`) — the API (`POST /api/districts/[district]/units`) stores whatever string the client composed with no numbering logic of its own.
+   - **Self-service unlock requests:** since there is no edit/delete path for a locked unit list, a wrong entry requires the DEO to contact an Admin. `/units` offers a "Request Unlock" button once locked — the DEO types a reason (required), stored in `district_unlock_requests` (409 if a pending request already exists). Admins review and resolve every request on `/admin/unlock-requests`; approving deletes the district's `district_circles_sectors` rows (same effect as a manual admin-side unlock) and denying requires the admin's own note, same as approving.
 
 2. **Template generation:** The portal generates **one district-wide Excel template** (`.xlsx`) with the district name pre-filled in the header and a `circle_sector_name` column included for every data row. There is one template per district — not one per circle/sector. The DEO downloads this single template and distributes blank copies to each Inspector.
 
@@ -185,11 +181,11 @@ flowchart LR
 
 4. **DEO consolidation:** The DEO collects all returned Inspector sections and consolidates them into the single district Excel file — each row already carries its `circle_sector_name` tag from step 3.
 
-5. **Single district upload:** The DEO uploads the consolidated district Excel file to the portal. The system parses all rows in-browser (ExcelJS, see M-14), reads the `circle_sector_name` value from each row, and writes the full dataset to IndexedDB in one operation.
+5. **Single district upload:** The DEO uploads the consolidated district Excel file to the portal. The system parses all rows in-browser via ExcelJS, reads the `circle_sector_name` value from each row, and writes the full dataset to IndexedDB in one operation.
 
 6. **Grouped verification UI:** The staging interface organizes rows in tabs or collapsible sections by circle/sector (grouped by `circle_sector_name` column values). The DEO reviews each unit's data independently — correcting coordinates, removing invalid adjacency pills, verifying revenue totals.
 
-7. **Collective district submission — confirmed (M-15):** The final submit action shows a SweetAlert2 confirmation (record count, bilingual warning) before batching all staged rows and transmitting them to the Worker as a single district submission. The Worker treats the district as one atomic unit — individual circle/sector boundaries are metadata tags on the rows, not separate submission events.
+7. **Collective district submission:** The final submit action shows a SweetAlert2 confirmation (record count, bilingual warning) before batching all staged rows and transmitting them to the Worker as a single district submission. The Worker treats the district as one atomic unit — individual circle/sector boundaries are metadata tags on the rows, not separate submission events.
 
 **HQ-level view:** At the headquarters dashboard, data is aggregated and displayed at the **district level only**. Circles and sectors are available as a drill-down dimension within the DEO's portal view but are not surfaced at the state-level summary. HQ sees: "Lucknow — 587 vends — ₹X total revenue."
 
@@ -257,9 +253,9 @@ CI runs both sequentially in the `deploy-portal` job. `wrangler.jsonc` in `apps/
 
 ### 3.3 The Excel Ingestion Pipeline — Step by Step
 
-**Step 1: Client-Side Excel Parsing (SheetJS)**
+**Step 1: Client-Side Excel Parsing (ExcelJS)**
 
-The DEO selects a standardized `.xlsx` file. The browser loads SheetJS (`xlsx` package) and parses the binary workbook entirely in memory. No file data is transmitted to any server at this stage. The parser extracts rows into a typed JavaScript array matching the Phase 1 schema.
+The DEO selects a standardized `.xlsx` file. The browser loads ExcelJS from jsDelivr CDN (`apps/web/src/lib/excel.ts`) and parses the binary workbook entirely in memory. No file data is transmitted to any server at this stage. The parser extracts rows into a typed JavaScript array matching the Phase 1 schema. ExcelJS is the single spreadsheet library for the whole app — it also generates the downloadable district template and every data export, so every workbook gets the same freeze panes, print setup, cell styling, and data validation with no second library and no hand-edited OOXML.
 
 This is the critical architectural decision that keeps the Cloudflare Worker within its 10ms CPU budget. A Worker that attempted to parse a 30,000-row Excel file would time out catastrophically. By running the parse in the browser, we consume the DEO's machine CPU — which has no limits — and send the Worker only clean, structured JSON.
 
@@ -302,37 +298,52 @@ The frontend marks acknowledged rows in IndexedDB. If the session is interrupted
 | Payload size | A 500-row JSON payload for this schema is approximately 150–200KB. Well within the 100MB Worker request body limit with massive headroom. |
 | Error recovery granularity | A chunk failure affects at most 500 rows. The DEO does not lose an entire district's upload. |
 
-### 3.4 Cloudflare Worker Implementation Notes (Hono)
+### 3.4 API Implementation Notes (Next.js Route Handlers)
 
-The Worker is built with [Hono](https://hono.dev/) — a lightweight, TypeScript-first web framework purpose-built for Cloudflare Workers. Hono adds minimal overhead and provides clean routing, middleware, and type-safe request handling.
+All API endpoints are Next.js Route Handlers (`apps/web/app/api/**`) running in the same single Cloudflare Worker as the pages, authenticated via the custom HMAC magic-link/CUG session (Section 3.7). Every non-trivial handler is wrapped in `withErrorHandling()` (CLAUDE.md's "API Error Handling" section), which catches any unhandled exception and returns this app's own `{ error }` JSON 500 instead of letting it bubble to Next's default non-JSON error page.
 
-**Key Worker routes — DEO Portal (`/api/*`):**
+**Public routes (no session required):**
+
+| Route | Method | Purpose |
+|---|---|---|
+| `/api/healthz` | `GET` | Health probe — returns `200 OK` with no body. Used by CI dry-run and uptime checks. |
+| `/api/auth/session` | `GET` | Returns the current session's `{ deoId, role, districtName, name }`, or 401 |
+| `/api/auth/verify` | `POST` | Verifies a magic-link token, creates the session, returns `{ redirect }` |
+| `/api/auth/verify-cug` | `POST` | Verifies a hashed CUG mobile number (DEO's primary login), creates the session |
+| `/api/auth/logout` | `POST` | Clears session cookies and deletes the D1 session row |
+
+**DEO Portal routes (`role: deo`, session-scoped to the caller's own district):**
 
 | Route | Method | Purpose |
 |---|---|---|
 | `/api/upload/chunk` | `POST` | Accepts a 500-row batch (tagged with circle/sector), validates, inserts via `db.batch()` |
-| `/api/districts` | `GET` | Returns district list for DEO dropdown (reads from `districts` table) |
-| `/api/districts/:district/units` | `POST` | DEO registers a new circle or sector |
+| `/api/districts` | `GET` | Returns district list |
 | `/api/districts/:district/units` | `GET` | Lists all circles/sectors registered for a district |
+| `/api/districts/:district/units` | `POST` | Bulk, one-shot circle/sector registration — `{ circles, sectors }`; rejects (409) if any unit row already exists for the district |
 | `/api/districts/:district/template` | `GET` | Returns the single district-wide Excel template (`.xlsx`) with district name pre-filled and `circle_sector_name` column included |
-| `/api/webhooks/clerk` | `POST` | Receives Clerk session events; validates SVIX signature; writes to `audit_log` |
-| `/api/healthz` | `GET` | Health probe — returns `200 OK` with no body. Used by CI dry-run and uptime checks. |
+| `/api/districts/:district/status` | `GET` | District submission status |
+| `/api/districts/:district/shops` | `GET` | The DEO's own staged/uploaded shop rows |
+| `/api/districts/:district/submit` | `POST` | Final district submission to HQ — blocked if any registered unit has zero uploaded rows |
+| `/api/districts/:district/request-unlock` | `GET` / `POST` | The DEO's own latest unlock request, or submitting a new one (reason required, 409 if a pending request already exists) |
 
-**Key Worker routes — Admin Portal (`/api/admin/*`, Clerk `admin` role required):**
+**Admin/HQ Portal routes (`/api/admin/*`, `role: admin` or `superadmin` required):**
 
 | Route | Method | Purpose |
 |---|---|---|
 | `/api/admin/districts` | `GET` | All 75 districts with summary stats (vend count, annual revenue, status) + top-level `stateTotals: { totalVendCount, totalRevenue }` — lightweight aggregate; never loads shop rows |
 | `/api/admin/districts/:district` | `GET` | Single district: DEO info, circles/sectors, submission status, revenue totals |
+| `/api/admin/districts/:district` | `PATCH` | District Master inline edit (division, DEO identity, expected vend count, bbox) — **superadmin-only**, 403 for a plain `admin` session |
 | `/api/admin/districts/:district/shops` | `GET` | Shop rows for one district. `pageSize` accepts 10/25/50/100 or `all`; default 100; server cap 2000. Admin UI always calls `?pageSize=all` and handles all filtering, sorting, and pagination client-side via `useMemo`. Never returns data across districts in one call. |
-| `/api/admin/districts/:district/export` | `GET` | Streams all shop rows for one district as CSV |
+| `/api/admin/districts/:district/export` | `GET` | Streams all shop rows for one district as an XLSX download (ExcelJS — **never CSV**, see CLAUDE.md's "Confirmed Past Mistakes") |
 | `/api/admin/export/all` | `GET` | Streams the entire `phase1_raw_collection` as a chunked `.xlsx` Excel download. Full-state data path — triggers a file download only, never a UI table. |
 | `/api/admin/search` | `GET` | Cross-district search with query params (Section 3.11) |
-| `/api/admin/bulk-provision` | `POST` | Receives parsed DEO Excel data; provisions Clerk accounts + inserts `districts` rows |
-| `/api/admin/audit-log` | `GET` | Paginated audit log for admin viewer (last 45 days) |
+| `/api/admin/bulk-provision` | `POST` | Receives parsed DEO Excel data; creates/updates `auth_users` magic-link accounts + upserts `districts` rows — **superadmin-only** |
+| `/api/admin/audit-log` | `GET` | Paginated audit log for admin viewer (last 45 days; opportunistically prunes rows older than the cutoff on every read) |
 | `/api/admin/map-data` | `GET` | All 75 districts with `{ name, status, vendCount, totalRevenue, expectedVendCount }` — single lightweight call that drives both the choropleth map and the summary charts. Aggregates `phase1_raw_collection` grouped by `district_name`, joined with `districts` metadata. No shop row data returned. |
+| `/api/admin/unlock-requests` | `GET` | All `district_unlock_requests` rows, newest first |
+| `/api/admin/unlock-requests/resolve` | `POST` | Approve or deny a DEO's unlock request (note required either way) |
 
-**Worker validation checklist (enforced before any D1 write):**
+**Validation checklist (enforced server-side before any D1 write, in the relevant Route Handler):**
 
 - `districtName`, `circleSectorName`, `thanaName`, `shopId`, `shopName`, `shopType`, `uploadedByDeo` must be non-empty strings.
 - `shopType` must be one of: `MODEL_SHOP`, `COMPOSITE_SHOP`, `BHANG_SHOP`, `PRV`, `COUNTRY_LIQUOR`.
@@ -342,11 +353,11 @@ The Worker is built with [Hono](https://hono.dev/) — a lightweight, TypeScript
 
 ### 3.5 D1 Database Operational Notes
 
-**Append-only in Phase 1:** The Phase 1 collection table is write-once from a data integrity standpoint. If a DEO re-uploads a corrected dataset for their district, a `UNIQUE` constraint on `shopId` + `districtName` can be used to trigger an upsert rather than a duplicate insert. The deduplication strategy will be finalized during implementation (see Milestone M-3).
+**Upsert, not versioned:** a `UNIQUE` constraint on `shopId` + `districtName` means a DEO re-uploading a corrected dataset for their district overwrites existing rows for the same shop (`onConflictDoUpdate` in `POST /api/upload/chunk`) rather than creating duplicates or a new version.
 
 **`districts` table — the district registry:** A separate, small (75-row) reference table stores district metadata: DEO name, DEO email, DEO identifier, division, expected vend count, and submission status. This table is the authoritative registry of all districts in the system. The `phase1_raw_collection` table references districts by `district_name` (text soft-reference, not FK) for the same flexibility reasons as Thana names (Section 5.1). The `districts` table keeps district metadata out of the 30,000-row shop table and gives the admin portal a fast, metadata-only query path that never touches shop rows.
 
-**Admin query pattern — district-by-district loading:** The admin portal default view queries `districts` and an aggregation over `phase1_raw_collection` grouped by `district_name` — this gives totals without loading any individual shop rows. Shop-level data is only fetched when the admin drills into a specific district (`/api/admin/districts/:district/shops`). Full-state shop data is never loaded into the UI; the only full-state operation is a streamed CSV export.
+**Admin query pattern — district-by-district loading:** The admin portal default view queries `districts` and an aggregation over `phase1_raw_collection` grouped by `district_name` — this gives totals without loading any individual shop rows. Shop-level data is only fetched when the admin drills into a specific district (`/api/admin/districts/:district/shops`). Full-state shop data is never loaded into the UI; the only full-state operation is a chunked `.xlsx` download (ExcelJS, generated in-browser — never CSV, see CLAUDE.md's "Confirmed Past Mistakes").
 
 **Index strategy:** Three indexes cover the primary query patterns for Phase 1 dashboards:
 - `p1_district_idx` — powers district-level summary queries (total vends per district, total revenue per district).
@@ -369,49 +380,26 @@ Security is applied at every layer. No single control is treated as sufficient.
 
 **Secret & Credential Management:**
 - No API keys, secrets, or service credentials are embedded in the frontend bundle, committed to source, or returned in API responses.
-- Clerk's publishable key (safe for frontend exposure by design) is the only credential in the frontend environment. All Clerk secret keys and the Clerk webhook signing secret live in Cloudflare Workers Secrets — never in `wrangler.toml`.
+- All secrets (`SESSION_SECRET`, `API_SECRET`, `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `SUPERADMIN_EMAIL_HASH`) are Cloudflare Worker Secrets, set via `wrangler secret put` — never in `wrangler.jsonc`, `.env`, or source.
 - D1 is accessed exclusively via the Workers binding. It has no public connection string and is not reachable from the internet directly.
 
 **Content Security Policy (CSP):**
-Declared in `public/_headers` (served as static response headers by the portal Worker via `@opennextjs/cloudflare`):
-```
-/*
-  Content-Security-Policy: default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://cdn.tailwindcss.com; style-src 'self' https://cdn.jsdelivr.net; connect-src 'self' https://<worker-domain>.workers.dev; img-src 'self' data: https://*.basemaps.cartocdn.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'
-  X-Content-Type-Options: nosniff
-  X-Frame-Options: DENY
-  Referrer-Policy: strict-origin-when-cross-origin
-  Permissions-Policy: camera=(), microphone=(), geolocation=()
-```
-No `unsafe-inline` or `unsafe-eval` directives are permitted.
-
-**Subresource Integrity (SRI):**
-Every CDN-served `<script>` and `<link>` tag must include `integrity` and `crossorigin="anonymous"` attributes. SRI hashes are pinned to a specific library version and committed to the codebase. Updating a library requires regenerating and committing the corresponding hash. A CI step fails the build if any CDN asset tag is missing its `integrity` attribute.
-
-```html
-<!-- Example — DaisyUI from jsDelivr with SRI -->
-<link rel="stylesheet"
-  href="https://cdn.jsdelivr.net/npm/daisyui@5/dist/full.min.css"
-  integrity="sha384-<hash>"
-  crossorigin="anonymous">
-```
+Declared in `public/_headers` (served as static response headers by the portal Worker via `@opennextjs/cloudflare`) — restricts scripts/styles to `'self'` and jsDelivr, blocks framing, and sets the standard hardening headers (`X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`). No `unsafe-inline` or `unsafe-eval` directives are permitted.
 
 **Rate Limiting:**
-Cloudflare built-in rate limiting applied to Worker routes:
-- Upload endpoint: max 20 requests/minute per IP.
-- Webhook receiver: max 5 requests/minute per IP.
+Magic-link requests are rate-limited in application code (not a Cloudflare edge rule): 3 requests per email hash per 15-minute window, enforced by `requestMagicLink()` checking the `auth_magic_links` count before sending.
 
 **Session Credential Storage:**
-- Clerk session tokens are stored in HttpOnly, Secure, SameSite=Strict cookies — never in localStorage or sessionStorage.
+- The `excise-session` cookie is HttpOnly, Secure, SameSite=Lax — never in localStorage or sessionStorage.
 - IndexedDB stores only DEO-entered shop data. Session credentials never touch IndexedDB.
 
 ---
 
 ### 3.7 Authentication — Custom HMAC Magic-Link (No External Provider)
 
-**Provider:** None. Authentication is implemented entirely in-house: HMAC-SHA256 session cookies, UUID magic-link tokens hashed in D1, and Resend for email delivery. No Clerk, no Auth.js, no third-party auth SDK.
+**Provider:** None. Authentication is implemented entirely in-house: HMAC-SHA256 session cookies, UUID magic-link tokens hashed in D1, and Resend for email delivery. No external auth provider, no third-party auth SDK.
 
-**Why custom auth instead of Clerk:**
-Clerk added SDK overhead, required route changes on every update, caused constant middleware redirect issues, and its free-tier session duration was fixed at 7 days (enforcing 24h required an app-level hack). With a maximum of ~90 users (75 DEOs + ~15 admins), a few hundred lines of auth code is simpler and more reliable than an external dependency.
+**Why in-house rather than an external auth provider:** with a maximum of ~90 users (75 DEOs + ~15 admins), a few hundred lines of auth code carries less operational risk than a third-party SDK dependency — no vendor session-duration limits to work around, no vendor outage as a single point of failure, and every redirect/middleware behavior is fully owned and debuggable in this codebase.
 
 **Two-Cookie Design:**
 
@@ -479,42 +467,22 @@ Application-level events (upload chunk, district submission, circle/sector regis
 
 ### 3.8 Frontend Asset & Bundle Strategy
 
-The guiding principle is **CDN-first**: every substantial asset is loaded from jsDelivr (or the library's official CDN where that is faster/canonical). Cloudflare Pages serves only the Next.js JavaScript bundle, which contains React, the app's component logic, and nothing else. This minimises Cloudflare Pages bandwidth usage.
+The guiding principle is **CDN-first**: every substantial asset is loaded from jsDelivr. The Cloudflare Worker (via `@opennextjs/cloudflare`) serves only the Next.js JavaScript bundle — React, Next.js App Router runtime, and app-specific TypeScript components. No CSS framework, chart library, map library, spreadsheet library, or alert/toast library is bundled; all of them load from CDN.
 
-**Design System — Loaded from CDN:**
+All CDN assets are declared once, unconditionally, in root `layout.tsx` — every library is available as a browser global on every page (both DEO and admin route groups), before React hydration:
 
-| Asset | CDN Source | Size (gzip) | Notes |
-|---|---|---|---|
-| DaisyUI CSS | `cdn.jsdelivr.net/npm/daisyui@5.6.3/daisyui.css` | ~25KB | Semantic component classes: `btn`, `card`, `table`, `modal`, `badge`, `drawer`, etc. Requires Tailwind v4. |
-| Tailwind CSS v4 (`@tailwindcss/browser`) | `cdn.jsdelivr.net/npm/@tailwindcss/browser@4` | ~50KB | Runtime utility class generation. **Never** use `cdn.tailwindcss.com` — that serves Tailwind v3, which is incompatible with DaisyUI 5. |
+| Library | CDN Source | Notes |
+|---|---|---|
+| DaisyUI | `cdn.jsdelivr.net/npm/daisyui@5.6.3/daisyui.css` | Semantic component classes (`btn`, `card`, `table`, `modal`, `badge`, `drawer`). Requires Tailwind v4 — DaisyUI 5 and Tailwind v3 use incompatible layer architectures. |
+| Tailwind CSS v4 | `cdn.jsdelivr.net/npm/@tailwindcss/browser@4` | Runtime utility class generation, no PostCSS build step, no purge step. **Never** `cdn.tailwindcss.com` — that serves Tailwind v3. |
+| Dexie.js | `cdn.jsdelivr.net/npm/dexie@4.0.10/dist/dexie.min.js` | IndexedDB wrapper — offline-first staging layer for DEO data, TTL-cached admin data |
+| SweetAlert2 | `cdn.jsdelivr.net/npm/sweetalert2@11.14.5/dist/sweetalert2.all.min.js` | All modal alerts, confirmations, and prompts on both portals. Replaces native `alert()`/`confirm()` entirely. |
+| Notyf | `cdn.jsdelivr.net/npm/notyf@3.10.0/notyf.min.js` + `.css` | Side flash toast notifications (success/error/warning) |
+| ExcelJS | `cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js` | The single spreadsheet library — reads uploaded files, generates templates, and exports data. No CSV anywhere in this app. |
+| Chart.js | `cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js` | Admin dashboard charts |
+| Leaflet.js | `cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js` + `.css` | UP district choropleth map, CartoDB tiles, no API key required |
 
-Both are loaded in `<head>` via root `layout.tsx` with SRI attributes. Tailwind is not processed via PostCSS at build time — no Tailwind in the build pipeline, no purge step, no PostCSS config. The Play CDN handles this at runtime.
-
-> **Why `@tailwindcss/browser` CDN instead of build-time?** The portal Worker (via `@opennextjs/cloudflare`) serves only the Next.js application bundle. Removing PostCSS + Tailwind from the build pipeline keeps the bundle exclusively application code. Bandwidth cost for the Tailwind CDN script is borne by jsDelivr, not by Cloudflare Workers bandwidth.
-
-**Data, UI Feedback & Visualization Libraries — Loaded from CDN:**
-
-| Library | CDN Source | Route Groups | Load Strategy |
-|---|---|---|---|
-| SheetJS (`xlsx`) | `cdn.jsdelivr.net/npm/xlsx@x/dist/xlsx.full.min.js` | DEO + Admin | Dynamic inject on upload page mount (`ssr: false`) — loads only when needed |
-| Dexie.js | `cdn.jsdelivr.net/npm/dexie@x/dist/dexie.min.js` | DEO + Admin | `<script>` in root `layout.tsx` — loaded on all pages; Service Worker caches after first load |
-| SweetAlert2 | `cdn.jsdelivr.net/npm/sweetalert2@x/dist/sweetalert2.all.min.js` | DEO + Admin | `<script>` in root `layout.tsx` — used across both route groups for all modal alerts, confirms, and prompts. Replaces all native `alert()`/`confirm()`. |
-| Notyf | `cdn.jsdelivr.net/npm/notyf@x/notyf.min.js` + `notyf.min.css` | DEO + Admin | `<script>` + `<link>` in root `layout.tsx`. ~3KB JS. Side flash notifications (success, error, warning). Vanilla JS, no framework dependency. Official site: https://carlosroso.com/notyf/ |
-| Chart.js | `cdn.jsdelivr.net/npm/chart.js@x/dist/chart.umd.min.js` | Admin only | `<script>` in root `layout.tsx` — guarded by route group; ~60KB gzip |
-| Leaflet.js | `cdn.jsdelivr.net/npm/leaflet@x/dist/leaflet.js` + `leaflet.css` | Admin only | `<script>` + `<link>` in root `layout.tsx`; ~39KB JS + ~5KB CSS |
-
-**What ships in the Next.js bundle:**
-- React + Next.js App Router runtime
-- App-specific TypeScript components and logic (auth, pages, hooks)
-- No CSS frameworks, no chart libraries, no map libraries, no data libraries, no Excel parsers, no alert/toast libraries, no auth SDK
-
-**SRI Pin Workflow (for library version upgrades):**
-```bash
-# Generate SRI hash for a CDN file
-curl -s https://cdn.jsdelivr.net/npm/daisyui@5/dist/full.min.css | \
-  openssl dgst -sha384 -binary | openssl base64 -A
-```
-Update the `integrity` attribute and commit the hash alongside the version bump. CI blocks merge if any CDN tag is missing `integrity`.
+**Why CDN instead of bundling:** keeping these out of the Next.js bundle means the deployed Worker's JS payload is app logic only, and library updates are a one-line version-string change in `layout.tsx` with no rebuild-the-bundle step. The tradeoff is a runtime dependency on jsDelivr's availability, accepted given jsDelivr's own reliability track record and this project's non-real-time usage pattern (a DEO uploading once, an admin browsing periodically).
 
 ---
 
@@ -526,30 +494,28 @@ The DEO portal is a full PWA. Installed on an iPad or Android tablet, it loads f
 **`public/manifest.json`:**
 ```json
 {
-  "name": "UP Excise Portal",
-  "short_name": "Excise Portal",
+  "name": "UP Excise SRO — Spatial & Revenue Optimization Portal",
+  "short_name": "UP Excise SRO",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#1d4ed8",
+  "theme_color": "#0f2a44",
   "icons": [
-    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" }
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml" }
   ]
 }
 ```
 
-**Service Worker Responsibilities:**
-- **App shell caching:** On install, pre-caches the Next.js static HTML, JS bundle, and all CDN assets (DaisyUI CSS, Tailwind CDN script, Dexie.js, SheetJS, SweetAlert2, Notyf). After first load, the entire app and all its dependencies run offline.
-- **Offline detection:** Posts `{ type: 'connectivity', online: boolean }` messages to the active page. The connection status indicator reacts to these messages.
-- **Background Sync:** When a chunk upload fails due to connectivity loss, the chunk payload is written to an IndexedDB queue and registered with the Background Sync API (`sync.register('upload-queue')`). On connectivity restoration, the Service Worker retries all queued chunks sequentially. No DEO action is required.
-- **Cache invalidation:** Service Worker version is tied to the Next.js build hash. On deployment, the new Service Worker installs and takes over, replacing the cached app shell.
+**Service Worker (`public/sw.js`) Responsibilities:**
+- **App shell caching:** On install, pre-caches every CDN asset (DaisyUI CSS, Tailwind v4 browser CDN, Dexie.js, SweetAlert2, Notyf, ExcelJS, Chart.js, Leaflet). The fetch handler is cache-first for CDN assets and network-first (with cache fallback) for same-origin GET requests — including Next.js's own `_next/static/*` chunks and rendered HTML — so after first load the entire app runs offline with no network dependency. This is a single static cache name (the `CACHE` constant); a fix that must reach browsers with an already-cached bundle needs that constant bumped, not just a new deploy.
+- **Background Sync:** When a chunk upload fails due to connectivity loss, the chunk payload is written to an IndexedDB queue and registered with the Background Sync API (`sync.register('upload-queue')`). On connectivity restoration, the Service Worker's `sync` handler posts a `sync-upload-queue` message to the active page, which retries the queued chunks. No DEO action is required.
+- **Cache invalidation:** the `activate` handler deletes every cache whose name doesn't match the current `CACHE` constant, so a version bump cleanly replaces the old cached app shell on next load.
 
 **IndexedDB-First Data Rules:**
 - Every DEO action (row edit, pill deletion, field change, unit mark-verified) writes to IndexedDB synchronously — before any network call is made or awaited.
 - The network upload is a secondary step. A failed upload changes the row status to `'error'` in IndexedDB; the data itself is never lost.
 - On page load, the app always reads from IndexedDB first. Network state has no bearing on what the DEO sees.
-- Connection drop, network change, tab sleep, or device screen-off never trigger a session clear, IndexedDB wipe, or logout. Only Clerk's 24-hour clock-based expiry touches the session — and even then, IndexedDB data is preserved through re-authentication.
+- Connection drop, network change, tab sleep, or device screen-off never trigger a session clear, IndexedDB wipe, or logout. Only the 24-hour clock-based session expiry touches the session — and even then, IndexedDB data is preserved through re-authentication.
 
 **Supported Devices:**
 | Device | Status | Notes |
@@ -557,21 +523,24 @@ The DEO portal is a full PWA. Installed on an iPad or Android tablet, it loads f
 | iPad (Safari, Chrome) | Fully supported — primary field device | PWA install via Safari "Add to Home Screen"; Background Sync supported in Chrome for iOS |
 | Android tablet 10"+ (Chrome) | Fully supported — primary field device | Full PWA install + Background Sync |
 | Desktop PC/Mac (Chrome, Firefox, Edge, Safari) | Fully supported — office use | |
-| Small-screen mobile (< 768px) | Not supported | Verification table not usable. App does not break but no mobile layouts will be built. |
+| Small-screen mobile (phone width) | Partially supported | Both portals' navbars and dashboards (`/home`, `/admin`) are mobile-responsive — a DEO or admin can check status from a phone. Forms, the Excel upload flow, and admin data tables remain desktop-oriented by design (not a redesign target); they wrap in `overflow-x-auto` so they're at least horizontally scrollable, not full mobile parity. |
 
 ---
 
 ### 3.10 Accessibility, UX Standards & User Preferences
 
 **Dark & Light Mode:**
-DaisyUI's built-in theme system defines two themes: `excise-light` and `excise-dark`. Applied by setting `data-theme` on `<html>`. An inline script in `<head>` reads `localStorage` and sets the theme before first paint — no flash of wrong theme on load.
+DaisyUI's theme system uses the two built-in theme names `light` and `dark` (custom theme names silently produce no styling — never rename these). Applied by setting `data-theme` on `<html>`, only ever on the root element, never on a child `<div>` (a descendant `data-theme` would override the root and break the anti-flash script below). An inline script in `<head>` reads `localStorage.theme` and resolves `'system'`/unset via `window.matchMedia('(prefers-color-scheme:dark)')` before first paint — no flash of wrong theme on load. The `ViewPrefsPanel` floating FAB (bottom-right, all pages) is the only place that writes `data-theme` and `localStorage.theme`; it supports `light`/`dark`/`system` modes and live-reapplies `system` resolution if the OS preference changes while that mode is active.
 
 **User Preferences (localStorage):**
 | Key | Values | Purpose |
 |---|---|---|
-| `theme` | `'excise-light' \| 'excise-dark'` | UI theme, persisted across sessions |
-| `verificationPageSize` | `25 \| 50 \| 100` | Rows per page in the verification table |
-| `connectionBannerDismissed` | `'true'` | Whether the DEO has acknowledged the offline banner |
+| `theme` | `'light' \| 'dark' \| 'system'` | UI theme mode; `data-theme` on `<html>` is always the resolved `light`/`dark` value |
+| `excise-view-prefs-v1` | JSON `{ fontSize, density, width }` | Font size, row density, content width — set via `ViewPrefsPanel` |
+| `verificationPageSize` | `25 \| 50 \| 100` | Rows per page in the DEO verification table |
+| `admin-page-size` | `'10' \| '25' \| '50' \| '100' \| 'all'` | Rows per page on the admin district detail page |
+| `admin-group-by-type` | `'true' \| 'false'` | Persists the district detail page's group-by-type toggle |
+| `help_done_{pageKey}` | `'true'` | Whether the user has dismissed a page's `HelpPanel` badge |
 
 **ARIA & Keyboard Accessibility:**
 - All interactive elements (pill delete buttons, inline edit fields, modal dialogs, upload dropzone, accordion sections) have `aria-label` or `aria-labelledby`.
@@ -581,21 +550,14 @@ DaisyUI's built-in theme system defines two themes: `excise-light` and `excise-d
 - Color is never the sole status indicator — coordinate warnings use color plus an icon glyph.
 - Touch targets are minimum 44×44px (WCAG 2.5.8).
 
-**Connection Status Indicator:**
-Persistent banner in the app header:
-- **Green — "Online"**: network available, Worker reachable.
-- **Amber — "Offline — data saved locally"**: no network; all edits write to IndexedDB; nothing is lost.
-- **Amber — "Slow connection"**: ping latency > 2s detected; uploads will retry automatically.
-The banner is informational and does not interrupt the DEO's workflow.
+**Offline-First Messaging:**
+Rather than a live connection-status banner, `/home` carries a static, always-visible note (bilingual) explaining that all data saves offline first and uploads automatically once connectivity returns — consistent with the IndexedDB-first architecture above, without needing to poll or display network state in real time.
 
 **Print View:**
-A `@media print` stylesheet renders a clean, paginated layout of the verification table. UI controls (edit buttons, pill delete icons, upload actions, navigation) are hidden. Revenue totals and coordinate status are preserved. DEOs can print their staged data as a paper backup before submission.
+A `@media print` stylesheet on `/verify` renders a clean, paginated layout of the staged-data table. UI controls (edit buttons, pill delete icons, upload actions, navigation) are hidden. Revenue totals and coordinate status are preserved. DEOs can print their staged data as a paper backup before submission.
 
-**Tablet-First Layout:**
-- Minimum supported viewport: **768px** (iPad portrait). No `sm` or `xs` breakpoints are used in DEO-facing layouts.
-- Breakpoints: `md` (768px) — tablet portrait; `lg` (1024px) — tablet landscape/desktop.
-- Horizontal scroll on the verification table is expected on tablet — it is not a layout bug.
-- All Tailwind responsive prefixes in JSX use `md:` or `lg:` only.
+**Responsive Layout:**
+Navbars and dashboards (`/home`, `/admin`) are mobile-responsive — both portal navbars collapse into a hamburger + slide-in drawer below `md`, and dashboard stat-card grids stack to one column on a phone-width viewport. `sm:`/`md:` Tailwind prefixes are expected and correct in these files. Forms, the Excel upload flow, and every admin data table (`/units`, `/upload`, `/verify`, district detail's shop table, audit log, unlock requests, District Master) remain desktop-oriented by design — they wrap in `overflow-x-auto` so they're at least horizontally scrollable on a phone, but are not a mobile-first redesign target. The goal is "check status from a phone," not full mobile parity with desktop.
 
 ---
 
@@ -617,7 +579,7 @@ Searchable fields:
 Results render inline in the verification table. Zero Worker calls.
 
 **Admin/HQ Search (Server-Side, D1):**
-Admin users access the `(admin)` route group. Search queries go to `GET /api/admin/search` (Worker, guarded by Clerk `admin` role middleware):
+Admin users access the `(admin)` route group. Search queries go to `GET /api/admin/search`, gated by `getSession()` requiring `role: 'admin'` or `'superadmin'`:
 
 | Parameter | Type | Description |
 |---|---|---|
@@ -634,33 +596,32 @@ Free-text `LIKE` requires a column scan on `shop_name`. Acceptable at 30,000 row
 
 ### 3.12 Admin/HQ Portal — Route Group Architecture
 
-The DEO portal and Admin/HQ portal are **route groups within a single Next.js application** (`apps/web`). There is one portal Worker deployment (`up-excise-portal`), one build pipeline, and one `middleware.ts`. Both route groups are served from the same Worker.
+The DEO portal and Admin/HQ portal are **route groups within a single Next.js application** (`apps/web`). There is one Worker deployment (`up-excise-spatial-revenue-optimizer-web`, live at `sro.exciseup.in`), one build pipeline, and one `middleware.ts`. Both route groups are served from the same Worker.
 
 ```
 apps/web/app/
 ├── page.tsx    # Pure redirect → /login (server component, no auth check)
 ├── login/
-│   ├── page.tsx              # Server component: auth() check → role-redirect or render LoginForm
+│   ├── page.tsx              # Public — renders LoginForm
 │   └── _components/
-│       └── LoginForm.tsx     # 'use client' — Clerk <SignIn> widget (fallbackRedirectUrl="/login")
+│       └── LoginForm.tsx     # 'use client' — Email/CUG toggle; posts to /api/auth/verify or /api/auth/verify-cug
+├── auth/verify/page.tsx      # 'use client' — consumes the magic-link token via POST /api/auth/verify
 ├── (deo)/
 │   └── home/  # DEO home page (URL: /home) — middleware enforces role: 'deo'
 ├── (admin)/
-│   └── admin/ # Admin home page (URL: /admin) — middleware enforces role: 'admin'
+│   └── admin/ # Admin home page (URL: /admin) — middleware enforces role: 'admin'/'superadmin'
 ```
 
-`page.tsx` at the root is a pure `redirect('/login')` with no auth logic. Role-based routing lives in `login/page.tsx` (a server component): it calls `auth()`, reads `publicMetadata.role` from the JWT, and redirects `admin` → `/admin` or `deo` → `/home`. If the user is authenticated but has no recognised role, it shows an "Account not provisioned" message. Unauthenticated users see the Clerk `<SignIn>` widget via `LoginForm`. The middleware reads `publicMetadata.role` and enforces route group access. A `deo` user hitting any `(admin)` route is redirected to `/login`; an `admin` hitting a `(deo)` route is also redirected. Both groups share the same Clerk project and the same API Worker endpoint.
-
-**`NEXT_PUBLIC_CLERK_SIGN_IN_URL=/login`** must be set at build time so that Clerk's internal redirects use `/login` instead of the default `/sign-in`. Set in `.env.local` for local dev and baked in via the GitHub Actions `deploy-portal` job. Without it, Clerk redirects go to `/sign-in` (not a public route), causing an infinite redirect loop.
+`page.tsx` at the root is a pure `redirect('/login')` with no auth logic. `middleware.ts` checks only cookie presence and the client-readable `excise-role` cookie for route-group access (Section 3.7) — no crypto, no D1 lookup on every request. The real security boundary is `requireAuth()` in server layouts and `getSession()` in route handlers, both of which do a full HMAC verification and D1 session lookup. A `deo` session hitting any `(admin)` route is redirected; an `admin`/`superadmin` session hitting a `(deo)` route is not blocked (the same account can reach both portals if it has a district assigned). Both route groups share the same session cookie and the same Worker.
 
 | Concern | DEO route group `(deo)` | Admin route group `(admin)` |
 |---|---|---|
 | App | `apps/web/app/(deo)/home/` | `apps/web/app/(admin)/admin/` |
 | URL | `/home` | `/admin` |
-| Deployment | Single portal Worker (`up-excise-portal`) | Same Worker, same deployment |
-| Auth | `publicMetadata.role: 'deo'` | `publicMetadata.role: 'admin'` |
-| Worker routes | `/api/*` | `/api/admin/*` |
-| Data access | Own district only (scoped by Clerk `districtName` claim) | All 75 districts, read-only |
+| Deployment | Single Worker (`up-excise-spatial-revenue-optimizer-web`) | Same Worker, same deployment |
+| Auth | Session cookie, `excise-role: deo` | Session cookie, `excise-role: admin` (role in session data is `admin` or `superadmin`) |
+| Worker routes | `/api/*` (districts, upload, units) | `/api/admin/*` |
+| Data access | Own district only (scoped by `session.districtName`) | All 75 districts |
 
 **Admin Data Loading — District Summary List with State Totals:**
 
@@ -688,40 +649,25 @@ Dexie.js is loaded from jsDelivr CDN in the root `layout.tsx` and is therefore a
 
 The state totals are pre-computed on each `district_submitted` event (the Worker increments a running aggregate), so `GET /api/admin/districts` never triggers a full-table scan in production. The Dexie stores are client-side mirrors of the server-side aggregates.
 
-**Admin Route Group — SheetJS Bulk DEO Provisioning:**
+**District Master (`/admin/provision`) — superadmin-only:**
 
-SheetJS is dynamically injected (not in root layout) on the bulk-provision page within the `(admin)` route group. The administrator uploads an Excel file (`.xlsx`) with columns:
+An all-75-district table where each row's edit icon opens a right-side drawer to update division, DEO name/email/identifier, expected vend count, and bbox coordinates in place (`PATCH /api/admin/districts/[district]`) — no Excel re-upload needed for a single correction. Bulk provisioning is retained below the table for initial campaign setup or large batches: the administrator downloads a template pre-filled with District Name + Division for all 75 rows, fills in the DEO columns (`DEO Name`, `DEO Email`, `DEO Identifier`, `Expected Vend Count`), and uploads it (parsed in-browser via ExcelJS). On confirm, it is sent to `POST /api/admin/bulk-provision`, which in a single `db.transaction` per row:
+1. Upserts the `districts` row.
+2. Upserts the corresponding `auth_users` row (hashed email, magic-link account — not a third-party auth provider).
+3. Returns a summary of accounts created vs. already existing.
 
-| Column | Description |
-|---|---|
-| `District Name` | Canonical district name matching the system's `districts.name` |
-| `Division` | Administrative division (e.g., "Lucknow Division") |
-| `DEO Name` | Full name of the District Excise Officer |
-| `DEO Email` | Department-issued email — used as Clerk account identifier |
-| `DEO Identifier` | Dept-assigned string used as `uploaded_by_deo` in shop records |
-| `Expected Vend Count` | Approximate total retail vends in the district (for progress %) |
-
-SheetJS parses the file in-browser. The parsed array is previewed in the UI for admin review before submission. On confirm, it is sent to `POST /api/admin/bulk-provision`, which:
-1. Inserts or upserts all 75 rows into the `districts` table.
-2. Creates Clerk user accounts for each DEO email using Clerk's management API.
-3. Sets the `districtName` metadata claim on each Clerk user for downstream data scoping.
-4. Returns a summary of accounts created vs. already existing.
-
-This operation is idempotent — re-running it on an already-provisioned system updates district metadata without creating duplicate Clerk accounts.
+This operation is idempotent — re-running it on an already-provisioned system updates district metadata without creating duplicate accounts. Both the inline-edit drawer and bulk provisioning are restricted to `role: 'superadmin'` — the nav link is hidden for a plain `admin` session, and both underlying routes independently return 403 for anything but superadmin. A district's DEO can also sign in via a separately-seeded CUG mobile-number hash (Section 3.7) — bulk provisioning itself only sets up the email/magic-link login path.
 
 **Admin Dashboard — Charts (Chart.js via jsDelivr CDN):**
 
-All charts are powered by a single call to `GET /api/admin/map-data`, which returns 75 district-level aggregate rows. No shop rows are loaded for charting.
+Both charts are powered by a single call to `GET /api/admin/map-data`, which returns 75 district-level aggregate rows. No shop rows are loaded for charting.
 
 | Chart | Type | Data Source |
 |---|---|---|
 | Submission progress | Doughnut | `submitted` vs `in_progress` vs `pending` district count |
 | Revenue by district (top 20) | Horizontal bar | `totalRevenue` per district, sorted descending |
-| Shop type distribution | Pie | `COUNT(*)` per `shop_type` across submitted districts |
-| Upload progress by district | Stacked bar | `vendCount` vs `expectedVendCount` per district |
-| Cumulative uploads over time | Line | Daily `district_submitted` event count from `audit_log` |
 
-Charts use Chart.js direct imperative API via `useEffect` — no React wrapper library. Instances are destroyed and re-created on data refresh to prevent memory leaks.
+Charts use Chart.js's direct imperative API via `useEffect` — no React wrapper library. Instances are destroyed and re-created on data refresh to prevent memory leaks.
 
 **Admin Dashboard — Interactive UP District Map (Leaflet.js via jsDelivr CDN):**
 
@@ -733,7 +679,6 @@ A live choropleth map of all 75 UP districts. The primary at-a-glance view for H
 - **Processing pipeline** (ad-hoc Python, not committed to repo): (1) fetch Overpass JSON → (2) assemble closed rings from OSM relation ways using greedy chain algorithm → (3) export GeoJSON → (4) RDP simplification with tolerance 0.002° → 26,167 points from 368,779 raw (615 KB from 8.5 MB).
 - **Name normalisations** applied to match `districts.name` in D1: Raebareli → Rae Bareli, Sant Ravidas Nagar → Bhadohi, Sharavasti → Shravasti, Siddharthnagar → Siddharth Nagar, Mahrajganj → Maharajganj.
 - **Feature property:** `district` — must match `districts.name` in D1 exactly (case-sensitive). No name-map file needed.
-- **Note:** The GADM source used in early milestones only covered 70 of 75 districts (missing Hapur, Shamli, Sambhal, Amethi, Kasganj). The OSM source covers all 75 and supersedes GADM.
 
 **Map configuration (as built):**
 - Tiles: CartoDB (light/dark variants, switches with `data-theme` MutationObserver); no API key required.
@@ -751,32 +696,34 @@ https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png
 **Choropleth colour scheme:**
 | District Status | Fill | Meaning |
 |---|---|---|
-| `pending` | `#d1d5db` grey | No data uploaded |
-| `in_progress` | `#fbbf24` amber | Some uploads, not yet submitted |
-| `submitted` | gradient `#86efac` → `#15803d` | Submitted — gradient intensity = `vendCount / expectedVendCount` (light = low coverage, dark = full coverage) |
+| `pending` | `#94a3b8` slate | No data uploaded |
+| `in_progress` | `#f59e0b` amber | Some uploads, not yet submitted |
+| `submitted` | `#16a34a` green | District submitted to HQ |
 
 **Map interactions:**
-- **Hover:** boundary highlights; tooltip shows district name, DEO name, status, vend count, total revenue.
+- **Permanent label:** every district shows its name as a permanent centered tooltip (not a hover-only popup) — legible against the tiles via a white/slate text-shadow in light/dark mode respectively.
 - **Click:** navigates to district drill-down (loads that district's shop table from D1/IndexedDB cache).
-- **Legend:** Leaflet control, bottom-right.
+- **Legend:** a static colour-key list (Pending/In Progress/Submitted) rendered below the map, not a Leaflet map control.
 - **Zoom:** bounded to UP state extent on load; free zoom thereafter.
-- **Auto-refresh:** map data polls `GET /api/admin/map-data` every 5 minutes while the dashboard is open. Last-refreshed timestamp shown below the map.
+- **Refresh:** admin data is cache-first (IndexedDB, TTL-based) with no auto-polling — a single "Sync All" button in the admin navbar invalidates every admin cache table and reloads, refetching fresh from D1. Only the audit log (`/admin/audit`) never caches — it always fetches live on every page load, since a stale activity feed would be actively misleading.
 
 **Admin Capabilities (Phase 1) — Summary:**
-- District summary list: 75 rows (name, vend count, total annual revenue, status) + "All State" totals row at the bottom. Served from IndexedDB within 15-min TTL; D1 not queried within that window.
-- Interactive UP district choropleth map — live status, vend counts, revenue on hover; click to drill down.
-- Summary charts — submission progress doughnut, revenue bar, shop type pie, district upload stacked bar, cumulative timeline.
-- District drill-down: full district shop table (100 rows/page, all pages cached in admin IndexedDB, stale-while-revalidate).
+- Overview (`/admin`): choropleth map, top-10-by-revenue districts, an 18-division grid, and summary charts. District summary list + "All State" totals cached in IndexedDB (15-min TTL).
+- `/admin/districts`: full 75-district sortable/searchable/filterable table (read-only — district/DEO editing lives on District Master).
+- `/admin/divisions` and `/admin/divisions/[division]`: division-level rollups derived client-side from the same district data.
+- District Master (`/admin/provision`, superadmin-only): inline per-district edit drawer + bulk Excel provisioning.
+- District drill-down (`/admin/districts/[district]`): full district shop table (all rows in one call, cached in admin IndexedDB; all filtering/sorting/grouping/pagination client-side).
 - Cross-district D1 search, paginated, results cached per query hash.
-- CSV export per-district (streamed). Full-state data: "Download Full State Data" triggers chunked `.xlsx` file download — no UI table.
-- Audit log viewer — last 45 days.
-- Bulk DEO provisioning via Excel upload (SheetJS in-browser → preview → submit).
+- Per-district XLSX export and full-state XLSX export (`/admin/export` → chunked download, ExcelJS, never rendered as a UI table — and never CSV).
+- Audit log viewer — last 45 days, always live (no cache).
+- Self-service unlock-request review (`/admin/unlock-requests`) — approve or deny a DEO's request to re-open a locked circle/sector list.
+- Bulk DEO provisioning via Excel upload (ExcelJS in-browser → preview → submit).
 
 **Admin Cannot (Phase 1):**
 - View all ~30,000 shop records in a single browser UI table. Full-state data is available only as a file download.
-- Edit, correct, or delete any vend records — Phase 1 data is read-only from admin.
-- Trigger re-uploads or corrections on a DEO's behalf.
-- Access DEO session tokens or Clerk credential details.
+- Edit, correct, or delete any individual vend (shop) record — shop-level data is read-only from admin. District/DEO *master* metadata (division, DEO identity, expected vend count, bbox) is editable, but only by the superadmin account via District Master.
+- Trigger re-uploads on a DEO's behalf, beyond unlocking their circle/sector list so they can re-register it themselves.
+- Access DEO session cookies or any plaintext email — the system stores only SHA-256 hashes (Section 3.7).
 
 ---
 
@@ -1052,7 +999,7 @@ export const districts = sqliteTable('districts', {
 
   // DEO identity — sourced from department and loaded via admin bulk-provision
   deoName: text('deo_name'),
-  deoEmail: text('deo_email').unique(),            // Clerk account email
+  deoEmail: text('deo_email').unique(),            // DEO's magic-link login email (hashed in the real column, see Section 3.7)
   deoId: text('deo_id'),                          // Dept-assigned identifier → uploaded_by_deo
 
   expectedVendCount: integer('expected_vend_count'), // for "X of Y" progress metrics
@@ -1117,7 +1064,7 @@ The `circle_sector_name` field in `phase1_raw_collection` (Section 5.2) referenc
 
 ### 5.5 Audit Log Table
 
-Every significant event in the system — DEO login, session revocation, upload chunk, district submission, circle/sector registration — is recorded here. Clerk webhook events and application-level events both write to this table. Records are purged after 45 days by the Cron Trigger defined in Section 3.7.
+Every significant event in the system — DEO login, session revocation, upload chunk, district submission, circle/sector registration, admin/superadmin actions — is recorded here by the relevant Route Handler on every successful operation. Records older than 45 days are opportunistically deleted on every read of `GET /api/admin/audit-log` (the only consumer of this table), rather than by a separate scheduled job.
 
 ```typescript
 export const auditLog = sqliteTable('audit_log', {
@@ -1138,7 +1085,7 @@ export const auditLog = sqliteTable('audit_log', {
   // JSON string for event-specific detail (e.g., chunk index, row count, unit name)
   metadata: text('metadata'),
 
-  // Admin/superadmin actor identity, captured at write time (added M-20) — null for DEO-actor
+  // Admin/superadmin actor identity, captured at write time — null for DEO-actor
   // events, where deoId already identifies the actor.
   actorName: text('actor_name'),
   actorDesignation: text('actor_designation'),
@@ -1152,7 +1099,7 @@ export const auditLog = sqliteTable('audit_log', {
 }));
 ```
 
-### 5.5a District Unlock Requests Table (M-24)
+### 5.5a District Unlock Requests Table
 
 Since a locked `district_circles_sectors` list has no DEO-facing edit/delete path, a DEO who spots a mistake previously had no in-app recourse beyond contacting an Admin outside the portal. This table (migration `0005_add_unlock_requests.sql`, additive, applied directly to prod D1) lets the DEO submit a reason in-app; an Admin reviews and resolves it on `/admin/unlock-requests`. Mirrors the sibling `excise-revenue-recovery-portal` project's `unlock_requests` table, minus the PDF-attachment column — this project has no R2 binding and none was requested.
 
@@ -1243,7 +1190,7 @@ See summary.md's "Backlog / Not Started" section for planned future work (SMS OT
 | Layer | Technology | Rationale |
 |---|---|---|
 | Frontend Framework | Next.js (App Router) + `@opennextjs/cloudflare` v1.20.1 | SSR-first, deployed as a single Cloudflare Worker. Build: `pnpm exec opennextjs-cloudflare build`. Deploy: `pnpm exec opennextjs-cloudflare deploy`. `wrangler.jsonc` in `apps/web`. Note: never use `export const runtime = 'edge'` — OpenNext rejects it. |
-| Deployment | Single Cloudflare Worker (`up-excise-spatial-revenue-optimizer-web`) | All pages AND API Route Handlers in one Worker. No Cloudflare Pages. Live: `up-excise-spatial-revenue-optimizer-web.shubhanraj2002.workers.dev` |
+| Deployment | Single Cloudflare Worker (`up-excise-spatial-revenue-optimizer-web`) | All pages AND API Route Handlers in one Worker. No Cloudflare Pages. Live: `sro.exciseup.in` |
 | API Layer | Next.js Route Handlers (`app/api/**`) | 19 route handlers in same worker as pages. Same-origin means session cookie sent automatically — no Bearer tokens, no CORS. |
 | Database | Cloudflare D1 (SQLite) | Serverless SQLite at the edge, native `db.batch()`, free tier covers Phase 1 |
 | ORM | Drizzle ORM | Type-safe, SQLite-native, generates clean migrations, zero runtime overhead |
@@ -1251,7 +1198,7 @@ See summary.md's "Backlog / Not Started" section for planned future work (SMS OT
 | Email | Resend | Magic-link delivery. `noreply@mail.exciseup.in` (verified custom domain), reused across all UP Excise projects on the same Resend account. Key set as CF Worker Secret. |
 | UI Components | DaisyUI 5.6.3 | Requires Tailwind v4. Semantic component classes, zero JS runtime, loaded from jsDelivr CDN. |
 | CSS Utilities | Tailwind v4 Browser CDN | `@tailwindcss/browser@4` — runtime utility generation; loaded from CDN, no PostCSS build step. |
-| Excel I/O | ExcelJS 4.4.0 | Loaded from jsDelivr CDN, never bundled. Single library for reading uploads, generating templates, and exporting — replaced SheetJS + hand-patched worksheet XML in M-14 because that combination produced corrupted `.xlsx` output. |
+| Excel I/O | ExcelJS 4.4.0 | Loaded from jsDelivr CDN, never bundled. The single spreadsheet library for the whole app — reads uploads, generates templates, and exports data. No CSV anywhere in this app (comma-containing fields like adjacent Thanas break naive CSV columns). |
 | Local Persistence | Dexie.js 4.0.10 (IndexedDB) | Loaded from jsDelivr CDN; offline-first staging layer for all DEO-entered data |
 | Offline / PWA | Service Worker + Background Sync | App shell cache, CDN asset cache, transparent upload retry on reconnect |
 | Scheduled Tasks | Deferred | Cron purge (45-day audit log) deferred — @opennextjs/cloudflare v1 does not expose `scheduled` export hook. |
@@ -1285,7 +1232,7 @@ See summary.md's "Backlog / Not Started" section for planned future work (SMS OT
 | Audit Log | The `audit_log` D1 table. Records every DEO login, session event, upload chunk, and district submission. Purged after 45 days by Cron Trigger. |
 | Admin Portal | The `(admin)` route group inside `apps/web`. Same portal Worker deployment as the DEO portal. URL: `/admin`. Read-only access to all district data; used by HQ/department administration. Loads data district-by-district; full-state table view is not available in the UI. |
 | Districts Table | The `districts` D1 reference table. 75 rows, one per UP district. Stores DEO name, email, identifier, division, expected vend count, and submission status. The admin dashboard queries this table for metadata; shop rows are loaded separately on demand. |
-| Admin District Cache | The `excise-admin` Dexie (IndexedDB) database, with cache-wrapper objects (`adminShopsCache`, `adminMapCache`, `adminAuditCache`, etc.) in `apps/web/src/lib/db.ts`. Caches district/shop/map/audit data after first fetch. TTL-based auto-polling was removed in M-13 in favor of an explicit "Sync from Server" button on every admin page — reduces repeat D1 reads without silently going stale. |
+| Admin District Cache | The `excise-admin` Dexie (IndexedDB) database, with cache-wrapper objects (`adminShopsCache`, `adminMapCache`, `adminAuditCache`, etc.) in `apps/web/src/lib/db.ts`. Caches district/shop/map/audit data after first fetch. Cache-first with a single global "Sync All" button in the admin navbar (not per-page auto-polling) — reduces repeat D1 reads without silently going stale. |
 | Bulk Provision | A one-time admin operation: upload a DEO Excel file (parsed in-browser with ExcelJS) → preview → submit to `POST /api/admin/bulk-provision` → `auth_users` rows (magic-link accounts) created + `districts` rows upserted. Idempotent. |
 | Choropleth | A map where geographic areas are shaded based on a data variable. In this system, UP districts are coloured by submission status and vend coverage. Rendered with Leaflet.js. |
 | Auth Facade | The rule that every route is behind auth except `/login`, `/auth/verify`, and `/api/healthz`. Enforced by `middleware.ts` (cookie presence + role routing) plus `requireAuth()` in server layouts (full HMAC verification + D1 session lookup) — custom magic-link auth, no external auth provider (see §3.7). |
