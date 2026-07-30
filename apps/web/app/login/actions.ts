@@ -52,6 +52,6 @@ export async function requestMagicLink(email: string): Promise<{ error?: string 
   const proto   = host.startsWith('localhost') ? 'http' : 'https';
   const verifyUrl = `${proto}://${host}/auth/verify?token=${rawToken}`;
 
-  await sendMagicLinkEmail(trimmed, verifyUrl, user.name);
+  await sendMagicLinkEmail(trimmed, verifyUrl, user.name, user.role === 'deo' ? 'deo' : 'admin');
   return {};
 }

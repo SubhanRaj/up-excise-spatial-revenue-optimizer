@@ -1,6 +1,6 @@
 import { getCloudflareContext } from '@opennextjs/cloudflare';
 
-export async function sendMagicLinkEmail(toEmail: string, verifyUrl: string, name: string): Promise<void> {
+export async function sendMagicLinkEmail(toEmail: string, verifyUrl: string, name: string, role: 'deo' | 'admin' = 'admin'): Promise<void> {
   const { env } = await getCloudflareContext({ async: true }) as { env: CloudflareEnv };
   const apiKey  = env.RESEND_API_KEY ?? '';
   const from    = env.RESEND_FROM_EMAIL ?? '';
@@ -17,7 +17,7 @@ export async function sendMagicLinkEmail(toEmail: string, verifyUrl: string, nam
       from: `UP Excise Spatial Revenue Optimizer <${from}>`,
       to: toEmail,
       subject: 'Your UP Excise Spatial Revenue Optimizer sign-in link',
-      html: magicLinkHtml(name, verifyUrl),
+      html: magicLinkHtml(name, verifyUrl, role),
     }),
   });
 
@@ -31,7 +31,12 @@ function esc(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-function magicLinkHtml(name: string, verifyUrl: string): string {
+function magicLinkHtml(name: string, verifyUrl: string, role: 'deo' | 'admin'): string {
+  // Magic-link email is the Admin/HQ login channel — DEOs sign in via CUG hash instead (see
+  // CLAUDE.md's "CUG-hashed login"). A DEO account can still have an email on file and use this
+  // same flow interchangeably, so the banner reflects the actual recipient's role rather than
+  // always saying "DEO Portal", which was stale copy from before CUG login existed.
+  const portalLabel = role === 'deo' ? 'DEO Portal' : 'Admin / HQ Portal';
   return `<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="UTF-8"/><title>UP Excise Spatial Revenue Optimizer — Sign in</title></head>
@@ -42,7 +47,7 @@ function magicLinkHtml(name: string, verifyUrl: string): string {
         <tr>
           <td style="background:#1d4ed8;padding:24px 32px;">
             <p style="margin:0;font-size:11px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;color:#bfdbfe;">Government of Uttar Pradesh</p>
-            <p style="margin:4px 0 0;font-size:18px;font-weight:600;color:#fff;">Department of Excise — DEO Portal</p>
+            <p style="margin:4px 0 0;font-size:18px;font-weight:600;color:#fff;">Department of Excise — ${esc(portalLabel)}</p>
           </td>
         </tr>
         <tr>

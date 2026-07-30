@@ -227,8 +227,6 @@ const NAV_LINKS = (session: ReturnType<typeof useSession>['session']) => [
   { href: '/admin', label: 'Overview', active: (p: string) => p === '/admin' },
   { href: '/admin/districts', label: 'Districts', active: (p: string) => p.startsWith('/admin/districts') },
   { href: '/admin/divisions', label: 'Divisions', active: (p: string) => p.startsWith('/admin/divisions') },
-  ...(session?.role === 'superadmin' ? [{ href: '/admin/provision', label: 'District Master', active: (p: string) => p === '/admin/provision' }] : []),
-  ...(session?.role === 'superadmin' ? [{ href: '/admin/users', label: 'Admin Users', active: (p: string) => p === '/admin/users' }] : []),
   { href: '/admin/unlock-requests', label: 'Unlock Requests', active: (p: string) => p === '/admin/unlock-requests' },
   { href: '/admin/audit', label: 'Audit', active: (p: string) => p === '/admin/audit' },
   { href: '/admin/export', label: 'Export', active: (p: string) => p === '/admin/export' },
@@ -311,6 +309,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <Link href={l.href} onClick={() => setDrawerOpen(false)} className={l.active(pathname) ? 'active' : ''}>{l.label}</Link>
                 </li>
               ))}
+              {session?.role === 'superadmin' && (
+                <>
+                  <li><Link href="/admin/provision" onClick={() => setDrawerOpen(false)} className={pathname === '/admin/provision' ? 'active' : ''}>District Master</Link></li>
+                  <li><Link href="/admin/users" onClick={() => setDrawerOpen(false)} className={pathname === '/admin/users' ? 'active' : ''}>Admin Users</Link></li>
+                </>
+              )}
             </ul>
 
             <button
