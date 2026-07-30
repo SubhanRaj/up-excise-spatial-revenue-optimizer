@@ -816,6 +816,26 @@ flowchart LR
 
 ---
 
+### M-39: Admin Users Management Module ✅ Complete
+
+**Objective:** Prior to this, admin/HQ accounts (the `role: 'admin'` rows in `auth_users`) had no in-app management UI at all — they could only be created or edited by a direct D1 insert. DEO accounts already had full lifecycle management via the District Master page. The user asked for the same kind of module for admin accounts: add, rename, change email, change designation — reusing the existing District Master drawer pattern for consistency.
+
+**Change:**
+
+- [x] Added `apps/web/app/api/admin/users/route.ts` (`GET` list, `POST` create) and `apps/web/app/api/admin/users/[id]/route.ts` (`PATCH`, `DELETE`) — all four owner/superadmin-only (403 for a plain `admin` role), matching District Master's gating precedent exactly.
+- [x] Scope is strictly `role: 'admin'` rows — DEO accounts remain untouched by this module and stay on the District Master page, where they're kept in sync with their owning district.
+- [x] Guard rails enforced server-side, not just hidden in the UI: the owner/superadmin bypass row (matched by `email_hash === SUPERADMIN_EMAIL_HASH`) can have its name/designation edited but never its email (that's the login-identity key, fixed by server config) and can never be deleted; a superadmin also cannot delete their own row. Verified live against local D1 — attempted owner-email-change and owner/self-delete both correctly returned 400 before any write.
+- [x] Delete is atomic (`db.batch`): removes `auth_sessions` and `auth_magic_links` rows for that user in the same batch as the `auth_users` delete. This was verified to matter, not just be defensive: a manual test of `DELETE FROM auth_users` without first clearing `auth_sessions` failed with `SQLITE_CONSTRAINT_FOREIGNKEY` against local D1, confirming Cloudflare D1 does enforce the `auth_sessions.user_id → auth_users.id` foreign key. An email change also clears that user's outstanding magic links so a stale link can't be used against the old address.
+- [x] Input handling: name sanitized (control chars stripped, whitespace collapsed, length-capped) and required; email validated by regex and checked for hash collision (409) before insert/update; designation optional, same sanitization. No plaintext email is ever written to `audit_log.metadata` — only the SHA-256 hash — per the Zero-Knowledge PII rule.
+- [x] New audit events: `admin_user_created`, `admin_user_updated`, `admin_user_deleted`, each carrying the acting superadmin's name/designation. Added matching labels to `/admin/audit`'s `EVENT_LABELS` map.
+- [x] UI: new `/admin/users` page (superadmin-only nav link + restricted message for plain `admin`, same pattern as `/admin/provision`) and a new `EditAdminUserDrawer` component, structurally mirroring `EditDistrictDrawer` (slide-in panel, same section/label styling) but handling both create and edit in one component.
+- [x] Verified end-to-end against local D1 via the OpenNext preview server: logged in as both a superadmin test account and a freshly-created plain-`admin` test account, exercised create/list/rename/email-change/delete and every guard rail (duplicate email → 409, invalid email → 400, empty name → 400, owner email-change → 400, owner delete → 400, self-delete → 400, non-superadmin → 403, no session → 403) via direct `curl` calls against the running API before considering the feature done. Local test rows and sessions were cleaned up afterward and the preview server stopped.
+- [x] `pnpm typecheck` and a full `next build` both passed cleanly before commit.
+
+**Exit criterion:** A superadmin can add, rename, re-email, and delete admin/HQ accounts entirely in-app with no D1 CLI step; every mutation is server-side validated and audit-logged; the owner account cannot be locked out or deleted through this module; DEO accounts are untouched by it.
+
+---
+
 ## Backlog / Not Started
 
 - [x] ~~Verify `exciseup.in` in Resend and switch `RESEND_FROM_EMAIL`~~ — Done. `mail.exciseup.in` verified; `RESEND_FROM_EMAIL` set to `noreply@mail.exciseup.in` on this project's Worker, and the same address set as `FROM_EMAIL` on the sibling `excise-revenue-recovery-portal` project's Worker (different env var name there, same Resend account/domain). Magic-link email is now the Admin/HQ login channel only (DEOs use CUG login as of M-17).

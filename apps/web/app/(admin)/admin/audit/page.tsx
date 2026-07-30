@@ -28,6 +28,9 @@ const EVENT_LABELS: Record<string, string> = {
   units_unlocked: 'Circles/Sectors unlocked',
   district_master_updated: 'District Master updated',
   bulk_provision: 'Bulk DEO provisioning',
+  admin_user_created: 'Admin user created',
+  admin_user_updated: 'Admin user updated',
+  admin_user_deleted: 'Admin user deleted',
   unlock_requested: 'Unlock requested',
   unlock_request_denied: 'Unlock request denied',
 };

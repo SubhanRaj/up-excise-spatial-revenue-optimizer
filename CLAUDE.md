@@ -153,6 +153,7 @@ When files for any app or package do not exist yet, do not create them speculati
 | `/admin/divisions` | `app/(admin)/admin/divisions/page.tsx` | `admin` |
 | `/admin/divisions/[division]` | `app/(admin)/admin/divisions/[division]/page.tsx` | `admin` |
 | `/admin/provision` | `app/(admin)/admin/provision/page.tsx` | `superadmin` — nav label "District Master"; URL/file path unchanged, only the displayed label was renamed. Owner/superadmin-only (see "District Master page" below) — regular `admin` accounts get a restricted message client-side and a 403 from the underlying API routes |
+| `/admin/users` | `app/(admin)/admin/users/page.tsx` | `superadmin` — nav label "Admin Users". Owner/superadmin-only, same restriction pattern as District Master — regular `admin` accounts get a restricted message client-side and a 403 from the underlying API routes |
 | `/admin/unlock-requests` | `app/(admin)/admin/unlock-requests/page.tsx` | `admin` |
 | `/admin/audit` | `app/(admin)/admin/audit/page.tsx` | `admin` |
 | `/admin/export` | `app/(admin)/admin/export/page.tsx` | `admin` |
@@ -203,6 +204,10 @@ All API routes are Next.js Route Handlers inside the single `up-excise-spatial-r
 | `GET` | `/api/admin/map-data` | `api/admin/map-data/route.ts` |
 | `GET` | `/api/admin/search` | `api/admin/search/route.ts` |
 | `POST` | `/api/admin/bulk-provision` | `api/admin/bulk-provision/route.ts` — **Owner/superadmin-only** (creates DEO accounts and sends real magic-link emails) — 403 for a plain `admin` role |
+| `GET` | `/api/admin/users` | `api/admin/users/route.ts` — lists `auth_users` rows with `role: 'admin'` (name, designation, createdAt, whether the row is the owner/superadmin bypass account). **Owner/superadmin-only** — 403 for a plain `admin` role |
+| `POST` | `/api/admin/users` | `api/admin/users/route.ts` — creates a new admin/HQ account (`{ name, email, designation? }`); 409 if the email is already in use. No email is sent — the new admin signs in with the existing magic-link flow whenever they use it. **Owner/superadmin-only** |
+| `PATCH` | `/api/admin/users/[id]` | `api/admin/users/[id]/route.ts` — edits name/email/designation on a `role: 'admin'` row; 409 on email collision; rejects email changes on the row matching `SUPERADMIN_EMAIL_HASH` (that account's sign-in identity is fixed by server config, not editable in-app); changing email invalidates that user's outstanding magic links. **Owner/superadmin-only** |
+| `DELETE` | `/api/admin/users/[id]` | `api/admin/users/[id]/route.ts` — deletes a `role: 'admin'` row plus its sessions and magic links atomically; refuses to delete the owner/superadmin row or the caller's own account (self-lockout guard). **Owner/superadmin-only** |
 | `GET` | `/api/admin/audit-log` | `api/admin/audit-log/route.ts` |
 | `GET` | `/api/admin/unlock-requests` | `api/admin/unlock-requests/route.ts` — all `district_unlock_requests` rows, newest first |
 | `POST` | `/api/admin/unlock-requests/resolve` | `api/admin/unlock-requests/resolve/route.ts` — `{ id, action: 'approve'\|'deny', note }`; approve deletes that district's `district_circles_sectors` rows (same effect as the manual `DELETE /api/districts/[district]/units` unlock) and audit-logs `units_unlocked`; deny audit-logs `unlock_request_denied`. Open to plain `admin`, not owner/superadmin-only — same access level as the existing manual unlock |
@@ -367,6 +372,13 @@ Do not fetch `/api/auth/session` directly from page components — always go thr
 - **Inline edit:** the page fetches `GET /api/admin/districts` and renders all 75 districts in a table. Clicking the edit icon on a row opens a right-side drawer (`EditDrawer`) with fields: Division (`<select>` populated from `UP_DIVISIONS` in `packages/schema/src/constants.ts`), DEO Name, DEO Email, DEO Identifier, Expected Vend Count, and the four bbox coordinates (Min/Max Lat, Min/Max Lon). **Note:** Coordinates and Vend Count are optional; clearing the inputs correctly sets the database values to `null`. The drawer features field-specific validation errors rather than generic numeric errors. Saving calls `PATCH /api/admin/districts/[district]`, which atomically updates `districts` and syncs the corresponding `auth_users` row (deletes the old email's row if the email changed, upserts the new one) — see the PATCH route entry in the API table above.
 - **Bulk Excel provisioning** (`POST /api/admin/bulk-provision`) remains available below the table for initial campaign setup or large batches. `downloadTemplate()` calls `generateProvisionTemplate()` (in `apps/web/src/lib/excel.ts`) with the live district list, so the downloaded `.xlsx` arrives with District Name and Division pre-filled for all 75 rows — the admin only has to fill in the DEO columns.
 - This is the **only** place district master data (division, DEO identity, expected vend count, bbox) can be edited. Minor corrections no longer require a full Excel re-upload.
+
+**Admin Users page (`/admin/users`):**
+- **Owner/superadmin-only**, same restriction pattern as District Master — this page creates and deletes login credentials for the admin/HQ portal, so it is gated the same way (`GET`/`POST /api/admin/users`, `PATCH`/`DELETE /api/admin/users/[id]` all independently 403 for anything but `role: 'superadmin'`; the nav link and page body are hidden/restricted client-side for a plain `admin` session as UX only).
+- Manages `auth_users` rows with `role: 'admin'` exclusively — **not** DEO accounts, which remain on the District Master page and stay in sync with their owning district. Add, rename, change email, or set/clear designation via the `EditAdminUserDrawer` (`apps/web/app/_components/EditAdminUserDrawer.tsx`), the same slide-in drawer pattern as District Master's `EditDistrictDrawer`.
+- The owner/superadmin bypass account (the `auth_users` row whose `email_hash` matches `SUPERADMIN_EMAIL_HASH`) is listed read-only with an "Owner" badge: its name/designation can still be edited, but its email cannot be changed and the row cannot be deleted, since that would either desync or permanently lock out the only superadmin session — both guards are enforced server-side in `api/admin/users/[id]/route.ts`, not just hidden in the UI. A superadmin also cannot delete their own account row for the same self-lockout reason.
+- Creating an account sends no email — the new admin signs in later with the existing magic-link flow at `/login`. Deleting an account removes its `auth_sessions` and `auth_magic_links` rows in the same atomic `db.batch` as the `auth_users` delete, so an active session is invalidated immediately, not just at next login. Changing an account's email invalidates its outstanding (unused) magic links the same way.
+- Every create/edit/delete is audit-logged (`admin_user_created`, `admin_user_updated`, `admin_user_deleted` — see "Audit Log" below) with the acting superadmin's name/designation. Audit metadata never stores a plaintext email — only the SHA-256 hash, per the Zero-Knowledge PII rule.
 
 **District detail page (`/admin/districts/[district]`):**
 - The "Division" stat card links to `/admin/divisions/[division]`.
@@ -541,7 +553,7 @@ The canonical schema is split across two files in `packages/schema/src/`:
 - `phase1_raw_collection` — all shop records (Section 5.2)
 - `districts` — district registry with DEO metadata (Section 5.3)
 - `district_circles_sectors` — circles/sectors per district (Section 5.4)
-- `audit_log` — 45-day rolling event log (Section 5.5). Events actually written: `login`, `login_cug`, `logout`, `upload_chunk`, `district_submitted`, `unit_registered`, `units_unlocked`, `district_master_updated`, `bulk_provision`. `actorName`/`actorDesignation` (added `migrations/0004_add_audit_actor_identity.sql`) capture the admin/superadmin actor's identity at write time for admin-initiated events (login, logout, unlock, District Master edits, bulk-provision) — null for DEO-actor events, where `deoId` already identifies the actor. `/admin/audit`'s `describeActor()` prefers `actorName`(+`actorDesignation`), falling back to `deoId`.
+- `audit_log` — 45-day rolling event log (Section 5.5). Events actually written: `login`, `login_cug`, `logout`, `upload_chunk`, `district_submitted`, `unit_registered`, `units_unlocked`, `district_master_updated`, `bulk_provision`, `admin_user_created`, `admin_user_updated`, `admin_user_deleted`. `actorName`/`actorDesignation` (added `migrations/0004_add_audit_actor_identity.sql`) capture the admin/superadmin actor's identity at write time for admin-initiated events (login, logout, unlock, District Master edits, bulk-provision) — null for DEO-actor events, where `deoId` already identifies the actor. `/admin/audit`'s `describeActor()` prefers `actorName`(+`actorDesignation`), falling back to `deoId`.
 
 **`auth.ts`** — auth tables (all 7 tables live in `migrations/0001_initial.sql`; `deoCugHash` was added afterward in `migrations/0002_add_deo_cug_hash.sql`):
 - `auth_users` — email hash, name, role ('deo'|'admin'), deoId, districtName, deoCugHash (SHA-256 of CUG mobile number, nullable — alternate login credential)
@@ -647,6 +659,7 @@ Full per-milestone delivery history (Objective, Deliverables, Exit Criterion, bu
 | M-36: has_cl5cc Hard Cell-Level Gate (Country Liquor Only) | **Completed** |
 | M-37: HBR (Hotel / Bar / Restaurants) Shop Type Addition | **Completed** |
 | M-38: Prod D1 Fresh-Start Reset | **Completed** |
+| M-39: Admin Users Management Module | **Completed** |
 
 See [summary.md](summary.md) for full milestone specs, entry/exit criteria, deliverable checklists, the backlog, and pre-campaign-blocker history.
 
