@@ -864,6 +864,23 @@ flowchart LR
 
 ---
 
+### M-41: DEO Routes Made Deo-Only (Removed Admin/Superadmin Bypass) ✅ Complete
+
+**Objective:** The user noticed their Superadmin session landing on `/home` (the DEO dashboard) showed "District: Unknown District" with every stat at zero, and asked whether this was leftover Demo District data. Investigation found it wasn't a data problem at all: `requireAuth('deo')` unconditionally passed any `superadmin` session through regardless of `minRole`, and `middleware.ts` separately let both `admin` and `superadmin` roles reach the DEO route group (`/home`, `/units`, `/upload`, `/verify`). An admin/superadmin account correctly has no `districtName` (it isn't a DEO), so landing on a DEO page rendered a broken-looking dashboard. The user asked to make DEO routes fully unreachable for any admin role, and have admins default to their own dashboard instead.
+
+**Change:**
+
+- [x] **`middleware.ts`** — the DEO route-group check no longer treats `admin`/`superadmin` as acceptable roles. An `admin` or `superadmin` session hitting `/home`, `/units`, `/upload`, or `/verify` is now redirected to `/admin` (not `/login` — they're already authenticated, just in the wrong portal). A session with no valid role at all still redirects to `/login` as before. The `/admin/*` route gate is unchanged.
+- [x] **`requireAuth()`** (`apps/web/src/lib/auth.ts`) — removed the `if (session.role === 'superadmin') return session` unconditional bypass. Now: `minRole: 'admin'` accepts `admin` or `superadmin` and redirects a `deo` session to `/home`; `minRole: 'deo'` (default) accepts only `deo` and redirects anything else (`admin`, `superadmin`) to `/admin`. This is the actual security boundary per CLAUDE.md's "Auth Facade" section — middleware alone was previously the only thing stopping this, which the file's own comment already flagged as not a real boundary.
+- [x] `/units`, `/upload`, `/verify` are client components with no server-side `requireAuth()` call of their own — they were relying entirely on `middleware.ts` for this gate, so fixing middleware alone closes all three. `/home` additionally calls `requireAuth('deo')` server-side, now fixed independently for defense in depth.
+- [x] **`apps/web/tests/manual-screenshots.spec.ts` fixed to match** — it previously logged in once as the superadmin/owner test account and relied on the bypass to walk both the DEO flow and the admin-view screenshots from one session. Added a `loginAs()` helper and a dedicated local-only DEO test account (`deo-manual-walkthrough@example.local`, upserted automatically by the script with `role: 'deo'`, `deo_id: 'DEO-AGRA'`, `district_name: 'Agra'` — idempotent, no manual D1 step needed), and switched identity at each DEO↔admin boundary in the walkthrough (3 switches total: DEO flow → admin district-detail shot → back to DEO for the self-service unlock request → admin unlock-requests shot). TEST.md's DEO User Manual section updated to describe the two-account flow instead of the old "repoint the test account's district" approach.
+- [x] Verified against local D1 via the OpenNext preview server with three separate accounts (a `superadmin` session, a plain `admin` session, and a real `deo` session): confirmed all four DEO routes 307-redirect both `admin` and `superadmin` to `/admin`; confirmed `/admin` itself still returns 200 for both; confirmed the real `deo` session still reaches `/home` with a 200 and correctly renders its assigned district ("Agra") and unlocked Step 2/3 cards; confirmed `deo` hitting `/admin` still redirects to `/login` (unchanged, pre-existing behavior). Test accounts and sessions cleaned up afterward, preview server stopped.
+- [x] `pnpm typecheck` and a full `next build` both passed.
+
+**Exit criterion:** No admin or superadmin session can render a DEO-portal page — both `middleware.ts` and `requireAuth()` redirect them to `/admin` instead; a real DEO session is unaffected; the manual-generation Playwright script still produces the same 18 screenshots via a proper two-account flow instead of relying on the now-removed bypass.
+
+---
+
 ## Backlog / Not Started
 
 - [x] ~~Verify `exciseup.in` in Resend and switch `RESEND_FROM_EMAIL`~~ — Done. `mail.exciseup.in` verified; `RESEND_FROM_EMAIL` set to `noreply@mail.exciseup.in` on this project's Worker, and the same address set as `FROM_EMAIL` on the sibling `excise-revenue-recovery-portal` project's Worker (different env var name there, same Resend account/domain). Magic-link email is now the Admin/HQ login channel only (DEOs use CUG login as of M-17).

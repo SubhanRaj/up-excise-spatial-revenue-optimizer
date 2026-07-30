@@ -22,6 +22,21 @@ async function shot(page: import('@playwright/test').Page, name: string) {
   await page.screenshot({ path: file, fullPage: true });
 }
 
+// Issues a fresh local-only magic link for the given email hash and consumes it, replacing
+// whatever session the page currently holds. DEO routes are now deo-only (admin/superadmin
+// sessions get redirected to /admin instead of rendering a DEO page — see middleware.ts and
+// requireAuth() in src/lib/auth.ts), so this walkthrough switches identity between a real DEO
+// account and the superadmin/owner account instead of relying on one hybrid session for both.
+async function loginAs(page: import('@playwright/test').Page, emailHash: string) {
+  const rawToken = crypto.randomUUID();
+  const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+  const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+  execSync(
+    `pnpm --filter web exec wrangler d1 execute up-excise-spatial-revenue-optimizer-prod --local --command="INSERT INTO auth_magic_links (email_hash, token_hash, expires_at, used) VALUES ('${emailHash}', '${tokenHash}', '${expiresAt}', 0);"`,
+  );
+  await page.goto(`/api/auth/verify?token=${rawToken}`);
+}
+
 test.describe('DEO Manual — screenshot walkthrough', () => {
   test.beforeAll(() => {
     fs.mkdirSync(SHOTS_DIR, { recursive: true });
@@ -35,19 +50,20 @@ test.describe('DEO Manual — screenshot walkthrough', () => {
     await expect(page.locator('h1, h2').filter({ hasText: /Sign in|Login/i }).first()).toBeVisible({ timeout: 10000 }).catch(() => {});
     await shot(page, 'login-page');
 
-    // Authenticate via a locally-issued magic link (bypasses email delivery) — the test
-    // account (auth_users id=1) has been pointed at a real seeded district (Agra) for this
-    // walkthrough instead of the removed Demo District. Local D1 only.
-    const rawToken = crypto.randomUUID();
-    const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
-    const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+    // Two identities are needed now that DEO routes are deo-only (see loginAs above): a real
+    // role: 'deo' account for the DEO-flow shots, and the superadmin/owner account (from
+    // SUPERADMIN_TEST_EMAIL, still used for the admin-view shots later) for the admin-portal
+    // shots. Local D1 only — never run against remote.
     const OWNER_EMAIL = process.env.SUPERADMIN_TEST_EMAIL;
     if (!OWNER_EMAIL) throw new Error('SUPERADMIN_TEST_EMAIL env var is required to run this test');
-    const emailHash = crypto.createHash('sha256').update(OWNER_EMAIL.trim().toLowerCase()).digest('hex');
+    const ownerEmailHash = crypto.createHash('sha256').update(OWNER_EMAIL.trim().toLowerCase()).digest('hex');
+
+    const DEO_TEST_EMAIL = 'deo-manual-walkthrough@example.local';
+    const deoEmailHash = crypto.createHash('sha256').update(DEO_TEST_EMAIL).digest('hex');
     execSync(
-      `pnpm --filter web exec wrangler d1 execute up-excise-spatial-revenue-optimizer-prod --local --command="INSERT INTO auth_magic_links (email_hash, token_hash, expires_at, used) VALUES ('${emailHash}', '${tokenHash}', '${expiresAt}', 0);"`,
+      `pnpm --filter web exec wrangler d1 execute up-excise-spatial-revenue-optimizer-prod --local --command="INSERT INTO auth_users (email_hash, name, role, deo_id, district_name) VALUES ('${deoEmailHash}', 'Agra DEO', 'deo', 'DEO-AGRA', '${DISTRICT}') ON CONFLICT(email_hash) DO UPDATE SET role='deo', deo_id='DEO-AGRA', district_name='${DISTRICT}';"`,
     );
-    await page.goto(`/api/auth/verify?token=${rawToken}`);
+    await loginAs(page, deoEmailHash);
 
     // /home — Step 1 gate (no units yet)
     await page.goto('/home');
@@ -160,12 +176,14 @@ test.describe('DEO Manual — screenshot walkthrough', () => {
     await page.click('button:has-text("OK")');
 
     // Admin side: District Master / district detail showing the submitted district
+    await loginAs(page, ownerEmailHash);
     await page.goto(`/admin/districts/${encodeURIComponent(DISTRICT)}`);
     await expect(page).toHaveURL(/\/admin\/districts\//);
     await page.waitForTimeout(1000);
     await shot(page, 'admin-district-detail');
 
     // Now request an unlock as the DEO, to capture that flow too
+    await loginAs(page, deoEmailHash);
     await page.goto('/units');
     await expect(page.locator('text=Circles & sectors are locked in.')).toBeVisible();
     await page.click('button:has-text("Request Unlock")');
@@ -177,6 +195,7 @@ test.describe('DEO Manual — screenshot walkthrough', () => {
     await shot(page, 'units-unlock-pending');
 
     // Admin resolves the unlock request
+    await loginAs(page, ownerEmailHash);
     await page.goto('/admin/unlock-requests');
     await expect(page.locator('h1').filter({ hasText: 'Unlock Requests' })).toBeVisible();
     await page.waitForTimeout(1000);

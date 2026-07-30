@@ -85,7 +85,9 @@ The DEO dashboard **Sync from Server** button enforces a 12-hour cooldown stored
 
 Two additional Playwright specs (`apps/web/tests/manual-screenshots.spec.ts` and `apps/web/tests/build-manual-pdf.spec.ts`) generate the bilingual (English/Hindi) DEO User Manual at `docs/manual/DEO-User-Manual.pdf`, screenshotting the real portal UI end to end rather than mocking it up. `docs/manual/screenshots/*.png` are the raw captures; the PDF is built from them via Chromium's own print-to-PDF (`page.pdf()`) — no new dependency, no external PDF library.
 
-Since the removed-from-prod Demo District (see "Manual CUG Login Test" above) can no longer be used, this walkthrough runs against a real seeded district (**Agra**) on a local D1 instance instead, with the test/superadmin account's `deo_id`/`district_name` temporarily repointed at it — never against prod.
+Since the removed-from-prod Demo District (see "Manual CUG Login Test" above) can no longer be used, this walkthrough runs against a real seeded district (**Agra**) on a local D1 instance instead — never against prod.
+
+DEO routes (`/home`, `/units`, `/upload`, `/verify`) are deo-only (an admin/superadmin session gets redirected to `/admin` instead of rendering — see CLAUDE.md's "Auth Facade" section), so the script now authenticates as **two separate accounts** and switches between them with a `loginAs()` helper: a dedicated local-only DEO test account (`deo-manual-walkthrough@example.local`, upserted automatically by the script itself with `role: 'deo'`, `deo_id: 'DEO-AGRA'`, `district_name: 'Agra'` — no manual seeding step needed) for the DEO-flow shots, and the superadmin/owner account (`SUPERADMIN_TEST_EMAIL`) for the admin-portal shots.
 
 **Critical gotcha found while building this — `pnpm --filter web dev` (plain `next dev`) has no D1 binding.** `next dev` alone cannot satisfy `getCloudflareContext()` — any route touching D1 throws, which is invisible in the manual click-through UI test in TEST.md above only because that flow was never actually exercised against a fresh `next dev` process during this discovery (magic-link verify silently 500'd). Screenshotting/PDF generation must instead run against the **real built worker** via the OpenNext Cloudflare preview server, which has proper D1/secret bindings:
 
@@ -108,10 +110,8 @@ EOF
 # 3. Run the preview server (real D1 + secret bindings, unlike `next dev`)
 npx @opennextjs/cloudflare preview   # → http://localhost:8787
 
-# 4. Seed a real district's row + point the test account at it (local D1 only), e.g. Agra —
-#    see manual-screenshots.spec.ts's header comment for the exact SQL used.
-
-# 5. Capture screenshots, then build the PDF
+# 4. Capture screenshots, then build the PDF — the script seeds its own DEO test account
+#    on first run (upsert, safe to re-run), no manual D1 step needed.
 PLAYWRIGHT_TEST_BASE_URL=http://localhost:8787 SUPERADMIN_TEST_EMAIL=<your test email> \
   npx playwright test tests/manual-screenshots.spec.ts
 npx playwright test tests/build-manual-pdf.spec.ts

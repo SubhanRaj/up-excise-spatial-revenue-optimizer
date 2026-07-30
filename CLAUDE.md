@@ -241,7 +241,7 @@ The portal uses a **two-cookie design** — no external auth provider, no separa
 
 1. **Session cookie** (`excise-session`): `rawId.hmacSig` where `hmacSig = HMAC-SHA256(rawId, SESSION_SECRET)`. HttpOnly, Secure, SameSite=Lax, 24-hour expiry. Set on `/auth/verify` after consuming a valid magic link. Stored as SHA-256 hash in D1 `auth_sessions`.
 
-2. **Role cookie** (`excise-role`): `deo` or `admin`. Client-readable, used by `middleware.ts` for routing (DEO routes vs admin routes). Not a security boundary — the security check is in server layouts via `requireAuth()` and in route handlers via `getSession()`.
+2. **Role cookie** (`excise-role`): `deo`, `admin`, or `superadmin` (set explicitly at login time — see `verifyToken()` in `api/auth/verify/route.ts` and its CUG equivalent — the superadmin bypass account's cookie carries `superadmin`, not `admin`). Client-readable, used by `middleware.ts` for routing (DEO routes vs admin routes). Not a security boundary — the security check is in server layouts via `requireAuth()` and in route handlers via `getSession()`.
 
 All API routes are same-origin Next.js Route Handlers. The browser sends the session cookie automatically — no Bearer tokens, no API tokens. Route handlers call `getSession()` which verifies the HMAC and does a D1 lookup.
 
@@ -323,6 +323,7 @@ All API routes are same-origin Next.js Route Handlers. The browser sends the ses
 - **Every route is behind auth** except `/login`, `/auth/verify`, and `/api/healthz`. Middleware redirects unauthenticated requests to `/login` with no `?redirect_url=` query param.
 - **Public routes:** `/login` and `/auth/verify`. Every other route requires a valid session cookie.
 - **Security boundary is `requireAuth()` in server layouts** — not middleware. Middleware only checks cookie presence and reads the `excise-role` cookie for routing. A server layout `requireAuth('deo')` call performs the full HMAC verification + D1 session lookup and redirects if invalid.
+- **DEO routes (`/home`, `/units`, `/upload`, `/verify`) are deo-only** — `requireAuth('deo')` (`src/lib/auth.ts`) redirects any non-`deo` session (including `admin` and `superadmin`) to `/admin` instead of rendering, and `middleware.ts` does the same redirect at the routing layer for the same route group. There is no admin/superadmin bypass onto DEO routes. This was previously not the case — `requireAuth()` unconditionally passed a `superadmin` session through to any `minRole`, and middleware separately let both `admin` and `superadmin` roles reach DEO routes; an admin/superadmin landing on `/home` (e.g. a stale bookmark) rendered a broken DEO dashboard showing "Unknown District" and all-zero stats, since the admin/superadmin account has no `districtName`. Fixed by removing the bypass from both layers — an admin/superadmin visiting a DEO route is now sent straight to `/admin`, their own dashboard.
 - **Session cookie is HttpOnly, Secure, SameSite=Lax.** Session credentials never touch `localStorage`, `sessionStorage`, or IndexedDB.
 - **Sign-out** clears both `excise-session` and `excise-role` cookies via a server action that also deletes the D1 session row. The sign-out button in layouts calls a form action — there is no client-side Clerk hook.
 - **Token in URL** — the magic-link token (`/auth/verify?token=xxx`) is consumed and marked used on first visit. Expired, used, or missing tokens show an error and redirect to `/login`. Tokens expire in 15 minutes.
@@ -674,6 +675,7 @@ Full per-milestone delivery history (Objective, Deliverables, Exit Criterion, bu
 | M-38: Prod D1 Fresh-Start Reset | **Completed** |
 | M-39: Admin Users Management Module | **Completed** |
 | M-40: Circle/Sector Stats & Admin Export Rework | **Completed** |
+| M-41: DEO Routes Made Deo-Only (Removed Admin/Superadmin Bypass) | **Completed** |
 
 See [summary.md](summary.md) for full milestone specs, entry/exit criteria, deliverable checklists, the backlog, and pre-campaign-blocker history.
 

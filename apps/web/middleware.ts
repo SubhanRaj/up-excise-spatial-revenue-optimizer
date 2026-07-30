@@ -24,8 +24,17 @@ export default function middleware(req: NextRequest) {
   if (pathname.match(/^\/admin/) && role !== 'admin' && role !== 'superadmin') {
     return NextResponse.redirect(new URL('/login', req.url));
   }
-  if (pathname.match(/^\/(home|upload|verify|units)/) && role !== 'deo' && role !== 'superadmin' && role !== 'admin') {
-    return NextResponse.redirect(new URL('/login', req.url));
+  // DEO routes are deo-only now — an admin/superadmin session landing here (stale bookmark,
+  // old tab) is sent to their own dashboard instead of rendering a broken "Unknown District"
+  // DEO page. Previously admin/superadmin were let through as a bypass; that's what let it
+  // render at all. See CLAUDE.md's "DEO Workflow" section.
+  if (pathname.match(/^\/(home|upload|verify|units)/)) {
+    if (role === 'admin' || role === 'superadmin') {
+      return NextResponse.redirect(new URL('/admin', req.url));
+    }
+    if (role !== 'deo') {
+      return NextResponse.redirect(new URL('/login', req.url));
+    }
   }
 
   return NextResponse.next();

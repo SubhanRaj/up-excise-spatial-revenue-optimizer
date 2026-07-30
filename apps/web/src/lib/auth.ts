@@ -130,9 +130,16 @@ export async function getSession(): Promise<SessionUser | null> {
 export async function requireAuth(minRole: 'deo' | 'admin' = 'deo'): Promise<SessionUser> {
   const session = await getSession();
   if (!session) redirect('/login');
-  
-  if (session.role === 'superadmin') return session;
-  if (minRole === 'admin' && session.role !== 'admin') redirect('/login');
+
+  if (minRole === 'admin') {
+    if (session.role !== 'admin' && session.role !== 'superadmin') redirect('/home');
+    return session;
+  }
+
+  // minRole === 'deo' — no admin/superadmin bypass. An elevated session landing on a
+  // DEO-only server page is sent to its own dashboard instead of rendering a DEO page with
+  // no district attached (matches middleware.ts's redirect for the same route group).
+  if (session.role !== 'deo') redirect('/admin');
   return session;
 }
 
