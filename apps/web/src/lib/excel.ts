@@ -601,36 +601,138 @@ export async function generateProvisionTemplate(rows: ProvisionTemplateRow[] = [
   return new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
 }
 
-/**
- * Builds and downloads an .xlsx from a flat array of row objects (headers = keys of
- * the first row) — the shared path for every admin data export. Same landscape/fit-to-
- * width print setup, repeated header row, wrapped cells, and frozen header as the
- * generated templates above, so every workbook in the app looks and prints the same way.
- */
-export async function exportRowsToXlsx(
-  rows: Record<string, unknown>[],
-  opts: { sheetName: string; filename: string; freezeFirstColumn?: boolean },
-): Promise<void> {
-  if (rows.length === 0) return;
-  const headers = Object.keys(rows[0]!);
+// ── Admin exports ────────────────────────────────────────────────────────────
+//
+// Every admin-facing export (full-state, per-district, per-circle/sector) shares this one
+// row shape and one sheet builder, so a header/format change only ever happens in one place.
+// Headers are English-only — CLAUDE.md's DEO Workflow section is explicit that the admin/HQ
+// portal is English-only; bilingual headers are a DEO-template-only thing (see
+// buildShopDataSheet above). shop_type uses the bare SHOP_TYPE_LABELS (e.g. "HBR", never
+// spelled out) — the same values the upload template's dropdown uses — not the admin district
+// page's TYPE_LABEL, which spells HBR out for on-screen prose only (see CLAUDE.md's Shop Type
+// Enum section).
 
+export interface ExportShopRow {
+  districtName?: string;
+  shopId: string;
+  shopName: string;
+  circleSectorName: string;
+  thanaName: string;
+  adjacentThanasRaw: string | null;
+  shopType: string;
+  hasCl5cc: boolean;
+  latitudeDecimal: number | null;
+  longitudeDecimal: number | null;
+  licenseFeeLf: number;
+  basicLicenseFeeBlf: number;
+  mgrAmount: number;
+  compositeLfFl: number;
+  compositeLfBeer: number;
+  compositeMgrFl: number;
+  compositeMgrBeer: number;
+  mgqQuantity: number;
+  considerationFee: number;
+  specialBeerLf: number;
+  specialBeerMgr: number;
+  totalRevenue: number;
+  uploadedByDeo: string;
+}
+
+const SHOP_EXPORT_HEADERS = [
+  'Shop ID', 'Shop Name', 'Circle / Sector Name', 'Thana Name', 'Adjacent Thanas',
+  'Shop Type', 'Has CL5CC?', 'Latitude', 'Longitude',
+  'License Fee (LF) ₹', 'Basic License Fee (BLF) ₹', 'Min. Guaranteed Revenue (MGR) ₹',
+  'Composite LF – Foreign Liquor ₹', 'Composite LF – Beer ₹',
+  'Composite MGR – Foreign Liquor ₹', 'Composite MGR – Beer ₹',
+  'MGQ Quantity (units)', 'Consideration Fee ₹',
+  'Special Beer LF ₹ (CL5CC)', 'Special Beer MGR ₹ (CL5CC)',
+  'Total Revenue ₹', 'Uploaded By (DEO ID)',
+];
+const REVENUE_COL_LABEL = 'Total Revenue ₹';
+
+function shopExportHeaders(includeDistrict: boolean): string[] {
+  return includeDistrict ? ['District Name', ...SHOP_EXPORT_HEADERS] : SHOP_EXPORT_HEADERS;
+}
+
+function shopExportValues(s: ExportShopRow, includeDistrict: boolean): unknown[] {
+  const base = [
+    s.shopId, s.shopName, s.circleSectorName, s.thanaName, s.adjacentThanasRaw ?? '',
+    SHOP_TYPE_LABELS[s.shopType] ?? s.shopType, s.hasCl5cc,
+    s.latitudeDecimal, s.longitudeDecimal,
+    s.licenseFeeLf, s.basicLicenseFeeBlf, s.mgrAmount,
+    s.compositeLfFl, s.compositeLfBeer, s.compositeMgrFl, s.compositeMgrBeer,
+    s.mgqQuantity, s.considerationFee, s.specialBeerLf, s.specialBeerMgr,
+    s.totalRevenue, s.uploadedByDeo,
+  ];
+  return includeDistrict ? [s.districtName ?? '', ...base] : base;
+}
+
+/** Excel sheet names: max 31 chars, no `: \ / ? * [ ]`. District names in this dataset don't
+ * contain those, but sanitize defensively rather than assume. */
+function sanitizeSheetName(name: string): string {
+  const cleaned = name.replace(/[:\\/?*[\]]/g, '').trim();
+  return (cleaned || 'Sheet').slice(0, 31);
+}
+
+/** One title row + one header row + shop rows + a bold TOTAL row — the shared shape behind
+ * every shop-list sheet, whether it's a single-sheet download or one tab inside a bigger
+ * workbook. An empty list still gets a real sheet with a placeholder line, not a skipped tab,
+ * so a multi-district export's tab structure stays stable across runs. */
+function addShopSheet(
+  wb: ExcelJSNamespace.Workbook,
+  sheetName: string,
+  titleText: string,
+  shops: ExportShopRow[],
+  includeDistrict = false,
+): ExcelJSNamespace.Worksheet {
+  const ws = wb.addWorksheet(sanitizeSheetName(sheetName));
+  const headers = shopExportHeaders(includeDistrict);
+
+  ws.mergeCells(1, 1, 1, headers.length);
+  const titleCell = ws.getCell(1, 1);
+  titleCell.value = titleText;
+  titleCell.font = { bold: true, size: 12, color: { argb: 'FFFFFFFF' } };
+  titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F2A44' } };
+  titleCell.alignment = { vertical: 'middle', horizontal: 'center' };
+  ws.getRow(1).height = 24;
+
+  ws.getRow(2).values = headers as ExcelJSNamespace.CellValue[];
+  styleHeaderRow(ws, 2);
+
+  if (shops.length === 0) {
+    const r = ws.addRow(['No shop data uploaded yet.']);
+    ws.mergeCells(r.number, 1, r.number, headers.length);
+    r.getCell(1).alignment = { horizontal: 'center' };
+    r.getCell(1).font = { italic: true, color: { argb: 'FF64748B' } };
+  } else {
+    for (const s of shops) ws.addRow(shopExportValues(s, includeDistrict) as ExcelJSNamespace.CellValue[]);
+    const totalRevenue = shops.reduce((sum, s) => sum + s.totalRevenue, 0);
+    const totalRow = new Array(headers.length).fill('');
+    totalRow[0] = `TOTAL — ${shops.length} shop${shops.length === 1 ? '' : 's'}`;
+    const revenueColIdx = headers.indexOf(REVENUE_COL_LABEL);
+    if (revenueColIdx >= 0) totalRow[revenueColIdx] = totalRevenue;
+    const row = ws.addRow(totalRow);
+    row.font = { bold: true };
+    row.eachCell((cell) => { cell.border = { top: { style: 'thin' } }; });
+  }
+
+  ws.columns = headers.map((h) => ({ width: Math.max(16, h.length + 2) }));
+  applyPrintSetup(ws, 2, headers.length);
+  ws.pageSetup.printTitlesRow = '1:2';
+  ws.views = [{ state: 'frozen', ySplit: 2, xSplit: 0 }];
+  return ws;
+}
+
+/** Single-sheet download — used for a district's full shop list and for a single
+ * circle/sector's shop list (district detail page). */
+export async function exportShopsToXlsx(
+  shops: ExportShopRow[],
+  opts: { title: string; sheetName: string; filename: string },
+): Promise<void> {
   const wb = new ExcelJS.Workbook();
   wb.creator = 'UP Excise Spatial Revenue Optimizer';
   wb.created = new Date();
-
-  const ws = wb.addWorksheet(opts.sheetName.slice(0, 31));
-  ws.getRow(1).values = headers as ExcelJSNamespace.CellValue[];
-  styleHeaderRow(ws, 1);
-  for (const r of rows) ws.addRow(headers.map((h) => r[h] as ExcelJSNamespace.CellValue));
-  ws.columns = headers.map((h) => ({ width: Math.max(14, h.length + 4) }));
-  for (let r = 2; r <= ws.rowCount; r++) {
-    ws.getRow(r).eachCell({ includeEmpty: false }, (cell) => {
-      cell.alignment = { wrapText: true, vertical: 'top' };
-    });
-  }
-
-  applyPrintSetup(ws, 1, headers.length);
-  ws.views = [{ state: 'frozen', ySplit: 1, xSplit: opts.freezeFirstColumn ? 1 : 0 }];
+  addShopSheet(wb, opts.sheetName, opts.title, shops, false);
 
   const buf = await wb.xlsx.writeBuffer();
   const url = URL.createObjectURL(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
@@ -639,4 +741,163 @@ export async function exportRowsToXlsx(
   a.download = opts.filename;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+export interface StateExportDistrict {
+  name: string; division: string | null; deoName: string | null; status: string;
+  expectedVendCount: number | null; vendCount: number; totalRevenue: number;
+  submittedAt: string | null;
+}
+
+export interface StateExportUnit { districtName: string; name: string; type: string; }
+
+const CIRCLE_SECTOR_TYPE_KEYS = ['MODEL_SHOP', 'COMPOSITE_SHOP', 'PRV', 'BHANG_SHOP', 'COUNTRY_LIQUOR', 'HBR'];
+
+function buildSummarySheet(wb: ExcelJSNamespace.Workbook, districts: StateExportDistrict[], shops: ExportShopRow[]) {
+  const ws = wb.addWorksheet('Summary');
+  ws.pageSetup = { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 };
+  let r = 1;
+
+  function sectionTitle(text: string) {
+    const cell = ws.getCell(r, 1);
+    cell.value = text;
+    cell.font = { bold: true, size: 13 };
+    r += 1;
+  }
+  function tableHeader(cols: string[]) {
+    ws.getRow(r).values = cols as ExcelJSNamespace.CellValue[];
+    styleHeaderRow(ws, r);
+    r += 1;
+  }
+  function dataRow(vals: unknown[]) {
+    ws.getRow(r).values = vals as ExcelJSNamespace.CellValue[];
+    r += 1;
+  }
+
+  const totalRevenue = shops.reduce((sum, s) => sum + s.totalRevenue, 0);
+  const submittedCount = districts.filter((d) => d.status === 'submitted').length;
+
+  sectionTitle('State Totals');
+  tableHeader(['Metric', 'Value']);
+  dataRow(['Districts Submitted', `${submittedCount} of ${districts.length}`]);
+  dataRow(['Total Shops', shops.length]);
+  dataRow(['Total Revenue ₹', totalRevenue]);
+  r += 1;
+
+  sectionTitle('Shop Type Breakdown');
+  tableHeader(['Shop Type', 'Count', 'Revenue ₹']);
+  const byType: Record<string, { count: number; revenue: number }> = {};
+  for (const s of shops) {
+    if (!byType[s.shopType]) byType[s.shopType] = { count: 0, revenue: 0 };
+    byType[s.shopType]!.count += 1;
+    byType[s.shopType]!.revenue += s.totalRevenue;
+  }
+  for (const [type, agg] of Object.entries(byType)) dataRow([SHOP_TYPE_LABELS[type] ?? type, agg.count, agg.revenue]);
+  r += 1;
+
+  sectionTitle('Division Rollup');
+  tableHeader(['Division', 'Districts', 'Submitted', 'Total Shops', 'Total Revenue ₹']);
+  const byDivision: Record<string, { districts: number; submitted: number; shops: number; revenue: number }> = {};
+  for (const d of districts) {
+    const key = d.division ?? 'Unassigned';
+    if (!byDivision[key]) byDivision[key] = { districts: 0, submitted: 0, shops: 0, revenue: 0 };
+    byDivision[key]!.districts += 1;
+    if (d.status === 'submitted') byDivision[key]!.submitted += 1;
+    byDivision[key]!.shops += d.vendCount;
+    byDivision[key]!.revenue += d.totalRevenue;
+  }
+  for (const [division, agg] of Object.entries(byDivision).sort(([a], [b]) => a.localeCompare(b))) {
+    dataRow([division, agg.districts, agg.submitted, agg.shops, agg.revenue]);
+  }
+
+  ws.columns = [{ width: 28 }, { width: 16 }, { width: 16 }, { width: 18 }, { width: 20 }];
+}
+
+function buildDistrictsSheet(wb: ExcelJSNamespace.Workbook, districts: StateExportDistrict[]) {
+  const ws = wb.addWorksheet('Districts');
+  const headers = ['District', 'Division', 'DEO Name', 'Status', 'Expected Vends', 'Actual Vends', 'Total Revenue ₹', 'Submitted At'];
+  ws.getRow(1).values = headers as ExcelJSNamespace.CellValue[];
+  styleHeaderRow(ws, 1);
+  for (const d of districts) {
+    ws.addRow([
+      d.name, d.division ?? '', d.deoName ?? '', d.status,
+      d.expectedVendCount ?? '', d.vendCount, d.totalRevenue,
+      d.submittedAt ? new Date(d.submittedAt).toLocaleDateString('en-IN') : '',
+    ]);
+  }
+  ws.columns = headers.map((h) => ({ width: Math.max(16, h.length + 4) }));
+  applyPrintSetup(ws, 1, headers.length);
+  ws.views = [{ state: 'frozen', ySplit: 1, xSplit: 0 }];
+}
+
+function buildCircleSectorSummarySheet(wb: ExcelJSNamespace.Workbook, shops: ExportShopRow[], units: StateExportUnit[]) {
+  const ws = wb.addWorksheet('Circle-Sector Summary');
+  const headers = [
+    'District', 'Circle / Sector', 'Type', 'Distinct Thanas', 'Total Shops',
+    ...CIRCLE_SECTOR_TYPE_KEYS.map((t) => SHOP_TYPE_LABELS[t]!),
+    'Total Revenue ₹',
+  ];
+
+  interface Agg { district: string; name: string; type: string; thanas: Set<string>; count: number; revenue: number; byType: Record<string, number> }
+  const map = new Map<string, Agg>();
+  for (const u of units) {
+    map.set(`${u.districtName}::${u.name}`, { district: u.districtName, name: u.name, type: u.type, thanas: new Set(), count: 0, revenue: 0, byType: {} });
+  }
+  for (const s of shops) {
+    const district = s.districtName ?? '';
+    const key = `${district}::${s.circleSectorName}`;
+    let entry = map.get(key);
+    if (!entry) {
+      entry = { district, name: s.circleSectorName, type: 'unit', thanas: new Set(), count: 0, revenue: 0, byType: {} };
+      map.set(key, entry);
+    }
+    entry.thanas.add(s.thanaName);
+    entry.count += 1;
+    entry.revenue += s.totalRevenue;
+    entry.byType[s.shopType] = (entry.byType[s.shopType] ?? 0) + 1;
+  }
+
+  const rows = Array.from(map.values()).sort((a, b) => a.district.localeCompare(b.district) || a.name.localeCompare(b.name));
+  ws.getRow(1).values = headers as ExcelJSNamespace.CellValue[];
+  styleHeaderRow(ws, 1);
+  for (const e of rows) {
+    ws.addRow([e.district, e.name, e.type, e.thanas.size, e.count, ...CIRCLE_SECTOR_TYPE_KEYS.map((t) => e.byType[t] ?? 0), e.revenue]);
+  }
+  ws.columns = headers.map((h) => ({ width: Math.max(14, h.length + 2) }));
+  applyPrintSetup(ws, 1, headers.length);
+  ws.views = [{ state: 'frozen', ySplit: 1, xSplit: 0 }];
+}
+
+/**
+ * Full-state export workbook: Summary, Districts (master table), Circle-Sector Summary,
+ * All Shops (Flat, one row per shop across every district), then one sheet per district
+ * (all 75, even ones with zero shops yet — a stable tab structure across export runs).
+ * All generation happens in-browser via ExcelJS — no server-side spreadsheet work, per
+ * CLAUDE.md's Cloudflare Free Tier constraint.
+ */
+export async function generateFullStateWorkbook(
+  districts: StateExportDistrict[],
+  shops: ExportShopRow[],
+  units: StateExportUnit[],
+): Promise<Blob> {
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'UP Excise Spatial Revenue Optimizer';
+  wb.created = new Date();
+
+  buildSummarySheet(wb, districts, shops);
+  buildDistrictsSheet(wb, districts);
+  buildCircleSectorSummarySheet(wb, shops, units);
+  addShopSheet(wb, 'All Shops (Flat)', 'All Districts — Flat Shop List', shops, true);
+
+  const byDistrict = new Map<string, ExportShopRow[]>();
+  for (const s of shops) {
+    const key = s.districtName ?? '';
+    if (!byDistrict.has(key)) byDistrict.set(key, []);
+    byDistrict.get(key)!.push(s);
+  }
+  for (const d of districts) {
+    addShopSheet(wb, d.name, `District: ${d.name.toUpperCase()}`, byDistrict.get(d.name) ?? [], false);
+  }
+
+  return new Blob([await wb.xlsx.writeBuffer()], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
 }

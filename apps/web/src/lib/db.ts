@@ -141,21 +141,23 @@ export const adminDistrictsCache = {
 };
 
 // ── Full-state export cache ─────────────────────────────────────────────────
+// Holds { rows, units } from GET /api/admin/export/all — shop rows plus every
+// district_circles_sectors row, used together to build the multi-sheet workbook.
 
 const EXPORT_CACHE_KEY = 'all_shops';
 
 export const adminExportCache = {
   get: () =>
-    getAdminDb().table<AdminKvCache<unknown[]>>('export_cache')
+    getAdminDb().table<AdminKvCache<unknown>>('export_cache')
       .where('key').equals(EXPORT_CACHE_KEY).toArray()
       .then((r) => r[0] ?? null),
 
-  set: (rows: unknown[]) =>
-    getAdminDb().table<AdminKvCache<unknown[]>>('export_cache')
-      .put({ key: EXPORT_CACHE_KEY, data: rows, fetchedAt: Date.now() }),
+  set: (data: unknown) =>
+    getAdminDb().table<AdminKvCache<unknown>>('export_cache')
+      .put({ key: EXPORT_CACHE_KEY, data, fetchedAt: Date.now() }),
 
   clear: () =>
-    getAdminDb().table<AdminKvCache<unknown[]>>('export_cache').clear(),
+    getAdminDb().table<AdminKvCache<unknown>>('export_cache').clear(),
 };
 
 // ── Map cache (TTL: 5 min) ─────────────────────────────────────────────────

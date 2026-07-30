@@ -62,6 +62,18 @@ const TYPE_LABEL: Record<string, string> = {
   HBR: 'Hotel / Bar / Restaurants',
 };
 
+// Short form for tight spaces (circle/sector breakdown badges) — HBR stays verbatim, never
+// truncated from TYPE_LABEL's spelled-out prose form (CLAUDE.md: "HBR is shown verbatim
+// everywhere... never spelled out").
+const TYPE_SHORT_LABEL: Record<string, string> = {
+  MODEL_SHOP: 'Model',
+  COMPOSITE_SHOP: 'Composite',
+  PRV: 'PRV',
+  BHANG_SHOP: 'Bhang',
+  COUNTRY_LIQUOR: 'Country Liquor',
+  HBR: 'HBR',
+};
+
 // Distinct, non-purple palette using DaisyUI semantic classes
 const TYPE_BADGE: Record<string, string> = {
   MODEL_SHOP: 'badge-info',
@@ -272,6 +284,7 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
   const [loading, setLoading] = useState(true);
   const [pendingUnlockRequest, setPendingUnlockRequest] = useState<UnlockRequestRow | null>(null);
   const [showUnitsModal, setShowUnitsModal] = useState(false);
+  const [showCircleStats, setShowCircleStats] = useState(true);
   const [editing, setEditing] = useState(false);
 
   // Toolbar state
@@ -437,6 +450,30 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
     [allShops],
   );
 
+  // Seeded from detail.units first (the authoritative district_circles_sectors rows) so a
+  // registered-but-empty unit still shows up with a real 0-shop row — a useful signal that a
+  // DEO registered a circle/sector but never uploaded anything for it. Any shop whose
+  // circleSectorName doesn't match a registered unit (shouldn't happen given the upload
+  // template's dropdown gate, but not database-enforced) still gets its own row.
+  const circleStats = useMemo(() => {
+    const map = new Map<string, { name: string; type: string; thanas: Set<string>; count: number; revenue: number; byType: Record<string, number> }>();
+    for (const u of detail?.units ?? []) {
+      map.set(u.name, { name: u.name, type: u.type, thanas: new Set(), count: 0, revenue: 0, byType: {} });
+    }
+    for (const s of allShops) {
+      let entry = map.get(s.circleSectorName);
+      if (!entry) {
+        entry = { name: s.circleSectorName, type: 'unit', thanas: new Set(), count: 0, revenue: 0, byType: {} };
+        map.set(s.circleSectorName, entry);
+      }
+      entry.thanas.add(s.thanaName);
+      entry.count += 1;
+      entry.revenue += s.totalRevenue;
+      entry.byType[s.shopType] = (entry.byType[s.shopType] ?? 0) + 1;
+    }
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [allShops, detail]);
+
   const effectivePageSize = pageSize === 'all' ? filteredSorted.length || 1 : pageSize;
   const totalPages = Math.ceil(filteredSorted.length / effectivePageSize);
   const displayRows = useMemo(
@@ -482,41 +519,21 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
   }
 
   async function exportXlsx() {
-    const totalRev = allShops.reduce((sum, s) => sum + s.totalRevenue, 0);
-    const rowsForExport = [
-      ...allShops,
-      {
-        id: '',
-        shopId: 'TOTAL',
-        shopName: '',
-        circleSectorName: '',
-        thanaName: '',
-        adjacentThanasRaw: '',
-        shopType: '',
-        hasCl5cc: '',
-        latitudeDecimal: '',
-        longitudeDecimal: '',
-        licenseFeeLf: '',
-        basicLicenseFeeBlf: '',
-        mgrAmount: '',
-        compositeLfFl: '',
-        compositeLfBeer: '',
-        compositeMgrFl: '',
-        compositeMgrBeer: '',
-        mgqQuantity: '',
-        considerationFee: '',
-        specialBeerLf: '',
-        specialBeerMgr: '',
-        totalRevenue: totalRev,
-        uploadedByDeo: ''
-      }
-    ];
-
-    const { exportRowsToXlsx } = await import('@/lib/excel');
-    await exportRowsToXlsx(rowsForExport as unknown as Record<string, unknown>[], {
-      sheetName: name.slice(0, 31),
+    const { exportShopsToXlsx } = await import('@/lib/excel');
+    await exportShopsToXlsx(allShops, {
+      title: `District: ${name.toUpperCase()}`,
+      sheetName: name,
       filename: `${name}-shops.xlsx`,
-      freezeFirstColumn: true,
+    });
+  }
+
+  async function exportCircleSectorXlsx(circleSectorName: string) {
+    const { exportShopsToXlsx } = await import('@/lib/excel');
+    const shops = allShops.filter((s) => s.circleSectorName === circleSectorName);
+    await exportShopsToXlsx(shops, {
+      title: `District: ${name.toUpperCase()}  |  ${circleSectorName}`,
+      sheetName: circleSectorName,
+      filename: `${name}-${circleSectorName}.xlsx`.replace(/[\\/:*?"<>|]/g, '-'),
     });
   }
 
@@ -667,6 +684,73 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
               );
             })()}
           </div>
+        </div>
+      )}
+
+      {/* Circle/Sector breakdown */}
+      {!loading && circleStats.length > 0 && (
+        <div className="bg-base-100 rounded-xl border border-base-200 overflow-hidden">
+          <button
+            type="button"
+            className="w-full flex items-center justify-between p-4 hover:bg-base-200/50 transition-colors"
+            onClick={() => setShowCircleStats((v) => !v)}
+            aria-expanded={showCircleStats}
+          >
+            <p className="text-[11px] uppercase tracking-widest font-medium text-base-content/60">
+              Circle / Sector Breakdown ({circleStats.length})
+            </p>
+            <svg xmlns="http://www.w3.org/2000/svg" className={`w-4 h-4 text-base-content/50 transition-transform ${showCircleStats ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+          {showCircleStats && (
+            <div className="overflow-x-auto border-t border-base-200">
+              <table className="table table-sm w-full" role="grid" aria-label="Circle and sector breakdown">
+                <thead>
+                  <tr>
+                    <th>Circle / Sector</th>
+                    <th>Type</th>
+                    <th>Thanas</th>
+                    <th>Shops</th>
+                    <th>Revenue</th>
+                    <th>Type Breakdown</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {circleStats.map((c) => (
+                    <tr key={c.name} role="row">
+                      <td className="font-medium">{c.name}</td>
+                      <td><span className="badge badge-xs badge-ghost capitalize">{c.type}</span></td>
+                      <td className="tabular-nums">{c.thanas.size}</td>
+                      <td className="tabular-nums">{c.count}</td>
+                      <td className="tabular-nums">{fmtCr(c.revenue)}</td>
+                      <td>
+                        <div className="flex flex-wrap gap-1">
+                          {SHOP_TYPES.map((t) => c.byType[t] ? (
+                            <span key={t} className={`badge badge-xs ${TYPE_BADGE[t]}`} title={TYPE_LABEL[t]}>
+                              {TYPE_SHORT_LABEL[t]}: {c.byType[t]}
+                            </span>
+                          ) : null)}
+                          {c.count === 0 && <span className="text-xs text-base-content/50">No shops yet</span>}
+                        </div>
+                      </td>
+                      <td>
+                        {c.count > 0 && (
+                          <button
+                            className="btn btn-ghost btn-xs btn-circle"
+                            onClick={() => exportCircleSectorXlsx(c.name)}
+                            aria-label={`Download ${c.name} as Excel`}
+                            title="Download this circle/sector's shops as Excel"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/><polyline points="7 11 12 16 17 11"/><line x1="12" y1="4" x2="12" y2="16"/></svg>
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
