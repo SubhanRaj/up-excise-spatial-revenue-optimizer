@@ -140,7 +140,7 @@ test.describe('DEO Manual — screenshot walkthrough', () => {
       // each Thana name may itself contain spaces (e.g. "Sadar Bazar"); names are separated by
       // a comma, optionally followed by a space, e.g. "Fatehabad, Hariparvat, Sadar Bazar".
       ['Circle 3 - Kheragarh', 'Kheragarh', 'Fatehabad, Hariparvat, Sadar Bazar', 'AG0004', 'Kheragarh Bhang Shop', 'BHANG_SHOP', 0, 26.85, 77.95, 90000, 0, 0, 0, 0, 0, 0, 5000, 0, 0, 0],
-      // HBR row — added 2026-07-28 (see HBR.md). Reuses license_fee_lf + consideration_fee,
+      // HBR row — added 2026-07-28. Reuses license_fee_lf + consideration_fee,
       // same two columns as COUNTRY_LIQUOR, different formula.
       ['Sector - 2', 'Sadar Bazar', 'Hariparvat', 'AG0005', 'Agra Fort Hotel Bar', 'HBR', 0, 27.18, 78.02, 250000, 0, 0, 0, 0, 0, 0, 0, 400000, 0, 0],
     ];

@@ -148,32 +148,41 @@ Upload and Verify are not rendered — not merely disabled — until circles/sec
 - 18 division cards with progress bars; each card opens a division detail page
 - Division detail: summary stats (districts, submitted, vends, revenue) + districts table sorted by revenue
 
-**District Master (`/admin/provision`) — owner/superadmin-only:**
+**District Master (`/admin/provision`) — owner/superadmin-only, linked from the profile dropdown, not the main navbar:**
 - All-75-district table; each row's edit icon opens a right-side drawer to update division, DEO name/email/identifier, expected vend count, and bbox coordinates in place via `PATCH /api/admin/districts/[district]` (Coordinates and Vend Count can optionally be cleared)
 - Bulk Excel provisioning retained below the table for initial campaign setup — `generateProvisionTemplate()` pre-fills District Name and Division from the live district list
 - The only place district/DEO master data can be edited; `districts` and `districts/[district]` pages remain read-only
-- Restricted to `role: 'superadmin'` — nav link hidden and page content replaced with a restricted message for a plain `admin` session; the underlying PATCH/bulk-provision routes 403 non-superadmins server-side too. Every edit/provision run is audit-logged with the acting superadmin's identity.
+- Restricted to `role: 'superadmin'` — dropdown link hidden and page content replaced with a restricted message for a plain `admin` session; the underlying PATCH/bulk-provision routes 403 non-superadmins server-side too. Every edit/provision run is audit-logged with the acting superadmin's identity.
+
+**Admin Users (`/admin/users`) — owner/superadmin-only, same profile-dropdown placement as District Master:**
+- Manages `auth_users` rows with `role: 'admin'` only (not DEO accounts) — add, rename, change email, set/clear designation via the same slide-in drawer pattern as District Master
+- The owner/superadmin bypass account is listed read-only with an "Owner" badge — its email can't be changed and the row can't be deleted; a superadmin also can't delete their own account
+- Every create/edit/delete is audit-logged with the acting superadmin's identity
 
 **District detail (`/admin/districts/[district]`):**
 - All `phase1_raw_collection` fields: shop ID, name, circle/sector, thana, adjacent thanas (flex-wrap pills), type + CL5CC sub-badge, coordinates, revenue
 - Collapsible per-row revenue breakdown (`<details>/<summary>` — no modal)
 - Full type labels: "Composite Shop (FL + Beer)", "PRV (Premium Retail Vend)"
 - Per-type + CL5CC breakdown bar — each card clickable to filter; CL5CC only active alongside Country Liquor
+- Circle/Sector Breakdown table — per circle/sector thana count, shop count, revenue, and a per-type badge breakdown, seeded from the registered `district_circles_sectors` rows so an empty registered unit still shows a real 0-shop row; each row has its own per-unit XLSX download
 - Client-side search (shop ID / name / thana), type filter, circle/sector filter, sortable columns
 - Group by type — auto-collapses all on enable; per-group expand/collapse persisted to `localStorage`; clears type filter on enable
 - Rows per page: 10 / 25 / 50 / 100 / All — preference persisted to `localStorage`
 - Per-district XLSX export (ExcelJS — CSV is never used anywhere in this app, see "Data Rules")
+- "Unlock Requested" button — only rendered when that district actually has a pending self-service unlock request on file; there is no admin-initiated unlock without one
 
 **Navigation:**
 - Navbar search: live dropdown across all 75 districts and 18 divisions, keyboard navigation (↑↓ / Enter / Escape)
 - Breadcrumbs: all segments are clickable links — Overview → Districts/Divisions → current page
-- Nav links: Overview, Districts, Divisions, District Master, Audit, Export
+- Main nav links: Overview, Districts, Divisions, Unlock Requests, Audit, Export
+- Profile dropdown (superadmin-only extras): District Master, Admin Users
 
 **Shared UI:**
 - `HelpPanel` on every page — balloon popover with background blur (`backdrop-blur-[2px]`), auto-flips on/off-screen, scrollable content, closes on Escape or outside click
 - `ViewPrefsPanel` FAB (bottom-right) — theme (Light/Auto/Dark, respects and live-tracks system preference), font size, row density, content width; all persisted to `localStorage`
-- Full-state XLSX export (never rendered as an in-UI table — `/api/admin/export/all` only)
-- Audit log viewer (last 45 days, paginated) — shows admin/superadmin actor name + designation for admin-initiated events (login, logout, unlock, District Master edits, bulk-provision), `deoId` for DEO-actor events
+- Full-state export (`/admin/export`) — a 79-sheet XLSX (Summary, Districts, Circle-Sector Summary, All Shops flat, one tab per district) built in-browser via ExcelJS from `/api/admin/export/all` — never rendered as an in-UI table
+- Audit log viewer (last 45 days, paginated) — shows admin/superadmin actor name + designation for admin-initiated events (login, logout, unlock, District Master edits, bulk-provision, admin user changes), `deoId` for DEO-actor events
+- Self-service unlock requests: a DEO requests unlock from `/units` with a reason; admins resolve on `/admin/unlock-requests` or inline on the district detail page — approving is the only way a locked district's circles/sectors are ever cleared
 - Bulk DEO provisioning via Excel upload
 
 ---
@@ -275,7 +284,7 @@ See [DEPLOY.md](DEPLOY.md) for secrets, CI/CD, and account management. See [docs
 | M-8: Admin Portal Navigation & Divisions | **Completed** |
 | M-9: SPA Navigation Parity & Polish | **Completed** |
 | M-10: District Master & Migration Consolidation | **Completed** |
-| M-11 – M-31 | **Completed** — see CLAUDE.md's milestone table for full per-milestone detail (auth/audit hardening, DEO Excel template overhaul, prod go-live cleanup + custom domain, self-service unlock requests, SEO metadata, and UX/bugfix polish) |
+| M-11 – M-41 | **Completed** — see CLAUDE.md's milestone table for full per-milestone detail (auth/audit hardening, DEO Excel template overhaul, prod go-live cleanup + custom domain, self-service unlock requests, SEO metadata, admin users management, circle/sector stats & export rework, DEO-routes-deo-only, and UX/bugfix polish) |
 
 See [summary.md](summary.md) for full milestone specs, entry/exit criteria, and deliverable checklists — see [roadmap.md](roadmap.md) for the technical and business-logic spec behind them.
 

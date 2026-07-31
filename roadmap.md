@@ -226,7 +226,7 @@ flowchart TB
     subgraph Worker["up-excise-spatial-revenue-optimizer-web — single CF Worker (Next.js via @opennextjs/cloudflare)"]
         direction TB
         Pages["Pages (SSR)\n/login · /auth/verify\n/home · /upload · /verify · /units — DEO portal\n/admin, /admin/* — HQ dashboard"]
-        Routes["API Route Handlers (same worker, same D1 binding)\nPOST /api/auth/verify — token verify, session create\nPOST /api/upload/chunk — 500-row batch insert (db.batch())\nGET/POST/DELETE /api/districts/[d]/units — unit registration/unlock\nGET/POST /api/districts/[d]/request-unlock — self-service unlock request\nPOST /api/districts/[d]/submit — district submission\nGET /api/admin/* — aggregate queries, export, audit log\nPOST /api/admin/unlock-requests/resolve — approve/deny unlock requests"]
+        Routes["API Route Handlers (same worker, same D1 binding)\nPOST /api/auth/verify — token verify, session create\nPOST /api/upload/chunk — 500-row batch insert (db.batch())\nGET/POST /api/districts/[d]/units — unit registration (one-shot, no delete/edit)\nGET/POST /api/districts/[d]/request-unlock — self-service unlock request\nPOST /api/districts/[d]/submit — district submission\nGET /api/admin/* — aggregate queries, export, audit log\nPOST /api/admin/unlock-requests/resolve — approve/deny unlock requests"]
     end
 
     Worker --> D1
@@ -1143,7 +1143,7 @@ export const districtUnlockRequests = sqliteTable('district_unlock_requests', {
 }));
 ```
 
-"Only one pending request per district" is enforced in application code (a check-then-insert in `POST /api/districts/[district]/request-unlock`), not a DB constraint — same TOCTOU trade-off the sibling project accepts for the same reason (low-stakes race, worst case two pending rows which the admin UI just shows both of). Approving a request (`POST /api/admin/unlock-requests/resolve`) deletes the district's `district_circles_sectors` rows — identical effect to the pre-existing manual `DELETE /api/districts/[district]/units` unlock — and both approve/deny require the resolving admin to type their own note.
+"Only one pending request per district" is enforced in application code (a check-then-insert in `POST /api/districts/[district]/request-unlock`), not a DB constraint — same TOCTOU trade-off the sibling project accepts for the same reason (low-stakes race, worst case two pending rows which the admin UI just shows both of). Approving a request (`POST /api/admin/unlock-requests/resolve`) deletes the district's `district_circles_sectors` rows — the only way a district's units are ever unlocked, since the manual `DELETE /api/districts/[district]/units` route has been removed entirely — and both approve/deny require the resolving admin to type their own note.
 
 ### 5.6 Schema Notes & Constraints
 
