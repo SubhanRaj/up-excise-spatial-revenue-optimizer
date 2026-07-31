@@ -34,5 +34,14 @@ export const authSessions = sqliteTable('auth_sessions', {
   createdAt: text('created_at').default(sql`(datetime('now'))`),
 });
 
+// Per-IP fixed-window brute-force counter for POST /api/auth/verify-cug (migration
+// 0006_add_login_attempts.sql) — one row per IP, not per attempt, so a sustained brute-force
+// run can't grow this table unbounded. ip_hash is a SHA-256 of CF-Connecting-IP, never raw.
+export const loginAttempts = sqliteTable('login_attempts', {
+  ipHash:      text('ip_hash').primaryKey(),
+  windowStart: text('window_start').notNull(),
+  count:       integer('count').notNull().default(1),
+});
+
 export type AuthUser = typeof authUsers.$inferSelect;
 export type AuthSession = typeof authSessions.$inferSelect;

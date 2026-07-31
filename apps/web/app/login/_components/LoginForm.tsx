@@ -4,6 +4,14 @@ import { useState, useTransition } from 'react';
 import { requestMagicLink } from '../actions';
 import { sha256HexClient } from '@/lib/crypto-client';
 
+// Client-side cooldown after repeated failed CUG attempts — a UX nicety only, not a security
+// boundary (an attacker skips the frontend and hits the API directly). The real enforcement is
+// server-side, per-IP, in POST /api/auth/verify-cug (see src/lib/rate-limit.ts and the sibling
+// excise-revenue-recovery-portal project's SECURITY.md H-01). This just slows down a casual
+// retry loop from this one browser tab and surfaces the server's 429 clearly.
+const COOLDOWN_AFTER_FAILURES = 3;
+const COOLDOWN_SECONDS = 30;
+
 export default function LoginForm() {
   const [mode, setMode]         = useState<'email' | 'cug'>('cug');
   const [email, setEmail]       = useState('');
@@ -11,6 +19,8 @@ export default function LoginForm() {
   const [sent, setSent]         = useState(false);
   const [error, setError]       = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [failedAttempts, setFailedAttempts] = useState(0);
+  const [cooldownUntil, setCooldownUntil]   = useState<number | null>(null);
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -28,6 +38,11 @@ export default function LoginForm() {
   function submitCug(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    if (cooldownUntil && Date.now() < cooldownUntil) {
+      const secondsLeft = Math.ceil((cooldownUntil - Date.now()) / 1000);
+      setError(`Too many attempts — please wait ${secondsLeft}s before trying again.`);
+      return;
+    }
     startTransition(async () => {
       const cugHash = await sha256HexClient(cug.trim());
       const res = await fetch('/api/auth/verify-cug', {
@@ -36,8 +51,22 @@ export default function LoginForm() {
         body: JSON.stringify({ cugHash }),
       });
       const data = await res.json() as { redirect?: string; error?: string };
-      if (data.redirect) window.location.href = data.redirect;
-      else setError(data.error ?? 'Invalid CUG number');
+      if (data.redirect) {
+        setFailedAttempts(0);
+        window.location.href = data.redirect;
+        return;
+      }
+      const nextFailures = failedAttempts + 1;
+      setFailedAttempts(nextFailures);
+      if (res.status === 429) {
+        setCooldownUntil(Date.now() + COOLDOWN_SECONDS * 1000);
+        setError('Too many attempts — please wait before trying again.');
+      } else if (nextFailures >= COOLDOWN_AFTER_FAILURES) {
+        setCooldownUntil(Date.now() + COOLDOWN_SECONDS * 1000);
+        setError(`Too many failed attempts — please wait ${COOLDOWN_SECONDS}s before trying again.`);
+      } else {
+        setError(data.error ?? 'Invalid CUG number');
+      }
     });
   }
 
@@ -127,7 +156,11 @@ export default function LoginForm() {
               </div>
             )}
 
-            <button type="submit" className="btn btn-primary w-full" disabled={isPending || cug.length !== 10}>
+            <button
+              type="submit"
+              className="btn btn-primary w-full"
+              disabled={isPending || cug.length !== 10 || (cooldownUntil !== null && Date.now() < cooldownUntil)}
+            >
               {isPending ? <span className="loading loading-spinner loading-sm" /> : 'Sign in'}
             </button>
           </form>

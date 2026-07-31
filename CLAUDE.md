@@ -173,7 +173,7 @@ All API routes are Next.js Route Handlers inside the single `up-excise-spatial-r
 | `GET` | `/api/healthz` | `api/healthz/route.ts` |
 | `GET` | `/api/auth/session` | `api/auth/session/route.ts` — returns `{ deoId, role, districtName, name }` |
 | `POST` | `/api/auth/verify` | `api/auth/verify/route.ts` — verifies magic-link token, creates session, returns `{ redirect }` |
-| `POST` | `/api/auth/verify-cug` | `api/auth/verify-cug/route.ts` — alternate login: browser hashes the DEO's 10-digit CUG mobile number (SHA-256), server looks it up against `auth_users.deo_cug_hash`, creates session, returns `{ redirect }` |
+| `POST` | `/api/auth/verify-cug` | `api/auth/verify-cug/route.ts` — alternate login: browser hashes the DEO's 10-digit CUG mobile number (SHA-256), server looks it up against `auth_users.deo_cug_hash`, creates session, returns `{ redirect }`. Rate-limited per IP before the lookup (10/5min, `login_attempts` table, see SECURITY.md §3) — returns `429` past that. |
 | `POST` | `/api/auth/logout` | `api/auth/logout/route.ts` |
 
 **DEO (`role: deo`):**
@@ -573,6 +573,7 @@ The canonical schema is split across two files in `packages/schema/src/`:
 - `auth_users` — email hash, name, role ('deo'|'admin'), deoId, districtName, deoCugHash (SHA-256 of CUG mobile number, nullable — alternate login credential)
 - `auth_magic_links` — tokenHash, expiresAt, used flag, rate-limit support
 - `auth_sessions` — id=sha256(rawId), userId FK, expiresAt (24h)
+- `login_attempts` (`migrations/0006_add_login_attempts.sql`) — per-IP brute-force counter for `POST /api/auth/verify-cug` (see SECURITY.md §3): `ipHash` (SHA-256 of `CF-Connecting-IP`, primary key — one row per IP, not per attempt), `windowStart`, `count`. Checked/incremented by `apps/web/src/lib/rate-limit.ts`'s `checkIpRateLimit()` before the `auth_users` lookup; 10 attempts / 5 minutes, `429` past that.
 
 When schema files do not yet exist, refer to [roadmap.md Section 5](roadmap.md#5-phase-1-database-schema) for exact definitions. Do not modify the schema without updating `roadmap.md` Section 5 as well.
 

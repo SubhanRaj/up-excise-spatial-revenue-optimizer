@@ -881,6 +881,23 @@ flowchart LR
 
 ---
 
+### M-42: CUG Login Rate Limiting (Cross-Project Security Audit) ✅ Complete
+
+**Objective:** A security audit of the sibling `excise-revenue-recovery-portal` project found its `verify-cug` route had zero rate limiting, combined with a publicly-leaked CUG-number prefix constant in its frontend bundle that shrank an attacker's brute-force search space from 10 billion to 100,000 combinations. Checking this project's own `POST /api/auth/verify-cug` found the same underlying gap — no rate limiting at all on that route — even though this project never shipped a prefix constant to leak.
+
+**Change:**
+
+- [x] **New `login_attempts` table** (`packages/schema/src/auth.ts`, `migrations/0006_add_login_attempts.sql`) — `ipHash` (SHA-256 of `CF-Connecting-IP`, primary key), `windowStart`, `count`. One row per IP, not per attempt, so a sustained brute-force run can't grow the table unbounded.
+- [x] **`apps/web/src/lib/rate-limit.ts`** (new) — `checkIpRateLimit()`, a fixed 5-minute window counter: reads the existing row for that IP hash, resets it if the window has elapsed, otherwise increments and rejects once `maxAttempts` is hit. A small TOCTOU race exists between the read and the write (no transaction) — accepted as low-stakes, same posture as this codebase's existing `district_unlock_requests` "one pending request" check.
+- [x] **`apps/web/app/api/auth/verify-cug/route.ts`** — calls `checkIpRateLimit(db, req, 10)` before the `auth_users` lookup; returns `429` once exceeded, same error-shape convention as every other route's `withErrorHandling()`-wrapped rejection.
+- [x] **`apps/web/app/login/_components/LoginForm.tsx`** — client-side 30-second cooldown after 3 failed CUG attempts, or immediately on a `429` response. A UX nicety only, not the security boundary (an attacker skips the frontend and hits the API directly) — the real enforcement is the IP-based limiter above.
+- [x] **`SECURITY.md`** §3 and **`CLAUDE.md`**'s route table + Drizzle schema section updated to document the new table and route behavior.
+- [x] Verified: `pnpm exec tsc --noEmit` clean, full `next build` clean, migration applied and confirmed against local D1 (`wrangler d1 migrations apply --local`).
+
+**Exit criterion:** `POST /api/auth/verify-cug` rejects with `429` after 10 attempts from one IP within 5 minutes, before ever querying `auth_users`; a legitimate DEO/admin logging in normally is unaffected; `pnpm typecheck` and `next build` both pass; migration applies cleanly to local D1.
+
+---
+
 ## Backlog / Not Started
 
 - [x] ~~Verify `exciseup.in` in Resend and switch `RESEND_FROM_EMAIL`~~ — Done. `mail.exciseup.in` verified; `RESEND_FROM_EMAIL` set to `noreply@mail.exciseup.in` on this project's Worker, and the same address set as `FROM_EMAIL` on the sibling `excise-revenue-recovery-portal` project's Worker (different env var name there, same Resend account/domain). Magic-link email is now the Admin/HQ login channel only (DEOs use CUG login as of M-17).

@@ -4,9 +4,11 @@ import { drizzle } from 'drizzle-orm/d1';
 import { eq } from 'drizzle-orm';
 import { authUsers, auditLog } from '@excise/schema';
 import { createSession } from '@/lib/auth';
+import { checkIpRateLimit } from '@/lib/rate-limit';
 import { withErrorHandling } from '@/lib/with-error-handling';
 
 const CUG_HASH_RE = /^[a-f0-9]{64}$/;
+const MAX_ATTEMPTS_PER_WINDOW = 10;
 
 // Frontend hashes the DEO's 10-digit CUG mobile number via Web Crypto SHA-256 before sending
 // it here (see src/lib/crypto-client.ts) — the server never sees or stores the raw number.
@@ -20,6 +22,14 @@ async function POST_(req: NextRequest): Promise<NextResponse> {
 
   const { env } = await getCloudflareContext({ async: true }) as { env: CloudflareEnv };
   const db = drizzle(env.DB);
+
+  // Per-IP brute-force guard — see the sibling excise-revenue-recovery-portal project's
+  // SECURITY.md (H-01). Checked before the DB lookup so a sustained guessing run gets rejected
+  // without even touching the auth_users table.
+  const allowed = await checkIpRateLimit(db, req, MAX_ATTEMPTS_PER_WINDOW);
+  if (!allowed) {
+    return NextResponse.json({ error: 'Too many attempts — please try again later.' }, { status: 429 });
+  }
 
   const user = await db.select().from(authUsers).where(eq(authUsers.deoCugHash, cugHash)).limit(1).then((r) => r[0] ?? null);
   if (!user) return NextResponse.json({ error: 'Invalid CUG number' }, { status: 401 });
