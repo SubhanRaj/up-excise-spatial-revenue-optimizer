@@ -177,7 +177,9 @@ export async function parseExcelFile(
   districtName: string,
   uploadedByDeo: string,
   onProgress?: (pct: number) => void,
+  registeredUnits: string[] = [],
 ): Promise<StagedRow[]> {
+  const registeredUnitSet = new Set(registeredUnits);
   const buf = await file.arrayBuffer();
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.load(buf);
@@ -274,9 +276,26 @@ export async function parseExcelFile(
     // here catches paste-bypassed has_cl5cc/shop_type mismatches and other Worker-rejectable
     // rows at parse time, before a chunk POST round-trip, instead of only after a rejection.
     const rowErrors = validateRow(row as Parameters<typeof validateRow>[0]);
-    if (rowErrors.length > 0) {
+    const reasons = rowErrors.map((e) => e.message);
+
+    // circle_sector_name's Excel cell validation is a dropdown (list), which — like
+    // has_cl5cc — never fires on a pasted value, only on typed keystrokes. A row whose name
+    // doesn't exactly match a registered unit doesn't get rejected here or by the Worker
+    // (neither validateRow nor the Worker's per-row insert re-checks this — only the chunk's
+    // single declared circleSectorName is checked against the district's registered units),
+    // so it silently never matches any tab's `circleSectorName === activeUnit` filter and
+    // never gets included in any of submitDistrict()'s per-unit upload groups either — the
+    // row just vanishes from view under every circle/sector, which reads to a DEO as "my
+    // uploaded data got wiped." Flagging it as an error here (with the exact typed value in
+    // the message) surfaces it in the Staged Data table via the Unregistered/Mismatched card
+    // in /verify instead of silently discarding it.
+    if (registeredUnitSet.size > 0 && row.circleSectorName && !registeredUnitSet.has(row.circleSectorName)) {
+      reasons.push(`Circle/sector "${row.circleSectorName}" is not a registered unit for this district — check for typos, or select it from the dropdown instead of typing/pasting it.`);
+    }
+
+    if (reasons.length > 0) {
       row.status = 'error';
-      row.errorReason = rowErrors.map((e) => e.message).join('; ');
+      row.errorReason = reasons.join('; ');
     }
 
     results.push(row as StagedRow);

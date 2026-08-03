@@ -11,6 +11,11 @@ import HelpPanel from '@/app/_components/HelpPanel';
 
 const CHUNK_SIZE = 500;
 
+// Sentinel activeUnit value for the "Unregistered / Mismatched" catch-all card — never a
+// real circle_sector_name, so it can share the same activeUnit state/click handling as every
+// other unit tab without a parallel bool flag.
+const UNMATCHED_UNIT_KEY = '__unmatched__';
+
 function formatInr(n: number): string {
   if (n >= 10_000_000) return `₹${(n / 10_000_000).toFixed(2)}Cr`;
   if (n >= 100_000) return `₹${(n / 100_000).toFixed(2)}L`;
@@ -223,8 +228,19 @@ export default function VerifyPage() {
 
   const visibleRows = viewMode === 'uploaded' ? uploadedRows : rows;
 
+  // A row whose circle_sector_name doesn't exactly match a registered unit (a typo, or an
+  // Inspector pasting the column instead of using the dropdown — Excel's list validation
+  // never fires on paste) never matches any real tab's filter below, so it silently vanished
+  // from every unit view. This sentinel gives it a real, visible home instead.
+  const unmatchedRows = useMemo(
+    () => (viewMode === 'staged' && units.length > 0 ? rows.filter((r) => !units.includes(r.circleSectorName)) : []),
+    [rows, units, viewMode],
+  );
+
   const unitRows = useMemo(() => {
-    let filtered = visibleRows.filter((r) => r.circleSectorName === activeUnit);
+    let filtered = activeUnit === UNMATCHED_UNIT_KEY
+      ? unmatchedRows
+      : visibleRows.filter((r) => r.circleSectorName === activeUnit);
     if (searchQ) {
       const q = searchQ.toLowerCase();
       filtered = filtered.filter(
@@ -232,7 +248,7 @@ export default function VerifyPage() {
       );
     }
     return filtered;
-  }, [visibleRows, activeUnit, searchQ]);
+  }, [visibleRows, activeUnit, searchQ, unmatchedRows]);
 
   const paged = useMemo(() => unitRows.slice((page - 1) * pageSize, page * pageSize), [unitRows, page, pageSize]);
   const totalPages = Math.ceil(unitRows.length / pageSize);
@@ -395,11 +411,21 @@ export default function VerifyPage() {
   const unitNamesForSummary = viewMode === 'staged' && units.length > 0
     ? units
     : [...new Set(visibleRows.map((r) => r.circleSectorName))].filter(Boolean);
-  const unitSummary = unitNamesForSummary.map((u) => ({
+  const unitSummary: { key: string; name: string; count: number; uploaded: number; unmatched?: boolean }[] = unitNamesForSummary.map((u) => ({
+    key: u,
     name: u,
     count: visibleRows.filter((r) => r.circleSectorName === u).length,
     uploaded: visibleRows.filter((r) => r.circleSectorName === u && r.status === 'uploaded').length,
   }));
+  if (unmatchedRows.length > 0) {
+    unitSummary.push({
+      key: UNMATCHED_UNIT_KEY,
+      name: 'Unregistered / Mismatched',
+      count: unmatchedRows.length,
+      uploaded: unmatchedRows.filter((r) => r.status === 'uploaded').length,
+      unmatched: true,
+    });
+  }
   const missingUnits = units.filter((u) => !rows.some((r) => r.circleSectorName === u && r.status !== 'error'));
 
   if (!unitsChecked || !unitsReady) {
@@ -420,6 +446,7 @@ export default function VerifyPage() {
             titleHi="Verification — समीक्षा और सबमिट कैसे करें"
             childrenHi={<>
               <p><strong>Unit tabs</strong> — circles/sectors के बीच स्विच करने के लिए किसी unit card पर क्लिक करें। हर card दिखाता है कि कितनी rows अपलोड हो चुकी हैं। सबमिशन की अनुमति देने से पहले सभी units में कम से कम एक row होनी चाहिए।</p>
+              <p><strong>"Unregistered / Mismatched" card</strong> (लाल border) — यह तभी दिखता है जब staged rows का circle_sector_name किसी भी रजिस्टर्ड unit से बिल्कुल मेल नहीं खाता (आमतौर पर टाइपो, या Excel में dropdown से select करने की बजाय column paste किया गया)। ये rows किसी असली unit tab में दिखाई नहीं देतीं और submit नहीं होतीं — इस card पर क्लिक करके देखें कि वास्तव में क्या नाम टाइप हुआ है, फिर सही unit नाम के साथ दोबारा अपलोड करें।</p>
               <p><strong>Workflow gate</strong> — जब तक कम से कम एक circle या sector मौजूद न हो, district डेटा अपलोड करना लॉक रहता है। पहले units बनाएं, फिर अपलोड करें, फिर verify करें।</p>
               <p><strong>View mode</strong> — <em>Staged Data</em> (आपकी local upload queue) और <em>Uploaded Data</em> (D1 से लोड की गई read-only district rows) के बीच स्विच करें। Dashboard पर "Shops Uploaded" कार्ड पर क्लिक करने पर, या नाव बार में "Uploaded Data" लिंक से, आप सीधे Uploaded Data view में पहुंच सकते हैं।</p>
               <p><strong>Clear Staged Data</strong> — गलत Excel फ़ाइल अपलोड हो जाने पर इस बटन से इस डिवाइस का सारा staged (अभी D1 में नहीं भेजा गया) डेटा मिटाया जा सकता है। यह पहले से D1 में सबमिट किया जा चुका डेटा नहीं हटाता — केवल इस डिवाइस की local staging को साफ करता है। इसके बाद सही फ़ाइल दोबारा अपलोड करें।</p>
@@ -430,6 +457,7 @@ export default function VerifyPage() {
             </>}
           >
             <p><strong>Unit tabs</strong> — Click a unit card to switch between circles/sectors. Each card shows how many rows have been uploaded. All units must have at least one row before submission is allowed.</p>
+            <p><strong>"Unregistered / Mismatched" card</strong> (red border) — only appears when some staged rows' circle_sector_name doesn't exactly match any registered unit (usually a typo, or the column was pasted into Excel instead of picked from the dropdown). These rows don't show up under any real unit tab and won't be submitted — click this card to see what name was actually typed, then re-upload with the correct unit name.</p>
             <p><strong>Workflow gate</strong> — Uploading district data is locked until at least one circle or sector exists. Create units first, then upload, then verify.</p>
             <p><strong>View mode</strong> — Switch between <em>Staged Data</em> (your local upload queue) and <em>Uploaded Data</em> (read-only district rows loaded from D1). You can jump straight to the Uploaded Data view from the "Shops Uploaded" card on your Dashboard, or the "Uploaded Data" link in the nav bar.</p>
             <p><strong>Clear Staged Data</strong> — If the wrong Excel file was uploaded, this button erases all locally staged data (rows not yet sent to D1) on this device. It does not affect anything already submitted to D1 — only this device's local staging is cleared. Re-upload the correct file afterward.</p>
@@ -487,14 +515,17 @@ export default function VerifyPage() {
       {/* Unit summary */}
       <div className="grid md:grid-cols-4 gap-3" aria-label="Unit upload summary">
         {unitSummary.map((u) => (
-          <div key={u.name} className={`card p-3 shadow cursor-pointer transition-colors ${activeUnit === u.name ? 'bg-primary text-primary-content' : 'bg-base-100 hover:bg-base-200'}`}
-            onClick={() => { setActiveUnit(u.name); setPage(1); }}
-            role="button" tabIndex={0} aria-pressed={activeUnit === u.name}
-            onKeyDown={(e) => e.key === 'Enter' && setActiveUnit(u.name)}
+          <div key={u.key} className={`card p-3 shadow cursor-pointer transition-colors ${u.unmatched ? 'border-2 border-error' : ''} ${activeUnit === u.key ? 'bg-primary text-primary-content' : 'bg-base-100 hover:bg-base-200'}`}
+            onClick={() => { setActiveUnit(u.key); setPage(1); }}
+            role="button" tabIndex={0} aria-pressed={activeUnit === u.key}
+            onKeyDown={(e) => e.key === 'Enter' && setActiveUnit(u.key)}
+            title={u.unmatched ? "These rows' circle/sector name doesn't match any registered unit — check for typos, or select from the dropdown instead of typing/pasting." : undefined}
           >
             <p className="font-semibold text-sm truncate">{u.name}</p>
             <p className="text-xs mt-1">{u.uploaded}/{u.count} uploaded</p>
-            {u.count === 0 && <span className="badge badge-error badge-xs mt-1">No data</span>}
+            {u.unmatched
+              ? <span className="badge badge-error badge-xs mt-1">Fix these — not registered</span>
+              : u.count === 0 && <span className="badge badge-error badge-xs mt-1">No data</span>}
           </div>
         ))}
         {visibleRows.length === 0 && viewMode === 'staged' && (

@@ -65,7 +65,7 @@ export default function UploadPage() {
     try {
       // ExcelJS loaded dynamically from CDN — not bundled
       const { parseExcelFile } = await import('@/lib/excel');
-      const rows = await parseExcelFile(file, district, uploadedByDeo, setProgress);
+      const rows = await parseExcelFile(file, district, uploadedByDeo, setProgress, units.map((u) => u.name));
       await stagingDb.putRows(rows);
       setRowCount(rows.length);
       setStatus('done');

@@ -1003,6 +1003,24 @@ flowchart LR
 
 ---
 
+### M-49: Fix Mismatched circle_sector_name Silently Vanishing All Data ✅ Complete
+
+**Objective:** Rampur's DEO reported uploading a "perfect" Excel file, then clicking any circle tab other than the first showed no data at all, with a "no data for Circle 1/Circle 2" error — as if the upload had been wiped. A read-only remote D1 query confirmed Rampur has zero rows in `phase1_raw_collection` yet, so this was purely a client-side (IndexedDB staging) issue, never reaching the server.
+
+**Root cause:** `circle_sector_name`'s Excel cell validation is a `list`-type dropdown (`generateTemplate()` in `apps/web/src/lib/excel.ts`) — like `has_cl5cc` (see M-16/M-31 history), Excel's cell-level list validation only fires on typed keystrokes, never on a pasted value. If an Inspector pasted the `circle_sector_name` column instead of picking from the dropdown, a typo'd or slightly different string (wrong case, missing area suffix, etc.) sailed through untouched — `validateRow()` only checks the field is non-empty, not that it matches a registered unit. That row then silently failed to match `circleSectorName === activeUnit` under **every** tab in `/verify` (since the tab list is seeded from the registered `units`, not from whatever's actually in the data), and was excluded from every one of `submitDistrict()`'s per-unit chunk groups too (`pending.filter((r) => r.circleSectorName === unit)`). The row wasn't lost — it just had no tab it could ever appear under, which reads exactly like "my data got wiped" the moment the DEO clicked a different circle.
+
+**Change:**
+
+- [x] `parseExcelFile()` (`apps/web/src/lib/excel.ts`) now takes an optional `registeredUnits: string[]` parameter. Any parsed row whose `circle_sector_name` isn't an exact match in that list is flagged `status: 'error'` with an explicit reason naming the actual typed value. `/upload/page.tsx` passes its already-fetched `units.map((u) => u.name)` into the call.
+- [x] `/verify` (`apps/web/app/(deo)/verify/page.tsx`) computes `unmatchedRows` — staged rows whose name isn't in the registered `units` list — and surfaces them under a new red-bordered **"Unregistered / Mismatched"** card (sentinel `activeUnit` value `UNMATCHED_UNIT_KEY`) instead of nowhere. Clicking it shows exactly which rows have a bad `circle_sector_name` and what they're tagged as, so a DEO can fix and re-upload instead of just seeing empty tabs everywhere.
+- [x] HelpPanel copy on `/verify` updated (English + Hindi) explaining the new card.
+- [x] Service Worker `CACHE` bumped (`excise-v13` → `excise-v14`).
+- [x] Verified: `pnpm typecheck` and `next build` both pass.
+
+**Exit criterion:** A mismatched `circle_sector_name` is now visibly flagged (as an `error` row, and via the "Unregistered / Mismatched" summary card) instead of silently vanishing from every tab; `pnpm typecheck` and `next build` both pass.
+
+---
+
 ## Backlog / Not Started
 
 - [x] ~~Verify `exciseup.in` in Resend and switch `RESEND_FROM_EMAIL`~~ — Done. `mail.exciseup.in` verified; `RESEND_FROM_EMAIL` set to `noreply@mail.exciseup.in` on this project's Worker, and the same address set as `FROM_EMAIL` on the sibling `excise-revenue-recovery-portal` project's Worker (different env var name there, same Resend account/domain). Magic-link email is now the Admin/HQ login channel only (DEOs use CUG login as of M-17).
