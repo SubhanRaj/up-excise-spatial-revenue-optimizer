@@ -90,8 +90,8 @@ const SECTIONS: Section[] = [
     file: '08-units-locked.png',
     titleEn: '8. Locked — Made a Mistake?',
     titleHi: '८. लॉक हो गया — कोई गलती हुई?',
-    textEn: 'Once locked, your Sectors and Circles are shown read-only. If you spot an error, tap "Request Unlock" and explain the reason — an Admin at Headquarters will review your request and can unlock the list so you can re-register (see Section 18).',
-    textHi: 'लॉक होने के बाद, आपके Sectors और Circles केवल पढ़ने के लिए दिखाए जाते हैं। यदि आपको कोई त्रुटि दिखे, तो "Request Unlock" पर टैप करें और कारण बताएं — मुख्यालय का एक Admin आपके अनुरोध की समीक्षा करेगा और सूची को अनलॉक कर सकता है ताकि आप दोबारा पंजीकरण कर सकें (देखें खंड १८)।',
+    textEn: 'Once locked, your Sectors and Circles are shown read-only. If you spot an error, tap "Request Unlock" and explain the reason — an Admin at Headquarters will review your request and can unlock the list so you can re-register (see Section 21).',
+    textHi: 'लॉक होने के बाद, आपके Sectors और Circles केवल पढ़ने के लिए दिखाए जाते हैं। यदि आपको कोई त्रुटि दिखे, तो "Request Unlock" पर टैप करें और कारण बताएं — मुख्यालय का एक Admin आपके अनुरोध की समीक्षा करेगा और सूची को अनलॉक कर सकता है ताकि आप दोबारा पंजीकरण कर सकें (देखें खंड २१)।',
   },
   {
     file: '09-home-all-steps-unlocked.png',
@@ -132,41 +132,64 @@ const SECTIONS: Section[] = [
     textHi: 'जब हर row सही लगे, तो "Submit District" पर टैप करें। एक पुष्टिकरण संवाद row की संख्या दिखाता है और चेतावनी देता है कि यह आपका डेटा मुख्यालय को भेज देगा। तैयार होने पर ही "Yes, Submit" पर टैप करें।',
   },
   {
-    file: '14-verify-submitted.png',
-    titleEn: '16. Submitted Successfully',
-    titleHi: '१६. सफलतापूर्वक सबमिट हुआ',
-    textEn: 'A success message confirms your district has been submitted to Headquarters. Your work for this district\'s data collection is now complete.',
-    textHi: 'एक सफलता संदेश पुष्टि करता है कि आपका जिला मुख्यालय को सबमिट कर दिया गया है। इस जिले के डेटा संग्रहण के लिए आपका काम अब पूर्ण हो चुका है।',
+    file: '14-verify-lock-name-prompt.png',
+    titleEn: '16. Confirm Your Name & Lock the Submission',
+    titleHi: '१६. अपना नाम पुष्टि करें और सबमिशन लॉक करें',
+    textEn: 'A second, final prompt asks for the full name of the District Excise Officer confirming this submission. This step exists because locking the submission is a personal confirmation that the data is accurate — any incorrect data or error is the submitting DEO\'s individual responsibility. Type your full name in English letters only (no digits — do not paste your CUG number here, and do not type your designation such as "DEO" instead of your actual name), then tap "Lock Submission".',
+    textHi: 'एक दूसरा, अंतिम प्रॉम्प्ट जिला आबकारी अधिकारी का पूरा नाम मांगता है जो इस सबमिशन की पुष्टि कर रहा है। यह चरण इसलिए है क्योंकि सबमिशन लॉक करना एक व्यक्तिगत पुष्टि है कि डेटा सही है — किसी भी गलत डेटा या त्रुटि की जिम्मेदारी व्यक्तिगत रूप से संबंधित DEO की होगी। अपना पूरा नाम केवल अंग्रेज़ी अक्षरों में टाइप करें (अंक नहीं — यहां अपना CUG नंबर न लिखें, और "DEO" जैसा पद न लिखें, अपना असली नाम लिखें), फिर "Lock Submission" पर टैप करें।',
   },
   {
-    file: '15-admin-district-detail.png',
-    titleEn: '17. What Headquarters Sees',
-    titleHi: '१७. मुख्यालय क्या देखता है',
+    file: '15-verify-submitted.png',
+    titleEn: '17. Submitted Successfully',
+    titleHi: '१७. सफलतापूर्वक सबमिट हुआ',
+    textEn: 'A success message confirms your district has been submitted to Headquarters. Your work for this district\'s data collection is now complete. The Verify page now switches to a read-only "Uploaded Data" view — new uploads are locked until an Admin approves a data-correction unlock if a shop\'s data ever needs fixing (see Section 22).',
+    textHi: 'एक सफलता संदेश पुष्टि करता है कि आपका जिला मुख्यालय को सबमिट कर दिया गया है। इस जिले के डेटा संग्रहण के लिए आपका काम अब पूर्ण हो चुका है। Verify पेज अब एक read-only "Uploaded Data" व्यू में बदल जाता है — नए अपलोड तब तक लॉक रहते हैं जब तक कोई Admin data-correction unlock को स्वीकार न करे, अगर किसी दुकान का डेटा ठीक करना हो (देखें खंड २२)।',
+  },
+  {
+    file: '16-admin-district-detail.png',
+    titleEn: '18. What Headquarters Sees',
+    titleHi: '१८. मुख्यालय क्या देखता है',
     textEn: 'For your awareness only — you do not have access to this Admin view yourself. Once you submit, your district\'s data appears on the Admin/HQ portal like this: every shop you uploaded, grouped by Circle/Sector, with the same details you entered. This is shown here so you understand what happens to your data after submission.',
     textHi: 'केवल आपकी जानकारी के लिए — यह Admin व्यू आपके पास स्वयं उपलब्ध नहीं है। सबमिट करने के बाद, आपके जिले का डेटा Admin/HQ पोर्टल पर कुछ इस तरह दिखता है: आपके द्वारा अपलोड की गई हर दुकान, Circle/Sector के अनुसार समूहीकृत, वही विवरण जो आपने दर्ज किया था। यह यहां इसलिए दिखाया गया है ताकि आप समझ सकें कि सबमिशन के बाद आपके डेटा का क्या होता है।',
   },
   {
-    file: '16-units-request-unlock-dialog.png',
-    titleEn: '18. Requesting an Unlock',
-    titleHi: '१८. अनलॉक अनुरोध करना',
+    file: '17-units-request-unlock-dialog.png',
+    titleEn: '19. Requesting a Circles/Sectors Unlock',
+    titleHi: '१९. Circles/Sectors अनलॉक अनुरोध करना',
     textEn: 'If you find a mistake in your Circles/Sectors list after it is locked, go back to the Circles & Sectors page and tap "Request Unlock". Type a clear reason (this is required) and tap "Submit Request".',
     textHi: 'यदि आपको लॉक होने के बाद अपनी Circles/Sectors सूची में कोई गलती दिखे, तो Circles & Sectors पेज पर वापस जाएं और "Request Unlock" पर टैप करें। एक स्पष्ट कारण लिखें (यह आवश्यक है) और "Submit Request" पर टैप करें।',
   },
   {
-    file: '17-units-unlock-pending.png',
-    titleEn: '19. Waiting for Admin Review',
-    titleHi: '१९. Admin समीक्षा की प्रतीक्षा',
+    file: '18-units-unlock-pending.png',
+    titleEn: '20. Waiting for Admin Review',
+    titleHi: '२०. Admin समीक्षा की प्रतीक्षा',
     textEn: 'Once submitted, your request shows as "pending Admin review" along with the reason you gave. An Admin at Headquarters will either approve it (unlocking your list so you can re-register from scratch) or deny it with a note explaining why.',
     textHi: 'सबमिट होने के बाद, आपका अनुरोध आपके द्वारा दिए गए कारण के साथ "Admin समीक्षा के लिए लंबित" के रूप में दिखता है। मुख्यालय का एक Admin इसे या तो स्वीकार करेगा (आपकी सूची को अनलॉक करके ताकि आप दोबारा से पंजीकरण कर सकें) या एक नोट के साथ अस्वीकार करेगा जिसमें कारण बताया जाएगा।',
   },
   {
-    file: '18-admin-unlock-requests-list.png',
-    titleEn: '20. How Admin Resolves It',
-    titleHi: '२०. Admin इसे कैसे सुलझाता है',
-    textEn: 'This is what your unlock request looks like to the Admin reviewing it — your district, your reason, and a decision of Approve or Deny with a note explaining that decision. You will see the outcome the next time you open the Circles & Sectors page (Section 19 above).',
-    textHi: 'आपका unlock request समीक्षा करने वाले Admin को कुछ इस तरह दिखता है — आपका जिला, आपका कारण, और उस निर्णय को समझाते हुए एक नोट के साथ Approve या Deny का निर्णय। जब आप अगली बार Circles & Sectors पेज खोलेंगे (ऊपर खंड १९), तो आपको परिणाम दिख जाएगा।',
+    file: '19-admin-unlock-requests-list.png',
+    titleEn: '21. How Admin Resolves It',
+    titleHi: '२१. Admin इसे कैसे सुलझाता है',
+    textEn: 'This is what your unlock request looks like to the Admin reviewing it — your district, your reason, and a decision of Approve or Deny with a note explaining that decision. You will see the outcome the next time you open the Circles & Sectors page (Section 20 above).',
+    textHi: 'आपका unlock request समीक्षा करने वाले Admin को कुछ इस तरह दिखता है — आपका जिला, आपका कारण, और उस निर्णय को समझाते हुए एक नोट के साथ Approve या Deny का निर्णय। जब आप अगली बार Circles & Sectors पेज खोलेंगे (ऊपर खंड २०), तो आपको परिणाम दिख जाएगा।',
   },
 ];
+
+// New section (M-54, no screenshot — the flow is nearly identical to the circles/sectors
+// unlock request above, just on /upload instead of /units) explaining how a DEO fixes a
+// shop's data after the district is already submitted, without a full re-do.
+const DATA_CORRECTION_SECTION: Section = {
+  titleEn: '22. Fixing a Mistake After Submission — Data-Correction Unlock',
+  titleHi: '२२. सबमिशन के बाद गलती ठीक करना — Data-Correction Unlock',
+  customHtml: `
+    <p class="en">Found wrong data for one or more shops <strong>after</strong> your district was already submitted? Go to the <strong>Upload</strong> page — it now shows a locked screen instead of the upload box. Tap "Request Data-Correction Unlock" and explain which shop(s) need fixing, the same way you would request a Circles/Sectors unlock (Section 19).</p>
+    <p class="hi"><strong>सबमिट होने के बाद</strong> किसी दुकान का डेटा गलत मिला? <strong>Upload</strong> पेज पर जाएं — अब वहां अपलोड बॉक्स की जगह एक लॉक स्क्रीन दिखेगी। "Request Data-Correction Unlock" पर टैप करें और बताएं कि किस दुकान/दुकानों को ठीक करना है, ठीक वैसे ही जैसे Circles/Sectors unlock का अनुरोध करते हैं (खंड १९)।</p>
+    <div class="callout">
+      <p class="en"><strong>Nothing you already submitted is ever deleted.</strong> Once an Admin approves your request, re-upload a corrected Excel file with just the shop(s) that need fixing (or the full file again — either works). The portal automatically updates only the shop(s) whose data changed; every other shop's data is untouched. Then go to Verify and tap Submit District again to re-lock the district.</p>
+      <p class="hi"><strong>आपका पहले से सबमिट किया गया कोई भी डेटा कभी नहीं हटाया जाता।</strong> एक बार Admin आपके अनुरोध को स्वीकार कर ले, तो एक सुधारी हुई Excel फ़ाइल दोबारा अपलोड करें जिसमें बस उन्हीं दुकान(दुकानों) को ठीक किया गया हो जिन्हें ठीक करना था (या पूरी फ़ाइल दोबारा — दोनों तरीके काम करते हैं)। पोर्टल अपने-आप केवल उन्हीं दुकानों का डेटा अपडेट करता है जिनका डेटा बदला था; बाकी हर दुकान का डेटा वैसा ही रहता है। इसके बाद Verify पर जाकर फिर से "Submit District" पर टैप करें ताकि जिला फिर से लॉक हो जाए।</p>
+    </div>
+  `,
+};
 
 /** Splits a COLUMN_GUIDE-style "English text\nHindi text" cell into its two lines. */
 function splitBilingual(cell: string): [string, string] {
@@ -275,6 +298,7 @@ test('build bilingual DEO User Manual PDF from captured screenshots', async ({ p
     await buildTemplateColumnsSection(),
     buildRevenueFormulasSection(),
     ...SECTIONS.slice(uploadIdx + 1),
+    DATA_CORRECTION_SECTION,
   ];
 
   function imgDataUri(file: string): string {
@@ -330,6 +354,17 @@ test('build bilingual DEO User Manual PDF from captured screenshots', async ({ p
   .toc .about { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 10px 14px; margin-bottom: 18px; }
   .toc .about p { margin: 0 0 6px; font-size: 12px; }
   .toc .about p:last-child { margin-bottom: 0; }
+  .warn-page { page-break-after: always; }
+  .warn-page h2 { font-size: 20px; margin-bottom: 4px; color: #b91c1c; }
+  .warn-page .hi-h { font-size: 14px; font-weight: 500; color: #b91c1c; margin-bottom: 16px; }
+  .warn-item { border: 2px solid #fca5a5; background: #fef2f2; border-radius: 8px; padding: 12px 16px; margin-bottom: 12px; page-break-inside: avoid; }
+  .warn-item .num { display: inline-block; width: 22px; height: 22px; line-height: 22px; text-align: center; border-radius: 50%; background: #b91c1c; color: #fff; font-size: 12px; font-weight: bold; margin-right: 8px; }
+  .warn-item strong.head { font-size: 13.5px; }
+  .warn-item p { margin: 4px 0 0; font-size: 12px; }
+  .warn-item p.hi { color: #7f1d1d; margin-top: 2px; }
+  .req-box { border: 1px solid #cbd5e1; background: #f8fafc; border-radius: 8px; padding: 10px 16px; margin-bottom: 14px; }
+  .req-box p { margin: 3px 0; font-size: 12.5px; }
+  .req-box p.hi { color: #475569; }
 </style>
 </head>
 <body>
@@ -339,6 +374,52 @@ test('build bilingual DEO User Manual PDF from captured screenshots', async ({ p
   <div class="sub">DEO User Manual — Step-by-Step Guide</div>
   <div class="sub-hi">DEO उपयोगकर्ता मैनुअल — चरण-दर-चरण मार्गदर्शिका</div>
   <div class="meta">Department of Excise, Government of Uttar Pradesh</div>
+</div>
+
+<div class="warn-page">
+  <h2>⚠ Read This First — Common Mistakes to Avoid</h2>
+  <div class="hi-h">पहले यह ज़रूर पढ़ें — बचने योग्य आम गलतियां</div>
+
+  <div class="req-box">
+    <p class="en"><strong>System requirements:</strong> Windows 10 or later, and Microsoft Excel 2013 or later (or Excel Online). Windows 7 and Excel 2007/2010 do not reliably show the template's dropdowns and validation rules — DEOs on these older versions have seen wrong data get typed in undetected, and other portal issues. Please upgrade before filling the template or using the portal, if possible.</p>
+    <p class="hi">सिस्टम आवश्यकताएं: Windows 10 या नया वर्शन, और Microsoft Excel 2013 या नया वर्शन (या Excel Online)। Windows 7 और Excel 2007/2010 में टेम्पलेट के dropdown और validation rules सही से नहीं दिखते — इन पुराने वर्शन पर कुछ DEOs को गलत डेटा बिना पकड़े भरा हुआ मिला है, साथ ही पोर्टल में अन्य समस्याएं भी। कृपया संभव हो तो टेम्पलेट भरने या पोर्टल उपयोग करने से पहले अपग्रेड करें।</p>
+  </div>
+
+  <div class="warn-item">
+    <p><span class="num">1</span><strong class="head">"Shop Type" and "Circle / Sector Name" — ALWAYS pick from the dropdown. Never type or paste your own text.</strong></p>
+    <p class="en">Click the cell, click the small dropdown arrow that appears, and choose the exact option from the list. Do not type the value yourself, even if you type it correctly — and never paste a column of values in from another sheet. Excel's own dropdown validation only checks values typed one keystroke at a time or picked from the list; it does <strong>not</strong> check a value that was typed all at once by autocomplete or pasted in. A wrong value like "Circle 1" instead of the registered name, or "Composite Shop" instead of the full dropdown text "Composite Shop (FL + Beer)", is silently accepted by Excel with no red warning box — and that row is then rejected later, or in the worst case simply vanishes from every view with no error shown anywhere. This single habit — always click the dropdown, never type — is the single biggest cause of confusion and errors DEOs have run into.</p>
+    <p class="hi">सेल पर क्लिक करें, जो छोटा dropdown arrow दिखे उस पर क्लिक करें, और सूची से बिल्कुल वही option चुनें। value खुद टाइप न करें, भले ही सही टाइप करें — और किसी दूसरी शीट से values का कॉलम कभी paste न करें। Excel की अपनी dropdown validation केवल एक-एक अक्षर करके टाइप की गई या सूची से चुनी गई value को जांचती है; यह उस value को नहीं जांचती जो autocomplete से एक साथ टाइप हुई हो या paste की गई हो। रजिस्टर्ड नाम की जगह "Circle 1" जैसी गलत value, या पूरे dropdown टेक्स्ट "Composite Shop (FL + Beer)" की जगह सिर्फ "Composite Shop" — Excel इसे बिना किसी लाल चेतावनी के चुपचाप स्वीकार कर लेता है — और वह row बाद में अस्वीकार हो जाती है, या सबसे बुरी स्थिति में बिना कोई त्रुटि दिखाए हर जगह से गायब हो जाती है। यह एक आदत — हमेशा dropdown से चुनना, कभी टाइप न करना — DEOs की सबसे बड़ी उलझन और गलतियों का कारण रही है।</p>
+  </div>
+
+  <div class="warn-item">
+    <p><span class="num">2</span><strong class="head">Don't type the word "Circle" in the circle area-name box.</strong></p>
+    <p class="en">On the Circles &amp; Sectors page, the number ("Circle 2 -") is already fixed in front of each box — type only the area name (e.g. "Fatehabad"), not "Circle Fatehabad" or "Circle 2 Fatehabad".</p>
+    <p class="hi">Circles &amp; Sectors पेज पर, हर बॉक्स के आगे नंबर ("Circle 2 -") पहले से तय है — केवल area का नाम टाइप करें (जैसे "Fatehabad"), "Circle Fatehabad" या "Circle 2 Fatehabad" नहीं।</p>
+  </div>
+
+  <div class="warn-item">
+    <p><span class="num">3</span><strong class="head">"Circle / Sector Name" in the Excel file must exactly match a registered unit.</strong></p>
+    <p class="en">Every shop row's <code>circle_sector_name</code> must match, character for character, a name you already registered on the Circles &amp; Sectors page. This is another reason to always pick it from the dropdown rather than typing it — a small typo or extra space silently drops that row out of every view.</p>
+    <p class="hi">हर दुकान की <code>circle_sector_name</code> को Circles &amp; Sectors पेज पर पहले से रजिस्टर्ड किसी नाम से अक्षर-दर-अक्षर मेल खाना चाहिए। यह एक और कारण है कि इसे टाइप करने की बजाय हमेशा dropdown से ही चुनें — एक छोटी सी टाइपो या अतिरिक्त space उस row को हर जगह से चुपचाप गायब कर देता है।</p>
+  </div>
+
+  <div class="warn-item">
+    <p><span class="num">4</span><strong class="head">HBR shops — include "HBR" in the Shop ID.</strong></p>
+    <p class="en">For HBR (bar-type license) shops, put "HBR" somewhere in the Shop ID, e.g. <code>HBR001</code>, so a bar license is identifiable from its ID alone. This is a helpful suggestion, not a hard requirement — existing data without this pattern is never rejected.</p>
+    <p class="hi">HBR (bar-प्रकार का लाइसेंस) दुकानों के लिए, Shop ID में कहीं "HBR" शामिल करें, जैसे <code>HBR001</code>, ताकि bar license सिर्फ ID से पहचाना जा सके। यह एक सुझाव है, अनिवार्य नियम नहीं — इस pattern के बिना मौजूद डेटा कभी अस्वीकार नहीं होता।</p>
+  </div>
+
+  <div class="warn-item">
+    <p><span class="num">5</span><strong class="head">Adjacent Thanas — please always fill this in, comma-separated, one full name per item.</strong></p>
+    <p class="en">Spaces inside a single Thana name are fine (e.g. "Sadar Bazar"). To list more than one, separate each full name with a comma: <code>Fatehabad, Hariparvat, Sadar Bazar</code> — not one continuous run of words with no commas.</p>
+    <p class="hi">एक ही Thana नाम के अंदर space होना ठीक है (जैसे "Sadar Bazar")। एक से अधिक लिखने के लिए, हर पूरे नाम को अल्पविराम से अलग करें: <code>Fatehabad, Hariparvat, Sadar Bazar</code> — बिना अल्पविराम के लगातार शब्द नहीं।</p>
+  </div>
+
+  <div class="warn-item">
+    <p><span class="num">6</span><strong class="head">On the Verify page, a red Adjacent Thana name is NOT an error.</strong></p>
+    <p class="en">It only means that Thana name doesn't (yet) appear elsewhere in this district's own uploaded data — usually because no shop from that Thana has been uploaded in this particular batch yet, not a mistake. It is worth a quick spelling double-check, but a red name by itself does <strong>not</strong> block submission and does not need to be fixed before you submit.</p>
+    <p class="hi">इसका मतलब बस इतना है कि वह Thana नाम अभी तक इस जिले के अपने अपलोड किए गए डेटा में कहीं और मौजूद नहीं है — आमतौर पर इसलिए क्योंकि उस Thana की कोई दुकान अभी तक इस batch में अपलोड नहीं हुई, यह कोई गलती नहीं है। वर्तनी एक बार जांच लेना उचित है, लेकिन अकेले लाल नाम होने से सबमिशन <strong>नहीं</strong> रुकता और सबमिट करने से पहले इसे ठीक करने की आवश्यकता नहीं है।</p>
+  </div>
 </div>
 
 <div class="toc">

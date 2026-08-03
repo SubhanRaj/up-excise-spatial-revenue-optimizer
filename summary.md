@@ -1117,6 +1117,25 @@ flowchart LR
 
 ---
 
+### M-55: DEO Manual Regenerated End-to-End; Dropdown/Adjacent-Thana Wording Fixes ✅ Complete
+
+**Objective:** User reported that real DEOs keep typing or pasting values into "Shop Type" and "Circle / Sector Name" instead of using the Excel dropdown, and keep asking whether Adjacent Thana is optional (confused by its literal "Optional" label and by the red-highlight behavior on `/verify`). Asked for the DEO Manual PDF to be regenerated end-to-end with strong, upfront emphasis on dropdown-only entry, plus a Windows 10 minimum requirement (Windows 7 was also causing issues, not just old Excel).
+
+**Change:**
+
+- [x] **Fixed a broken manual-generation script before it could even run:** `manual-screenshots.spec.ts` still clicked "Yes, Submit" and waited directly for "District submitted!" — it had never been updated for M-46's two-step confirm (a second prompt requiring the DEO's typed name before the district actually locks). Added the missing `promptDeoNameAndLock` step (fill name, click "Lock Submission") plus a new screenshot for it.
+- [x] **New, prominent "⚠ Read This First — Common Mistakes to Avoid" page**, inserted right after the cover page (before the Table of Contents, deliberately unnumbered so it never has to shift if later sections are added/removed) in `build-manual-pdf.spec.ts`. Six numbered, bilingual warning boxes: (1) always use the dropdown for Shop Type / Circle-Sector Name, never type or paste — explained in full why Excel's own validation silently lets a typed/pasted wrong value through; (2) don't type the word "Circle" in the circle area-name box; (3) `circle_sector_name` must exactly match a registered unit; (4) HBR shop ID convention; (5) Adjacent Thanas comma-separated format; (6) a red Adjacent Thana pill on Verify is **not an error**. A system-requirements box up top states Windows 10+ and Excel 2013+ as the recommended minimum, noting Windows 7 has also caused issues, not just old Excel.
+- [x] **New Section 22 — "Fixing a Mistake After Submission — Data-Correction Unlock"** documenting M-54's new post-submission correction flow (request unlock on `/upload`, admin approves without deleting anything, re-upload just the corrected shop(s), resubmit).
+- [x] **New Section 16 — "Confirm Your Name & Lock the Submission"** documenting the M-46 name-confirmation step that was previously undocumented in the manual (the script that captures its screenshot didn't even exist until this fix). Every section from 16 onward renumbered by one (old 16→17, 17→18, ..., 20→21), including the cross-reference in Section 8 ("see Section 18" → "see Section 21").
+- [x] **Wording fix, not a behavior change:** `adjacent_thanas_raw`/`latitude`/`longitude` no longer say "Optional" in the Excel template's own Instructions sheet (`COLUMN_GUIDE` in `apps/web/src/lib/excel.ts`) — changed to "please always fill in" / "fill in when known". The word "Optional" itself was inviting the exact question DEOs kept asking; actual validation is unchanged (still nullable, still non-blocking). The red Adjacent-Thana-pill tooltip on `/verify` and the template's own notes column were rewritten to plainly state a red pill is not an error.
+- [x] Regenerated all 19 screenshots and the full 31-page PDF against a real local build (OpenNext Cloudflare preview server + local D1, never prod), following TEST.md's documented process — verified visually (converted several pages to PNG and read them back) before committing.
+- [x] Cleaned up a **stale-screenshot bug of my own making** during this work: an `rm -rf docs/manual/screenshots` was run from the wrong working directory (`apps/web`, not repo root), so it silently no-opped and old screenshots from before the section renumbering sat alongside the newly-generated ones under different filenames. Caught via `git status` before committing and removed the 5 stale files.
+- [x] Service Worker bumped `excise-v23` → `excise-v24`. Verified: `pnpm typecheck` and `next build` both pass.
+
+**Exit criterion:** The DEO Manual PDF (`docs/manual/DEO-User-Manual.pdf`) reflects the actual current portal end to end, including M-46's name-confirmation lock step and M-54's data-correction unlock — both previously undocumented; the manual opens with an unmissable, unnumbered warning page whose #1 item is "always use the dropdown, never type" with a full explanation of why; the Excel template and `/verify` no longer describe Adjacent Thana as "Optional" or leave DEOs unsure whether a red pill is an error.
+
+---
+
 ## Backlog / Not Started
 
 - [x] ~~Verify `exciseup.in` in Resend and switch `RESEND_FROM_EMAIL`~~ — Done. `mail.exciseup.in` verified; `RESEND_FROM_EMAIL` set to `noreply@mail.exciseup.in` on this project's Worker, and the same address set as `FROM_EMAIL` on the sibling `excise-revenue-recovery-portal` project's Worker (different env var name there, same Resend account/domain). Magic-link email is now the Admin/HQ login channel only (DEOs use CUG login as of M-17).

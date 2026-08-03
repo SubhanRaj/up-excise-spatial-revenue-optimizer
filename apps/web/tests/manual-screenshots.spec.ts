@@ -171,6 +171,14 @@ test.describe('DEO Manual — screenshot walkthrough', () => {
     await expect(page.locator('text=Yes, Submit')).toBeVisible();
     await shot(page, 'verify-confirm-submit');
     await page.click('button:has-text("Yes, Submit")');
+
+    // Second confirm (added M-46) — the DEO must type their name to lock the submission,
+    // with a bilingual personal-liability disclaimer.
+    await expect(page.locator('text=Verify & Lock Submission')).toBeVisible({ timeout: 10000 });
+    await shot(page, 'verify-lock-name-prompt');
+    await page.fill('.swal2-input', 'Rajesh Kumar');
+    await page.click('button:has-text("Lock Submission")');
+
     await expect(page.locator('h2#swal2-title')).toHaveText('District submitted!', { timeout: 15000 });
     await shot(page, 'verify-submitted');
     await page.click('button:has-text("OK")');

@@ -88,7 +88,7 @@ function PillList({ raw, districtThanas, onChange, readOnly = false }: {
           <span
             key={p}
             className={`badge gap-1 ${unrecognized ? 'badge-error' : 'badge-outline'}`}
-            title={unrecognized ? "Not found elsewhere in this district's own Thana data — check spelling, or confirm it belongs here" : p}
+            title={unrecognized ? "Not an error — just means this name doesn't (yet) appear elsewhere in this district's own uploaded Thana data. Worth a spelling check, but does not block submission." : p}
           >
             {p}
             {!readOnly && (
