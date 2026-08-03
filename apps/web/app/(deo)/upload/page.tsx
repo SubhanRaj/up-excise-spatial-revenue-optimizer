@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSession } from '@/hooks/useSession';
 import { stagingDb } from '@/lib/db';
 import HelpPanel from '@/app/_components/HelpPanel';
@@ -19,16 +19,31 @@ export default function UploadPage() {
   const [dragOver, setDragOver] = useState(false);
   const [units, setUnits] = useState<{ id: number; name: string; type: string }[]>([]);
   const [unitsChecked, setUnitsChecked] = useState(false);
+  const [districtStatus, setDistrictStatus] = useState<string>('pending');
+  const [unlockRequest, setUnlockRequest] = useState<{ status: 'pending' | 'approved' | 'denied'; reason: string; adminNote: string | null } | null>(null);
+  const [requestingUnlock, setRequestingUnlock] = useState(false);
 
-  useEffect(() => {
+  const loadStatus = useCallback(() => {
     if (!district) return;
-    fetch(`/api/districts/${encodeURIComponent(district)}/units`)
-      .then((res) => (res.ok ? res.json() as Promise<{ id: number; name: string; type: string }[]> : []))
-      .then((data) => setUnits(data))
-      .finally(() => setUnitsChecked(true));
+    setUnitsChecked(false);
+    Promise.all([
+      fetch(`/api/districts/${encodeURIComponent(district)}/units`)
+        .then((res) => (res.ok ? res.json() as Promise<{ id: number; name: string; type: string }[]> : [])),
+      fetch(`/api/districts/${encodeURIComponent(district)}/status`)
+        .then((res) => (res.ok ? res.json() as Promise<{ districtStatus: string }> : { districtStatus: 'pending' })),
+      fetch(`/api/districts/${encodeURIComponent(district)}/request-unlock`)
+        .then((res) => (res.ok ? res.json() as Promise<{ request: typeof unlockRequest }> : { request: null })),
+    ]).then(([unitsData, statusData, reqData]) => {
+      setUnits(unitsData);
+      setDistrictStatus(statusData.districtStatus);
+      setUnlockRequest(reqData.request);
+    }).finally(() => setUnitsChecked(true));
   }, [district]);
 
+  useEffect(() => { loadStatus(); }, [loadStatus]);
+
   const hasUnits = units.length > 0;
+  const submitted = districtStatus === 'submitted';
 
   // Hard gate — this page is not reachable until circles/sectors are locked, matching the
   // server-side rejection every units-dependent API route already enforces. No degraded
@@ -39,6 +54,85 @@ export default function UploadPage() {
 
   if (!unitsChecked || !hasUnits) {
     return <div className="text-sm text-base-content/60 p-6">Checking your circles and sectors…</div>;
+  }
+
+  async function requestCorrectionUnlock() {
+    const Swal = (window as unknown as { Swal?: { fire: (o: unknown) => Promise<{ isConfirmed: boolean; value?: string }> } }).Swal;
+    const result = await Swal?.fire({
+      icon: 'question',
+      title: 'Request data-correction unlock?',
+      html: `<p style="text-align:left">Explain which shop(s) had wrong data and what needs fixing for <b>${district}</b>. An Admin will review and either unlock re-uploading or deny the request. This does <b>not</b> delete anything already submitted — you'll re-upload a corrected file, which only updates the shop(s) you changed.</p>
+             <p style="text-align:left;margin-top:6px;color:#64748b">बताएं कि किस दुकान का डेटा गलत था और क्या ठीक करना है। एक Admin इसकी समीक्षा करेगा। इससे पहले से सबमिट किया गया कोई भी डेटा हटता नहीं है — आप एक सुधारी हुई फ़ाइल दोबारा अपलोड करेंगे, जो केवल उन्हीं दुकानों को अपडेट करेगी।</p>`,
+      input: 'textarea',
+      inputPlaceholder: 'Reason (required)',
+      showCancelButton: true,
+      confirmButtonText: 'Submit Request',
+      cancelButtonText: 'Cancel',
+      inputValidator: (value: string) => (value && value.trim() ? undefined : 'Please enter a reason.'),
+    } as unknown);
+    if (!result?.isConfirmed) return;
+
+    setRequestingUnlock(true);
+    try {
+      const res = await fetch(`/api/districts/${encodeURIComponent(district)}/request-unlock`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: String(result.value ?? '').trim() }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({})) as { error?: string };
+        await Swal?.fire({ icon: 'error', title: 'Could not submit request', text: body.error ?? 'Please try again.' });
+        return;
+      }
+      void Swal?.fire({
+        toast: true, position: 'top-end', icon: 'success', title: 'Unlock request submitted.',
+        showConfirmButton: false, timer: 3500, timerProgressBar: true,
+      });
+      loadStatus();
+    } finally {
+      setRequestingUnlock(false);
+    }
+  }
+
+  if (submitted) {
+    return (
+      <div className="card bg-base-100 shadow p-8 space-y-5 max-w-2xl mx-auto">
+        <div className="flex items-center gap-3">
+          <span className="flex items-center justify-center w-10 h-10 rounded-full bg-success/15 text-success shrink-0">
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><path d="m9 12 2 2 4-4"/></svg>
+          </span>
+          <div>
+            <p className="font-semibold">{district} has already been submitted to headquarters.</p>
+            <p className="text-xs text-base-content/60">यह जिला पहले ही headquarters को सबमिट किया जा चुका है — नया डेटा अपलोड करने के लिए लॉक है।</p>
+          </div>
+        </div>
+
+        {unlockRequest?.status === 'pending' ? (
+          <div className="alert alert-info text-sm">
+            <span className="loading loading-spinner loading-sm shrink-0" />
+            <div>
+              <p className="font-semibold">Data-correction unlock request pending Admin review.</p>
+              <p className="text-xs opacity-80 mt-1">&quot;{unlockRequest.reason}&quot;</p>
+            </div>
+          </div>
+        ) : (
+          <>
+            {unlockRequest?.status === 'denied' && (
+              <div className="alert alert-error text-sm">
+                <p className="font-semibold">Your last correction request was denied.</p>
+                {unlockRequest.adminNote && <p className="text-xs opacity-80 mt-1">&quot;{unlockRequest.adminNote}&quot;</p>}
+              </div>
+            )}
+            <p className="text-sm text-base-content/80">
+              Found wrong data for one or more shops? Request a data-correction unlock — an Admin can approve it so you can re-upload just the corrected rows. This never deletes your submitted data; a re-upload only updates the shop(s) you changed.
+            </p>
+            <button className="btn btn-primary self-start" onClick={requestCorrectionUnlock} disabled={requestingUnlock}>
+              {requestingUnlock ? <span className="loading loading-spinner loading-xs" /> : 'Request Data-Correction Unlock'}
+            </button>
+          </>
+        )}
+      </div>
+    );
   }
 
   async function downloadTemplate() {
@@ -92,6 +186,7 @@ export default function UploadPage() {
             titleHi="Upload — कौन सी फ़ाइल अपलोड करनी है और कैसे"
             childrenHi={<>
               <p><strong>क्या अपलोड करें:</strong> एक ही consolidated district Excel फ़ाइल (.xlsx) जिसे आपके Inspectors ने <Link href="/units" className="link">Circles page</Link> से डाउनलोड किए गए template का उपयोग करके भरा है।</p>
+              <p className="bg-error/10 border border-error/30 rounded px-3 py-2"><strong>⚠ "Shop Type" और "Circle / Sector Name" कॉलम — केवल dropdown से चुनें, खुद टाइप या paste न करें।</strong> Excel की dropdown जांच typed/pasted value पर काम नहीं करती, इसलिए "Circle 1" या "Composite Shop" जैसी गलत value (सही dropdown option की बजाय) बिना रोक-टोक स्वीकार हो जाती है और बाद में उसे ठीक करना मुश्किल होता है। हमेशा सेल पर क्लिक करके dropdown arrow से ही value चुनें।</p>
               <p><strong>अपलोड करने से पहले:</strong> सुनिश्चित करें कि सभी Inspectors ने अपने भरे हुए सेक्शन वापस दिए हैं और आपने उन्हें एक फ़ाइल में मिला दिया है। हर row में <code>circle_sector_name</code> का एक value होना चाहिए जो किसी पहले से रजिस्टर्ड unit से मेल खाता हो।</p>
               <p><strong>Column format:</strong> पहली row में column headers होने चाहिए (जैसा डाउनलोड किए गए template में है)। headers के ऊपर कोई अतिरिक्त row न जोड़ें।</p>
               <p><strong>Coordinates:</strong> या तो DMS columns (<code>latitude_dms</code> / <code>longitude_dms</code>) का उपयोग करें या decimal degree columns (<code>latitude_decimal</code> / <code>longitude_decimal</code>) का — दोनों का नहीं। DMS को प्राथमिकता दी जाती है।</p>
@@ -102,6 +197,7 @@ export default function UploadPage() {
             </>}
           >
             <p><strong>What to upload:</strong> The single consolidated district Excel file (.xlsx) your Inspectors filled using the template downloaded from the <Link href="/units" className="link">Circles page</Link>.</p>
+            <p className="bg-error/10 border border-error/30 rounded px-3 py-2"><strong>⚠ "Shop Type" and "Circle / Sector Name" columns — always pick from the dropdown, never type or paste your own text.</strong> Excel's dropdown check does not run on typed/pasted values, so a wrong value like "Circle 1" or "Composite Shop" (instead of the exact dropdown option) is silently accepted by Excel and only surfaces as an error later, or worse, gets misfiled with no error at all. Always click the cell and choose from its dropdown arrow.</p>
             <p><strong>Before uploading:</strong> Ensure all Inspectors have returned their filled sections and you have consolidated them into one file. Every row must have a <code>circle_sector_name</code> value matching a pre-registered unit.</p>
             <p><strong>Column format:</strong> The first row must be the column headers (as in the downloaded template). Do not add extra rows above the headers.</p>
             <p><strong>Coordinates:</strong> Use either DMS columns (<code>latitude_dms</code> / <code>longitude_dms</code>) or decimal degree columns (<code>latitude_decimal</code> / <code>longitude_decimal</code>) — not both. DMS takes precedence.</p>

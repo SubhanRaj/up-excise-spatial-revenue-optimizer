@@ -9,6 +9,7 @@ interface RequestRow {
   districtName: string;
   reason: string;
   status: 'pending' | 'approved' | 'denied';
+  requestType: 'units' | 'data_correction';
   requestedByDeo: string;
   requestedAt: string; // ISO string — Drizzle's `mode: 'timestamp'` columns serialize to this over JSON, not raw epoch seconds
   resolvedAt: string | null;
@@ -24,15 +25,15 @@ const STATUS_BADGE: Record<RequestRow['status'], string> = {
 
 type Swal = { fire: (o: Record<string, unknown>) => Promise<{ isConfirmed: boolean; value?: string }> };
 
-async function promptNote(action: 'approve' | 'deny', districtName: string): Promise<string | null> {
+async function promptNote(action: 'approve' | 'deny', districtName: string, requestType: RequestRow['requestType']): Promise<string | null> {
   const SwalG = (window as unknown as { Swal?: Swal }).Swal;
   const result = await SwalG?.fire({
     icon: action === 'approve' ? 'question' : 'warning',
-    title: `${action === 'approve' ? 'Approve' : 'Deny'} unlock request — ${districtName}?`,
+    title: `${action === 'approve' ? 'Approve' : 'Deny'} ${requestType === 'data_correction' ? 'data-correction' : 'units'} unlock — ${districtName}?`,
     input: 'textarea',
     inputPlaceholder: 'Your note (required)',
     showCancelButton: true,
-    confirmButtonText: action === 'approve' ? 'Approve & Unlock' : 'Deny',
+    confirmButtonText: action === 'approve' ? (requestType === 'data_correction' ? 'Approve & Allow Re-upload' : 'Approve & Unlock') : 'Deny',
     cancelButtonText: 'Cancel',
     confirmButtonColor: action === 'approve' ? '#1d4ed8' : '#dc2626',
     inputValidator: (value: string) => (value && value.trim() ? undefined : 'Please enter a note.'),
@@ -69,7 +70,7 @@ export default function UnlockRequestsPage() {
   useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
 
   async function resolve(row: RequestRow, action: 'approve' | 'deny') {
-    const note = await promptNote(action, row.districtName);
+    const note = await promptNote(action, row.districtName, row.requestType);
     if (!note) return;
     setResolvingId(row.id);
     try {
@@ -110,7 +111,7 @@ export default function UnlockRequestsPage() {
         </div>
         <div className="ml-auto flex items-center gap-2">
           <HelpPanel pageKey="admin_unlock_requests" title="Unlock requests">
-            <p>A locked-out DEO can submit an in-app request here instead of contacting an Admin outside the portal. Approving deletes that district&apos;s circles/sectors rows — same effect as the manual &quot;Unlock Circles/Sectors&quot; button on the district detail page — letting the DEO re-register from scratch. Denying leaves it locked. Both require you to type your own note.</p>
+            <p>A locked-out DEO can submit an in-app request here instead of contacting an Admin outside the portal. Two request types exist: <strong>Circles/Sectors</strong> — approving deletes that district&apos;s circles/sectors rows (same as the manual &quot;Unlock Circles/Sectors&quot; button on the district detail page), letting the DEO re-register from scratch. <strong>Data Correction</strong> — for a district already submitted with a shop-level data error; approving only re-opens the district for re-upload, it never deletes any submitted data. Denying leaves it as-is. Both require you to type your own note.</p>
           </HelpPanel>
         </div>
       </div>
@@ -128,6 +129,7 @@ export default function UnlockRequestsPage() {
             <thead className="bg-base-50 text-[11px] uppercase tracking-wide text-base-content/70">
               <tr>
                 <th>District</th>
+                <th>Type</th>
                 <th>Requested</th>
                 <th>Reason</th>
                 <th>Status</th>
@@ -138,17 +140,22 @@ export default function UnlockRequestsPage() {
               {loading ? (
                 Array.from({ length: 6 }, (_, i) => (
                   <tr key={i} className="animate-pulse">
-                    {Array.from({ length: 5 }, (_, j) => (
+                    {Array.from({ length: 6 }, (_, j) => (
                       <td key={j}><div className="h-3 bg-base-300 rounded" /></td>
                     ))}
                   </tr>
                 ))
               ) : visibleRows.length === 0 ? (
-                <tr><td colSpan={5} className="text-center py-12 text-base-content/60">No unlock requests.</td></tr>
+                <tr><td colSpan={6} className="text-center py-12 text-base-content/60">No unlock requests.</td></tr>
               ) : (
                 visibleRows.map((r) => (
                   <tr key={r.id} className="hover:bg-base-50 align-top">
                     <td className="whitespace-nowrap font-medium text-xs">{r.districtName}</td>
+                    <td className="whitespace-nowrap">
+                      <span className={`badge badge-sm ${r.requestType === 'data_correction' ? 'badge-info' : 'badge-ghost'}`}>
+                        {r.requestType === 'data_correction' ? 'Data Correction' : 'Circles/Sectors'}
+                      </span>
+                    </td>
                     <td className="whitespace-nowrap text-xs">{new Date(r.requestedAt).toLocaleString('en-IN')}</td>
                     <td className="text-xs max-w-sm">
                       {r.reason}

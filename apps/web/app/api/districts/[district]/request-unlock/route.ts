@@ -3,7 +3,7 @@ import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { drizzle } from 'drizzle-orm/d1';
 import { eq, and } from 'drizzle-orm';
 import { getSession } from '@/lib/auth';
-import { districtCirclesSectors, districtUnlockRequests, auditLog } from '@excise/schema';
+import { districtCirclesSectors, districtUnlockRequests, auditLog, districts } from '@excise/schema';
 import { withErrorHandling } from '@/lib/with-error-handling';
 
 const REASON_MAX_LENGTH = 2000;
@@ -48,12 +48,22 @@ async function POST_(req: NextRequest, { params }: Ctx): Promise<NextResponse> {
   const { env } = await getCloudflareContext({ async: true }) as { env: CloudflareEnv };
   const db = drizzle(env.DB);
 
-  const locked = await db.select({ id: districtCirclesSectors.id })
-    .from(districtCirclesSectors)
-    .where(eq(districtCirclesSectors.districtName, district))
-    .limit(1).all();
-  if (locked.length === 0) {
-    return NextResponse.json({ error: "Your circles/sectors aren't locked — nothing to unlock" }, { status: 409 });
+  const districtRow = await db.select({ status: districts.status })
+    .from(districts).where(eq(districts.name, district)).get();
+  // A district already submitted has its units locked as a side effect of that earlier
+  // step — this is a request to correct shop-level data, not to re-register units, so it
+  // skips the "units are locked" precondition below and is flagged for the resolve route
+  // to handle differently (reset status, never delete circles/sectors).
+  const isCorrection = districtRow?.status === 'submitted';
+
+  if (!isCorrection) {
+    const locked = await db.select({ id: districtCirclesSectors.id })
+      .from(districtCirclesSectors)
+      .where(eq(districtCirclesSectors.districtName, district))
+      .limit(1).all();
+    if (locked.length === 0) {
+      return NextResponse.json({ error: "Your circles/sectors aren't locked — nothing to unlock" }, { status: 409 });
+    }
   }
 
   const pending = await db.select({ id: districtUnlockRequests.id })
@@ -70,6 +80,7 @@ async function POST_(req: NextRequest, { params }: Ctx): Promise<NextResponse> {
       districtName: district,
       reason,
       status: 'pending',
+      requestType: isCorrection ? 'data_correction' : 'units',
       requestedByDeo: user.deoId,
       requestedAt: now,
     }),

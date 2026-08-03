@@ -88,6 +88,10 @@ export const districtUnlockRequests = sqliteTable('district_unlock_requests', {
   districtName: text('district_name').notNull(),
   reason: text('reason').notNull(),
   status: text('status').default('pending').notNull(), // 'pending' | 'approved' | 'denied'
+  // 'units' (pre-submission — approving deletes district_circles_sectors, DEO re-registers
+  // from scratch) | 'data_correction' (post-submission — approving only resets districts.status
+  // to 'in_progress', no rows deleted, DEO re-uploads/resubmits)
+  requestType: text('request_type').default('units').notNull(),
   requestedByDeo: text('requested_by_deo').notNull(),
   requestedAt: integer('requested_at', { mode: 'timestamp' }).notNull(),
   resolvedAt: integer('resolved_at', { mode: 'timestamp' }),
@@ -101,8 +105,8 @@ export const districtUnlockRequests = sqliteTable('district_unlock_requests', {
 export const auditLog = sqliteTable('audit_log', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   // 'login' | 'logout' | 'login_cug' | 'upload_chunk' | 'district_submitted' | 'unit_registered'
-  // | 'units_unlocked' | 'district_master_updated' | 'bulk_provision' | 'unlock_requested'
-  // | 'unlock_request_denied'
+  // | 'units_unlocked' | 'data_correction_unlocked' | 'district_master_updated' | 'bulk_provision'
+  // | 'unlock_requested' | 'unlock_request_denied'
   eventType: text('event_type').notNull(),
   deoId: text('deo_id').notNull(),
   districtName: text('district_name'),

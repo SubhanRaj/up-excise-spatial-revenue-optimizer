@@ -3,7 +3,7 @@ import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { drizzle } from 'drizzle-orm/d1';
 import { eq } from 'drizzle-orm';
 import { getSession } from '@/lib/auth';
-import { districtCirclesSectors, districtUnlockRequests, auditLog } from '@excise/schema';
+import { districtCirclesSectors, districtUnlockRequests, auditLog, districts } from '@excise/schema';
 import { withErrorHandling } from '@/lib/with-error-handling';
 
 async function POST_(req: NextRequest): Promise<NextResponse> {
@@ -35,6 +35,7 @@ async function POST_(req: NextRequest): Promise<NextResponse> {
   const now = new Date();
   const resolvedBy = user.name;
   const approve = body.action === 'approve';
+  const isCorrection = request.requestType === 'data_correction';
 
   await db.batch([
     db.update(districtUnlockRequests).set({
@@ -43,9 +44,17 @@ async function POST_(req: NextRequest): Promise<NextResponse> {
       resolvedBy,
       adminNote: note,
     }).where(eq(districtUnlockRequests.id, body.id)),
-    ...(approve ? [db.delete(districtCirclesSectors).where(eq(districtCirclesSectors.districtName, request.districtName))] : []),
+    ...(approve
+      ? isCorrection
+        // Data-correction unlock: never touch phase1_raw_collection or district_circles_sectors —
+        // just reset status so /upload and /verify accept new chunks again. The DEO re-uploads a
+        // corrected Excel (upserts by shop_id, cheap) and resubmits, which flips status back to
+        // 'submitted'. This is the whole point — no D1 wipe-and-redo for a one-shop typo.
+        ? [db.update(districts).set({ status: 'in_progress' }).where(eq(districts.name, request.districtName))]
+        : [db.delete(districtCirclesSectors).where(eq(districtCirclesSectors.districtName, request.districtName))]
+      : []),
     db.insert(auditLog).values({
-      eventType: approve ? 'units_unlocked' : 'unlock_request_denied',
+      eventType: approve ? (isCorrection ? 'data_correction_unlocked' : 'units_unlocked') : 'unlock_request_denied',
       deoId: user.deoId ?? '',
       districtName: request.districtName,
       ipAddress: req.headers.get('CF-Connecting-IP') ?? null,

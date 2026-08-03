@@ -4,7 +4,7 @@ import { drizzle } from 'drizzle-orm/d1';
 import { eq, and } from 'drizzle-orm';
 import { getSession } from '@/lib/auth';
 import { validateRow } from '@/lib/validate';
-import { phase1RawCollection, districtCirclesSectors, auditLog } from '@excise/schema';
+import { phase1RawCollection, districtCirclesSectors, districts, auditLog } from '@excise/schema';
 import type { Phase1RowInput } from '@/lib/types';
 import { withErrorHandling } from '@/lib/with-error-handling';
 
@@ -33,6 +33,17 @@ async function POST_(req: NextRequest): Promise<NextResponse> {
 
   const { env } = await getCloudflareContext({ async: true }) as { env: CloudflareEnv };
   const db = drizzle(env.DB);
+
+  const districtRow = await db.select({ status: districts.status })
+    .from(districts).where(eq(districts.name, districtName)).get();
+  // A submitted district is locked against new uploads by default — this is the actual
+  // enforcement point (the /upload page's own gate is UX only). The only way past this is
+  // an admin-approved data-correction unlock, which resets status to 'in_progress'.
+  if (districtRow?.status === 'submitted') {
+    return NextResponse.json({
+      error: 'This district has already been submitted and is locked. Ask your Admin to approve a data-correction unlock before re-uploading.',
+    }, { status: 409 });
+  }
 
   const unit = await db
     .select({ id: districtCirclesSectors.id })

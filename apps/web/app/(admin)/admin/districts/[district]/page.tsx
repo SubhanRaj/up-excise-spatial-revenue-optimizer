@@ -41,6 +41,7 @@ interface UnlockRequestRow {
   districtName: string;
   reason: string;
   status: 'pending' | 'approved' | 'denied';
+  requestType: 'units' | 'data_correction';
   requestedByDeo: string;
 }
 
@@ -383,16 +384,20 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
     const request = pendingUnlockRequest;
     if (!request) return;
 
+    const isCorrection = request.requestType === 'data_correction';
     const SwalG = (window as unknown as { Swal?: { fire: (o: Record<string, unknown>) => Promise<{ isConfirmed: boolean; value?: string }> } }).Swal;
     const confirm = await SwalG?.fire({
       icon: 'warning',
-      title: 'Approve unlock request?',
-      html: `<p>The DEO requested: <em>"${request.reason.replace(/</g, '&lt;')}"</em></p>
-             <p style="margin-top:8px">Approving deletes all <b>${detail?.units.length ?? 0} circle/sector</b> entries for <b>${name}</b> and lets the DEO re-register them from scratch. This does not affect any already-uploaded shop data.</p>`,
+      title: isCorrection ? 'Approve data-correction unlock?' : 'Approve unlock request?',
+      html: isCorrection
+        ? `<p>The DEO requested: <em>"${request.reason.replace(/</g, '&lt;')}"</em></p>
+           <p style="margin-top:8px">Approving lets the DEO re-upload a corrected Excel file for <b>${name}</b> — it does <b>not</b> delete any submitted shop data or circles/sectors. Re-uploading only updates the shop(s) whose data changed; the district returns to "submitted" once they resubmit.</p>`
+        : `<p>The DEO requested: <em>"${request.reason.replace(/</g, '&lt;')}"</em></p>
+           <p style="margin-top:8px">Approving deletes all <b>${detail?.units.length ?? 0} circle/sector</b> entries for <b>${name}</b> and lets the DEO re-register them from scratch. This does not affect any already-uploaded shop data.</p>`,
       input: 'textarea',
       inputPlaceholder: 'Your note (required)',
       showCancelButton: true,
-      confirmButtonText: 'Approve & Unlock',
+      confirmButtonText: isCorrection ? 'Approve & Allow Re-upload' : 'Approve & Unlock',
       cancelButtonText: 'Cancel',
       confirmButtonColor: '#1d4ed8',
       inputValidator: (value: string) => (value && value.trim() ? undefined : 'Please enter a note.'),
@@ -416,7 +421,8 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
       await refreshShops();
       void SwalG?.fire({
         toast: true, position: 'top-end', icon: 'success',
-        title: 'Circles & sectors unlocked.', showConfirmButton: false, timer: 3000, timerProgressBar: true,
+        title: isCorrection ? 'District re-opened for correction.' : 'Circles & sectors unlocked.',
+        showConfirmButton: false, timer: 3000, timerProgressBar: true,
       });
     } finally {
       setUnlocking(false);
@@ -620,7 +626,7 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
               {unlocking ? <span className="loading loading-spinner loading-xs" /> : (
                 <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0"/></svg>
               )}
-              Unlock Requested
+              {pendingUnlockRequest.requestType === 'data_correction' ? 'Correction Requested' : 'Unlock Requested'}
             </button>
           )}
         </div>

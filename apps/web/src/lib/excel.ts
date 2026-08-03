@@ -579,6 +579,9 @@ export async function generateTemplate(districtName: string, units: string[]): P
   wsGuide.spliceRows(1, 0, [
     '⚠ Use Microsoft Excel 2013 or later (or Excel Online) to open and fill this file. Excel 2007/2010 do not reliably show its dropdowns and validation rules, which can let wrong data get typed in undetected.\n' +
     'केवल Microsoft Excel 2013 या नए वर्शन में यह फ़ाइल खोलें और भरें। पुराने Excel (2007/2010) में इस फ़ाइल के dropdown और validation सही से नहीं दिखते, जिससे गलत डेटा बिना पकड़े भर सकता है।',
+  ], [
+    '⚠ For "Shop Type" and "Circle / Sector Name": you MUST click the cell and pick a value from its dropdown arrow — do not type or paste your own text. Excel\'s dropdown check does not run on typed/pasted values, so a value like "Circle 1" or "Composite Shop" (instead of the exact dropdown option) is silently accepted by Excel but rejected or misfiled later, and this cannot be corrected afterward except by re-entering that row correctly.\n' +
+    '"Shop Type" और "Circle / Sector Name" के लिए: सेल पर क्लिक करके dropdown arrow से value चुनें — खुद टाइप या paste न करें। Excel की dropdown जांच टाइप/paste की गई value पर काम नहीं करती, इसलिए "Circle 1" या "Composite Shop" जैसी गलत value (सही dropdown option की बजाय) बिना रोक-टोक स्वीकार हो जाती है, और बाद में उसे ठीक करना पड़ता है — इसलिए शुरू से ही dropdown का उपयोग करें।',
   ]);
   wsGuide.mergeCells(1, 1, 1, guideColCount);
   const guideWarnCell = wsGuide.getCell(1, 1);
@@ -586,8 +589,14 @@ export async function generateTemplate(districtName: string, units: string[]): P
   guideWarnCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFE0B2' } };
   guideWarnCell.alignment = { wrapText: true, vertical: 'middle' };
   wsGuide.getRow(1).height = 60;
-  applyPrintSetup(wsGuide, 2, guideColCount);
-  wsGuide.views = [{ state: 'frozen', ySplit: 2, xSplit: 0 }];
+  wsGuide.mergeCells(2, 1, 2, guideColCount);
+  const dropdownWarnCell = wsGuide.getCell(2, 1);
+  dropdownWarnCell.font = { bold: true, color: { argb: 'FF7A0000' } };
+  dropdownWarnCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFCDD2' } };
+  dropdownWarnCell.alignment = { wrapText: true, vertical: 'middle' };
+  wsGuide.getRow(2).height = 90;
+  applyPrintSetup(wsGuide, 3, guideColCount);
+  wsGuide.views = [{ state: 'frozen', ySplit: 3, xSplit: 0 }];
 
   // Hidden, not deleted — the circle/sector dropdown on Data Entry still
   // references it by name. Hidden because it's pure repetition of data the DEO already
