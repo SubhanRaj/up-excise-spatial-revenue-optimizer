@@ -17,6 +17,44 @@ function formatInr(n: number): string {
   return `₹${n.toLocaleString('en-IN')}`;
 }
 
+// Only letters, spaces, and punctuation real names actually use (dots for initials,
+// hyphens/apostrophes for compound names) — deliberately excludes digits so a DEO can't
+// paste their CUG number in here. Mirrors the sibling excise-revenue-recovery-portal
+// project's promptDeoNameAndLock()/validateDeoName() pattern.
+const DEO_NAME_CHARS_RE = /^[A-Za-z][A-Za-z.\-' ]*$/;
+const DEO_DESIGNATION_RE = /\b(deo|adeo|d\.?e\.?o\.?|excise\s*officer|officer|admin)\b/i;
+
+function validateDeoName(value: string): string | undefined {
+  const trimmed = value.trim();
+  if (!trimmed) return 'Please enter your full name. / कृपया अपना पूरा नाम दर्ज करें।';
+  if (/\d/.test(trimmed)) return 'Name must not contain numbers — do not type your CUG number here. / नाम में अंक नहीं होने चाहिए।';
+  if (DEO_DESIGNATION_RE.test(trimmed)) return 'Please enter your actual name, not your designation (e.g. "DEO"). / कृपया अपना पद नहीं, नाम दर्ज करें।';
+  if (!DEO_NAME_CHARS_RE.test(trimmed)) return 'Please enter your name in English letters only (dots/hyphens allowed). / कृपया केवल अंग्रेज़ी अक्षरों में नाम दर्ज करें।';
+  return undefined;
+}
+
+type SwalLike = {
+  fire: (o: unknown) => Promise<{ isConfirmed: boolean; value?: unknown }>;
+};
+
+async function promptDeoNameAndLock(district: string): Promise<string | null> {
+  const Swal = (window as unknown as { Swal?: SwalLike }).Swal;
+  const result = await Swal?.fire({
+    title: 'Verify & Lock Submission',
+    html: `<p>Enter the full name of the District Excise Officer confirming this submission for <b>${district}</b>. By locking, you confirm the data is accurate — <strong>any incorrect data or error is the submitting DEO's individual responsibility</strong>, who will be personally liable for it.</p>
+           <p style="margin-top:8px;color:#64748b">इस सबमिशन की पुष्टि करने वाले जिला आबकारी अधिकारी का पूरा नाम दर्ज करें। लॉक करने पर, आप पुष्टि करते हैं कि डेटा सही है — <strong>किसी भी गलत डेटा या त्रुटि की जिम्मेदारी व्यक्तिगत रूप से संबंधित डीईओ की होगी</strong>।</p>`,
+    input: 'text',
+    inputPlaceholder: 'Full Name (English)',
+    showCancelButton: true,
+    confirmButtonText: 'Lock Submission',
+    cancelButtonText: 'Cancel',
+    confirmButtonColor: '#dc2626',
+    allowOutsideClick: false,
+    inputValidator: (value: string) => validateDeoName(value ?? ''),
+  } as unknown);
+  return result?.isConfirmed ? String(result.value).trim() : null;
+}
+
 function PillList({ raw, districtThanas, onChange, readOnly = false }: {
   raw: string | null;
   districtThanas: Set<string>;
@@ -239,6 +277,9 @@ export default function VerifyPage() {
     });
     if (!confirm?.isConfirmed) return;
 
+    const submittedByName = await promptDeoNameAndLock(district);
+    if (!submittedByName) return;
+
     setUploading(true);
     let done = 0;
     let rejectedCount = 0;
@@ -311,7 +352,7 @@ export default function VerifyPage() {
       await fetch(`/api/districts/${encodeURIComponent(district)}/submit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: '{}',
+        body: JSON.stringify({ submittedByName }),
       });
       const Swal = (window as unknown as { Swal?: { fire: (o: unknown) => Promise<void> } }).Swal;
       await Swal?.fire({

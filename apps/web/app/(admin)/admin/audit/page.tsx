@@ -44,6 +44,7 @@ const METADATA_KEY_LABELS: Record<string, string> = {
   accepted: 'Accepted',
   rejected: 'Rejected',
   submittedAt: 'Submitted at',
+  submittedByName: 'Submitted by (DEO)',
   fields: 'Fields changed',
   emailChanged: 'Email changed',
   total: 'Total rows',

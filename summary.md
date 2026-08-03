@@ -953,6 +953,24 @@ flowchart LR
 
 ---
 
+### M-46: DEO Name Confirmation & Liability Disclaimer on Submit District ✅ Complete
+
+**Objective:** The user asked whether Submit District captured the submitting DEO's name for accountability, the way the sibling `excise-revenue-recovery-portal` project's `promptDeoNameAndLock()` does before its own final lock. It didn't — this project's Submit District was a single plain "are you sure" confirm with no name capture at all.
+
+**Change:**
+
+- [x] **`validateDeoName()` + `promptDeoNameAndLock()`** added to `apps/web/app/(deo)/verify/page.tsx`, mirroring the sibling project's exact validation rules: rejects blank input, digits (a DEO pasting their CUG number instead of typing their name has happened before on the sibling project), a designation typed instead of a name (e.g. "DEO"), and non-English characters.
+- [x] `submitDistrict()` is now a two-step confirm: the existing "Submit district to headquarters?" warning, then this name prompt with a bilingual personal-liability disclaimer ("any incorrect data or error is the submitting DEO's individual responsibility"). Cancelling either step aborts the submission with no request sent.
+- [x] The confirmed name is sent as `submittedByName` in `POST /api/districts/[district]/submit`'s body. The route now parses the body and requires `submittedByName` (400 if missing/blank) — previously it didn't read the request body at all.
+- [x] Stored in the `district_submitted` audit log entry's `metadata` JSON (not a new `districts` column — no migration needed) as `{ submittedAt, submittedByName }`. Not stored in `actorName`/`actorDesignation` — those columns are reserved for admin/superadmin-actor events per the existing schema comment in `packages/schema/src/phase1.ts`; DEO events are already identified by `deoId`, and `submittedByName` is additional accountability detail, not a replacement identity field.
+- [x] `/admin/audit`'s `METADATA_KEY_LABELS` gained a `submittedByName: 'Submitted by (DEO)'` entry so it renders with a friendly label instead of the raw camelCase key — the generic `describeMetadata()` renderer needed no other change.
+- [x] Service Worker `CACHE` bumped (`excise-v10` → `excise-v11`).
+- [x] Verified: `pnpm typecheck` and `next build` both pass.
+
+**Exit criterion:** Submit District requires the DEO to type their full name (validated) and accept a liability disclaimer before the district locks; the name is visible to admins on `/admin/audit` for every `district_submitted` event; `pnpm typecheck` and `next build` both pass.
+
+---
+
 ## Backlog / Not Started
 
 - [x] ~~Verify `exciseup.in` in Resend and switch `RESEND_FROM_EMAIL`~~ — Done. `mail.exciseup.in` verified; `RESEND_FROM_EMAIL` set to `noreply@mail.exciseup.in` on this project's Worker, and the same address set as `FROM_EMAIL` on the sibling `excise-revenue-recovery-portal` project's Worker (different env var name there, same Resend account/domain). Magic-link email is now the Admin/HQ login channel only (DEOs use CUG login as of M-17).
