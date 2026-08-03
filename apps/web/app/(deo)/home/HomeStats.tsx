@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import Link from 'next/link';
 import { stagingDb } from '@/lib/db';
 import type { StagedRow } from '@/lib/types';
 
@@ -149,11 +150,15 @@ export default function HomeStats({ district }: { district: string }) {
           <div className="stat-value text-secondary">{staged ?? '—'}</div>
           <div className="stat-desc">on this device</div>
         </div>
-        <div className="stat bg-base-100 rounded-2xl shadow">
+        <Link
+          href="/verify?view=uploaded"
+          className="stat bg-base-100 rounded-2xl shadow hover:bg-base-200 transition-colors cursor-pointer"
+          title="View uploaded shop records"
+        >
           <div className="stat-title">Shops Uploaded</div>
           <div className="stat-value text-success">{uploaded ?? '—'}</div>
-          <div className="stat-desc">to server</div>
-        </div>
+          <div className="stat-desc">to server — click to view</div>
+        </Link>
       </div>
     </div>
   );

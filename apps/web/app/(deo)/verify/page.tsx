@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from '@/hooks/useSession';
 import { stagingDb } from '@/lib/db';
 
@@ -64,6 +64,7 @@ function PillList({ raw, districtThanas, onChange, readOnly = false }: {
 
 export default function VerifyPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { session } = useSession();
   const district = session?.districtName ?? '';
   const deoId = session?.deoId ?? '';
@@ -154,6 +155,11 @@ export default function VerifyPage() {
     if (!district) return;
     if (!unitsReady) {
       setViewMode('staged');
+      return;
+    }
+    if (searchParams.get('view') === 'uploaded') {
+      setViewMode('uploaded');
+      void loadUploadedRows();
       return;
     }
     stagingDb.getAll().then((all) => {
@@ -297,6 +303,27 @@ export default function VerifyPage() {
     setUploading(false);
   }
 
+  async function clearStagedData() {
+    const Swal = (window as unknown as { Swal?: { fire: (o: unknown) => Promise<{ isConfirmed: boolean }> } }).Swal;
+    const confirm = await Swal?.fire({
+      icon: 'warning',
+      title: 'Clear staged data?',
+      html: `<p>This deletes all locally staged rows for <b>${district}</b> on this device — use this if the wrong Excel file was uploaded. Data already submitted to headquarters is not affected.</p>
+             <p style="margin-top:8px;color:#64748b">यह इस डिवाइस पर staged किया गया सारा डेटा मिटा देगा। यह पूर्ववत नहीं किया जा सकता।</p>`,
+      showCancelButton: true,
+      confirmButtonText: 'Yes, clear it',
+      cancelButtonText: 'Cancel',
+      confirmButtonColor: '#dc2626',
+    });
+    if (!confirm?.isConfirmed) return;
+
+    await stagingDb.clearAll();
+    setRows([]);
+    setViewMode('uploaded');
+    const notyf = (window as unknown as { notyf?: { success: (m: string) => void } }).notyf;
+    notyf?.success('Staged data cleared.');
+  }
+
   const unitSummary = [...new Set(visibleRows.map((r) => r.circleSectorName))].filter(Boolean).map((u) => ({
     name: u,
     count: visibleRows.filter((r) => r.circleSectorName === u).length,
@@ -350,6 +377,14 @@ export default function VerifyPage() {
               Uploaded Data
             </button>
           </div>
+          <button
+            className="btn btn-outline btn-error btn-sm"
+            onClick={clearStagedData}
+            disabled={rows.length === 0}
+            title="Delete all locally staged rows for this district (use this if the wrong Excel file was uploaded)"
+          >
+            Clear Staged Data
+          </button>
           <input
             className="input input-bordered input-sm w-48"
             placeholder="Search shop name / ID / Thana"

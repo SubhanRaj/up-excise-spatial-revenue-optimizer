@@ -66,6 +66,15 @@ export const stagingDb = {
 
   count: () =>
     getDb().table<StagedRow>('phase1_staging').count(),
+
+  // Wipes both staged rows and any queued-for-sync upload chunks — used by the DEO
+  // "Clear Staged Data" button to recover from a wrong file staged locally (never touches D1).
+  clearAll: async () => {
+    await Promise.all([
+      getDb().table<StagedRow>('phase1_staging').clear(),
+      getDb().table<QueuedChunk>('upload_queue').clear(),
+    ]);
+  },
 };
 
 interface QueuedChunk {
