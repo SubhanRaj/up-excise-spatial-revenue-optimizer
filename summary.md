@@ -898,6 +898,26 @@ flowchart LR
 
 ---
 
+### M-43: Clear Staged Data, Direct Uploaded-Data Link & Composite Shop Upload Fix ✅ Complete
+
+**Objective:** Two user-reported issues in one session. First: DEOs who staged a wrong Excel file locally had no way to recover except an admin unlock request, since nothing clears local IndexedDB. Second, more serious: many DEOs were getting a Composite Shop upload error reading `Must equal compositeLfFl + compositeLfBeer; Must equal compositeMgrFl + compositeMgrBeer` on every single row — screenshot evidence showed it firing on every Composite Shop row in a district's dataset, not an occasional typo.
+
+**Change:**
+
+- [x] **`stagingDb.clearAll()`** (`apps/web/src/lib/db.ts`) — wipes both the `phase1_staging` and `upload_queue` Dexie tables in one call. Never touches D1.
+- [x] **"Clear Staged Data" button** on `/verify`, next to the Staged/Uploaded view toggle — SweetAlert2-confirmed (bilingual, danger-red, matching the sibling `excise-revenue-recovery-portal` project's "Clear All" pattern), disabled when nothing is staged.
+- [x] **Home dashboard's "Shops Uploaded" stat card is now a link** (`apps/web/app/(deo)/home/HomeStats.tsx`) to `/verify?view=uploaded`, and the **DEO nav bar** (`apps/web/app/(deo)/layout.tsx`) gained a matching "Uploaded Data" link to the same URL — shown only once units are locked *and* `stagingDb.getByStatus('uploaded')` on this device returns at least one row, so it never appears as a dead link. `/verify` reads `?view=uploaded` from `window.location.search` (a plain client-side read, not Next's `useSearchParams()` — that hook requires a Suspense boundary during static prerendering; using it broke `next build` with "useSearchParams() should be wrapped in a suspense boundary at page /verify" and had to be reverted to the manual read) and force-switches into the read-only uploaded view on load.
+- [x] **Root cause found for the Composite Shop bug:** `apps/web/src/lib/excel.ts`'s `FIELD_GATES` correctly excludes `COMPOSITE_SHOP` from the `license_fee_lf`/`mgr_amount` Excel columns (per roadmap.md §5, these are documented as *Computed* totals for `COMPOSITE_SHOP`, not DEO-entered) — Excel's own cell validation formula therefore rejects any nonzero value a DEO types into either cell on a composite row, forcing it to stay 0. `validateRow()` (`apps/web/src/lib/validate.ts`) then checks `compositeLfFl + compositeLfBeer === licenseFeeLf` (and the MGR equivalent) — since `licenseFeeLf` was always stuck at 0 while the FL+Beer sub-fields were correctly filled in and nonzero, this check could never pass. Every Composite Shop row failed both checks unconditionally, regardless of DEO input — the "computed totals" step described in CLAUDE.md/roadmap.md had simply never been implemented.
+- [x] **Fix:** `parseExcelFile()` now sets `row.licenseFeeLf = compositeLfFl + compositeLfBeer` and `row.mgrAmount = compositeMgrFl + compositeMgrBeer` for every `COMPOSITE_SHOP` row, right before `validateRow()` runs. No DEO re-entry needed — affected DEOs just need Clear Staged Data (above) followed by re-uploading the *same* Excel file; the sub-component values they already entered were correct all along.
+- [x] Cleaned up the two sum-mismatch error messages in `validate.ts`, which surfaced raw camelCase field identifiers (`compositeLfFl`, `compositeMgrBeer`) instead of the friendly labels every other validation error already uses (e.g. "Must be one of: ...", "Outside UP bounding box").
+- [x] Instructions sheet copy for `license_fee_lf`/`mgr_amount` (`COLUMN_GUIDE` in `excel.ts`) updated to say these are auto-computed for Composite Shop from the FL/Beer sub-fields, instead of just "locked to 0" (technically true but implied the field was simply irrelevant rather than derived).
+- [x] **Service Worker `CACHE` bumped** (`excise-v8` → `excise-v9`, `apps/web/public/sw.js`) per CLAUDE.md's cache-bump policy — this fix needs to reach DEO devices that already cached the buggy JS bundle, not just new page loads.
+- [x] Verified: `pnpm typecheck` and a full `next build` both passed after every change (the `useSearchParams()` build break was caught this way, before the first deploy attempt). Both fixes deployed same-session; CI + Deploy workflows confirmed green via `gh run list`.
+
+**Exit criterion:** A DEO can clear their own staged local data without an admin unlock request; the uploaded-data view is reachable in one click from both the dashboard and the nav bar once something has been uploaded; Composite Shop rows with correctly-filled FL/Beer sub-fields no longer fail the LF/MGR sum check; validation error messages read in plain English; `pnpm typecheck` and `next build` both pass; changes committed, pushed, and deployed (confirmed via `gh run list --workflow Deploy`).
+
+---
+
 ## Backlog / Not Started
 
 - [x] ~~Verify `exciseup.in` in Resend and switch `RESEND_FROM_EMAIL`~~ — Done. `mail.exciseup.in` verified; `RESEND_FROM_EMAIL` set to `noreply@mail.exciseup.in` on this project's Worker, and the same address set as `FROM_EMAIL` on the sibling `excise-revenue-recovery-portal` project's Worker (different env var name there, same Resend account/domain). Magic-link email is now the Admin/HQ login channel only (DEOs use CUG login as of M-17).

@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { useSession } from '@/hooks/useSession';
+import { stagingDb } from '@/lib/db';
 import ProfileMenu from '@/components/ProfileMenu';
 
 async function signOut() {
@@ -25,6 +26,7 @@ export default function DeoLayout({ children }: { children: React.ReactNode }) {
 
   // Defaults closed — Upload/Verify must not flash into view before the units check resolves.
   const [hasUnits, setHasUnits] = useState(false);
+  const [uploadedCount, setUploadedCount] = useState(0);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   useEffect(() => {
@@ -35,12 +37,17 @@ export default function DeoLayout({ children }: { children: React.ReactNode }) {
           .then(units => setHasUnits(units.length > 0));
       }
     });
+    stagingDb.getByStatus('uploaded').then((rows) => setUploadedCount(rows.length)).catch(() => setUploadedCount(0));
   }, [pathname]);
 
   const navLinks = [
     { href: '/home', label: 'Dashboard' },
     { href: '/units', label: 'Circles' },
     ...(hasUnits ? [{ href: '/upload', label: 'Upload' }, { href: '/verify', label: 'Verify' }] : []),
+    // Direct shortcut to the uploaded-data view (same destination as the Home dashboard's
+    // "Shops Uploaded" stat card) — only once locked units exist and something has actually
+    // been uploaded, so it never appears as a dead link.
+    ...(hasUnits && uploadedCount > 0 ? [{ href: '/verify?view=uploaded', label: 'Uploaded Data' }] : []),
   ];
 
   return (
