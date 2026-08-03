@@ -91,7 +91,7 @@ export default function ExportPage() {
       <p className="text-sm text-base-content/90">
         Downloads the full state dataset as a multi-sheet Excel workbook — a summary sheet, the districts master
         table, a circle/sector-level rollup, a flat all-shops sheet, and one sheet per district (75 total).
-        ExcelJS generates the .xlsx in-browser — no server-side spreadsheet library required.
+        The file is built on your own device, so nothing extra is sent anywhere while it's generated.
       </p>
 
       <div className="flex flex-wrap gap-3">
