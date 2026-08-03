@@ -635,7 +635,7 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
         </div>
       ) : detail && (
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-          <StatCard label="DEO Officer" value={detail.deoName ?? '—'} />
+          <StatCard label="District Excise Officer (DEO)" value={detail.deoName ?? '—'} />
           <StatCard
             label="Division"
             value={detail.division ?? '—'}
