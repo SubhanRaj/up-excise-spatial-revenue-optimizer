@@ -1,4 +1,4 @@
-import { SHOP_TYPES, UP_BBOX } from '@excise/schema';
+import { SHOP_TYPES } from '@excise/schema';
 import type { Phase1RowInput } from './types';
 import { computeRevenue } from './revenue';
 
@@ -38,14 +38,12 @@ export function validateRow(r: Phase1RowInput): RowError[] {
     }
   }
 
-  if (r.latitudeDecimal != null && r.longitudeDecimal != null) {
-    if (
-      r.latitudeDecimal < UP_BBOX.minLat || r.latitudeDecimal > UP_BBOX.maxLat ||
-      r.longitudeDecimal < UP_BBOX.minLon || r.longitudeDecimal > UP_BBOX.maxLon
-    ) {
-      errors.push({ field: 'coordinates', message: 'Outside UP bounding box' });
-    }
-  }
+  // Out-of-bounds coordinates are a non-blocking warning, not a validation error — per
+  // CLAUDE.md's Coordinate Handling rule, they are "flagged with a warning... never silently
+  // dropped." `normalizeCoordinates()` (coordinates.ts) already computes `coordinateWarning`
+  // for the ⚠/✓ icon shown on /verify; this used to *also* push a blocking RowError here,
+  // which set row.status='error' and silently excluded the row from upload entirely — the
+  // opposite of what the UI copy and CLAUDE.md both promise. Do not re-add a bbox check here.
 
   const computed = computeRevenue(r);
   if (computed !== r.totalRevenue) {

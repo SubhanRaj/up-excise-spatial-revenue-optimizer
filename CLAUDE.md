@@ -504,6 +504,7 @@ Every API route handler (except the trivial `/api/healthz` liveness check) is ex
 - DMS input is converted to DD by the frontend before any data leaves the browser.
 - After conversion, validate against the UP geographic bounding box: latitude `23.8°–30.4°N`, longitude `77.1°–84.6°E`.
 - Out-of-bounds coordinates are flagged with a warning — they are never silently dropped or auto-corrected.
+- **Do not add a bbox check to `validateRow()` (`apps/web/src/lib/validate.ts`) — it was there until 2026-08-03 and is exactly the "silently dropped" bug this rule forbids.** `normalizeCoordinates()` (`apps/web/src/lib/coordinates.ts`) is the *only* place that should ever check the UP bounding box — it sets `row.coordinateWarning` (the ⚠/✓ icon on `/verify`, non-blocking, does not affect `row.status`). `validateRow()` used to *also* run the same bbox check and push a blocking `RowError` on failure, which set `row.status = 'error'` and silently excluded that row from `submitDistrict()`'s `pending` filter — a real shop (Hardoi district) was dropped from the submitted dataset this way, with the DEO never shown a chance to confirm-and-submit-anyway. If a future change wants stricter coordinate enforcement, it must be a deliberate, visible product decision (e.g. a confirm-to-override dialog), not a quiet validation-error path that contradicts this section.
 
 ### Shop Type Enum
 Valid values for `shop_type` are exactly:
@@ -682,6 +683,8 @@ Full per-milestone delivery history (Objective, Deliverables, Exit Criterion, bu
 | M-41: DEO Routes Made Deo-Only (Removed Admin/Superadmin Bypass) | **Completed** |
 | M-42: CUG Login Rate Limiting (Cross-Project Security Audit) | **Completed** |
 | M-43: Clear Staged Data, Direct Uploaded-Data Link & Composite Shop Upload Fix | **Completed** |
+| M-44: Verify-Page Unit-List Race Fix & Missing-Unit Diagnostics | **Completed** |
+| M-45: Coordinate Bbox No Longer Blocks Upload; Submit Result Summary | **Completed** |
 
 See [summary.md](summary.md) for full milestone specs, entry/exit criteria, deliverable checklists, the backlog, and pre-campaign-blocker history.
 

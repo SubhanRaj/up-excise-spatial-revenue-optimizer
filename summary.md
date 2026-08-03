@@ -918,6 +918,41 @@ flowchart LR
 
 ---
 
+### M-44: Verify-Page Unit-List Race Fix & Missing-Unit Diagnostics ✅ Complete
+
+**Objective:** A DEO (Rampur) reported that `/verify` showed every unit tab with staged rows and zero errors, yet Submit District still refused with "All units must have at least one row" — no indication of which unit was actually the problem, and the Uploaded Data tab was empty (expected, since nothing had reached D1 yet — never actually a bug).
+
+**Root cause:** `/verify`'s `units` state was written by three different functions with three different meanings — `loadUnits()` (the registered circle/sector list from the server, the authoritative one `canSubmit` should check against), `loadRows()` (distinct names found in staged rows), and `loadUploadedRows()` (distinct names found in uploaded rows) — whichever resolved last silently won. Switching to the Uploaded Data view (via the toggle, the M-43 dashboard stat-card link, or the M-43 nav link) and back to Staged Data on the same page load left `units` holding the uploaded-view's list (often empty, since nothing had synced yet) instead of the real registered list, so `canSubmit`'s `units.every(...)` check silently failed against the wrong list. Districts that went upload → verify → submit in a straight line without touching the view toggle (e.g. Hardoi) never hit the race, which is why it wasn't universal.
+
+**Change:**
+
+- [x] `units` is now written only by `loadUnits()`; `loadRows()` and `loadUploadedRows()` no longer call `setUnits(...)`.
+- [x] Unit tabs (`unitSummary`) are now seeded from the registered `units` list first (in staged view), so a registered-but-empty unit shows a real 0-row "No data" card instead of having no tab at all.
+- [x] The submit-blocked warning now names the specific missing unit(s) (`missingUnits`) instead of a generic "All units must have at least one row" message.
+- [x] Verified: `pnpm typecheck` and `next build` both pass; deployed same session.
+
+**Exit criterion:** Switching between Staged/Uploaded views any number of times before submitting can no longer corrupt the registered-unit list `canSubmit` checks against; a DEO blocked from submitting sees exactly which unit(s) have no data instead of a generic message.
+
+---
+
+### M-45: Coordinate Bbox No Longer Silently Blocks Upload; Submit Result Summary ✅ Complete
+
+**Objective:** Hardoi (554 shops) had one shop with a mistyped, out-of-UP-bounding-box coordinate. It showed as a hard `error` row on `/verify`, Submit District proceeded anyway (partial-success is by design — see below), and the district ended up with only 553 shops live in D1 with no clear summary telling the DEO a shop had been dropped. The DEO had to notice the discrepancy themselves, clear their staged data, fix the coordinate, and re-upload — working around a bug rather than the intended workflow.
+
+**Root cause:** Two separate code paths implemented the same UP-bounding-box rule two contradictory ways. `normalizeCoordinates()` (`apps/web/src/lib/coordinates.ts`) correctly computes a non-blocking `coordinateWarning` (the ⚠/✓ icon on `/verify`'s Coords column) — this is the intended mechanism per CLAUDE.md's Coordinate Handling rule ("flagged with a warning... never silently dropped") and the page's own HelpPanel copy ("not blocked, but should be verified"). But `validateRow()` (`apps/web/src/lib/validate.ts`) *also* ran the identical bbox check and pushed a blocking `RowError` on failure, setting `row.status = 'error'` — which `submitDistrict()`'s `pending` filter then silently excluded from upload. The shop was correctly flagged, but the two paths disagreed on whether that flag should stop the row from ever reaching D1.
+
+**Change:**
+
+- [x] Removed the duplicate bbox check from `validateRow()` (`apps/web/src/lib/validate.ts`) entirely — `normalizeCoordinates()` remains the sole place that ever evaluates the UP bounding box. A CLAUDE.md note added to the Coordinate Handling section names this exact bug so a future bbox check doesn't get re-added to `validateRow()` by mistake.
+- [x] **On the separate "why does the Worker allow partial success at all" question:** this is intentional, not a bug — `canSubmit` only requires every registered unit to have at least one non-error row, and `submitDistrict()` marks a district submitted once every originally-pending row has been *attempted* (uploaded or rejected), not once every row has *succeeded*. This matches CLAUDE.md's atomicity rule, which governs keeping *related writes together* (e.g. one row's insert + its audit log entry, via `db.batch`) — it does not mean "the whole batch must succeed or none of it does." Requiring all ~500+ rows in a chunk (or all rows across a whole district) to be error-free before any of them could be saved would mean one bad row blocks hundreds of good ones — worse for data collection, not safer. The real problem was that this specific rejection reason (bbox) should never have been a rejection at all, fixed above.
+- [x] **Submit District now shows an honest result summary** instead of a blanket "District submitted!": if any rows were rejected, the SweetAlert switches to a warning icon, states `N of TOTAL shop record(s) uploaded successfully`, lists the distinct rejection reasons, and tells the DEO rejected rows are marked `error` in the Staged Data table and can be fixed and re-uploaded by shop ID. A fully clean submission still shows the plain success message.
+- [x] Service Worker `CACHE` bumped (`excise-v9` → `excise-v10`) so DEO devices with the old bundle cached pick up the fix.
+- [x] Verified: `pnpm typecheck` and `next build` both pass.
+
+**Exit criterion:** A shop with an out-of-UP-bounding-box coordinate is uploaded like any other row (flagged with a warning icon for DEO review, never excluded from submission); Submit District's result message always states exactly how many rows succeeded and, if any were rejected, why and how to fix them.
+
+---
+
 ## Backlog / Not Started
 
 - [x] ~~Verify `exciseup.in` in Resend and switch `RESEND_FROM_EMAIL`~~ — Done. `mail.exciseup.in` verified; `RESEND_FROM_EMAIL` set to `noreply@mail.exciseup.in` on this project's Worker, and the same address set as `FROM_EMAIL` on the sibling `excise-revenue-recovery-portal` project's Worker (different env var name there, same Resend account/domain). Magic-link email is now the Admin/HQ login channel only (DEOs use CUG login as of M-17).

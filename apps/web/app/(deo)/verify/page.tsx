@@ -241,6 +241,8 @@ export default function VerifyPage() {
 
     setUploading(true);
     let done = 0;
+    let rejectedCount = 0;
+    const rejectedReasons: string[] = [];
 
     // Group by circle/sector, then chunk each group
     for (const unit of units) {
@@ -274,6 +276,8 @@ export default function VerifyPage() {
               const rejected = data.rejected.find((rej) => rej.rowIndex === ri);
               if (rejected) {
                 await stagingDb.updateStatus(r.id!, 'error', rejected.reason);
+                rejectedCount += 1;
+                if (!rejectedReasons.includes(rejected.reason)) rejectedReasons.push(rejected.reason);
               } else {
                 await stagingDb.updateStatus(r.id!, 'uploaded');
               }
@@ -293,8 +297,16 @@ export default function VerifyPage() {
       }
     }
 
-    // Finalize district submission if all uploaded
+    // Finalize district submission if every pending row has been attempted (uploaded or
+    // rejected) — a row rejected by the Worker's own validation (e.g. duplicate shop_id,
+    // revenue mismatch) does not block the other rows in the same submission.
     const stillPending = await stagingDb.getByStatus('pending');
+    const summaryHtml = rejectedCount > 0
+      ? `<p><b>${done}</b> of <b>${pending.length}</b> shop record(s) uploaded successfully.</p>
+         <p style="margin-top:8px;color:#b91c1c"><b>${rejectedCount}</b> row(s) were rejected and were <b>not</b> saved:</p>
+         <ul style="text-align:left;margin:4px auto;max-width:420px;color:#b91c1c">${rejectedReasons.map((r) => `<li>${r}</li>`).join('')}</ul>
+         <p style="margin-top:8px;color:#64748b">Rejected rows are marked "error" in the Staged Data table above — fix the underlying data and re-upload just those shop IDs to include them.</p>`
+      : `<p><b>${done}</b> shop record(s) uploaded successfully.</p>`;
     if (stillPending.length === 0) {
       await fetch(`/api/districts/${encodeURIComponent(district)}/submit`, {
         method: 'POST',
@@ -302,7 +314,11 @@ export default function VerifyPage() {
         body: '{}',
       });
       const Swal = (window as unknown as { Swal?: { fire: (o: unknown) => Promise<void> } }).Swal;
-      await Swal?.fire({ icon: 'success', title: 'District submitted!', text: 'All data has been committed to the system.' });
+      await Swal?.fire({
+        icon: rejectedCount > 0 ? 'warning' : 'success',
+        title: rejectedCount > 0 ? 'District submitted with some rows rejected' : 'District submitted!',
+        html: summaryHtml,
+      });
     }
 
     await loadRows();
