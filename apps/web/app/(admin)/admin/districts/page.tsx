@@ -187,7 +187,7 @@ export default function DistrictsPage() {
                         {d.status}
                       </span>
                     </td>
-                    <td className="text-right tabular-nums">{d.unitCount.toLocaleString()}</td>
+                    <td className="text-right tabular-nums">{(d.unitCount ?? 0).toLocaleString()}</td>
                     <td className="text-right tabular-nums">{d.vendCount.toLocaleString()}</td>
                     <td className="text-right font-mono text-xs tabular-nums">{fmt(d.totalRevenue)}</td>
                     <td>

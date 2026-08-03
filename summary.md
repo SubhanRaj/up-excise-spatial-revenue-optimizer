@@ -1073,6 +1073,8 @@ flowchart LR
 
 **Exit criterion:** Both admin district tables show a real circles/sectors count; District Master's list view no longer shows the unreliable Expected Vends estimate as a column (still editable in the drawer); no additional D1 read is issued per page load — the new count rides along in the existing cached aggregate request; `pnpm typecheck` and `next build` both pass.
 
+**Follow-up fix (same day):** an admin hit `Cannot read properties of undefined (reading 'toLocaleString')` — a client-side exception on `/admin/districts` — immediately after this deployed. Root cause: `adminDistrictsCache` (IndexedDB, 5-min TTL) still held that admin's pre-deploy response shape (no `unitCount` field) when the new code unconditionally called `d.unitCount.toLocaleString()`. The cache has no shape/version awareness, only a TTL, so any admin whose cache was still warm at deploy time hit `undefined.toLocaleString()`. Fixed by defaulting with `(d.unitCount ?? 0)` on both `/admin/districts` and `/admin/provision` — the general lesson: any new field added to a cached admin aggregate response must be read defensively for one cache TTL window after the field is introduced, since existing browser caches don't know about the new shape until they naturally expire. Service Worker `CACHE` bumped again (`excise-v18` → `excise-v19`).
+
 ---
 
 ### M-53: Submit District Writes the Confirmed DEO Name Back to `districts.deoName` ✅ Complete

@@ -149,7 +149,7 @@ export default function DistrictMasterPage() {
                         ? <div className="text-xs font-medium">{d.deoName}</div>
                         : <span className="text-base-content/50 text-xs">Unassigned</span>}
                     </td>
-                    <td>{d.unitCount}</td>
+                    <td>{d.unitCount ?? 0}</td>
                     <td>{d.vendCount}</td>
                     <td><span className={`badge badge-xs ${d.status === 'submitted' ? 'badge-success' : d.status === 'in_progress' ? 'badge-warning' : 'badge-ghost'}`}>{d.status}</span></td>
                     <td>
