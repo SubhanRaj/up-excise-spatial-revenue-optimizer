@@ -516,6 +516,8 @@ MODEL_SHOP | COMPOSITE_SHOP | BHANG_SHOP | PRV | COUNTRY_LIQUOR | HBR
 ```
 No other values are accepted. The Worker validates this on every inbound row. `HBR` was added 2026-07-28, reversing the prior hotel/restaurant-bar exclusion — see "What Is Out of Scope" below and roadmap.md §4.3a. **`HBR` is shown verbatim everywhere, including DEO-facing UI labels and the Excel dropdown — never spelled out as "Hotel / Bar / Restaurants."** DEOs know `HBR` as the excise-policy term covering every bar-type license (FL6, FL7, FL7A, FL7AR — hotel bars, airport bars, restaurant bars, etc.); spelling it out reads as one specific venue type and causes confusion about which licenses it covers. Spell out the full name only in this document's own prose, never in anything a DEO sees.
 
+**`shop_id` naming convention for HBR (not enforced — a soft guide only):** there is no separate "bar ID" column — `HBR` reuses the same generic `shop_id` field as every other shop type. The department's convention is to include the literal text `HBR` in the ID (e.g. `HBR001`) so a bar license is identifiable from its ID alone. This is a **warning-style** Excel data validation on the `shop_id` column (`errorStyle: 'warning'` in `generateTemplate()`, `apps/web/src/lib/excel.ts`) — a DEO can click "Yes" past it — deliberately not a hard `error`-style gate and not checked by the Worker or `validateRow()`. Districts with HBR data already collected under a different ID pattern are never blocked or retroactively invalidated by this convention.
+
 ### CL5CC Rule
 - CL5CC is **not a separate shop type**. It is `COUNTRY_LIQUOR` with `has_cl5cc = true`.
 - If `has_cl5cc = true`, then `shop_type` must be `COUNTRY_LIQUOR`. The DEO Excel template's `has_cl5cc` cell itself rejects `TRUE` unless `shop_type` is Country Liquor (a custom data-validation formula, not a plain dropdown — see `apps/web/src/lib/excel.ts`), and the Worker independently rejects any other combination on upload as a second layer.
@@ -690,6 +692,7 @@ Full per-milestone delivery history (Objective, Deliverables, Exit Criterion, bu
 | M-45: Coordinate Bbox No Longer Blocks Upload; Submit Result Summary | **Completed** |
 | M-46: DEO Name Confirmation & Liability Disclaimer on Submit District | **Completed** |
 | M-47: Excel Min-Version Warning & Revenue Breakdown Popup Viewport Flip | **Completed** |
+| M-48: HBR Shop ID Naming Convention (Soft Warning, Not Enforced) | **Completed** |
 
 See [summary.md](summary.md) for full milestone specs, entry/exit criteria, deliverable checklists, the backlog, and pre-campaign-blocker history.
 

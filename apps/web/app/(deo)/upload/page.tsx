@@ -98,6 +98,7 @@ export default function UploadPage() {
               <p><strong>सारा डेटा आपके डिवाइस पर ही रहता है</strong> जब तक आप Verify page पर जाकर Submit District पर क्लिक नहीं करते। Parsing पूरी तरह browser में होती है — अपलोड के दौरान कुछ भी सर्वर पर नहीं भेजा जाता।</p>
               <p><strong>दोबारा अपलोड करना:</strong> नई फ़ाइल अपलोड करने से इस district का सारा staged डेटा बदल जाता है। जो rows पहले से "uploaded" मार्क हैं, वे सुरक्षित रहती हैं।</p>
               <p><strong>Excel version:</strong> टेम्पलेट केवल Microsoft Excel 2013 या नए वर्शन में भरें (या Excel Online)। पुराने Excel (2007/2010) में इसके dropdown और validation rules सही से नहीं दिखते, जिससे गलत डेटा बिना पकड़े भर सकता है।</p>
+              <p><strong>HBR Shop ID:</strong> HBR (Hotel/Bar/Restaurant) दुकानों के लिए, Shop ID में "HBR" शामिल करें (जैसे <code>HBR001</code>) ताकि bar license सिर्फ ID से पहचाने जा सकें। यह एक सुझाव है — पुराने डेटा में इस pattern के बिना दी गई ID अस्वीकार नहीं होगी।</p>
             </>}
           >
             <p><strong>What to upload:</strong> The single consolidated district Excel file (.xlsx) your Inspectors filled using the template downloaded from the <Link href="/units" className="link">Circles page</Link>.</p>
@@ -107,6 +108,7 @@ export default function UploadPage() {
             <p><strong>All data stays on your device</strong> until you go to the Verify page and click Submit District. Parsing happens entirely in-browser — nothing is sent to the server during upload.</p>
             <p><strong>Re-uploading:</strong> Uploading a new file replaces all staged data for this district. Rows already marked "uploaded" are preserved.</p>
             <p><strong>Excel version:</strong> Fill the template only in Microsoft Excel 2013 or later (or Excel Online). Excel 2007/2010 do not reliably show the template's dropdowns and validation rules, which can let wrong data get typed in undetected.</p>
+            <p><strong>HBR Shop ID:</strong> For HBR (Hotel/Bar/Restaurant) shops, include "HBR" in the Shop ID (e.g. <code>HBR001</code>) so bar licenses are identifiable by ID alone. This is a soft suggestion — existing data with IDs that don't follow this pattern is never rejected.</p>
           </HelpPanel>
         </div>
         <p className="text-sm text-base-content/90 mb-6">

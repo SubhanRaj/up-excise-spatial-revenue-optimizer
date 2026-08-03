@@ -987,6 +987,22 @@ flowchart LR
 
 ---
 
+### M-48: HBR Shop ID Naming Convention (Soft Warning, Not Enforced) ✅ Complete
+
+**Objective:** User asked whether a separate "bar ID" column exists for HBR shops, or whether the convention is to work the word "HBR" into the existing `shop_id` field (e.g. `HBR001`). Confirmed via grep across `excel.ts`, `phase1.ts`, and roadmap.md that no such column or naming rule existed anywhere yet — `shop_id` is one generic field shared by every shop type. User then asked to add this as a convention in both UI and server, then walked it back mid-turn to a **soft, non-blocking** version: existing districts already have HBR data uploaded under no particular ID pattern, and re-issuing a new template version to every DEO now would be confusing, so nothing may retroactively reject already-collected data or force a template re-download.
+
+**Change:**
+
+- [x] `generateTemplate()`'s `shop_id` column data validation (`apps/web/src/lib/excel.ts`) gained a **warning-style** (`errorStyle: 'warning'`, not `'error'`) custom formula: when `shop_type = HBR`, the ID should contain "HBR" (e.g. `HBR001`), checked via `ISNUMBER(SEARCH("HBR",...))`. Warning-style Excel validation lets a DEO click "Yes" and keep any value — it never blocks entry, unlike the `error`-style gates already used elsewhere in this file (has_cl5cc, FIELD_GATES).
+- [x] **Deliberately no server-side (`/api/upload/chunk`) or client-side (`validateRow()`) enforcement** — this is a naming convention for future data entry, not a data-integrity rule; adding a hard check would retroactively flag/reject HBR rows already collected under other ID patterns.
+- [x] Documented in the Instructions sheet's `shop_id` row (`COLUMN_GUIDE`), and in the `/upload` page's `HelpPanel` (English + Hindi) — this reaches DEOs and Inspectors without requiring anyone to re-download an already-in-progress template, since the guidance also lives outside the file itself.
+- [x] Service Worker `CACHE` bumped (`excise-v12` → `excise-v13`).
+- [x] Verified: `pnpm typecheck` and `next build` both pass.
+
+**Exit criterion:** New Excel template downloads show a soft (dismissible) warning nudging DEOs toward an `HBR`-containing shop ID for HBR rows; no existing or newly-uploaded HBR data is ever rejected for not following the pattern; `pnpm typecheck` and `next build` both pass.
+
+---
+
 ## Backlog / Not Started
 
 - [x] ~~Verify `exciseup.in` in Resend and switch `RESEND_FROM_EMAIL`~~ — Done. `mail.exciseup.in` verified; `RESEND_FROM_EMAIL` set to `noreply@mail.exciseup.in` on this project's Worker, and the same address set as `FROM_EMAIL` on the sibling `excise-revenue-recovery-portal` project's Worker (different env var name there, same Resend account/domain). Magic-link email is now the Admin/HQ login channel only (DEOs use CUG login as of M-17).

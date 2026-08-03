@@ -347,7 +347,7 @@ const COLUMN_GUIDE: unknown[][] = [
   [FRIENDLY_LABELS.circle_sector_name, 'Circle or sector name — must exactly match a pre-registered unit.\nसर्कल या सेक्टर का नाम — पहले से रजिस्टर्ड unit से बिल्कुल मेल खाना चाहिए।', 'All shop types / सभी प्रकार', 'Pre-registered in the portal before template download.\nटेम्पलेट डाउनलोड करने से पहले पोर्टल में रजिस्टर होता है।'],
   [FRIENDLY_LABELS.thana_name, 'Enter the Thana name.\nथाना नाम दर्ज करें।', 'All shop types / सभी प्रकार', 'English only. Free text — no master list enforced in Phase 1.\nकेवल अंग्रेज़ी में। स्वतंत्र टेक्स्ट है।'],
   [FRIENDLY_LABELS.adjacent_thanas_raw, 'Names of Thanas adjacent to this Thana, comma-separated. Example: Kotwali, Hazratganj\nइस थाने से सटे (adjacent) थानों के नाम, अल्पविराम (,) से अलग करके। उदाहरण: Kotwali, Hazratganj', 'Optional / वैकल्पिक', 'Only list Thanas within this district. On the Verify page, a name is highlighted red if it doesn\'t (yet) appear as a Thana elsewhere in this district\'s own uploaded data — usually a typo. This does not block submission and is not checked against any district master list.\nकेवल इसी जिले के थाने लिखें। Verify पेज पर, अगर कोई नाम अभी तक इस जिले के अपने अपलोड किए गए डेटा में कहीं और Thana के रूप में मौजूद नहीं है, तो उसे लाल रंग में हाइलाइट किया जाता है — आमतौर पर यह टाइपो होता है। इससे सबमिशन नहीं रुकता और यह किसी जिला मास्टर लिस्ट से नहीं जांचा जाता।'],
-  [FRIENDLY_LABELS.shop_id, 'Department-assigned license/registration ID.\nविभाग द्वारा दिया गया लाइसेंस/पंजीकरण आईडी।', 'All shop types / सभी प्रकार', 'Alphanumeric. Must be unique within the district.\nअक्षर व अंक। जिले में अद्वितीय होना चाहिए।'],
+  [FRIENDLY_LABELS.shop_id, 'Department-assigned license/registration ID.\nविभाग द्वारा दिया गया लाइसेंस/पंजीकरण आईडी।', 'All shop types / सभी प्रकार', 'Alphanumeric. Must be unique within the district. For HBR shops, include "HBR" in the ID (e.g. HBR001) so bar licenses are identifiable by ID alone — a soft warning, not a blocking rule.\nअक्षर व अंक। जिले में अद्वितीय होना चाहिए। HBR दुकानों के लिए, ID में "HBR" शामिल करें (जैसे HBR001) ताकि bar license सिर्फ ID से पहचाने जा सकें — यह एक सुझाव है, अनिवार्य नियम नहीं।'],
   [FRIENDLY_LABELS.shop_name, 'Official name of the retail vend.\nदुकान का आधिकारिक नाम।', 'All shop types / सभी प्रकार', 'English only.\nकेवल अंग्रेज़ी में।'],
   [FRIENDLY_LABELS.shop_type, 'Shop classification — choose from the dropdown.\nदुकान का वर्गीकरण — dropdown से चुनें।', 'All shop types / सभी प्रकार', 'MODEL_SHOP | COMPOSITE_SHOP | PRV | BHANG_SHOP | COUNTRY_LIQUOR | HBR'],
   [FRIENDLY_LABELS.has_cl5cc, 'TRUE = Country Liquor shop that ALSO has the CL5CC beer endorsement. FALSE = every other case, including a standard Country Liquor shop that sells only country liquor and no beer. Type TRUE or FALSE.\nTRUE = ऐसी Country Liquor दुकान जिसके पास CL5CC बियर endorsement भी है। FALSE = बाकी हर स्थिति, जिसमें एक सामान्य Country Liquor दुकान भी शामिल है जो केवल देशी शराब बेचती है, बियर नहीं। TRUE या FALSE टाइप करें।', 'All shop types (FALSE/blank) — TRUE only for COUNTRY_LIQUOR / सभी प्रकार (FALSE/खाली) — TRUE केवल COUNTRY_LIQUOR के लिए', 'FALSE (or leaving it blank) is correct and expected for every shop type — including most Country Liquor shops, which don\'t have the beer endorsement. The cell itself rejects TRUE unless Shop Type is Country Liquor; FALSE/blank is always accepted.\nFALSE (या खाली छोड़ना) हर दुकान प्रकार के लिए सही और सामान्य है — जिसमें अधिकतर Country Liquor दुकानें भी शामिल हैं, जिनके पास बियर endorsement नहीं होता। Cell खुद TRUE को अस्वीकार कर देगा जब तक Shop Type Country Liquor न हो; FALSE/खाली हमेशा मान्य है।'],
@@ -420,6 +420,7 @@ async function buildShopDataSheet(
   const shopTypeCol = TEMPLATE_HEADERS.indexOf('shop_type') + 1;
   const cl5ccCol = TEMPLATE_HEADERS.indexOf('has_cl5cc') + 1;
   const unitCol = TEMPLATE_HEADERS.indexOf('circle_sector_name') + 1;
+  const shopIdCol = TEMPLATE_HEADERS.indexOf('shop_id') + 1;
   const colLetter = (n: number) => ws.getColumn(n).letter;
   const validations = (ws as ValidatableWorksheet).dataValidations;
 
@@ -460,6 +461,20 @@ async function buildShopDataSheet(
       showErrorMessage: true, errorStyle: 'error', errorTitle: 'Invalid Unit', error: 'Please select a unit from the dropdown list.',
     });
   }
+
+  // Shop ID convention for HBR: the department identifies bar licenses by an ID containing
+  // "HBR" (e.g. HBR001), so a DEO can visually spot HBR rows in the ID column alone.
+  // `errorStyle: 'warning'` (not 'error') deliberately — this is a naming convention to guide
+  // future entries, not a hard rule to enforce retroactively; a DEO can click "Yes" past it,
+  // so districts that already have HBR data under a different ID pattern are never blocked.
+  const shopIdLetter = colLetter(shopIdCol);
+  validations.add(`${shopIdLetter}3:${shopIdLetter}${VALIDATION_ROW_LIMIT}`, {
+    type: 'custom', allowBlank: true,
+    formulae: [`=OR($${shopTypeLetter}3<>"${SHOP_TYPE_LABELS.HBR}",ISNUMBER(SEARCH("HBR",$${shopIdLetter}3)))`],
+    showInputMessage: true, promptTitle: 'Shop ID', prompt: 'For HBR shops, the Shop ID should contain "HBR" (e.g. HBR001).',
+    showErrorMessage: true, errorStyle: 'warning', errorTitle: 'Shop ID convention for HBR',
+    error: 'For shop type HBR, the Shop ID should contain "HBR" (e.g. HBR001). Click Yes to keep this value anyway.\nशॉप टाइप HBR के लिए, Shop ID में "HBR" शामिल होना चाहिए (जैसे HBR001)। इस value को फिर भी रखने के लिए Yes पर क्लिक करें।',
+  });
   for (const gate of FIELD_GATES) {
     const col = TEMPLATE_HEADERS.indexOf(gate.key) + 1;
     const letter = colLetter(col);
