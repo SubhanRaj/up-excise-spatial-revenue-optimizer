@@ -1075,6 +1075,21 @@ flowchart LR
 
 ---
 
+### M-53: Submit District Writes the Confirmed DEO Name Back to `districts.deoName` ✅ Complete
+
+**Objective:** User asked why a submitting DEO's name — typed and confirmed in the M-46 liability-disclaimer modal — never shows up on the district detail page or either admin district-list table. Traced it: `submittedByName` was only ever stored in the `district_submitted` audit log entry's `metadata` JSON (visible solely on `/admin/audit`), never written to `districts.deoName`, the column every district page actually displays as "DEO Officer". Until submission, `deoName` is whatever an admin set at provisioning time — often a placeholder like `"<District> DEO"` (Pre-Campaign Blocker #5: real names are usually only available in Hindi, which the Data Language rule forbids storing) — so a district could be fully submitted, with a real self-attested name on record in the audit log, while every user-facing page still showed the placeholder.
+
+**Change:**
+
+- [x] `POST /api/districts/[district]/submit` (`apps/web/app/api/districts/[district]/submit/route.ts`) now also sets `deoName: submittedByName` in the same atomic `db.batch` as the `status`/`submittedAt` update and the audit log insert — no new write, no new round trip, just one more field on the existing update statement.
+- [x] **One-time backfill on prod D1** (not part of the app's normal write path, run with explicit user confirmation): the 10 districts already submitted before this fix had a confirmed `submittedByName` sitting unused in their audit log (all 10 submissions happened to already carry it, since M-46 shipped earlier in this same session) — backfilled `districts.deoName` for Ghazipur, Pilibhit, Bhadohi, Hardoi, Rampur, Sonbhadra, Chitrakoot, Etah, Kasganj, and Gorakhpur using each district's latest `district_submitted` audit entry's `submittedByName`, since `/units`/submission is one-shot and none of these districts would otherwise ever trigger this write again.
+- [x] Service Worker `CACHE` bumped (`excise-v17` → `excise-v18`).
+- [x] Verified: `pnpm typecheck` and `next build` both pass.
+
+**Exit criterion:** A district's "DEO Officer" name (district detail page, `/admin/districts`, District Master) reflects the real, self-attested, liability-confirmed name the moment that district is submitted, not an admin-set placeholder; the 10 already-submitted districts show their real names immediately without waiting for a resubmission that will never happen; `pnpm typecheck` and `next build` both pass.
+
+---
+
 ## Backlog / Not Started
 
 - [x] ~~Verify `exciseup.in` in Resend and switch `RESEND_FROM_EMAIL`~~ — Done. `mail.exciseup.in` verified; `RESEND_FROM_EMAIL` set to `noreply@mail.exciseup.in` on this project's Worker, and the same address set as `FROM_EMAIL` on the sibling `excise-revenue-recovery-portal` project's Worker (different env var name there, same Resend account/domain). Magic-link email is now the Admin/HQ login channel only (DEOs use CUG login as of M-17).

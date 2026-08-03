@@ -38,7 +38,13 @@ async function POST_(
 
   const now = new Date();
   await db.batch([
-    db.update(districts).set({ status: 'submitted', submittedAt: now }).where(eq(districts.name, district)),
+    // submittedByName is the DEO's own self-attested, liability-confirmed name (see
+    // promptDeoNameAndLock() on /verify) -- the first real ground truth for this district's
+    // DEO identity, since districts.deoName is otherwise an admin-set placeholder until
+    // corrected (Pre-Campaign Blocker #5). Writing it here is what makes the district detail
+    // and admin district-list pages show a real name instead of "<District> DEO" once a
+    // district is actually submitted.
+    db.update(districts).set({ status: 'submitted', submittedAt: now, deoName: submittedByName }).where(eq(districts.name, district)),
     db.insert(auditLog).values({
       eventType: 'district_submitted',
       deoId: user.deoId,
