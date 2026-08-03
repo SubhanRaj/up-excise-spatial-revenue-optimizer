@@ -43,8 +43,23 @@ function getDb(): DexieInstance {
 }
 
 export const stagingDb = {
-  putRows: (rows: StagedRow[]) =>
-    getDb().table<StagedRow>('phase1_staging').bulkPut(rows),
+  // Replaces a district's staged (non-uploaded) rows with a fresh parse — this was
+  // documented ("re-uploading replaces staged data, uploaded rows are preserved") but never
+  // actually implemented: bulkPut only upserts by Dexie's auto-increment id, and a fresh
+  // parseExcelFile() call always produces id-less row objects, so every re-upload silently
+  // added a second (or third...) copy on top of the old staged rows instead of replacing
+  // them — the real cause of /verify appearing to show "old data" after a corrected re-upload.
+  putRows: async (rows: StagedRow[]) => {
+    if (rows.length > 0) {
+      const district = rows[0]!.districtName;
+      const existing = await getDb().table<StagedRow>('phase1_staging').where('districtName').equals(district).toArray();
+      await Promise.all(
+        existing.filter((r) => r.status !== 'uploaded' && r.id != null)
+          .map((r) => getDb().table<StagedRow>('phase1_staging').delete(r.id!))
+      );
+    }
+    return getDb().table<StagedRow>('phase1_staging').bulkPut(rows);
+  },
 
   getAll: () =>
     getDb().table<StagedRow>('phase1_staging').toArray(),

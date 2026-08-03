@@ -25,7 +25,9 @@ export default function UploadPage() {
 
   const loadStatus = useCallback(() => {
     if (!district) return;
-    setUnitsChecked(false);
+    // No setUnitsChecked(false) here — this also runs after submitting an unlock request
+    // (see requestCorrectionUnlock below), and resetting it would flip the whole page back
+    // to the full-page "Checking…" loader instead of just refreshing the banner in place.
     Promise.all([
       fetch(`/api/districts/${encodeURIComponent(district)}/units`)
         .then((res) => (res.ok ? res.json() as Promise<{ id: number; name: string; type: string }[]> : [])),
