@@ -127,15 +127,21 @@ function RevenueCell({ s }: { s: ShopRow }) {
   const POPUP_WIDTH = 224; // w-56
   const POPUP_HEIGHT_EST = 100 + lines.length * 20;
 
-  // Same viewport-overflow check as HelpPanel's balloon flip — the shop table's
-  // overflow-x-auto/y wrapper doesn't clip an absolutely-positioned popup, it just grows the
-  // scrollable area, so an unflipped popup near the table's right/bottom edge silently added
-  // scroll instead of showing the breakdown.
+  // Same viewport-overflow check as HelpPanel's balloon flip, but bounded against the shop
+  // table's own `.overflow-auto` wrapper — not `window.innerWidth` — since that wrapper is
+  // narrower than the browser window (page padding, sidebar, etc). Checking against the full
+  // window let a popup near the table's own right edge (but still comfortably inside the
+  // window) pass the "fits" check while still overflowing the actual scrollable table
+  // container, which grows that container's scrollWidth instead of showing the breakdown.
   function handleToggle(e: React.SyntheticEvent<HTMLDetailsElement>) {
     if (!e.currentTarget.open) return;
     const rect = e.currentTarget.getBoundingClientRect();
-    setHAlign(rect.left + POPUP_WIDTH > window.innerWidth - 16 ? 'right' : 'left');
-    setVAlign(rect.bottom + POPUP_HEIGHT_EST > window.innerHeight - 16 ? 'above' : 'below');
+    const container = e.currentTarget.closest<HTMLElement>('.overflow-auto, .overflow-x-auto');
+    const bounds = container?.getBoundingClientRect();
+    const rightBound = bounds?.right ?? window.innerWidth;
+    const bottomBound = bounds?.bottom ?? window.innerHeight;
+    setHAlign(rect.left + POPUP_WIDTH > rightBound - 16 ? 'right' : 'left');
+    setVAlign(rect.bottom + POPUP_HEIGHT_EST > bottomBound - 16 ? 'above' : 'below');
   }
 
   return (

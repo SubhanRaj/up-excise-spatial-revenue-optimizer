@@ -3,7 +3,7 @@ import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { drizzle } from 'drizzle-orm/d1';
 import { eq } from 'drizzle-orm';
 import { getSession } from '@/lib/auth';
-import { districtCirclesSectors, auditLog } from '@excise/schema';
+import { districtCirclesSectors, auditLog, districts } from '@excise/schema';
 import { withErrorHandling } from '@/lib/with-error-handling';
 
 type Ctx = { params: Promise<{ district: string }> };
@@ -68,6 +68,10 @@ async function POST_(req: NextRequest, { params }: Ctx): Promise<NextResponse> {
   await db.batch([
     first!,
     ...rest,
+    // First real action a DEO takes on this district — flips the admin dashboard's
+    // Submission Progress doughnut out of 'pending' into 'in_progress'. That chart's
+    // 'in_progress' slice was always zero before this, since nothing wrote it.
+    db.update(districts).set({ status: 'in_progress' }).where(eq(districts.name, district)),
     db.insert(auditLog).values({
       eventType: 'unit_registered',
       deoId: user.deoId,

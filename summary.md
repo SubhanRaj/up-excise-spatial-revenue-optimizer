@@ -1040,6 +1040,24 @@ flowchart LR
 
 ---
 
+### M-51: `in_progress` District Status & Revenue Popup Container-Bound Flip Fix ✅ Complete
+
+**Objective:** Two follow-ups. (1) User asked what the `/admin` overview's Submission Progress doughnut chart (Pending/In Progress/Submitted) actually reflects, suspecting it could track circle/sector registration. Confirmed by grepping every write to `districts.status` across the whole API surface — there is exactly one (`POST /api/districts/[district]/submit` setting `'submitted'`) — `'in_progress'` was a documented possible value in the schema comment that nothing ever actually wrote, so that slice of the chart (and the same status on the admin choropleth map) was always zero regardless of real DEO activity. (2) User confirmed the M-47 revenue-breakdown popup fix on the district detail page still forced horizontal scroll near the table's right edge, despite the earlier viewport-aware flip.
+
+**Root cause (2):** The M-47 flip checked the popup's fit against `window.innerWidth`/`innerHeight`, but the shop table sits inside its own `.overflow-auto` wrapper (`apps/web/app/(admin)/admin/districts/[district]/page.tsx`), which is narrower than the full browser window (page padding, etc). A row could pass the "fits within the window" check while still overflowing the actual scrollable table container — which grows that container's own scrollWidth/Height, exactly the symptom being fixed.
+
+**Change:**
+
+- [x] `POST /api/districts/[district]/units` (`apps/web/app/api/districts/[district]/units/route.ts`) now includes `db.update(districts).set({ status: 'in_progress' })` in the same atomic `db.batch` as the unit inserts and audit log entry — the first real action a DEO takes on a district now flips it out of `pending` immediately, so the Submission Progress doughnut and the admin choropleth map both become meaningful.
+- [x] `RevenueCell`'s `handleToggle` (same district detail page) now finds the actual scrollable ancestor via `e.currentTarget.closest('.overflow-auto, .overflow-x-auto')` and bounds the flip check against *that* element's `getBoundingClientRect()`, falling back to `window` only if no such ancestor is found.
+- [x] Service Worker `CACHE` bumped (`excise-v15` → `excise-v16`).
+- [x] Verified: `pnpm typecheck` and `next build` both pass.
+- [x] **One-time backfill on prod D1** (not part of the app's normal write path): `UPDATE districts SET status='in_progress' WHERE status='pending' AND name IN (SELECT DISTINCT district_name FROM district_circles_sectors)` — without this, every district that registered units *before* this deploy would stay stuck at `pending` forever, since `/units` is a one-shot, locked-after-first-call endpoint with no other trigger to flip it retroactively.
+
+**Exit criterion:** A district's status becomes `in_progress` the moment its circles/sectors are registered, not only at final submission; the revenue breakdown popup no longer forces scroll on the shop table's own scrollable wrapper near its right/bottom edge; `pnpm typecheck` and `next build` both pass.
+
+---
+
 ## Backlog / Not Started
 
 - [x] ~~Verify `exciseup.in` in Resend and switch `RESEND_FROM_EMAIL`~~ — Done. `mail.exciseup.in` verified; `RESEND_FROM_EMAIL` set to `noreply@mail.exciseup.in` on this project's Worker, and the same address set as `FROM_EMAIL` on the sibling `excise-revenue-recovery-portal` project's Worker (different env var name there, same Resend account/domain). Magic-link email is now the Admin/HQ login channel only (DEOs use CUG login as of M-17).
