@@ -15,6 +15,19 @@ export const SHOP_TYPES = [
 
 export type ShopType = (typeof SHOP_TYPES)[number];
 
+/** Human-friendly display label per shop type — the Excel dropdown's exact option text and
+ * every DEO/admin-facing label. Single source shared by the Excel template (dropdown +
+ * parse-time reverse mapping) and validation error messages, so a rejected shop_type value
+ * is always explained using the same words the DEO actually sees in the dropdown. */
+export const SHOP_TYPE_LABELS: Record<ShopType, string> = {
+  MODEL_SHOP: 'Model Shop',
+  COMPOSITE_SHOP: 'Composite Shop (FL + Beer)',
+  PRV: 'PRV (Premium Retail Vend)',
+  BHANG_SHOP: 'Bhang Shop',
+  COUNTRY_LIQUOR: 'Country Liquor',
+  HBR: 'HBR',
+};
+
 export const UP_BBOX = {
   minLat: 23.8,
   maxLat: 30.4,

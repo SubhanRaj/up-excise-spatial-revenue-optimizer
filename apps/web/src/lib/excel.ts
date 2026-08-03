@@ -5,6 +5,7 @@ import { computeRevenue } from './revenue';
 import { validateRow } from './validate';
 import type { StagedRow } from './types';
 import type ExcelJSNamespace from 'exceljs';
+import { SHOP_TYPES, SHOP_TYPE_LABELS } from '@excise/schema';
 
 declare global {
   // ExcelJS loaded from CDN in root layout.tsx — never bundled. The single spreadsheet
@@ -68,18 +69,32 @@ const NUM_FIELDS = new Set<keyof StagedRow>([
 // Backend enum values (CLAUDE.md "Shop Type Enum" — exact strings, never change these).
 // The sheet never shows these raw underscored constants to the DEO; the dropdown shows
 // SHOP_TYPE_LABELS instead, and parseExcelFile maps the friendly label back to the enum.
-const SHOP_TYPE_LABELS: Record<string, string> = {
-  MODEL_SHOP: 'Model Shop',
-  COMPOSITE_SHOP: 'Composite Shop (FL + Beer)',
-  PRV: 'PRV (Premium Retail Vend)',
-  BHANG_SHOP: 'Bhang Shop',
-  COUNTRY_LIQUOR: 'Country Liquor',
-  HBR: 'HBR',
-};
 const SHOP_TYPE_OPTIONS = Object.values(SHOP_TYPE_LABELS);
-const SHOP_TYPE_REVERSE: Record<string, string> = Object.fromEntries(
-  Object.entries(SHOP_TYPE_LABELS).map(([enumKey, label]) => [label.toLowerCase(), enumKey]),
-);
+// Reverse mapping is deliberately lenient, not just the exact dropdown string lowercased —
+// Excel's list validation never fires on a pasted value (same category as the has_cl5cc/
+// circle_sector_name paste issues elsewhere in this file), so a DEO/Inspector pasting a
+// shorter or differently-worded shop type (e.g. "Composite Shop" instead of the dropdown's
+// full "Composite Shop (FL + Beer)") used to fall through to the raw enum-constant error
+// ("Must be one of: MODEL_SHOP, COMPOSITE_SHOP, ...") instead of being recognized. Every
+// entry here still resolves to the one canonical enum value validateRow() checks against.
+const SHOP_TYPE_REVERSE: Record<string, string> = {
+  ...Object.fromEntries(Object.entries(SHOP_TYPE_LABELS).map(([enumKey, label]) => [label.toLowerCase(), enumKey])),
+  ...Object.fromEntries(SHOP_TYPES.map((enumKey) => [enumKey.toLowerCase(), enumKey])),
+  ...Object.fromEntries(SHOP_TYPES.map((enumKey) => [enumKey.toLowerCase().replace(/_/g, ' '), enumKey])),
+  'model shop': 'MODEL_SHOP',
+  'composite shop': 'COMPOSITE_SHOP',
+  'composite': 'COMPOSITE_SHOP',
+  'prv': 'PRV',
+  'premium retail vend': 'PRV',
+  'bhang shop': 'BHANG_SHOP',
+  'bhang': 'BHANG_SHOP',
+  'country liquor': 'COUNTRY_LIQUOR',
+  'hbr': 'HBR',
+};
+// Widened-key alias for lookups keyed by a plain `string` (export rows, dynamic Object.entries
+// keys) rather than the narrow `ShopType` union — SHOP_TYPE_LABELS itself stays precisely
+// typed for call sites that already have a real ShopType value.
+const SHOP_TYPE_LABEL_LOOKUP: Record<string, string> = SHOP_TYPE_LABELS;
 // Data validation dropdowns are applied to a large-but-finite row range rather than
 // the full 1,048,576-row sheet — 5,000 rows comfortably covers any single district
 // while keeping the sqref range readable.
@@ -497,7 +512,7 @@ async function buildShopDataSheet(
   for (const gate of FIELD_GATES) {
     const col = TEMPLATE_HEADERS.indexOf(gate.key) + 1;
     const letter = colLetter(col);
-    const allowedLabels = gate.allowedTypes.map((t) => SHOP_TYPE_LABELS[t]!);
+    const allowedLabels = gate.allowedTypes.map((t) => SHOP_TYPE_LABEL_LOOKUP[t]!);
     const typesCond = allowedLabels.map((label) => `$${shopTypeLetter}3="${label}"`).join(',');
     // $cl5ccLetter}3=TRUE (unquoted boolean literal), not ="true" — Excel auto-converts a
     // typed "true" token to a native Boolean, which never equals the quoted text "true"
@@ -715,7 +730,7 @@ function shopExportHeaders(includeDistrict: boolean): string[] {
 function shopExportValues(s: ExportShopRow, includeDistrict: boolean): unknown[] {
   const base = [
     s.shopId, s.shopName, s.circleSectorName, s.thanaName, s.adjacentThanasRaw ?? '',
-    SHOP_TYPE_LABELS[s.shopType] ?? s.shopType, s.hasCl5cc,
+    SHOP_TYPE_LABEL_LOOKUP[s.shopType] ?? s.shopType, s.hasCl5cc,
     s.latitudeDecimal, s.longitudeDecimal,
     s.licenseFeeLf, s.basicLicenseFeeBlf, s.mgrAmount,
     s.compositeLfFl, s.compositeLfBeer, s.compositeMgrFl, s.compositeMgrBeer,
@@ -850,7 +865,7 @@ function buildSummarySheet(wb: ExcelJSNamespace.Workbook, districts: StateExport
     byType[s.shopType]!.count += 1;
     byType[s.shopType]!.revenue += s.totalRevenue;
   }
-  for (const [type, agg] of Object.entries(byType)) dataRow([SHOP_TYPE_LABELS[type] ?? type, agg.count, agg.revenue]);
+  for (const [type, agg] of Object.entries(byType)) dataRow([SHOP_TYPE_LABEL_LOOKUP[type] ?? type, agg.count, agg.revenue]);
   r += 1;
 
   sectionTitle('Division Rollup');
@@ -892,7 +907,7 @@ function buildCircleSectorSummarySheet(wb: ExcelJSNamespace.Workbook, shops: Exp
   const ws = wb.addWorksheet('Circle-Sector Summary');
   const headers = [
     'District', 'Circle / Sector', 'Type', 'Distinct Thanas', 'Total Shops',
-    ...CIRCLE_SECTOR_TYPE_KEYS.map((t) => SHOP_TYPE_LABELS[t]!),
+    ...CIRCLE_SECTOR_TYPE_KEYS.map((t) => SHOP_TYPE_LABEL_LOOKUP[t]!),
     'Total Revenue ₹',
   ];
 

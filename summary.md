@@ -1021,6 +1021,25 @@ flowchart LR
 
 ---
 
+### M-50: Lenient Shop-Type Reverse Mapping & Human-Readable Validation Errors ✅ Complete
+
+**Objective:** A Bhadohi upload showed dozens of rows rejected with `Must be one of: MODEL_SHOP, COMPOSITE_SHOP, BHANG_SHOP, PRV, COUNTRY_LIQUOR, HBR` — a raw backend enum list, meaningless to a DEO. Inspection of the actual rows showed `shop_type = "Composite Shop"`, while the Excel dropdown's exact option text is `"Composite Shop (FL + Beer)"`. User asked to (a) accept the dropdown-adjacent wording instead of erroring, and (b) make the error message itself readable.
+
+**Root cause:** Same category of bug as `has_cl5cc`/`circle_sector_name` elsewhere in this file — the `shop_type` column's Excel `list` dropdown validation only fires on typed keystrokes, never a pasted value. A pasted or manually-typed "Composite Shop" (missing the `(FL + Beer)` suffix) didn't match `SHOP_TYPE_REVERSE`'s only key (`"composite shop (fl + beer)"`), fell through to the raw string, failed the enum check in `validateRow()`, and the resulting error message printed the internal `SHOP_TYPES` enum constants verbatim instead of the friendly dropdown labels.
+
+**Change:**
+
+- [x] **`SHOP_TYPE_LABELS` moved to `packages/schema/src/constants.ts`** as the single canonical source (was duplicated locally in `excel.ts`) — shared by the Excel dropdown/reverse-mapping and `validate.ts`'s error messages, so a rejected shop type is always explained using the exact words the DEO sees in the dropdown.
+- [x] **`SHOP_TYPE_REVERSE` widened** (`apps/web/src/lib/excel.ts`) to also match bare enum keys, underscore-to-space variants ("composite_shop", "composite shop"), and common short forms ("composite", "bhang", "prv") — all resolving to the one canonical enum value, not just the exact full dropdown string lowercased.
+- [x] **`validate.ts`'s error messages rewritten to be human-readable**: the `shop_type` enum error now lists the friendly dropdown labels instead of raw enum constants and names the value that was actually entered; blank required-field errors now say *which* field ("Shop Name is required" instead of a bare "Required"); the revenue mismatch error now reads "Revenue doesn't add up: the fee columns calculate to ₹X, but the Revenue column has ₹Y" instead of "Mismatch: computed X, sent Y"; the CL5CC error was reworded to plain English.
+- [x] Fixed 4 TypeScript errors from narrowing `SHOP_TYPE_LABELS` to `Record<ShopType, string>` — added a `SHOP_TYPE_LABEL_LOOKUP: Record<string, string>` alias in `excel.ts` for the handful of call sites indexing by a plain `string` (export rows, `Object.entries()` keys) rather than a known `ShopType`.
+- [x] Service Worker `CACHE` bumped (`excise-v14` → `excise-v15`).
+- [x] Verified: `pnpm typecheck` and `next build` both pass.
+
+**Exit criterion:** A shop type typed/pasted as "Composite Shop" (or similar short forms for other types) is now accepted instead of rejected; any validation error that still fires reads in plain English naming the actual field/value involved; `pnpm typecheck` and `next build` both pass.
+
+---
+
 ## Backlog / Not Started
 
 - [x] ~~Verify `exciseup.in` in Resend and switch `RESEND_FROM_EMAIL`~~ — Done. `mail.exciseup.in` verified; `RESEND_FROM_EMAIL` set to `noreply@mail.exciseup.in` on this project's Worker, and the same address set as `FROM_EMAIL` on the sibling `excise-revenue-recovery-portal` project's Worker (different env var name there, same Resend account/domain). Magic-link email is now the Admin/HQ login channel only (DEOs use CUG login as of M-17).

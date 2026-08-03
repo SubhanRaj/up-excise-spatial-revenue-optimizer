@@ -1,4 +1,4 @@
-import { SHOP_TYPES } from '@excise/schema';
+import { SHOP_TYPES, SHOP_TYPE_LABELS } from '@excise/schema';
 import type { Phase1RowInput } from './types';
 import { computeRevenue } from './revenue';
 
@@ -7,11 +7,23 @@ export interface RowError {
   message: string;
 }
 
+// Human-readable name per field — used only to make "Required" errors say which field,
+// instead of a bare "Required" with no context once errorReason strings are joined together
+// for display on /verify.
+const FIELD_LABELS: Record<string, string> = {
+  districtName: 'District Name',
+  circleSectorName: 'Circle/Sector Name',
+  thanaName: 'Thana Name',
+  shopId: 'Shop ID',
+  shopName: 'Shop Name',
+  uploadedByDeo: 'Uploaded By (DEO)',
+};
+
 /** Browser-side row validation — mirrors Worker validation for early feedback. */
 export function validateRow(r: Phase1RowInput): RowError[] {
   const errors: RowError[] = [];
   const req = (v: string | null | undefined, f: string) => {
-    if (!v?.trim()) errors.push({ field: f, message: 'Required' });
+    if (!v?.trim()) errors.push({ field: f, message: `${FIELD_LABELS[f] ?? f} is required` });
   };
 
   req(r.districtName, 'districtName');
@@ -22,11 +34,15 @@ export function validateRow(r: Phase1RowInput): RowError[] {
   req(r.uploadedByDeo, 'uploadedByDeo');
 
   if (!(SHOP_TYPES as readonly string[]).includes(r.shopType)) {
-    errors.push({ field: 'shopType', message: `Must be one of: ${SHOP_TYPES.join(', ')}` });
+    const friendlyOptions = SHOP_TYPES.map((t) => SHOP_TYPE_LABELS[t]).join(', ');
+    errors.push({
+      field: 'shopType',
+      message: `Shop Type "${r.shopType}" is not recognized. Please select one of the dropdown options: ${friendlyOptions}.`,
+    });
   }
 
   if (r.hasCl5cc && r.shopType !== 'COUNTRY_LIQUOR') {
-    errors.push({ field: 'hasCl5cc', message: 'CL5CC requires COUNTRY_LIQUOR shop type' });
+    errors.push({ field: 'hasCl5cc', message: 'The CL5CC option can only be TRUE when Shop Type is Country Liquor.' });
   }
 
   if (r.shopType === 'COMPOSITE_SHOP') {
@@ -47,7 +63,10 @@ export function validateRow(r: Phase1RowInput): RowError[] {
 
   const computed = computeRevenue(r);
   if (computed !== r.totalRevenue) {
-    errors.push({ field: 'totalRevenue', message: `Mismatch: computed ${computed}, sent ${r.totalRevenue}` });
+    errors.push({
+      field: 'totalRevenue',
+      message: `Revenue doesn't add up: the fee columns for this row calculate to ₹${computed.toLocaleString('en-IN')}, but the Revenue column has ₹${r.totalRevenue.toLocaleString('en-IN')}. Check the financial fields for this row.`,
+    });
   }
 
   return errors;

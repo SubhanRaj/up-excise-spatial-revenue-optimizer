@@ -518,6 +518,8 @@ No other values are accepted. The Worker validates this on every inbound row. `H
 
 **`shop_id` naming convention for HBR (not enforced — a soft guide only):** there is no separate "bar ID" column — `HBR` reuses the same generic `shop_id` field as every other shop type. The department's convention is to include the literal text `HBR` in the ID (e.g. `HBR001`) so a bar license is identifiable from its ID alone. This is a **warning-style** Excel data validation on the `shop_id` column (`errorStyle: 'warning'` in `generateTemplate()`, `apps/web/src/lib/excel.ts`) — a DEO can click "Yes" past it — deliberately not a hard `error`-style gate and not checked by the Worker or `validateRow()`. Districts with HBR data already collected under a different ID pattern are never blocked or retroactively invalidated by this convention.
 
+**`SHOP_TYPE_LABELS` is the single canonical source** (`packages/schema/src/constants.ts`) for the friendly display text per shop type (`Composite Shop (FL + Beer)`, `PRV (Premium Retail Vend)`, etc.) — shared by `excel.ts`'s dropdown/parse-time reverse mapping and `validate.ts`'s error messages, so a rejected value is always explained using the exact words the DEO sees in the dropdown, not the raw enum constant. **`shop_type` reverse-mapping is deliberately lenient** (`SHOP_TYPE_REVERSE` in `excel.ts`) — Excel's `list` dropdown validation never fires on a pasted value (same category of bug as `has_cl5cc`/`circle_sector_name` elsewhere in this file), so a pasted shorter/differently-worded value (e.g. "Composite Shop" instead of the dropdown's full "Composite Shop (FL + Beer)") used to fall through untouched to the raw enum-constant error (`Must be one of: MODEL_SHOP, COMPOSITE_SHOP, ...`) instead of being recognized. The reverse map now also matches bare enum keys, underscore-to-space variants, and common short forms, all resolving to the one canonical enum value.
+
 ### CL5CC Rule
 - CL5CC is **not a separate shop type**. It is `COUNTRY_LIQUOR` with `has_cl5cc = true`.
 - If `has_cl5cc = true`, then `shop_type` must be `COUNTRY_LIQUOR`. The DEO Excel template's `has_cl5cc` cell itself rejects `TRUE` unless `shop_type` is Country Liquor (a custom data-validation formula, not a plain dropdown — see `apps/web/src/lib/excel.ts`), and the Worker independently rejects any other combination on upload as a second layer.
@@ -695,6 +697,7 @@ Full per-milestone delivery history (Objective, Deliverables, Exit Criterion, bu
 | M-47: Excel Min-Version Warning & Revenue Breakdown Popup Viewport Flip | **Completed** |
 | M-48: HBR Shop ID Naming Convention (Soft Warning, Not Enforced) | **Completed** |
 | M-49: Fix Mismatched circle_sector_name Silently Vanishing All Data | **Completed** |
+| M-50: Lenient Shop-Type Reverse Mapping & Human-Readable Validation Errors | **Completed** |
 
 See [summary.md](summary.md) for full milestone specs, entry/exit criteria, deliverable checklists, the backlog, and pre-campaign-blocker history.
 
