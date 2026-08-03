@@ -69,6 +69,16 @@ export default function VerifyPage() {
   const deoId = session?.deoId ?? '';
 
   const [rows, setRows] = useState<StagedRow[]>([]);
+  // Registered circles/sectors for this district (from GET /districts/[district]/units) —
+  // the authoritative list canSubmit checks coverage against. Set ONLY by loadUnits() below.
+  // Previously this same state was also overwritten by loadRows()/loadUploadedRows() with
+  // whatever distinct circleSectorName values happened to exist in staged/uploaded rows —
+  // whichever of the three resolved last silently won, so canSubmit could end up checking
+  // rows against the wrong list (e.g. an empty or uploaded-only list) depending on race
+  // timing and which view the DEO last opened. Real DEO-reported symptom this caused: every
+  // visible unit tab had staged rows and no row errors, yet Submit District still refused
+  // with "All units must have at least one row" and gave no indication which unit(s) were
+  // actually missing.
   const [units, setUnits] = useState<string[]>([]);
   const [activeUnit, setActiveUnit] = useState<string>('');
   const [pageSize, setPageSize] = useState<number>(() => {
@@ -115,13 +125,11 @@ export default function VerifyPage() {
       const mapped = data.rows.map((row) => ({ ...row, status: 'uploaded' as const }));
       setUploadedRows(mapped);
       const unitNames = [...new Set(mapped.map((r) => r.circleSectorName))].filter(Boolean);
-      setUnits(unitNames);
       setActiveUnit((prev) => prev || unitNames[0] || '');
       return mapped;
     } catch {
       setUploadedError('Unable to load uploaded district data right now.');
       setUploadedRows([]);
-      setUnits([]);
       return [];
     } finally {
       setUploadedLoading(false);
@@ -132,7 +140,6 @@ export default function VerifyPage() {
     const all = await stagingDb.getAll();
     setRows(all);
     const unitNames = [...new Set(all.map((r) => r.circleSectorName))].filter(Boolean);
-    setUnits(unitNames);
     setActiveUnit((prev) => prev || unitNames[0] || '');
   }, []);
 
@@ -323,11 +330,20 @@ export default function VerifyPage() {
     notyf?.success('Staged data cleared.');
   }
 
-  const unitSummary = [...new Set(visibleRows.map((r) => r.circleSectorName))].filter(Boolean).map((u) => ({
+  // Seeded from the registered unit list first (falling back to whatever's actually in
+  // visibleRows in 'uploaded' view, where `units` isn't the relevant list) so a registered
+  // circle/sector with zero rows still gets a real 0-count card instead of silently having
+  // no tab at all — the DEO can now see exactly which unit has no data, instead of a vague
+  // "All units must have at least one row" message with no indication of which one.
+  const unitNamesForSummary = viewMode === 'staged' && units.length > 0
+    ? units
+    : [...new Set(visibleRows.map((r) => r.circleSectorName))].filter(Boolean);
+  const unitSummary = unitNamesForSummary.map((u) => ({
     name: u,
     count: visibleRows.filter((r) => r.circleSectorName === u).length,
     uploaded: visibleRows.filter((r) => r.circleSectorName === u && r.status === 'uploaded').length,
   }));
+  const missingUnits = units.filter((u) => !rows.some((r) => r.circleSectorName === u && r.status !== 'error'));
 
   if (!unitsChecked || !unitsReady) {
     return <div className="text-sm text-base-content/60 p-6">Checking your circles and sectors…</div>;
@@ -538,9 +554,11 @@ export default function VerifyPage() {
         >
           {uploading ? <span className="loading loading-spinner" /> : 'Submit District'}
         </button>
-        {!canSubmit && unitsReady && units.length > 0 && (
+        {!canSubmit && unitsReady && units.length > 0 && viewMode === 'staged' && (
           <p className="text-sm text-warning" role="alert">
-            All units must have at least one row to enable submission.
+            {missingUnits.length > 0
+              ? <>These registered units have no uploaded data yet: <strong>{missingUnits.join(', ')}</strong>. Every registered circle/sector needs at least one row before you can submit.</>
+              : 'All units must have at least one row to enable submission.'}
           </p>
         )}
       </div>
