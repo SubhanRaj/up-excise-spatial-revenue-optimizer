@@ -10,7 +10,7 @@ import type { AdminDistrictRow as DistrictRow } from '@/hooks/useAdminDistricts'
 const fmt = (n: number) => n >= 1e7 ? `₹${(n / 1e7).toFixed(2)} Cr` : n >= 1e5 ? `₹${(n / 1e5).toFixed(2)} L` : `₹${n.toLocaleString('en-IN')}`;
 const fmtCoord = (n: number) => n.toFixed(4);
 
-type SortKey = 'name' | 'division' | 'status' | 'vendCount' | 'totalRevenue';
+type SortKey = 'name' | 'division' | 'status' | 'vendCount' | 'unitCount' | 'totalRevenue';
 
 function SortIcon({ active, dir }: { active: boolean; dir: 'asc' | 'desc' }) {
   if (!active) return <span className="text-base-content/40 ml-1">⇅</span>;
@@ -142,6 +142,9 @@ export default function DistrictsPage() {
                 <th className="cursor-pointer hover:text-base-content" onClick={() => handleSort('status')}>
                   Status <SortIcon active={sortKey === 'status'} dir={sortDir} />
                 </th>
+                <th className="cursor-pointer hover:text-base-content text-right" onClick={() => handleSort('unitCount')}>
+                  Circles/Sectors <SortIcon active={sortKey === 'unitCount'} dir={sortDir} />
+                </th>
                 <th className="cursor-pointer hover:text-base-content text-right" onClick={() => handleSort('vendCount')}>
                   Vends <SortIcon active={sortKey === 'vendCount'} dir={sortDir} />
                 </th>
@@ -155,13 +158,13 @@ export default function DistrictsPage() {
               {loading ? (
                 Array.from({ length: 10 }, (_, i) => (
                   <tr key={i} className="animate-pulse">
-                    {Array.from({ length: 8 }, (_, j) => (
+                    {Array.from({ length: 9 }, (_, j) => (
                       <td key={j}><div className="h-3 bg-base-300 rounded" /></td>
                     ))}
                   </tr>
                 ))
               ) : rows.length === 0 ? (
-                <tr><td colSpan={8} className="text-center py-12 text-base-content/60">No districts match your filters.</td></tr>
+                <tr><td colSpan={9} className="text-center py-12 text-base-content/60">No districts match your filters.</td></tr>
               ) : (
                 rows.map((d) => (
                   <tr key={d.name} className="hover:bg-base-50 cursor-pointer" onClick={() => router.push(`/admin/districts/${encodeURIComponent(d.name)}`)}>
@@ -184,6 +187,7 @@ export default function DistrictsPage() {
                         {d.status}
                       </span>
                     </td>
+                    <td className="text-right tabular-nums">{d.unitCount.toLocaleString()}</td>
                     <td className="text-right tabular-nums">{d.vendCount.toLocaleString()}</td>
                     <td className="text-right font-mono text-xs tabular-nums">{fmt(d.totalRevenue)}</td>
                     <td>

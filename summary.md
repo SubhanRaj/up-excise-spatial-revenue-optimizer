@@ -1058,6 +1058,23 @@ flowchart LR
 
 ---
 
+### M-52: Circle/Sector Count Column; District Master Drops Expected-Vends Column ✅ Complete
+
+**Objective:** User asked for a circle/sector count column on the admin district table, and to replace the Expected Vend Count column with the real (already-fetched) vend count — explicitly requiring this stay IndexedDB-cached rather than hitting D1 directly, given the Cloudflare free-tier D1 read budget.
+
+**Change:**
+
+- [x] `GET /api/admin/districts` (`apps/web/app/api/admin/districts/route.ts`) gained a third grouped aggregate — `COUNT` against `district_circles_sectors` per district — run in the same `Promise.all` as the existing vend-count/revenue aggregate. Same single request, same `adminDistrictsCache` (IndexedDB, 5-min TTL) already used by every consumer of `useAdminDistricts()` — no new D1 round trip on any page load beyond what already happens.
+- [x] `AdminDistrictRow` (`useAdminDistricts.ts`) and `DistrictRow` (`EditDistrictDrawer.tsx`) both gained `unitCount: number`.
+- [x] **`/admin/districts`** gained a new sortable **Circles/Sectors** column — previously the real registered-unit count was only visible by opening each district's own detail page.
+- [x] **`/admin/provision`** (District Master): the list table's **Expected Vends** column was replaced with **Circles/Sectors** — Expected Vend Count is rarely populated in practice (see Pre-Campaign Blocker #4) and the table already shows the real **Uploaded** vend count next to it, so a second real number (registered units) is more useful at a glance than an unreliable estimate. **Expected Vend Count remains fully editable in the `EditDrawer`** — only the list table's own column was dropped, the field itself wasn't removed from the schema, drawer, or bulk-provision template.
+- [x] Service Worker `CACHE` bumped (`excise-v16` → `excise-v17`).
+- [x] Verified: `pnpm typecheck` and `next build` both pass.
+
+**Exit criterion:** Both admin district tables show a real circles/sectors count; District Master's list view no longer shows the unreliable Expected Vends estimate as a column (still editable in the drawer); no additional D1 read is issued per page load — the new count rides along in the existing cached aggregate request; `pnpm typecheck` and `next build` both pass.
+
+---
+
 ## Backlog / Not Started
 
 - [x] ~~Verify `exciseup.in` in Resend and switch `RESEND_FROM_EMAIL`~~ — Done. `mail.exciseup.in` verified; `RESEND_FROM_EMAIL` set to `noreply@mail.exciseup.in` on this project's Worker, and the same address set as `FROM_EMAIL` on the sibling `excise-revenue-recovery-portal` project's Worker (different env var name there, same Resend account/domain). Magic-link email is now the Admin/HQ login channel only (DEOs use CUG login as of M-17).

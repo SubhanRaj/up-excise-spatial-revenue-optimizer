@@ -660,7 +660,7 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
       )}
       {editing && detail && (
         <EditDistrictDrawer
-          district={detail}
+          district={{ ...detail, unitCount: detail.units.length }}
           onClose={() => setEditing(false)}
           onSaved={() => { setEditing(false); void refreshShops(); }}
         />

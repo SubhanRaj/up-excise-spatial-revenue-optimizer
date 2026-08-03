@@ -129,7 +129,7 @@ export default function DistrictMasterPage() {
 
         <div className="overflow-x-auto">
           <table className="table table-sm w-full" role="grid" aria-label="District master table">
-            <thead><tr><th>District</th><th>Division</th><th>DEO</th><th>Expected Vends</th><th>Uploaded</th><th>Status</th><th></th></tr></thead>
+            <thead><tr><th>District</th><th>Division</th><th>DEO</th><th>Circles/Sectors</th><th>Uploaded</th><th>Status</th><th></th></tr></thead>
             <tbody>
               {loading ? (
                 Array.from({ length: 10 }, (_, i) => (
@@ -149,7 +149,7 @@ export default function DistrictMasterPage() {
                         ? <div className="text-xs font-medium">{d.deoName}</div>
                         : <span className="text-base-content/50 text-xs">Unassigned</span>}
                     </td>
-                    <td>{d.expectedVendCount ?? <span className="text-base-content/50">—</span>}</td>
+                    <td>{d.unitCount}</td>
                     <td>{d.vendCount}</td>
                     <td><span className={`badge badge-xs ${d.status === 'submitted' ? 'badge-success' : d.status === 'in_progress' ? 'badge-warning' : 'badge-ghost'}`}>{d.status}</span></td>
                     <td>

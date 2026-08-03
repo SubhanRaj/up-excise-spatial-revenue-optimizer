@@ -3,7 +3,7 @@ import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { drizzle } from 'drizzle-orm/d1';
 import { asc, count, sum } from 'drizzle-orm';
 import { getSession } from '@/lib/auth';
-import { districts, phase1RawCollection } from '@excise/schema';
+import { districts, phase1RawCollection, districtCirclesSectors } from '@excise/schema';
 import { withErrorHandling } from '@/lib/with-error-handling';
 
 
@@ -14,7 +14,7 @@ async function GET_(): Promise<NextResponse> {
   const { env } = await getCloudflareContext({ async: true }) as { env: CloudflareEnv };
   const db = drizzle(env.DB);
 
-  const [districtRows, aggregates] = await Promise.all([
+  const [districtRows, aggregates, unitAggregates] = await Promise.all([
     db.select({
       name: districts.name, division: districts.division, deoName: districts.deoName, deoEmailHash: districts.deoEmailHash,
       deoId: districts.deoId,
@@ -27,17 +27,23 @@ async function GET_(): Promise<NextResponse> {
       vendCount: count(phase1RawCollection.id),
       totalRevenue: sum(phase1RawCollection.totalRevenue),
     }).from(phase1RawCollection).groupBy(phase1RawCollection.districtName).all(),
+    db.select({
+      districtName: districtCirclesSectors.districtName,
+      unitCount: count(districtCirclesSectors.id),
+    }).from(districtCirclesSectors).groupBy(districtCirclesSectors.districtName).all(),
   ]);
 
   const aggMap = Object.fromEntries(
     aggregates.map((a) => [a.districtName, { vendCount: a.vendCount, totalRevenue: Number(a.totalRevenue ?? 0) }])
   );
+  const unitMap = Object.fromEntries(unitAggregates.map((u) => [u.districtName, u.unitCount]));
   const rows = districtRows.map((d) => {
     const hasBox = d.bboxMinLat != null && d.bboxMaxLat != null && d.bboxMinLon != null && d.bboxMaxLon != null;
     return {
       ...d,
       vendCount: aggMap[d.name]?.vendCount ?? 0,
       totalRevenue: aggMap[d.name]?.totalRevenue ?? 0,
+      unitCount: unitMap[d.name] ?? 0,
       centerLat: hasBox ? ((d.bboxMinLat! + d.bboxMaxLat!) / 2) : null,
       centerLon: hasBox ? ((d.bboxMinLon! + d.bboxMaxLon!) / 2) : null,
     };

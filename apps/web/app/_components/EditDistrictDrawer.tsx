@@ -7,7 +7,7 @@ export interface DistrictRow {
   name: string; division: string | null; deoName: string | null; deoEmail: string | null;
   deoId: string | null; expectedVendCount: number | null; status: string;
   bboxMinLat: number | null; bboxMaxLat: number | null; bboxMinLon: number | null; bboxMaxLon: number | null;
-  vendCount: number; totalRevenue: number;
+  vendCount: number; totalRevenue: number; unitCount: number;
 }
 
 interface EditForm {

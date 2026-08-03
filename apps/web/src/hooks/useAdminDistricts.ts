@@ -6,7 +6,7 @@ import { adminDistrictsCache } from '@/lib/db';
 export interface AdminDistrictRow {
   name: string; division: string | null; deoName: string | null; deoEmail: string | null;
   deoId: string | null; expectedVendCount: number | null; status: string;
-  vendCount: number; totalRevenue: number;
+  vendCount: number; totalRevenue: number; unitCount: number;
   centerLat: number | null; centerLon: number | null;
   bboxMinLat: number | null; bboxMaxLat: number | null;
   bboxMinLon: number | null; bboxMaxLon: number | null;
