@@ -31,10 +31,10 @@ export function validateRow(r: Phase1RowInput): RowError[] {
 
   if (r.shopType === 'COMPOSITE_SHOP') {
     if (r.compositeLfFl + r.compositeLfBeer !== r.licenseFeeLf) {
-      errors.push({ field: 'licenseFeeLf', message: 'Must equal compositeLfFl + compositeLfBeer' });
+      errors.push({ field: 'licenseFeeLf', message: 'License Fee (LF) must equal Composite LF – Foreign Liquor + Composite LF – Beer' });
     }
     if (r.compositeMgrFl + r.compositeMgrBeer !== r.mgrAmount) {
-      errors.push({ field: 'mgrAmount', message: 'Must equal compositeMgrFl + compositeMgrBeer' });
+      errors.push({ field: 'mgrAmount', message: 'Min. Guaranteed Revenue (MGR) must equal Composite MGR – Foreign Liquor + Composite MGR – Beer' });
     }
   }
 

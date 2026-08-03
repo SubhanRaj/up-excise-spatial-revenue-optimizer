@@ -258,6 +258,16 @@ export async function parseExcelFile(
       row.longitudeDms = null;
     }
 
+    // license_fee_lf / mgr_amount are computed totals for COMPOSITE_SHOP (CLAUDE.md's Revenue
+    // Formulas section) — the sub-component fields are the source of truth. The Excel cell
+    // itself blocks a DEO from typing a matching value into either column on a composite row
+    // (FIELD_GATES excludes COMPOSITE_SHOP from both), so it must be computed here instead of
+    // trusting whatever (always-zero) value came out of the cell.
+    if (row.shopType === 'COMPOSITE_SHOP') {
+      row.licenseFeeLf = (row.compositeLfFl ?? 0) + (row.compositeLfBeer ?? 0);
+      row.mgrAmount = (row.compositeMgrFl ?? 0) + (row.compositeMgrBeer ?? 0);
+    }
+
     row.totalRevenue = computeRevenue(row as Parameters<typeof computeRevenue>[0]);
 
     // Same checks the Worker runs on upload (validateRow mirrors it exactly) — running them
@@ -343,9 +353,9 @@ const COLUMN_GUIDE: unknown[][] = [
   [FRIENDLY_LABELS.has_cl5cc, 'TRUE = Country Liquor shop that ALSO has the CL5CC beer endorsement. FALSE = every other case, including a standard Country Liquor shop that sells only country liquor and no beer. Type TRUE or FALSE.\nTRUE = ऐसी Country Liquor दुकान जिसके पास CL5CC बियर endorsement भी है। FALSE = बाकी हर स्थिति, जिसमें एक सामान्य Country Liquor दुकान भी शामिल है जो केवल देशी शराब बेचती है, बियर नहीं। TRUE या FALSE टाइप करें।', 'All shop types (FALSE/blank) — TRUE only for COUNTRY_LIQUOR / सभी प्रकार (FALSE/खाली) — TRUE केवल COUNTRY_LIQUOR के लिए', 'FALSE (or leaving it blank) is correct and expected for every shop type — including most Country Liquor shops, which don\'t have the beer endorsement. The cell itself rejects TRUE unless Shop Type is Country Liquor; FALSE/blank is always accepted.\nFALSE (या खाली छोड़ना) हर दुकान प्रकार के लिए सही और सामान्य है — जिसमें अधिकतर Country Liquor दुकानें भी शामिल हैं, जिनके पास बियर endorsement नहीं होता। Cell खुद TRUE को अस्वीकार कर देगा जब तक Shop Type Country Liquor न हो; FALSE/खाली हमेशा मान्य है।'],
   [FRIENDLY_LABELS.latitude, 'Latitude — DMS or Decimal.\nअक्षांश — DMS या Decimal में।', 'Optional / वैकल्पिक', 'e.g. 26°50\'48.12"N or 26.8467'],
   [FRIENDLY_LABELS.longitude, 'Longitude — DMS or Decimal.\nदेशांतर — DMS या Decimal में।', 'Optional / वैकल्पिक', 'e.g. 80°56\'46.3"E or 80.9462'],
-  [FRIENDLY_LABELS.license_fee_lf, 'Annual license fee (INR, whole rupees).\nवार्षिक लाइसेंस शुल्क (INR, पूर्ण रुपयों में)।', 'MODEL_SHOP, PRV, BHANG_SHOP, HBR', 'Locked to 0 for other shop types — cell will reject entry.\nअन्य दुकान प्रकार के लिए यह 0 पर locked है — गलत entry स्वीकार नहीं होगी।'],
+  [FRIENDLY_LABELS.license_fee_lf, 'Annual license fee (INR, whole rupees).\nवार्षिक लाइसेंस शुल्क (INR, पूर्ण रुपयों में)।', 'MODEL_SHOP, PRV, BHANG_SHOP, HBR', 'Locked to 0 for other shop types — cell will reject entry. For Composite Shop, leave this blank/0 — the portal computes it automatically from Composite LF – Foreign Liquor + Composite LF – Beer below.\nअन्य दुकान प्रकार के लिए यह 0 पर locked है — गलत entry स्वीकार नहीं होगी। Composite Shop के लिए इसे खाली/0 छोड़ें — पोर्टल इसे नीचे दिए गए Composite LF – Foreign Liquor + Composite LF – Beer से स्वतः गणना कर लेगा।'],
   [FRIENDLY_LABELS.basic_license_fee_blf, 'Basic license fee for country liquor (INR).\nदेशी शराब के लिए मूल लाइसेंस शुल्क (INR)।', 'COUNTRY_LIQUOR', 'Locked to 0 for other shop types.\nअन्य दुकान प्रकार के लिए 0 पर locked है।'],
-  [FRIENDLY_LABELS.mgr_amount, 'Annual Minimum Guaranteed Revenue (INR).\nवार्षिक न्यूनतम गारंटीड राजस्व (INR)।', 'MODEL_SHOP, PRV', 'Locked to 0 for other shop types.\nअन्य दुकान प्रकार के लिए 0 पर locked है।'],
+  [FRIENDLY_LABELS.mgr_amount, 'Annual Minimum Guaranteed Revenue (INR).\nवार्षिक न्यूनतम गारंटीड राजस्व (INR)।', 'MODEL_SHOP, PRV', 'Locked to 0 for other shop types. For Composite Shop, leave this blank/0 — the portal computes it automatically from Composite MGR – Foreign Liquor + Composite MGR – Beer below.\nअन्य दुकान प्रकार के लिए 0 पर locked है। Composite Shop के लिए इसे खाली/0 छोड़ें — पोर्टल इसे नीचे दिए गए Composite MGR – Foreign Liquor + Composite MGR – Beer से स्वतः गणना कर लेगा।'],
   [FRIENDLY_LABELS.composite_lf_fl, 'Annual LF for Foreign Liquor component (INR).\nविदेशी शराब भाग के लिए वार्षिक LF (INR)।', 'COMPOSITE_SHOP only / केवल COMPOSITE_SHOP', 'Locked to 0 for other shop types.\nअन्य दुकान प्रकार के लिए 0 पर locked है।'],
   [FRIENDLY_LABELS.composite_lf_beer, 'Annual LF for Beer component (INR).\nबियर भाग के लिए वार्षिक LF (INR)।', 'COMPOSITE_SHOP only / केवल COMPOSITE_SHOP', 'Locked to 0 for other shop types.\nअन्य दुकान प्रकार के लिए 0 पर locked है।'],
   [FRIENDLY_LABELS.composite_mgr_fl, 'Annual MGR for Foreign Liquor (INR).\nविदेशी शराब के लिए वार्षिक MGR (INR)।', 'COMPOSITE_SHOP only / केवल COMPOSITE_SHOP', 'Locked to 0 for other shop types.\nअन्य दुकान प्रकार के लिए 0 पर locked है।'],
