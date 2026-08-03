@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { useSession } from '@/hooks/useSession';
 import { stagingDb } from '@/lib/db';
 
@@ -64,7 +64,6 @@ function PillList({ raw, districtThanas, onChange, readOnly = false }: {
 
 export default function VerifyPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const { session } = useSession();
   const district = session?.districtName ?? '';
   const deoId = session?.deoId ?? '';
@@ -157,7 +156,7 @@ export default function VerifyPage() {
       setViewMode('staged');
       return;
     }
-    if (searchParams.get('view') === 'uploaded') {
+    if (new URLSearchParams(window.location.search).get('view') === 'uploaded') {
       setViewMode('uploaded');
       void loadUploadedRows();
       return;
