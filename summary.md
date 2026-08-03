@@ -1111,6 +1111,8 @@ flowchart LR
 
 **Exit criterion:** A submitted district is genuinely locked against new shop uploads server-side, not just by UI convention; a DEO who finds a shop-level data error after submission can request a data-correction unlock, which an admin can approve without ever deleting a row — the DEO re-uploads a corrected file (upserted by `shop_id`, not a full D1 rewrite) and resubmits; admins can tell the two unlock-request types apart everywhere they're surfaced; the Excel template and upload-page help text both clearly warn that Shop Type and Circle/Sector Name must be picked from their dropdowns, never typed or pasted.
 
+**Follow-up fix (same day):** user reported that after a district was locked (submitted), the `/verify` nav link and page still behaved as if nothing had changed — a disabled ("black") Submit District button and an active "Clear Staged Data" button both still rendered, neither of which made sense once nothing new could be staged. Root cause: none of `/verify`'s UI (or the DEO nav bar) had ever checked submission status — only the new `/upload` gate did. Fixed by having `(deo)/layout.tsx` and `/verify` both fetch the district's status independently: the nav bar drops the plain `/verify` link once submitted (keeping only the read-only `/verify?view=uploaded` "Uploaded Data" link; `/upload` stays, since it's now the correction-request entry point), and `/verify` itself forces `viewMode` to `'uploaded'`, hides the Staged/Uploaded toggle and "Clear Staged Data" button, and replaces the Submit District block with a plain read-only notice pointing to `/upload` for a correction request. Service Worker bumped `excise-v21` → `excise-v22` for this follow-up.
+
 ---
 
 ## Backlog / Not Started

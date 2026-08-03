@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useSession } from '@/hooks/useSession';
 import { stagingDb } from '@/lib/db';
 
@@ -137,6 +138,11 @@ export default function VerifyPage() {
   const [uploadedError, setUploadedError] = useState<string | null>(null);
   const [unitsReady, setUnitsReady] = useState(false);
   const [unitsChecked, setUnitsChecked] = useState(false);
+  // Once submitted, the staged-review workflow (Clear Staged Data, Submit District) no
+  // longer makes sense — new uploads are blocked server-side (see POST /api/upload/chunk)
+  // until an admin approves a data-correction unlock, at which point status flips back to
+  // 'in_progress' and this reverts to the normal staged workflow on next load.
+  const [submitted, setSubmitted] = useState(false);
 
   const loadUnits = useCallback(async () => {
     if (!district) return [];
@@ -155,6 +161,13 @@ export default function VerifyPage() {
     } finally {
       setUnitsChecked(true);
     }
+  }, [district]);
+
+  useEffect(() => {
+    if (!district) return;
+    fetch(`/api/districts/${encodeURIComponent(district)}/status`)
+      .then((res) => (res.ok ? res.json() as Promise<{ districtStatus: string }> : { districtStatus: 'pending' }))
+      .then((data) => setSubmitted(data.districtStatus === 'submitted'));
   }, [district]);
 
   const loadUploadedRows = useCallback(async (): Promise<StagedRow[]> => {
@@ -206,6 +219,14 @@ export default function VerifyPage() {
       setViewMode('staged');
       return;
     }
+    // A submitted district is locked to the read-only Uploaded Data view — staged-review
+    // controls (toggle, Clear Staged Data, Submit District) are hidden below regardless,
+    // but forcing viewMode here too keeps any stale local staged rows from ever rendering.
+    if (submitted) {
+      setViewMode('uploaded');
+      void loadUploadedRows();
+      return;
+    }
     if (new URLSearchParams(window.location.search).get('view') === 'uploaded') {
       setViewMode('uploaded');
       void loadUploadedRows();
@@ -218,7 +239,7 @@ export default function VerifyPage() {
       }
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [district, unitsReady]);
+  }, [district, unitsReady, submitted]);
 
   // All Thana names within THIS district's own data (staged or uploaded) — feeds the Adjacent
   // Thana pill check in PillList above. Self-referential to one district's one dataset only;
@@ -468,25 +489,29 @@ export default function VerifyPage() {
           </HelpPanel>
         </div>
         <div className={`flex gap-2 flex-wrap justify-end ${(uploadedLoading || uploading) ? 'pointer-events-none opacity-50' : ''}`}>
-          <div className="join">
-            <button className={`join-item btn btn-sm ${viewMode === 'staged' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setViewMode('staged')} disabled={rows.length === 0}>
-              Staged Data
+          {!submitted && (
+            <div className="join">
+              <button className={`join-item btn btn-sm ${viewMode === 'staged' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setViewMode('staged')} disabled={rows.length === 0}>
+                Staged Data
+              </button>
+              <button className={`join-item btn btn-sm ${viewMode === 'uploaded' ? 'btn-primary' : 'btn-outline'}`} onClick={async () => {
+                setViewMode('uploaded');
+                if (uploadedRows.length === 0 && !uploadedLoading) await loadUploadedRows();
+              }}>
+                Uploaded Data
+              </button>
+            </div>
+          )}
+          {!submitted && (
+            <button
+              className="btn btn-outline btn-error btn-sm"
+              onClick={clearStagedData}
+              disabled={rows.length === 0}
+              title="Delete all locally staged rows for this district (use this if the wrong Excel file was uploaded)"
+            >
+              Clear Staged Data
             </button>
-            <button className={`join-item btn btn-sm ${viewMode === 'uploaded' ? 'btn-primary' : 'btn-outline'}`} onClick={async () => {
-              setViewMode('uploaded');
-              if (uploadedRows.length === 0 && !uploadedLoading) await loadUploadedRows();
-            }}>
-              Uploaded Data
-            </button>
-          </div>
-          <button
-            className="btn btn-outline btn-error btn-sm"
-            onClick={clearStagedData}
-            disabled={rows.length === 0}
-            title="Delete all locally staged rows for this district (use this if the wrong Excel file was uploaded)"
-          >
-            Clear Staged Data
-          </button>
+          )}
           <input
             className="input input-bordered input-sm w-48"
             placeholder="Search shop name / ID / Thana"
@@ -631,25 +656,36 @@ export default function VerifyPage() {
         </div>
       )}
 
-      {/* Submit button — gated on completeness */}
-      <div className="flex flex-wrap gap-4 items-center">
-        <button
-          className="btn btn-primary btn-lg"
-          onClick={submitDistrict}
-          disabled={!canSubmit || uploading}
-          aria-disabled={!canSubmit}
-          title={!canSubmit ? 'All registered units must have at least one row before submission' : ''}
-        >
-          {uploading ? <span className="loading loading-spinner" /> : 'Submit District'}
-        </button>
-        {!canSubmit && unitsReady && units.length > 0 && viewMode === 'staged' && (
-          <p className="text-sm text-warning" role="alert">
-            {missingUnits.length > 0
-              ? <>These registered units have no uploaded data yet: <strong>{missingUnits.join(', ')}</strong>. Every registered circle/sector needs at least one row before you can submit.</>
-              : 'All units must have at least one row to enable submission.'}
-          </p>
-        )}
-      </div>
+      {/* Submit button — gated on completeness. Hidden once submitted: nothing new can be
+          staged until an admin approves a data-correction unlock (see /upload). */}
+      {submitted ? (
+        <div className="alert alert-success text-sm">
+          <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><path d="m9 12 2 2 4-4"/></svg>
+          <div>
+            <p className="font-semibold">{district} has been submitted to headquarters — this is a read-only view of the uploaded data.</p>
+            <p className="text-xs opacity-80 mt-1">Found wrong data for a shop? Go to <Link href="/upload" className="link font-semibold">Upload</Link> and request a data-correction unlock.</p>
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-wrap gap-4 items-center">
+          <button
+            className="btn btn-primary btn-lg"
+            onClick={submitDistrict}
+            disabled={!canSubmit || uploading}
+            aria-disabled={!canSubmit}
+            title={!canSubmit ? 'All registered units must have at least one row before submission' : ''}
+          >
+            {uploading ? <span className="loading loading-spinner" /> : 'Submit District'}
+          </button>
+          {!canSubmit && unitsReady && units.length > 0 && viewMode === 'staged' && (
+            <p className="text-sm text-warning" role="alert">
+              {missingUnits.length > 0
+                ? <>These registered units have no uploaded data yet: <strong>{missingUnits.join(', ')}</strong>. Every registered circle/sector needs at least one row before you can submit.</>
+                : 'All units must have at least one row to enable submission.'}
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Print stylesheet applies via global CSS */}
       <style>{`@media print{.btn,.join,.select,.input{display:none!important}}`}</style>

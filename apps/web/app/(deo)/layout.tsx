@@ -26,6 +26,7 @@ export default function DeoLayout({ children }: { children: React.ReactNode }) {
 
   // Defaults closed — Upload/Verify must not flash into view before the units check resolves.
   const [hasUnits, setHasUnits] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
   const [uploadedCount, setUploadedCount] = useState(0);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
@@ -35,6 +36,9 @@ export default function DeoLayout({ children }: { children: React.ReactNode }) {
         fetch(`/api/districts/${encodeURIComponent(session.districtName)}/units`)
           .then(r => r.ok ? r.json() : [])
           .then(units => setHasUnits(units.length > 0));
+        fetch(`/api/districts/${encodeURIComponent(session.districtName)}/status`)
+          .then(r => r.ok ? r.json() : { districtStatus: 'pending' })
+          .then((s: { districtStatus: string }) => setSubmitted(s.districtStatus === 'submitted'));
       }
     });
     stagingDb.getByStatus('uploaded').then((rows) => setUploadedCount(rows.length)).catch(() => setUploadedCount(0));
@@ -43,7 +47,12 @@ export default function DeoLayout({ children }: { children: React.ReactNode }) {
   const navLinks = [
     { href: '/home', label: 'Dashboard' },
     { href: '/units', label: 'Circles' },
-    ...(hasUnits ? [{ href: '/upload', label: 'Upload' }, { href: '/verify', label: 'Verify' }] : []),
+    // /upload stays reachable even once submitted — it shows its own locked view with the
+    // data-correction unlock request. /verify's staged-review workflow (Clear Staged Data,
+    // Submit District) no longer makes sense once submitted, so it drops from the nav —
+    // the read-only Uploaded Data link (below) is the only "verify" surface left.
+    ...(hasUnits ? [{ href: '/upload', label: 'Upload' }] : []),
+    ...(hasUnits && !submitted ? [{ href: '/verify', label: 'Verify' }] : []),
     // Direct shortcut to the uploaded-data view (same destination as the Home dashboard's
     // "Shops Uploaded" stat card) — only once locked units exist and something has actually
     // been uploaded, so it never appears as a dead link.
