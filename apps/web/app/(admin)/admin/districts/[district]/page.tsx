@@ -122,13 +122,31 @@ function RevenueCell({ s }: { s: ShopRow }) {
       lines.push(['Special Beer LF', s.specialBeerLf], ['Special Beer MGR', s.specialBeerMgr]);
   }
 
+  const [hAlign, setHAlign] = useState<'left' | 'right'>('left');
+  const [vAlign, setVAlign] = useState<'below' | 'above'>('below');
+  const POPUP_WIDTH = 224; // w-56
+  const POPUP_HEIGHT_EST = 100 + lines.length * 20;
+
+  // Same viewport-overflow check as HelpPanel's balloon flip — the shop table's
+  // overflow-x-auto/y wrapper doesn't clip an absolutely-positioned popup, it just grows the
+  // scrollable area, so an unflipped popup near the table's right/bottom edge silently added
+  // scroll instead of showing the breakdown.
+  function handleToggle(e: React.SyntheticEvent<HTMLDetailsElement>) {
+    if (!e.currentTarget.open) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    setHAlign(rect.left + POPUP_WIDTH > window.innerWidth - 16 ? 'right' : 'left');
+    setVAlign(rect.bottom + POPUP_HEIGHT_EST > window.innerHeight - 16 ? 'above' : 'below');
+  }
+
   return (
-    <details className="group cursor-pointer">
+    <details className="group relative cursor-pointer" onToggle={handleToggle}>
       <summary className="list-none select-none font-mono text-xs font-medium tabular-nums hover:underline decoration-dotted underline-offset-2">
         {fmt(s.totalRevenue)}
         <span className="ml-1 text-base-content/50 group-open:hidden">▾</span>
       </summary>
-      <div className="absolute z-10 mt-1 w-56 rounded-lg border border-base-300 bg-base-100 p-3 shadow-lg text-xs">
+      <div
+        className={`absolute z-10 w-56 rounded-lg border border-base-300 bg-base-100 p-3 shadow-lg text-xs ${hAlign === 'right' ? 'right-0' : 'left-0'} ${vAlign === 'above' ? 'bottom-full mb-1' : 'top-full mt-1'}`}
+      >
         <p className="text-base-content/70 font-medium uppercase tracking-wide text-[10px] mb-2">Revenue Breakdown</p>
         <div className="space-y-1">
           {lines.map(([label, val]) => (

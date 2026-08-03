@@ -971,6 +971,22 @@ flowchart LR
 
 ---
 
+### M-47: Excel Min-Version Warning & Revenue Breakdown Popup Viewport Flip ✅ Complete
+
+**Objective:** Two reports. (1) The user asked why HBR (added M-37) doesn't appear in a district's Shop Type Breakdown or Total Vends stat — confirmed via a read-only remote D1 query (`SELECT district_name, COUNT(*) FROM phase1_raw_collection WHERE shop_type='HBR'`) that **zero HBR rows exist anywhere in prod**; both `SHOP_TYPES` (district detail page) and `CIRCLE_SECTOR_TYPE_KEYS` (`excel.ts`) already include `HBR`, and both breakdowns already use a "hide the card if count is 0" convention identical to the existing CL5CC card — the same pattern, not a missed-type bug. No code change needed for this half. (2) Many DEOs/Inspectors are opening the Excel template in Office 2007/2010, where the template's dropdown/data-validation rules don't render reliably, letting invalid data get typed in undetected. (3) Mid-turn, user also reported the revenue breakdown `<details>` popup on the district shop table doesn't respect viewport space — it always opens down-left with a fixed `w-56`, so a shop near the table's right/bottom edge causes the `overflow-x-auto` wrapper to grow scrollable rather than showing the popup, unlike `HelpPanel`'s balloon which already flips to fit.
+
+**Change:**
+
+- [x] **Excel version warning baked into the template file itself** (`generateTemplate()` in `apps/web/src/lib/excel.ts`), not just the web UI — Inspectors filling the file often never open the portal. Bilingual second line added to the Data Entry sheet's title-row banner (row height raised 26→42, `wrapText: true`), plus a new merged warning row spliced onto row 1 of the Instructions sheet (bold, red-on-amber), pushing the existing column-guide header to row 2 and updating `applyPrintSetup`/frozen-pane row numbers to match.
+- [x] Same warning added to the `/upload` page's `HelpPanel` (English + Hindi), since that's the DEO's own reminder before handing the template to Inspectors.
+- [x] **`RevenueCell` (district detail page)** — `<details>` element gained an `onToggle` handler that checks `getBoundingClientRect()` against `window.innerWidth`/`innerHeight` (same technique as `HelpPanel`'s `useLayoutEffect` flip) and flips the popup from its default left/below alignment to right/above via Tailwind classes when a row is near the table's right or bottom edge. `<details>` itself needed `relative` added so the popup's `left-0`/`right-0`/`top-full`/`bottom-full` anchor to it instead of an ancestor.
+- [x] Service Worker `CACHE` bumped (`excise-v11` → `excise-v12`).
+- [x] Verified: `pnpm typecheck` and `next build` both pass.
+
+**Exit criterion:** The DEO Excel template warns (in-file, bilingually) that Excel 2013+ is required, before any data entry starts; the district detail page's revenue breakdown popup never forces table scroll for a shop near the table's edge; `pnpm typecheck` and `next build` both pass.
+
+---
+
 ## Backlog / Not Started
 
 - [x] ~~Verify `exciseup.in` in Resend and switch `RESEND_FROM_EMAIL`~~ — Done. `mail.exciseup.in` verified; `RESEND_FROM_EMAIL` set to `noreply@mail.exciseup.in` on this project's Worker, and the same address set as `FROM_EMAIL` on the sibling `excise-revenue-recovery-portal` project's Worker (different env var name there, same Resend account/domain). Magic-link email is now the Admin/HQ login channel only (DEOs use CUG login as of M-17).

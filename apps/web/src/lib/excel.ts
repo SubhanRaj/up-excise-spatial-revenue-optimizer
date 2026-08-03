@@ -398,12 +398,15 @@ async function buildShopDataSheet(
 
   ws.mergeCells(1, 1, 1, TEMPLATE_HEADERS.length);
   const titleCell = ws.getCell(1, 1);
-  titleCell.value = titleText;
+  // Excel 2007's older validation-list rendering can silently let a DEO/Inspector type past
+  // the dropdown/lock rules this template depends on — this line is the only warning visible
+  // to someone who never opens the app, so it must live in the file itself, not just the UI.
+  titleCell.value = `${titleText}\n⚠ Open only in Microsoft Excel 2013 or later (or Excel Online) — Excel 2007/2010 do not reliably show this file's dropdowns and validation rules. / केवल Microsoft Excel 2013 या नए वर्शन में खोलें — पुराने Excel में dropdown और validation सही से काम नहीं करते।`;
   titleCell.font = { bold: true, size: 12, color: { argb: 'FFFFFFFF' } };
   titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F2A44' } };
-  titleCell.alignment = { vertical: 'middle', horizontal: 'center' };
+  titleCell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
   titleCell.protection = { locked: true };
-  ws.getRow(1).height = 26;
+  ws.getRow(1).height = 42;
 
   ws.getRow(2).values = TEMPLATE_HEADERS.map((h) => FRIENDLY_LABELS[h]!) as ExcelJSNamespace.CellValue[];
   styleHeaderRow(ws, 2);
@@ -523,8 +526,19 @@ export async function generateTemplate(districtName: string, units: string[]): P
       cell.alignment = { wrapText: true, vertical: 'top' };
     });
   }
-  applyPrintSetup(wsGuide, 1, (COLUMN_GUIDE[0] as unknown[]).length);
-  wsGuide.views = [{ state: 'frozen', ySplit: 1, xSplit: 0 }];
+  const guideColCount = (COLUMN_GUIDE[0] as unknown[]).length;
+  wsGuide.spliceRows(1, 0, [
+    '⚠ Use Microsoft Excel 2013 or later (or Excel Online) to open and fill this file. Excel 2007/2010 do not reliably show its dropdowns and validation rules, which can let wrong data get typed in undetected.\n' +
+    'केवल Microsoft Excel 2013 या नए वर्शन में यह फ़ाइल खोलें और भरें। पुराने Excel (2007/2010) में इस फ़ाइल के dropdown और validation सही से नहीं दिखते, जिससे गलत डेटा बिना पकड़े भर सकता है।',
+  ]);
+  wsGuide.mergeCells(1, 1, 1, guideColCount);
+  const guideWarnCell = wsGuide.getCell(1, 1);
+  guideWarnCell.font = { bold: true, color: { argb: 'FF7A0000' } };
+  guideWarnCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFE0B2' } };
+  guideWarnCell.alignment = { wrapText: true, vertical: 'middle' };
+  wsGuide.getRow(1).height = 60;
+  applyPrintSetup(wsGuide, 2, guideColCount);
+  wsGuide.views = [{ state: 'frozen', ySplit: 2, xSplit: 0 }];
 
   // Hidden, not deleted — the circle/sector dropdown on Data Entry still
   // references it by name. Hidden because it's pure repetition of data the DEO already
