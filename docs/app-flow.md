@@ -75,23 +75,39 @@ flowchart TD
     DualVerify -->|no| RowRejected[Row rejected with reason]
     DualVerify -->|yes| BatchWrite[db.batch: upsert rows + audit_log upload_chunk]
 
+    ChunkUpload -.->|status already submitted| ChunkLocked[409 - district locked,\nno new uploads accepted]
+
     BatchWrite --> VerifyPage["/verify: review staged rows"]
     VerifyPage --> FlagAdjacent[Client-side flag: adjacent Thana names\nnot in this district's own thanaName set]
     FlagAdjacent --> FixFlags[DEO corrects flagged rows]
-    FixFlags --> ConfirmSubmit[SweetAlert2: confirm submission to HQ]
-    ConfirmSubmit --> PostSubmit[POST /api/districts/district/submit]
+    FixFlags --> ConfirmSubmit[SweetAlert2: confirm + typed name\npromptDeoNameAndLock, liability disclaimer]
+    ConfirmSubmit --> PostSubmit[POST /api/districts/district/submit\nbody: submittedByName]
     PostSubmit --> MissingCheck{All locked units\nhave uploaded rows?}
     MissingCheck -->|no| SubmitBlocked[400 - missing data for units: ...]
-    MissingCheck -->|yes| SubmitBatch[db.batch: status=submitted + audit_log district_submitted]
-    SubmitBatch --> Done([District appears as submitted\non /admin])
+    MissingCheck -->|yes| SubmitBatch[db.batch: status=submitted +\ndistricts.deoName=submittedByName +\naudit_log district_submitted]
+    SubmitBatch --> RespOk{response.ok?}
+    RespOk -->|no| SubmitFailed[Error Swal - no cache change,\nDEO can retry]
+    RespOk -->|yes| ReseedIDB[stagingDb.clearAll then re-seed\nphase1_staging from GET .../shops\nall rows marked status=uploaded]
+    ReseedIDB --> Done(["/home Step 3, nav links, /verify and\n/upload all switch to locked/read-only view\n(districts.status===submitted)"])
+
+    Done -.->|DEO finds wrong data\nfor an already-uploaded shop| ReqCorrection["/upload locked view:\nRequest Data-Correction Unlock button"]
+    ReqCorrection --> PostUnlock2[POST .../request-unlock\nrequestType=data_correction\nSweetAlert2 textarea, reason required]
+    PostUnlock2 --> Resolve2{Admin: approve or deny?\n/admin/unlock-requests or district detail}
+    Resolve2 -->|approve, note required| ResetStatus[status reset to in_progress\nNO rows deleted - phase1_raw_collection\nand district_circles_sectors untouched]
+    Resolve2 -->|deny, note required| DenyBanner2["/upload shows denied banner\n+ admin's note"]
+    ResetStatus --> UploadPage
 
     style Locked fill:#16a34a,color:#fff
     style Done fill:#16a34a,color:#fff
     style Rejected fill:#f59e0b,color:#000
     style RowRejected fill:#f59e0b,color:#000
     style SubmitBlocked fill:#f59e0b,color:#000
+    style SubmitFailed fill:#f59e0b,color:#000
+    style ChunkLocked fill:#f59e0b,color:#000
     style UnlockRows fill:#16a34a,color:#fff
+    style ResetStatus fill:#16a34a,color:#fff
     style DenyBanner fill:#f59e0b,color:#000
+    style DenyBanner2 fill:#f59e0b,color:#000
 ```
 
 ## 3. Admin / HQ dashboard — data loading (IndexedDB-first)
