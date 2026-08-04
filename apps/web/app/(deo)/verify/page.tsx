@@ -101,7 +101,11 @@ function PillList({ raw, districtThanas, onChange, readOnly = false }: {
           </span>
         );
       })}
-      {pills.length === 0 && <span className="text-xs text-base-content/60">—</span>}
+      {pills.length === 0 && (
+        <span className="badge badge-warning badge-outline gap-1" title="Adjacent Thana is not filled for this row. This is not blocking, but please fill it in — see the Excel template's Instructions sheet.">
+          Not filled
+        </span>
+      )}
     </div>
   );
 }
