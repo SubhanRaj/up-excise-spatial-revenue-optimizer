@@ -386,17 +386,46 @@ export default function VerifyPage() {
          <p style="margin-top:8px;color:#64748b">Rejected rows are marked "error" in the Staged Data table above — fix the underlying data and re-upload just those shop IDs to include them.</p>`
       : `<p><b>${done}</b> shop record(s) uploaded successfully.</p>`;
     if (stillPending.length === 0) {
-      await fetch(`/api/districts/${encodeURIComponent(district)}/submit`, {
+      const submitRes = await fetch(`/api/districts/${encodeURIComponent(district)}/submit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ submittedByName }),
       });
       const Swal = (window as unknown as { Swal?: { fire: (o: unknown) => Promise<void> } }).Swal;
-      await Swal?.fire({
-        icon: rejectedCount > 0 ? 'warning' : 'success',
-        title: rejectedCount > 0 ? 'District submitted with some rows rejected' : 'District submitted!',
-        html: summaryHtml,
-      });
+      if (submitRes.ok) {
+        // District is now locked server-side. Wipe this device's local staging (both
+        // pending/error rows and the old 'uploaded'-status cache) and re-seed it straight
+        // from D1 — the same source /verify's own read-only view already trusts. Leaving
+        // the pre-submit local cache in place is exactly what caused a later data-correction
+        // unlock + re-upload to show old locally-cached rows sitting next to freshly staged
+        // ones for the same shop (Rampur, 2026-08-03) — two different "truths" on screen at
+        // once. Re-seeding now means a future unlock always starts from a clean, server-true slate.
+        await stagingDb.clearAll();
+        try {
+          const shopsRes = await fetch(`/api/districts/${encodeURIComponent(district)}/shops`);
+          if (shopsRes.ok) {
+            const body = await shopsRes.json() as { rows: StagedRow[] };
+            await stagingDb.putRows(body.rows.map((r) => ({ ...r, status: 'uploaded' as const })));
+          }
+        } catch {
+          // Best-effort re-seed only — the district is already locked server-side regardless;
+          // a failed re-seed just means the local "Shops Uploaded" cache stays empty until the
+          // DEO next hits "Fetch from Server" on /home, not a data-loss risk.
+        }
+        setSubmitted(true);
+        await loadUploadedRows();
+        await Swal?.fire({
+          icon: rejectedCount > 0 ? 'warning' : 'success',
+          title: rejectedCount > 0 ? 'District submitted with some rows rejected' : 'District submitted!',
+          html: summaryHtml,
+        });
+      } else {
+        await Swal?.fire({
+          icon: 'error',
+          title: 'Submission failed',
+          html: '<p>The district could not be marked as submitted. Your uploaded rows above are safe — please try Submit District again.</p>',
+        });
+      }
     }
 
     await loadRows();

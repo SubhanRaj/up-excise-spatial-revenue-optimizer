@@ -7,7 +7,7 @@ import HomeStats from './HomeStats';
 
 import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { drizzle } from 'drizzle-orm/d1';
-import { districtCirclesSectors } from '@excise/schema';
+import { districtCirclesSectors, districts } from '@excise/schema';
 import { eq } from 'drizzle-orm';
 
 // Fetched from GitHub (public repo) rather than served from this Worker — the manual is a
@@ -20,8 +20,12 @@ export default async function DeoDashboard() {
   const district = session.districtName ?? 'Unknown District';
   const { env } = await getCloudflareContext({ async: true }) as { env: CloudflareEnv };
   const db = drizzle(env.DB);
-  const unitsResult = await db.select({ id: districtCirclesSectors.id }).from(districtCirclesSectors).where(eq(districtCirclesSectors.districtName, district)).limit(1).all();
+  const [unitsResult, districtRow] = await Promise.all([
+    db.select({ id: districtCirclesSectors.id }).from(districtCirclesSectors).where(eq(districtCirclesSectors.districtName, district)).limit(1).all(),
+    db.select({ status: districts.status }).from(districts).where(eq(districts.name, district)).limit(1).then((r) => r[0] ?? null),
+  ]);
   const hasUnits = unitsResult.length > 0;
+  const submitted = districtRow?.status === 'submitted';
 
   return (
     <div className="space-y-8">
@@ -63,16 +67,18 @@ export default async function DeoDashboard() {
             <div className="mt-auto"><span className="btn btn-secondary btn-sm w-full">Upload</span></div>
           </Link>
 
-          <Link href="/verify" className="card bg-base-100 shadow hover:shadow-lg transition-all hover:-translate-y-0.5 p-6 flex flex-col gap-4">
+          <Link href={submitted ? '/verify?view=uploaded' : '/verify'} className="card bg-base-100 shadow hover:shadow-lg transition-all hover:-translate-y-0.5 p-6 flex flex-col gap-4">
             <div className="w-12 h-12 rounded-full bg-success text-success-content flex items-center justify-center text-xl font-bold">
               3
             </div>
             <div>
-              <h3 className="font-semibold text-base">Step 3 — Verify &amp; Submit</h3>
-              <p className="text-xs text-base-content/60">चरण 3 — जांचें और सबमिट करें</p>
-              <p className="text-sm text-base-content/80 mt-1">Review uploaded records, fix errors, then submit to headquarters</p>
+              <h3 className="font-semibold text-base">Step 3 — {submitted ? 'Submitted' : 'Verify & Submit'}</h3>
+              <p className="text-xs text-base-content/60">चरण 3 — {submitted ? 'सबमिट हो गया' : 'जांचें और सबमिट करें'}</p>
+              <p className="text-sm text-base-content/80 mt-1">
+                {submitted ? 'Already submitted to headquarters — view your uploaded records (read-only)' : 'Review uploaded records, fix errors, then submit to headquarters'}
+              </p>
             </div>
-            <div className="mt-auto"><span className="btn btn-success btn-sm w-full">Review</span></div>
+            <div className="mt-auto"><span className="btn btn-success btn-sm w-full">{submitted ? 'View Uploaded Data' : 'Review'}</span></div>
           </Link>
         </div>
       )}
