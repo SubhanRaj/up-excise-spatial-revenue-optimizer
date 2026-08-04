@@ -503,6 +503,29 @@ Every API route handler (except the trivial `/api/healthz` liveness check) is ex
 - **Navbars and dashboards are mobile-responsive** (as of the M-33 mobile pass) — both `(admin)/layout.tsx` and `(deo)/layout.tsx` collapse into a hamburger + slide-in drawer below `md`, and the DEO/admin dashboard pages (`/home`, `/admin`) use responsive grid stacking (`grid-cols-1 sm:grid-cols-3`, etc.), matching the pattern in the sibling `excise-revenue-recovery-portal` project's `AppHeader.tsx`. `sm:`/`md:` prefixes are expected and correct in these files.
 - **Forms, the Excel upload flow, and data tables remain desktop-oriented by design** — `/units`, `/upload`, `/verify`, and every admin data table (`/admin/districts`, district detail's shop table, `/admin/audit`, `/admin/unlock-requests`, `/admin/provision`) are not redesigned for phone-width use; they already wrap in `overflow-x-auto` where needed so they're at least usable (horizontally scrollable) on a phone, but are not a mobile-first redesign target. The goal of the mobile pass is "a DEO or admin can at least check status from a phone," not full mobile parity with desktop.
 
+### Excel/OOXML Hard Constraints — Read Before Touching `apps/web/src/lib/excel.ts`
+
+> **This is the single most-repeated bug category in this project.** `has_cl5cc` (M-31, M-35, M-36), `circle_sector_name` (M-49), `shop_type` (M-50), and the `errorTitle`-over-32-chars bug (M-56) were all Excel/OOXML issues that only surfaced when a real DEO hit them in the field — never caught locally, because the exact failure mode (silent-accept vs. hard corruption vs. version-dependent rejection) doesn't reproduce the same way on every Excel build. Treat every edit to a `dataValidation` rule, a merged cell, or a sheet name in this file as touching a fragile, spec-constrained surface — not ordinary app code.
+
+**Hard OOXML string limits — violating these causes "Excel found unreadable content" repair prompts on some (not all) Excel builds, which is exactly why this class of bug is easy to ship and hard to catch:**
+
+| Attribute | Limit | Where |
+|---|---|---|
+| `dataValidation@errorTitle` | **32 characters** | Any `validations.add({ errorTitle: ... })` call |
+| `dataValidation@promptTitle` | **32 characters** | Any `validations.add({ promptTitle: ... })` call |
+| `dataValidation` error message (`error:`) | **255 characters** | Any `validations.add({ error: ... })` call |
+| `dataValidation` prompt message (`prompt:`) | **255 characters** | Any `validations.add({ prompt: ... })` call |
+| `dataValidation` inline `list` formula (`formulae: ['"a,b,c"']`) | **255 characters total** | e.g. `SHOP_TYPE_OPTIONS.join(',')` |
+| Worksheet name | **31 characters**, and none of `: \ / ? * [ ]` | `wb.addWorksheet(name)` |
+
+**Mandatory before any commit that touches `dataValidation` rules, merged cells, or new sheets in `excel.ts`:** run `pnpm --filter web test` (wraps `apps/web/scripts/check-excel-limits.mts`) locally. This script builds the real `generateTemplate()`/`generateProvisionTemplate()` output with the real `exceljs` package, reloads it, and checks every data-validation title/message and sheet name against the table above — it is also wired into `pnpm test` at the repo root, which both `ci.yml` and `deploy.yml`'s `check` job already run before every deploy, so a violation now **blocks the deploy** instead of only surfacing when a DEO opens the file. Do not bypass or skip this check. If you add a *new* generator function with data validations, add it to the `checkWorkbook(...)` calls at the bottom of that script — it is not automatically exhaustive over every function in `excel.ts`, only the ones explicitly listed.
+
+**Why counting characters by eye is not enough:** the bug that motivated this section was exactly one character over the limit (`'Not applicable for this shop type'`, 33 chars vs. the 32-char cap) and was never caught by inspection across several review passes. Trust the script, not a manual character count.
+
+**Other recurring Excel gotchas already documented elsewhere in this file — read them before writing new validation logic:**
+- Excel's cell-level `list`/`custom` data validation **never fires on pasted or programmatically-set values**, only on typed keystrokes — this is the root cause of the `has_cl5cc`, `circle_sector_name`, and `shop_type` bugs above. Any new dropdown-style column needs a matching client-side (`validateRow()`) and/or server-side (Worker) check that doesn't rely on Excel's own validation actually having run.
+- CSV is never acceptable (see "Confirmed Past Mistakes" at the top of this file) — this file is the only place spreadsheet I/O happens, via ExcelJS.
+
 ### Data Language
 - All data fields — shop names, Thana names, district names, DEO identifiers, circle/sector names — are **English only**. No Hindi, Devanagari, Urdu, or any other script. Enforce this with input validation in the UI.
 - This rule governs stored *data*, not UI *copy*. The DEO portal's page titles and step headings do carry Hindi subtitles for readability — see "DEO Workflow" above. Never let a Hindi UI label leak into a form's default/placeholder value that gets submitted as data.
