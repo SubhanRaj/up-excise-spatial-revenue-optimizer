@@ -239,7 +239,7 @@ All API routes are Next.js Route Handlers inside the single `up-excise-spatial-r
 
 The portal uses a **two-cookie design** — no external auth provider, no separate API worker:
 
-1. **Session cookie** (`excise-session`): `rawId.hmacSig` where `hmacSig = HMAC-SHA256(rawId, SESSION_SECRET)`. HttpOnly, Secure, SameSite=Lax, 24-hour expiry. Set on `/auth/verify` after consuming a valid magic link. Stored as SHA-256 hash in D1 `auth_sessions`.
+1. **Session cookie** (`excise-session`): `rawId.hmacSig` where `hmacSig = HMAC-SHA256(rawId, SESSION_SECRET)`. HttpOnly, Secure, SameSite=Lax. Set on `/auth/verify` after consuming a valid magic link (or `/api/auth/verify-cug` for DEOs). Stored as SHA-256 hash in D1 `auth_sessions`. Expiry is role-dependent — see "Session lifetime" below.
 
 2. **Role cookie** (`excise-role`): `deo`, `admin`, or `superadmin` (set explicitly at login time — see `verifyToken()` in `api/auth/verify/route.ts` and its CUG equivalent — the superadmin bypass account's cookie carries `superadmin`, not `admin`). Client-readable, used by `middleware.ts` for routing (DEO routes vs admin routes). Not a security boundary — the security check is in server layouts via `requireAuth()` and in route handlers via `getSession()`.
 
@@ -330,7 +330,7 @@ All API routes are same-origin Next.js Route Handlers. The browser sends the ses
 - **Sign-out** clears both `excise-session` and `excise-role` cookies via a server action that also deletes the D1 session row. The sign-out button in layouts calls a form action — there is no client-side Clerk hook.
 - **Token in URL** — the magic-link token (`/auth/verify?token=xxx`) is consumed and marked used on first visit. Expired, used, or missing tokens show an error and redirect to `/login`. Tokens expire in 15 minutes.
 - **Rate limit**: 3 magic-link requests per email per 15-minute window. Enforced in `requestMagicLink()` server action.
-- **Session lifetime**: 24 hours. Sessions created at login have `expires_at = now + 24h` in D1. The `requireAuth()` check enforces this.
+- **Session lifetime is role-dependent (as of 2026-08-04, M-59):** DEO sessions are 24 hours, unchanged — `expires_at = now + 24h` in D1 at login. Admin/superadmin sessions (magic-link login only) are a 7-day "remember me" window, `ADMIN_SESSION_TTL_MS` in `apps/web/src/lib/auth.ts`, with **sliding renewal**: `GET /api/auth/session` (already called once per tab by `useSession()`) calls `maybeRenewAdminSession()`, which re-issues both cookies and bumps the D1 row's `expiresAt` to a fresh 7 days whenever the existing session is within 24h of expiring. An admin who opens the portal at least once a week is never forced to re-authenticate — effectively indefinite for normal use, without an actually-infinite cookie. `requireAuth()`'s expiry check (`getSession()`, read-only, callable from Server Components) is unaffected by this — renewal only happens from the Route Handler, never a page render.
 
 ### Client-Side Session Hook
 
@@ -737,6 +737,7 @@ Full per-milestone delivery history (Objective, Deliverables, Exit Criterion, bu
 | M-56: Fixed Excel Template XML Corruption (errorTitle Over Excel's 32-Char Limit); Status/Audit Label Fixes | **Completed** |
 | M-57: Automated OOXML-Limit Regression Check; Home/Verify Locked Down Post-Submission; Post-Submit Local Cache Re-Seed | **Completed** |
 | M-58: Adjacent Thana Presence Made Mandatory & Enforced | **Completed** |
+| M-59: 7-Day Sliding-Renewal Admin Sessions ("Remember Me") | **Completed** |
 
 See [summary.md](summary.md) for full milestone specs, entry/exit criteria, deliverable checklists, the backlog, and pre-campaign-blocker history.
 

@@ -1189,6 +1189,22 @@ flowchart LR
 
 ---
 
+### M-59: 7-Day Sliding-Renewal Admin Sessions ("Remember Me") ✅ Complete
+
+**Objective:** User asked why admins get logged out of the live `sro.exciseup.in` portal and requested a long-lived, effectively-indefinite "remember me" session for admin accounts specifically (who all sign in via magic link — DEOs use CUG login and were explicitly excluded from this change), citing the sibling `pdf-markdown-pipeline` project's Laravel `Auth::login($user, $remember)` remember-me cookie as the reference behavior. Root cause of the reported logout: `SESSION_TTL_MS` in `apps/web/src/lib/auth.ts` was a flat 24 hours for every role, with no renewal — an admin who didn't revisit the portal within a day was always forced back through the magic-link flow.
+
+**Change:**
+
+- [x] `createSession()` (`apps/web/src/lib/auth.ts`) now branches TTL by role: `admin`/`superadmin` get a new `ADMIN_SESSION_TTL_MS` (7 days); `deo` is unchanged at the original `SESSION_TTL_MS` (24h).
+- [x] New `maybeRenewAdminSession(session)` — sliding renewal, admin/superadmin only. Re-reads the session cookie's `rawId`, checks the D1 `auth_sessions.expiresAt` for that session, and if it's within `RENEW_THRESHOLD_MS` (24h) of expiring, bumps `expiresAt` to a fresh 7 days and re-issues both cookies (`excise-session`, `excise-role`) with a matching `maxAge`. Only writes to D1 when actually renewing, not on every call.
+- [x] Wired into `GET /api/auth/session` (`app/api/auth/session/route.ts`), right after `getSession()` succeeds — this route is already called once per browser tab by the `useSession()` hook every admin page uses, so no new client-side polling or new API surface was needed. **Deliberately not added to `getSession()` itself** — that function is called from Server Components (layouts, via `requireAuth()`), and Next.js 15 forbids `cookies().set()` there; only the Route Handler call site can safely renew.
+- [x] CLAUDE.md's "Session lifetime" bullet and the session-cookie description in "Authentication Architecture" updated to describe the new role-dependent, sliding-renewal behavior.
+- [x] Verified with `pnpm typecheck`.
+
+**Exit criterion:** An admin/superadmin who opens the portal at least once within any 7-day window is never forced to re-authenticate — each such visit silently extends the session another 7 days once it's within a day of expiring. A DEO's CUG-login session is completely unaffected, still exactly 24 hours as before.
+
+---
+
 ## Backlog / Not Started
 
 - [x] ~~Verify `exciseup.in` in Resend and switch `RESEND_FROM_EMAIL`~~ — Done. `mail.exciseup.in` verified; `RESEND_FROM_EMAIL` set to `noreply@mail.exciseup.in` on this project's Worker, and the same address set as `FROM_EMAIL` on the sibling `excise-revenue-recovery-portal` project's Worker (different env var name there, same Resend account/domain). Magic-link email is now the Admin/HQ login channel only (DEOs use CUG login as of M-17).

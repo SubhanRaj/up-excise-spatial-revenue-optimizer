@@ -8,6 +8,13 @@ import { authSessions, authUsers } from '@excise/schema';
 const SESSION_COOKIE = 'excise-session';
 const ROLE_COOKIE    = 'excise-role';
 const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
+// Admin/superadmin only ("remember me" — these accounts sign in via magic link, not the
+// per-district CUG flow DEOs use). 7 days, renewed on every /api/auth/session call within
+// RENEW_THRESHOLD_MS of expiry (see maybeRenewAdminSession) so an admin who opens the portal
+// at least once a week never sees a forced logout — effectively indefinite for normal use,
+// without an actually-infinite cookie. DEO sessions are unchanged at SESSION_TTL_MS (24h).
+const ADMIN_SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const RENEW_THRESHOLD_MS = 24 * 60 * 60 * 1000;
 
 export type SessionUser = {
   id: number;
@@ -153,7 +160,8 @@ export async function createSession(userId: number, role: string, districtName: 
   ]);
 
   const cookieValue = `${rawId}.${sig}`;
-  const expiresAt   = new Date(Date.now() + SESSION_TTL_MS).toISOString();
+  const ttlMs       = role === 'admin' || role === 'superadmin' ? ADMIN_SESSION_TTL_MS : SESSION_TTL_MS;
+  const expiresAt   = new Date(Date.now() + ttlMs).toISOString();
 
   const db = drizzle(env.DB);
   await db.insert(authSessions).values({ id: sessionHash, userId, expiresAt });
@@ -161,12 +169,52 @@ export async function createSession(userId: number, role: string, districtName: 
   const cookieStore = await cookies();
   cookieStore.set(SESSION_COOKIE, cookieValue, {
     httpOnly: true, secure: true, sameSite: 'lax', path: '/',
-    maxAge: SESSION_TTL_MS / 1000,
+    maxAge: ttlMs / 1000,
   });
   // role cookie is client-readable (middleware routing hint — not a security boundary)
   cookieStore.set(ROLE_COOKIE, role, {
     httpOnly: false, secure: true, sameSite: 'lax', path: '/',
-    maxAge: SESSION_TTL_MS / 1000,
+    maxAge: ttlMs / 1000,
+  });
+}
+
+// Sliding renewal for admin/superadmin "remember me" sessions — called from the
+// /api/auth/session Route Handler only (cookies().set() is forbidden in Server Components,
+// see the "Why client component" note on the magic-link flow above). Re-issues both cookies
+// with a fresh ADMIN_SESSION_TTL_MS window and bumps the D1 row's expiresAt to match, but only
+// when the session is already within RENEW_THRESHOLD_MS of expiring — avoids a write on every
+// single request while still keeping an active admin logged in indefinitely.
+export async function maybeRenewAdminSession(session: SessionUser): Promise<void> {
+  if (session.role !== 'admin' && session.role !== 'superadmin') return;
+
+  const cookieStore = await cookies();
+  const cookieValue = cookieStore.get(SESSION_COOKIE)?.value;
+  if (!cookieValue) return;
+  const dotIdx = cookieValue.lastIndexOf('.');
+  if (dotIdx < 0) return;
+  const rawId = cookieValue.slice(0, dotIdx);
+
+  const env = await getEnv();
+  const db  = drizzle(env.DB);
+  const sessionHash = await sha256hex(rawId);
+
+  const row = await db.select({ expiresAt: authSessions.expiresAt }).from(authSessions)
+    .where(eq(authSessions.id, sessionHash)).limit(1).then((r) => r[0] ?? null);
+  if (!row) return;
+
+  const remainingMs = new Date(row.expiresAt).getTime() - Date.now();
+  if (remainingMs > RENEW_THRESHOLD_MS) return;
+
+  const newExpiresAt = new Date(Date.now() + ADMIN_SESSION_TTL_MS).toISOString();
+  await db.update(authSessions).set({ expiresAt: newExpiresAt }).where(eq(authSessions.id, sessionHash));
+
+  cookieStore.set(SESSION_COOKIE, cookieValue, {
+    httpOnly: true, secure: true, sameSite: 'lax', path: '/',
+    maxAge: ADMIN_SESSION_TTL_MS / 1000,
+  });
+  cookieStore.set(ROLE_COOKIE, session.role, {
+    httpOnly: false, secure: true, sameSite: 'lax', path: '/',
+    maxAge: ADMIN_SESSION_TTL_MS / 1000,
   });
 }
 
