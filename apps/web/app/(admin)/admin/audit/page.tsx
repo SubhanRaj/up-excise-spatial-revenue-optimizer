@@ -33,6 +33,7 @@ const EVENT_LABELS: Record<string, string> = {
   admin_user_deleted: 'Admin user deleted',
   unlock_requested: 'Unlock requested',
   unlock_request_denied: 'Unlock request denied',
+  data_correction_unlocked: 'Data-correction unlocked',
 };
 
 // Raw metadata JSON keys, as actually written across every auditLog insert — human labels
@@ -40,7 +41,7 @@ const EVENT_LABELS: Record<string, string> = {
 const METADATA_KEY_LABELS: Record<string, string> = {
   circles: 'Circles',
   sectors: 'Sectors',
-  chunkIndex: 'Chunk #',
+  chunkIndex: 'Chunk # (within that circle/sector)',
   accepted: 'Accepted',
   rejected: 'Rejected',
   submittedAt: 'Submitted at',
@@ -66,7 +67,7 @@ function describeMetadata(row: AuditRow): string {
   if (row.metadata) {
     try {
       const m = JSON.parse(row.metadata) as Record<string, unknown>;
-      parts.push(...Object.entries(m).map(([k, v]) => `${METADATA_KEY_LABELS[k] ?? k}: ${v}`));
+      parts.push(...Object.entries(m).map(([k, v]) => `${METADATA_KEY_LABELS[k] ?? k}: ${k === 'chunkIndex' && typeof v === 'number' ? v + 1 : v}`));
     } catch {
       parts.push(row.metadata);
     }

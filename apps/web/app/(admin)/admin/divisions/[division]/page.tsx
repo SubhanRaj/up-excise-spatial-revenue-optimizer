@@ -104,7 +104,7 @@ export default function DivisionPage({ params }: { params: Promise<{ division: s
                     <td className="text-xs text-base-content/80">{d.deoName ?? '—'}</td>
                     <td>
                       <span className={`badge badge-sm ${d.status === 'submitted' ? 'badge-success' : d.status === 'in_progress' ? 'badge-warning' : 'badge-ghost'}`}>
-                        {d.status}
+                        {d.status === 'submitted' ? 'Submitted' : d.status === 'in_progress' ? 'In Progress' : 'Pending'}
                       </span>
                     </td>
                     <td className="text-right tabular-nums">{d.vendCount.toLocaleString()}</td>

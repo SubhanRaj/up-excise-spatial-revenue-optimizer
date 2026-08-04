@@ -522,7 +522,7 @@ async function buildShopDataSheet(
     validations.add(`${letter}3:${letter}${VALIDATION_ROW_LIMIT}`, {
       type: 'custom', allowBlank: true, formulae: [`=OR($${letter}3="",$${letter}3=0,${cond})`],
       showErrorMessage: true, errorStyle: 'error',
-      errorTitle: 'Not applicable for this shop type',
+      errorTitle: 'Not applicable for this type',
       error: `"${enLabel}" only applies to ${allowedLabels.join('/')}${gate.requireCl5cc ? ' with CL5CC' : ''}. Leave blank or 0 otherwise.\nयह फ़ील्ड केवल ${allowedLabels.join('/')}${gate.requireCl5cc ? ' (CL5CC सहित)' : ''} के लिए है। अन्यथा खाली या 0 छोड़ें।`,
     });
   }

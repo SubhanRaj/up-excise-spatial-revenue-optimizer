@@ -709,6 +709,7 @@ Full per-milestone delivery history (Objective, Deliverables, Exit Criterion, bu
 | M-53: Submit District Writes the Confirmed DEO Name Back to `districts.deoName` | **Completed** |
 | M-54: Post-Submission Data-Correction Unlock (No D1 Wipe); Dropdown-Only Entry Warnings | **Completed** |
 | M-55: DEO Manual Regenerated End-to-End; Dropdown/Adjacent-Thana Wording Fixes | **Completed** |
+| M-56: Fixed Excel Template XML Corruption (errorTitle Over Excel's 32-Char Limit); Status/Audit Label Fixes | **Completed** |
 
 See [summary.md](summary.md) for full milestone specs, entry/exit criteria, deliverable checklists, the backlog, and pre-campaign-blocker history.
 

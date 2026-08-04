@@ -1136,6 +1136,24 @@ flowchart LR
 
 ---
 
+### M-56: Fixed Excel Template XML Corruption (errorTitle Over Excel's 32-Char Limit); Status/Audit Label Fixes ✅ Complete
+
+**Objective:** User reported "the recent excel template is giving XML error on some users" — some DEOs got Excel's "found unreadable content, do you want to repair" prompt on open, others didn't. Also flagged two unrelated cosmetic bugs while portal is live: audit log showing `data_correction_unlocked` as a raw variable instead of a human label, `in_progress` shown as a raw status string instead of "In Progress" in several admin tables, and asked why `chunkIndex` always shows as `#0` in the audit log.
+
+**Root cause of the XML corruption, found and verified, not guessed:** the FIELD_GATES data-validation loop in `buildShopDataSheet()` (`apps/web/src/lib/excel.ts`) applied `errorTitle: 'Not applicable for this shop type'` (33 characters) to 11 different data-validation rules (License Fee, BLF, MGR, the 4 Composite sub-fields, MGQ Quantity, Consideration Fee, Special Beer LF, Special Beer MGR). OOXML's schema caps `dataValidation@errorTitle` at 32 characters (`ST_DataValidationErrorTitle`, `maxLength=32`). Excel builds that validate strictly against this on file-open reject the offending `dataValidation` elements and prompt to repair; builds that don't validate strictly (older Excel, Excel Online, LibreOffice) open the file with no complaint — exactly the "some users, not others" pattern reported. Verified by actually generating the real template via `generateTemplate()` (ran it standalone through `tsx` with the real `exceljs` package, not a guess), unzipping the resulting `.xlsx`, and regex-scanning every `errorTitle`/`promptTitle`/`error`/`prompt` string in every worksheet XML against Excel's real limits (32 / 32 / 255 / 255 chars) — the 33-char title was the only violation found, in exactly the 11 places the FIELD_GATES loop applies it.
+
+**Change:**
+
+- [x] Shortened `errorTitle` to `'Not applicable for this type'` (28 chars) — the detailed reason still shows in the validation popup body via the existing `error:` message, only the small dialog caption changed. Re-ran the same generate-and-scan check after the fix: zero violations across every sheet/validation in the template.
+- [x] `EVENT_LABELS` on `/admin/audit` (`apps/web/app/(admin)/admin/audit/page.tsx`) was missing an entry for `data_correction_unlocked` (added in M-54's unlock-resolve route but never added to this page's label map), so it fell back to showing the raw eventType string. Added the missing label.
+- [x] District `status` (`'in_progress'`) was rendered as the raw enum string instead of "In Progress" in five places that never got the friendly-label treatment the district detail page already had: `/admin` overview table, `/admin/districts`, `/admin/provision`, `/admin/divisions/[division]`. All four now render `Submitted` / `In Progress` / `Pending` consistently with the district detail page's existing pattern.
+- [x] **`chunkIndex` showing as `#0` for every chunk is not a bug** — it's per-circle/sector, not a global upload counter (`/verify`'s submit loop restarts `ci` at 0 for every circle/sector unit it uploads). Since almost every district uploads under 500 rows (`CHUNK_SIZE`) per unit, every unit only ever produces exactly one chunk, index 0. Left the underlying 0-indexed value in D1 untouched (no schema/behavior risk); relabeled the audit page's display only — `chunkIndex` now reads "Chunk # (within that circle/sector)" and displays 1-indexed (`v + 1`) so "Chunk 1" reads naturally instead of implying something failed.
+- [x] Verified with `pnpm typecheck` and `next build` (both pass), plus the from-scratch XML re-scan described above, before touching the Service Worker cache. Service Worker bumped `excise-v24` → `excise-v25` so already-cached DEO browsers pick up the fixed template generator, not just new visitors.
+
+**Exit criterion:** The DEO Excel template's XML validates against Excel's actual OOXML limits (verified programmatically, not assumed) and no longer risks a repair prompt on any Excel build; the admin portal shows human-readable status/event labels everywhere district status or `data_correction_unlocked` appears; the "Chunk #0" display is now self-explanatory instead of looking like an error.
+
+---
+
 ## Backlog / Not Started
 
 - [x] ~~Verify `exciseup.in` in Resend and switch `RESEND_FROM_EMAIL`~~ — Done. `mail.exciseup.in` verified; `RESEND_FROM_EMAIL` set to `noreply@mail.exciseup.in` on this project's Worker, and the same address set as `FROM_EMAIL` on the sibling `excise-revenue-recovery-portal` project's Worker (different env var name there, same Resend account/domain). Magic-link email is now the Admin/HQ login channel only (DEOs use CUG login as of M-17).

@@ -363,7 +363,7 @@ export default function AdminPage() {
                   </td>
                   <td role="gridcell">
                     <span className={`badge badge-sm ${d.status === 'submitted' ? 'badge-success' : d.status === 'in_progress' ? 'badge-warning' : 'badge-ghost'}`}>
-                      {d.status}
+                      {d.status === 'submitted' ? 'Submitted' : d.status === 'in_progress' ? 'In Progress' : 'Pending'}
                     </span>
                   </td>
                   <td role="gridcell">{d.vendCount.toLocaleString()}</td>
