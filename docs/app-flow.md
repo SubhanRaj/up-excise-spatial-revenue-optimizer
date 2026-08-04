@@ -69,7 +69,10 @@ flowchart TD
     Download --> FillExcel[DEO/Inspectors fill workbook\noffline, per circle/sector]
     FillExcel --> UploadPage["/upload: select consolidated .xlsx"]
     UploadPage --> ParseBrowser[Parse in-browser with ExcelJS\nDMS-to-DD, revenue calc, UP bbox validation]
-    ParseBrowser --> StageIDB[(Stage rows in IndexedDB\nDexie - excise-deo DB)]
+    ParseBrowser --> MandatoryCheck{validateRow: adjacentThanasRaw\nnon-blank? mandatory as of M-58}
+    MandatoryCheck -->|blank| RowErrorPreflight[Row marked status=error at parse time,\nexcluded from submission - same path\nas any other validateRow failure]
+    MandatoryCheck -->|filled| StageIDB
+    RowErrorPreflight --> StageIDB[(Stage rows in IndexedDB\nDexie - excise-deo DB)]
     StageIDB --> ChunkUpload[POST /api/upload/chunk\n500 rows per batch]
     ChunkUpload --> DualVerify{Worker recomputes\ntotal_revenue - matches?}
     DualVerify -->|no| RowRejected[Row rejected with reason]
@@ -78,7 +81,7 @@ flowchart TD
     ChunkUpload -.->|status already submitted| ChunkLocked[409 - district locked,\nno new uploads accepted]
 
     BatchWrite --> VerifyPage["/verify: review staged rows"]
-    VerifyPage --> FlagAdjacent[Client-side flag: adjacent Thana names\nnot in this district's own thanaName set]
+    VerifyPage --> FlagAdjacent[Red-pill heuristic: filled-in adjacent Thana\nnames not in this district's own thanaName set\n- non-blocking, unrelated to the mandatory check above]
     FlagAdjacent --> FixFlags[DEO corrects flagged rows]
     FixFlags --> ConfirmSubmit[SweetAlert2: confirm + typed name\npromptDeoNameAndLock, liability disclaimer]
     ConfirmSubmit --> PostSubmit[POST /api/districts/district/submit\nbody: submittedByName]

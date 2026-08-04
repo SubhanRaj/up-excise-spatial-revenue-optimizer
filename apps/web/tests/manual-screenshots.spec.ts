@@ -133,7 +133,9 @@ test.describe('DEO Manual — screenshot walkthrough', () => {
       'consideration_fee', 'special_beer_lf', 'special_beer_mgr',
     ];
     const rows = [
-      ['Sector - 1', 'Hariparvat', '', 'AG0001', 'Sadar Model Shop', 'MODEL_SHOP', 0, 27.18, 78.02, 150000, 0, 300000, 0, 0, 0, 0, 0, 0, 0, 0],
+      // adjacent_thanas_raw is mandatory (as of 2026-08-04) — every demo row below fills it in,
+      // matching what the portal now actually requires before a row can be submitted.
+      ['Sector - 1', 'Hariparvat', 'Sadar Bazar', 'AG0001', 'Sadar Model Shop', 'MODEL_SHOP', 0, 27.18, 78.02, 150000, 0, 300000, 0, 0, 0, 0, 0, 0, 0, 0],
       ['Sector - 2', 'Sadar Bazar', 'Hariparvat', 'AG0002', 'Sadar PRV', 'PRV', 0, 27.19, 78.03, 120000, 0, 200000, 0, 0, 0, 0, 0, 0, 0, 0],
       ['Circle 2 - Fatehabad', 'Fatehabad', 'Hariparvat', 'AG0003', 'Fatehabad Country Liquor', 'COUNTRY_LIQUOR', 1, 27.05, 78.25, 0, 180000, 0, 0, 0, 0, 0, 3000, 60000, 120000, 90000],
       // adjacent_thanas_raw demonstrates the comma-separated, multi-name format DEOs must use —

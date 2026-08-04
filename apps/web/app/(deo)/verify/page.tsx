@@ -8,6 +8,7 @@ import { stagingDb } from '@/lib/db';
 
 import type { StagedRow } from '@/lib/types';
 import { computeRevenue } from '@/lib/revenue';
+import { validateRow } from '@/lib/validate';
 import HelpPanel from '@/app/_components/HelpPanel';
 
 const CHUNK_SIZE = 500;
@@ -102,8 +103,8 @@ function PillList({ raw, districtThanas, onChange, readOnly = false }: {
         );
       })}
       {pills.length === 0 && (
-        <span className="badge badge-warning badge-outline gap-1" title="Adjacent Thana is not filled for this row. This is not blocking, but please fill it in — see the Excel template's Instructions sheet.">
-          Not filled
+        <span className="badge badge-error gap-1" title="Adjacent Thana is mandatory for every row. This row cannot be submitted until at least one Adjacent Thana is filled in.">
+          Mandatory — not filled
         </span>
       )}
     </div>
@@ -289,6 +290,18 @@ export default function VerifyPage() {
       if (row) {
         const merged = { ...row, ...changes };
         changes.totalRevenue = computeRevenue(merged);
+      }
+    }
+    if ('adjacentThanasRaw' in changes) {
+      // Adjacent Thana is mandatory (see validate.ts) — re-check so clearing the last pill
+      // here (the only inline edit path for this field) flips the row back to 'error' the
+      // same way an initial blank-cell upload does, instead of silently staying 'pending'.
+      const row = rows.find((r) => r.id === id);
+      if (row) {
+        const merged = { ...row, ...changes };
+        const errors = validateRow(merged);
+        changes.status = errors.length > 0 ? 'error' : 'pending';
+        changes.errorReason = errors.length > 0 ? errors.map((e) => e.message).join('; ') : '';
       }
     }
     await stagingDb.updateRow(id, changes);

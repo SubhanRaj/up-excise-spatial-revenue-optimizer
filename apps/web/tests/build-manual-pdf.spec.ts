@@ -410,15 +410,15 @@ test('build bilingual DEO User Manual PDF from captured screenshots', async ({ p
   </div>
 
   <div class="warn-item">
-    <p><span class="num">5</span><strong class="head">Adjacent Thanas — please always fill this in, comma-separated, one full name per item.</strong></p>
-    <p class="en">Spaces inside a single Thana name are fine (e.g. "Sadar Bazar"). To list more than one, separate each full name with a comma: <code>Fatehabad, Hariparvat, Sadar Bazar</code> — not one continuous run of words with no commas.</p>
-    <p class="hi">एक ही Thana नाम के अंदर space होना ठीक है (जैसे "Sadar Bazar")। एक से अधिक लिखने के लिए, हर पूरे नाम को अल्पविराम से अलग करें: <code>Fatehabad, Hariparvat, Sadar Bazar</code> — बिना अल्पविराम के लगातार शब्द नहीं।</p>
+    <p><span class="num">5</span><strong class="head">Adjacent Thanas is MANDATORY — every row needs at least one, comma-separated, one full name per item.</strong></p>
+    <p class="en">A row with this cell left blank will be flagged as an error on the Verify page and cannot be submitted until fixed. Spaces inside a single Thana name are fine (e.g. "Sadar Bazar"). To list more than one, separate each full name with a comma: <code>Fatehabad, Hariparvat, Sadar Bazar</code> — not one continuous run of words with no commas.</p>
+    <p class="hi">जिस row में यह cell खाली छोड़ा जाएगा उसे Verify पेज पर त्रुटि के रूप में दिखाया जाएगा और ठीक किए बिना सबमिट नहीं किया जा सकेगा। एक ही Thana नाम के अंदर space होना ठीक है (जैसे "Sadar Bazar")। एक से अधिक लिखने के लिए, हर पूरे नाम को अल्पविराम से अलग करें: <code>Fatehabad, Hariparvat, Sadar Bazar</code> — बिना अल्पविराम के लगातार शब्द नहीं।</p>
   </div>
 
   <div class="warn-item">
-    <p><span class="num">6</span><strong class="head">On the Verify page, a red Adjacent Thana name is NOT an error.</strong></p>
-    <p class="en">It only means that Thana name doesn't (yet) appear elsewhere in this district's own uploaded data — usually because no shop from that Thana has been uploaded in this particular batch yet, not a mistake. It is worth a quick spelling double-check, but a red name by itself does <strong>not</strong> block submission and does not need to be fixed before you submit.</p>
-    <p class="hi">इसका मतलब बस इतना है कि वह Thana नाम अभी तक इस जिले के अपने अपलोड किए गए डेटा में कहीं और मौजूद नहीं है — आमतौर पर इसलिए क्योंकि उस Thana की कोई दुकान अभी तक इस batch में अपलोड नहीं हुई, यह कोई गलती नहीं है। वर्तनी एक बार जांच लेना उचित है, लेकिन अकेले लाल नाम होने से सबमिशन <strong>नहीं</strong> रुकता और सबमिट करने से पहले इसे ठीक करने की आवश्यकता नहीं है।</p>
+    <p><span class="num">6</span><strong class="head">On the Verify page, a red Adjacent Thana name (as opposed to a fully blank cell) is NOT an error.</strong></p>
+    <p class="en">A blank cell is blocked (see #5 above) — but if you've entered a name and it still shows red, that only means that Thana name doesn't (yet) appear elsewhere in this district's own uploaded data — usually because no shop from that Thana has been uploaded in this particular batch yet, not a mistake. It is worth a quick spelling double-check, but a red name by itself does <strong>not</strong> block submission and does not need to be fixed before you submit.</p>
+    <p class="hi">खाली cell को रोका जाता है (ऊपर #5 देखें) — लेकिन अगर आपने कोई नाम भरा है और वह फिर भी लाल दिखता है, तो इसका मतलब बस इतना है कि वह Thana नाम अभी तक इस जिले के अपने अपलोड किए गए डेटा में कहीं और मौजूद नहीं है — आमतौर पर इसलिए क्योंकि उस Thana की कोई दुकान अभी तक इस batch में अपलोड नहीं हुई, यह कोई गलती नहीं है। वर्तनी एक बार जांच लेना उचित है, लेकिन अकेले लाल नाम होने से सबमिशन <strong>नहीं</strong> रुकता और सबमिट करने से पहले इसे ठीक करने की आवश्यकता नहीं है।</p>
   </div>
 </div>
 

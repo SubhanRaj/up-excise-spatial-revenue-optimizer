@@ -1170,6 +1170,25 @@ flowchart LR
 
 ---
 
+### M-58: Adjacent Thana Presence Made Mandatory & Enforced ✅ Complete
+
+**Objective:** User reported that many districts (e.g. Kanpur Nagar) were submitting with `adjacent_thanas_raw` entirely blank, and asked why the software accepted it and whether it could be fixed. Root cause: the field was nullable and non-blocking by design (see "Adjacent Thana Cross-District Rule" in CLAUDE.md — there is still no state-wide Thana master list, Pre-Campaign Blocker #3), and `/verify`'s `PillList` rendered a blank value as an unremarkable dim `—`, visually identical to any other fine field, so nothing ever told a DEO they'd skipped it. User then explicitly asked to make it mandatory and enforce presence (not full cross-district correctness, which still can't be validated without a master list), and to update the Excel Instructions sheet and the DEO manual to match.
+
+**Change:**
+
+- [x] `validateRow()` (`apps/web/src/lib/validate.ts`) now requires `adjacentThanasRaw` to be non-blank via the same `req()` helper used for `shopId`/`shopName`/etc. Since `POST /api/upload/chunk` calls this same shared function, the check is enforced identically client-side (pre-flight, at parse time) and server-side (the Worker's own dual verification) — no separate code path to keep in sync.
+- [x] `/verify`'s `updateRow()` (`app/(deo)/verify/page.tsx`) now re-runs `validateRow()` whenever `adjacentThanasRaw` changes, so clearing the last pill via the UI (the only inline-edit path for this field) immediately flips the row back to `status: 'error'` instead of silently staying `'pending'` until the next full re-parse.
+- [x] `PillList`'s empty state changed from a plain dim `—` to a red `badge-error` reading "Mandatory — not filled", with a tooltip explaining the row cannot be submitted until fixed.
+- [x] Excel template (`apps/web/src/lib/excel.ts`): header hint and the Instructions sheet's `COLUMN_GUIDE` row for `adjacent_thanas_raw` reworded from "please always fill in" (non-committal) to "MANDATORY, cannot be left blank", while explicitly preserving the separate, still-true statement that the `/verify` red-pill *name-mismatch* heuristic (a different check — cross-district self-consistency, not presence) remains non-blocking on its own.
+- [x] DEO manual (`apps/web/tests/build-manual-pdf.spec.ts`) item 5 reworded to state the field is mandatory and a blank cell is rejected; item 6 reworded to clarify it's specifically about a red name on an *already-filled* cell, not a blank one.
+- [x] CLAUDE.md's "Adjacent Thana Cross-District Rule" and the M-55 bullet in "DEO Workflow" updated to describe the new enforced-presence behavior, explicitly distinguishing it from the still-unenforceable cross-district name-correctness question.
+- [x] Full local regen of `docs/manual/DEO-User-Manual.pdf` and its 19 source screenshots via the documented TEST.md walkthrough (OpenNext Cloudflare preview server + local D1, Agra test district), so the shipped PDF reflects the new mandatory-field UI rather than just the source text. The walkthrough's own synthetic upload fixture had one demo row with a deliberately blank `adjacent_thanas_raw` (meant to demonstrate the old red-pill mismatch behavior) — updated to a filled-in value since a blank demo row now fails validation the same as a real one would.
+- [x] Verified with `pnpm typecheck` and `pnpm test` (OOXML-limit regression check).
+
+**Exit criterion:** A row with a blank Adjacent Thana cannot be submitted — it is flagged `error` at parse time (before any network request) and independently rejected by the Worker if it somehow got past that; `/verify` visibly calls out a blank cell instead of rendering it identically to a filled one; the Excel template and DEO manual both describe the field as mandatory, not merely encouraged.
+
+---
+
 ## Backlog / Not Started
 
 - [x] ~~Verify `exciseup.in` in Resend and switch `RESEND_FROM_EMAIL`~~ — Done. `mail.exciseup.in` verified; `RESEND_FROM_EMAIL` set to `noreply@mail.exciseup.in` on this project's Worker, and the same address set as `FROM_EMAIL` on the sibling `excise-revenue-recovery-portal` project's Worker (different env var name there, same Resend account/domain). Magic-link email is now the Admin/HQ login channel only (DEOs use CUG login as of M-17).

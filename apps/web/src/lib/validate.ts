@@ -17,6 +17,7 @@ const FIELD_LABELS: Record<string, string> = {
   shopId: 'Shop ID',
   shopName: 'Shop Name',
   uploadedByDeo: 'Uploaded By (DEO)',
+  adjacentThanasRaw: 'Adjacent Thanas',
 };
 
 /** Browser-side row validation — mirrors Worker validation for early feedback. */
@@ -32,6 +33,10 @@ export function validateRow(r: Phase1RowInput): RowError[] {
   req(r.shopId, 'shopId');
   req(r.shopName, 'shopName');
   req(r.uploadedByDeo, 'uploadedByDeo');
+  // Mandatory as of 2026-08-04: presence only (at least one Thana name entered), not
+  // cross-district correctness — there is still no state-wide Thana master list to validate
+  // names against, so the red-pill mismatch check on /verify remains a non-blocking heuristic.
+  req(r.adjacentThanasRaw, 'adjacentThanasRaw');
 
   if (!(SHOP_TYPES as readonly string[]).includes(r.shopType)) {
     const friendlyOptions = SHOP_TYPES.map((t) => SHOP_TYPE_LABELS[t]).join(', ');
