@@ -285,6 +285,18 @@ export const adminSettingsCache = {
 // page owning its own "Sync from Server" button. The caller still needs to force a refetch
 // (e.g. window.location.reload()) — clearing IndexedDB alone doesn't re-run a mounted page's
 // already-resolved state.
+//
+// adminExportCache is deliberately NOT included here. Every other cache below is cheap and
+// gets silently repopulated by its own page's hook on the very next load (districts, map,
+// audit, unlock requests all refetch lazily on a cache miss). The export cache holds the
+// full ~30K-row state-wide dataset and is only ever refilled by an explicit action — the
+// Export page's own "Refresh & Download", or the small "Refresh" buttons on the overview's
+// statewide breakdown card and the Circle & Sector Master page (M-61). Clearing it here used
+// to just mean the rarely-visited Export page had to re-sync once; now that two more
+// everyday admin surfaces depend on it, "Sync All" silently nuking it made those surfaces
+// show "not synced" right after the exact button an admin uses to keep everything fresh —
+// clearing it should stay a deliberate, dataset-specific action, not a side effect of the
+// generic sync-everything button.
 export async function invalidateAllAdminCaches(): Promise<void> {
   await Promise.all([
     adminDistrictsCache.invalidate(),
@@ -292,7 +304,6 @@ export async function invalidateAllAdminCaches(): Promise<void> {
     adminShopsCache.invalidate(),
     adminAuditCache.invalidate(),
     adminUnlockRequestsCache.invalidate(),
-    adminExportCache.clear(),
     adminSettingsCache.invalidate(),
   ]);
 }
