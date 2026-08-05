@@ -6,8 +6,11 @@ import { useRouter } from 'next/navigation';
 import { useSession } from '@/hooks/useSession';
 import HelpPanel from '@/app/_components/HelpPanel';
 import { useAdminDistricts } from '@/hooks/useAdminDistricts';
+import { useAdminExportData } from '@/hooks/useAdminExportData';
 import { adminMapCache, adminSettingsCache } from '@/lib/db';
 import { STATUS_COLOR, statusLabel, statusBadgeClass, isLocked } from '@/lib/status';
+import { SHOP_TYPE_BADGE_CLASS } from '@/lib/shop-type';
+import { SHOP_TYPES, SHOP_TYPE_LABELS } from '@excise/schema';
 
 interface DistrictRow {
   name: string; division?: string; deoName?: string; expectedVendCount?: number;
@@ -60,6 +63,7 @@ export default function AdminPage() {
   const routerRef = useRef(router);
   useEffect(() => { routerRef.current = router; }, [router]);
   const { districts: hookDistricts, stateTotals, loading: districtsLoading } = useAdminDistricts();
+  const { data: exportData, loading: exportLoading, syncing: exportSyncing, sync: syncExportData } = useAdminExportData();
   const data: AdminOverview | null = hookDistricts.length > 0
     ? { districts: hookDistricts as DistrictRow[], stateTotals }
     : null;
@@ -273,6 +277,26 @@ export default function AdminPage() {
     [...(data?.districts ?? [])].sort((a, b) => b.totalRevenue - a.totalRevenue).slice(0, 10),
     [data]);
 
+  // Free — already part of the 75-row districts aggregate every admin page loads, no extra
+  // D1 query or IndexedDB read needed.
+  const totalUnits = useMemo(
+    () => (data?.districts as (DistrictRow & { unitCount?: number })[] | undefined)?.reduce((s, d) => s + (d.unitCount ?? 0), 0) ?? 0,
+    [data],
+  );
+
+  // Sourced from the same full-state export cache /admin/export already populates — never a
+  // fresh D1 query on its own. `exportData` is null until that cache exists on this device.
+  const shopTypeCounts = useMemo(() => {
+    const counts: Record<string, { count: number; revenue: number }> = {};
+    for (const s of exportData?.rows ?? []) {
+      if (!counts[s.shopType]) counts[s.shopType] = { count: 0, revenue: 0 };
+      const entry = counts[s.shopType]!;
+      entry.count++;
+      entry.revenue += s.totalRevenue;
+    }
+    return counts;
+  }, [exportData]);
+
   const divisions = useMemo(() => {
     const map = new Map<string, { count: number; submitted: number; vends: number; revenue: number }>();
     for (const d of (data?.districts ?? [])) {
@@ -309,11 +333,16 @@ export default function AdminPage() {
       )}
       {/* State totals */}
       {data && (
-        <div className="grid md:grid-cols-3 gap-4">
+        <div className="grid md:grid-cols-4 gap-4">
           <div className="stat bg-base-100 rounded-box shadow">
             <div className="stat-title">Total Districts Submitted</div>
             <div className="stat-value text-success">{data.districts.filter((d) => isLocked(d.status)).length}</div>
             <div className="stat-desc">of {data.districts.length}</div>
+          </div>
+          <div className="stat bg-base-100 rounded-box shadow">
+            <div className="stat-title">Total Circles &amp; Sectors</div>
+            <div className="stat-value">{totalUnits.toLocaleString()}</div>
+            <div className="stat-desc">registered statewide</div>
           </div>
           <div className="stat bg-base-100 rounded-box shadow">
             <div className="stat-title">Total Vends Uploaded</div>
@@ -325,6 +354,50 @@ export default function AdminPage() {
           </div>
         </div>
       )}
+
+      {/* State-wide shop-type breakdown — sourced from the /admin/export IndexedDB cache
+          (never a fresh D1 query of its own). Shows a "Sync Data" prompt instead of
+          auto-fetching ~30K rows in the background when that cache doesn't exist yet. */}
+      <div className="card bg-base-100 shadow p-4">
+        <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+          <h3 className="font-semibold">Shop Type Breakdown — Statewide</h3>
+          {exportData && (
+            <button className="btn btn-ghost btn-xs gap-1" onClick={syncExportData} disabled={exportSyncing}>
+              {exportSyncing ? <span className="loading loading-spinner loading-xs" /> : (
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21v-5h5"/></svg>
+              )}
+              Refresh
+            </button>
+          )}
+        </div>
+        {!exportLoading && !exportData ? (
+          <div className="flex items-center justify-between gap-3 flex-wrap bg-base-200/50 rounded-lg px-4 py-3">
+            <p className="text-sm text-base-content/80">
+              Not synced on this device yet — pulls every shop row once (same data the Export page uses) and caches it locally, no repeat D1 hits.
+            </p>
+            <button className="btn btn-primary btn-sm shrink-0" onClick={syncExportData} disabled={exportSyncing}>
+              {exportSyncing ? <span className="loading loading-spinner loading-xs" /> : 'Sync Data'}
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+            {SHOP_TYPES.map((t) => {
+              const c = shopTypeCounts[t];
+              if (!c) return null;
+              return (
+                <div key={t} className="rounded-lg border border-base-200 p-3">
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <span className={`badge badge-xs ${SHOP_TYPE_BADGE_CLASS[t]}`}>{' '}</span>
+                    <span className="text-xs font-medium text-base-content/90">{SHOP_TYPE_LABELS[t]}</span>
+                  </div>
+                  <p className="text-lg font-bold tabular-nums">{c.count.toLocaleString()}</p>
+                  <p className="text-[11px] text-base-content/60 tabular-nums">{formatInr(c.revenue)}</p>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
 
       {/* Final verification round — superadmin toggles, everyone sees progress */}
       {settings && (
@@ -377,16 +450,17 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {/* Charts row */}
-      <div className="grid md:grid-cols-2 gap-6">
-        <div className="card bg-base-100 shadow p-4">
-          <h3 className="font-semibold mb-3">Submission Progress</h3>
-          <canvas ref={chartRefs.doughnut} style={{ maxHeight: 220 }} aria-label="Submission status doughnut chart" />
-        </div>
-        <div className="card bg-base-100 shadow p-4">
-          <h3 className="font-semibold mb-3">Top 20 Districts by Revenue</h3>
-          <canvas ref={chartRefs.bar} style={{ maxHeight: 220 }} aria-label="Revenue by district bar chart" />
-        </div>
+      {/* Submission progress */}
+      <div className="card bg-base-100 shadow p-4">
+        <h3 className="font-semibold mb-3">Submission Progress</h3>
+        <canvas ref={chartRefs.doughnut} style={{ maxHeight: 220 }} aria-label="Submission status doughnut chart" />
+      </div>
+
+      {/* Top 20 districts — a full-width, taller card so all 20 bar labels have room to
+          render (the old 220px shared-row height forced Chart.js to skip most labels). */}
+      <div className="card bg-base-100 shadow p-4">
+        <h3 className="font-semibold mb-3">Top 20 Districts by Revenue</h3>
+        <canvas ref={chartRefs.bar} style={{ maxHeight: 640 }} aria-label="Revenue by district bar chart" />
       </div>
 
       {/* Divisions grid */}

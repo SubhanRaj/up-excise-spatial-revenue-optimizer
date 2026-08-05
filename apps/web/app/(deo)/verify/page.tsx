@@ -13,15 +13,7 @@ import HelpPanel from '@/app/_components/HelpPanel';
 import { RevenueCell } from '@/components/RevenueCell';
 import { isLocked } from '@/lib/status';
 import { SHOP_TYPE_LABELS, SHOP_TYPES } from '@excise/schema';
-
-const TYPE_BADGE: Record<string, string> = {
-  MODEL_SHOP: 'badge-info',
-  COMPOSITE_SHOP: 'badge-accent',
-  PRV: 'badge-success',
-  BHANG_SHOP: 'badge-warning',
-  COUNTRY_LIQUOR: 'badge-neutral',
-  HBR: 'badge-secondary',
-};
+import { SHOP_TYPE_BADGE_CLASS as TYPE_BADGE } from '@/lib/shop-type';
 
 interface UnlockRequestInfo { status: 'pending' | 'approved' | 'denied'; reason: string; adminNote: string | null }
 

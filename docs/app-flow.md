@@ -100,8 +100,22 @@ flowchart TD
     Resolve2 -->|deny, note required| DenyBanner2["/upload shows denied banner\n+ admin's note"]
     ResetStatus --> UploadPage
 
+    Done -.->|Admin opens the state-wide\nfinal verification round\nM-60, /admin overview toggle| VerifyRoundCheck{"GET .../status: verificationPhaseOpen=true\nAND districtStatus=submitted?"}
+    VerifyRoundCheck -->|yes| FinalNav["DEO nav collapses to\nDashboard + Verify only"]
+    FinalNav --> FinalScreen["/verify final-verification screen:\nstat cards, shop-type breakdown,\nread-only table with RevenueCell popup"]
+    FinalScreen --> SyncOnce{"localStorage verify-synced-{district}\nalready set?"}
+    SyncOnce -->|yes| LocalRead[(Read straight from\nphase1_staging IndexedDB\nzero D1 hits)]
+    SyncOnce -->|no| OneTimeFetch[Wipe local staging,\nGET .../shops once,\nset the localStorage flag]
+    OneTimeFetch --> LocalRead
+    LocalRead --> FinalChoice{DEO reviews}
+    FinalChoice -->|everything correct| ConfirmVerify[SweetAlert2 confirm + typed name\nPOST .../verify]
+    ConfirmVerify --> Verified["status=verified\naudit_log district_verified\nread-only, no further action"]
+    FinalChoice -->|sees wrong data| ReqCorrection3["Request Unlock button\n- same request-unlock endpoint/flow\nas ReqCorrection above"]
+    ReqCorrection3 -.-> Resolve2
+
     style Locked fill:#16a34a,color:#fff
     style Done fill:#16a34a,color:#fff
+    style Verified fill:#16a34a,color:#fff
     style Rejected fill:#f59e0b,color:#000
     style RowRejected fill:#f59e0b,color:#000
     style SubmitBlocked fill:#f59e0b,color:#000
@@ -111,7 +125,10 @@ flowchart TD
     style ResetStatus fill:#16a34a,color:#fff
     style DenyBanner fill:#f59e0b,color:#000
     style DenyBanner2 fill:#f59e0b,color:#000
+    style LocalRead fill:#16a34a,color:#fff
 ```
+
+**Note:** `ChunkLocked` (upload rejected) and `ReqCorrection`/`ReqCorrection3`'s branch condition both use the shared `isLocked(status)` helper (`apps/web/src/lib/status.ts`) — a `'verified'` district is rejected/routed identically to a `'submitted'` one everywhere in this diagram, not just at the points drawn explicitly.
 
 ## 3. Admin / HQ dashboard — data loading (IndexedDB-first)
 
@@ -143,10 +160,20 @@ flowchart TD
     Provision --> PatchEP[PATCH /api/admin/districts/district\ndb.transaction: update districts + sync auth_users]
     Provision --> BulkEP[POST /api/admin/bulk-provision\ndb.transaction per row: districts + auth_users]
 
+    Render --> SettingsCard["Admin overview: Final Verification\nRound card - GET/POST /api/admin/settings\nsuperadmin toggles, all admins see progress"]
+
     Render --> ExportPage["/admin/export: full-state XLSX\nGET /api/admin/export/all -> ExcelJS in-browser"]
+    ExportPage --> ExportCache[(export_cache in\nexcise-admin IndexedDB\nall shop rows + all units, state-wide)]
+
+    ExportCache -.->|reused, no new D1 query| ShopTypeCard["Admin overview: Statewide Shop-Type\nBreakdown card + Circles/Sectors stat"]
+    ExportCache -.->|reused, no new D1 query| CirclesSectorsPage["/admin/circles-sectors:\nCircle/Sector Master table\none row per circle/sector, all districts"]
+    ShopTypeCard -.->|cache empty on this device| SyncPrompt["Sync Data button - explicit click,\nnever auto-fetched in background"]
+    CirclesSectorsPage -.->|cache empty on this device| SyncPrompt
+    SyncPrompt --> ExportPage
 
     style UseCache fill:#16a34a,color:#fff
     style ClientOps fill:#16a34a,color:#fff
+    style ExportCache fill:#16a34a,color:#fff
 ```
 
 ## 4. API error handling (every non-trivial route)

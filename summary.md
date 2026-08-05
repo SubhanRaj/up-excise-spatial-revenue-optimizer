@@ -1236,6 +1236,34 @@ flowchart LR
 
 **Exit criterion:** An admin can open a state-wide final-verification round with one button; every DEO whose district is `'submitted'` at that point sees a locked-down nav and a dedicated read-only review screen of their own data (fetched from D1 once, not on every visit) with a working revenue breakdown for every shop type including HBR; they can either confirm (moving their district to `'verified'`, a new terminal status visible everywhere admin shows district status) or request a correction unlock through the exact same admin-approval trail as today. The revenue-breakdown popup no longer clips on short/filtered tables in either portal.
 
+**Same-day follow-up:** the new `RevenueCell` popup (portal to `document.body`, `position: fixed`) had no "click outside to dismiss" behavior at all — a native `<details>` only closes when its own summary is clicked again — so it stayed open over filter dropdowns and other controls, and opening a second row's popup left the first one open too (both portaled to `<body>`, nothing in the DOM tree naturally closed either). Fixed by adding outside-click/`Escape`/scroll close handlers and a one-open-at-a-time module-level singleton (tracked by a stable per-instance token, not function identity, since a plain closure recreated every render never equals itself across renders).
+
+**Also fixed in this session:** the "Top 20 Districts by Revenue" bar chart on `/admin` was squeezed into a 220px-tall card shared with the Submission Progress doughnut, so Chart.js skipped most of the 20 district-name labels to fit. Split into its own full-width, 640px-tall card.
+
+---
+
+### M-61: Statewide Shop-Type/Circle-Sector Stats, Circle & Sector Master Page, District Progress Export ✅ Complete
+
+**Objective:** User asked for several UI additions to the admin portal, all with an explicit constraint: none of it should add new D1 query load — everything must be built from data already cached client-side. Specifically: (1) a statewide shop-type breakdown (HBR/Composite/Model/etc. counts, mirroring the existing per-district breakdown bar), (2) a total circles/sectors-registered stat, (3) a new "Circle/Sector Master" page listing every circle/sector across all 75 districts with its revenue and shop count, and (4) a district-progress export covering per-status counts (locked/in-progress/not-started) and, for submitted districts, their circle/sector count, total revenue, total shops, and shop-type breakdown (count + revenue).
+
+**Design decisions** (confirmed via user Q&A before implementation):
+- Data source: reuse the exact `export_cache` IndexedDB entry the existing `/admin/export` page already populates via `GET /api/admin/export/all`, rather than adding any new aggregate D1 endpoint. If that cache is empty on a given device, show an explicit "Sync Data" button rather than silently fetching ~30K rows in the background.
+- New page location: `/admin/circles-sectors`, in the main navbar, open to all `admin`/`superadmin` accounts — not owner/superadmin-gated, since it's read-only aggregate data like `/admin/districts`/`/admin/divisions`, not an editing surface.
+- District progress export: a new sheet in the existing full-state workbook (`generateFullStateWorkbook()`), not a separate page or download button.
+
+**Change:**
+
+- [x] **`apps/web/src/hooks/useAdminExportData.ts`** (new) — thin wrapper around the `export_cache` IndexedDB table already used by `/admin/export`. Cache-first, `data: null` until something has populated it; exposes an explicit `sync()` rather than fetching in an effect, so no consumer of this hook can accidentally trigger a background D1 pull.
+- [x] **`apps/web/src/lib/shop-type.ts`** (new) — consolidates `SHOP_TYPE_BADGE_CLASS` and `SHOP_TYPE_SHORT_LABEL`, previously copy-pasted independently in the admin district detail page and the DEO `/verify` final-verification screen (M-60); both now import from here, and the two new M-61 surfaces (overview breakdown card, Circle & Sector Master page) use the same source.
+- [x] **`/admin` overview** — 4th state-totals stat card, "Total Circles & Sectors" (free: sums `unitCount`, already present on every row `GET /api/admin/districts` returns, no new query). New "Shop Type Breakdown — Statewide" card below it, sourced from `useAdminExportData()`; shows a "Sync Data" prompt instead of the breakdown grid when the cache is empty.
+- [x] **`/admin/circles-sectors`** (new page) — one row per circle/sector across all 75 districts (district link, name, type, distinct thana count, shop count, revenue, per-shop-type badge breakdown), search + district filter + sortable columns, all client-side from `useAdminExportData()`. Seeded first from `units` so a registered-but-empty circle/sector still shows a real 0-shop row (same convention as the district detail page's own Circle/Sector Breakdown table). Added to the main admin navbar and breadcrumb map.
+- [x] **`generateFullStateWorkbook()`** (`apps/web/src/lib/excel.ts`) — new **District Progress** sheet: one row per district (status, circle/sector count, total shops, total revenue, then a Count + Revenue ₹ column pair per shop type). The Summary sheet's district-status line was also broadened from a single "Districts Submitted: X of Y" figure to a full 4-row Pending/In Progress/Submitted/Verified breakdown table, and its submitted-count now correctly includes `'verified'` districts (it previously only matched the literal string `'submitted'`).
+- [x] **Bug fix, same session:** the "Top 20 Districts by Revenue" bar chart on `/admin` was squeezed into a 220px card shared with the Submission Progress doughnut, forcing Chart.js to skip most of the 20 district-name labels. Split into its own full-width, 640px-tall card.
+- [x] CLAUDE.md updated: Route Map, Admin Data Loading section (Overview/Export/new Circle & Sector Master page descriptions), Shop Type Enum section (new `shop-type.ts` consolidation note), Milestone table. `docs/app-flow.md`'s admin data-loading diagram updated to show the shared `export_cache` reuse across the overview cards, Export page, and the new Circle & Sector Master page; the DEO workflow diagram updated with the M-60 final-verification branch it was still missing.
+- [x] Verified with `pnpm typecheck` and `pnpm test`.
+
+**Exit criterion:** The admin overview shows statewide circle/sector and shop-type totals, a new Circle & Sector Master page lists every circle/sector's revenue and shop count across the state, and the full-state export includes a per-district progress breakdown — all three built entirely from data already cached in `excise-admin` IndexedDB, with zero new D1 query paths added. The Top 20 Districts revenue chart shows all 20 labels.
+
 ---
 
 ## Backlog / Not Started

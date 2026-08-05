@@ -8,6 +8,7 @@ import { useSession } from '@/hooks/useSession';
 import { EditDistrictDrawer } from '@/app/_components/EditDistrictDrawer';
 import { RevenueCell } from '@/components/RevenueCell';
 import { statusLabel, statusBadgeClass } from '@/lib/status';
+import { SHOP_TYPE_BADGE_CLASS, SHOP_TYPE_SHORT_LABEL } from '@/lib/shop-type';
 
 interface ShopRow {
   id: number;
@@ -62,27 +63,9 @@ const TYPE_LABEL: Record<string, string> = {
   HBR: 'Hotel / Bar / Restaurants',
 };
 
-// Short form for tight spaces (circle/sector breakdown badges) — HBR stays verbatim, never
-// truncated from TYPE_LABEL's spelled-out prose form (CLAUDE.md: "HBR is shown verbatim
-// everywhere... never spelled out").
-const TYPE_SHORT_LABEL: Record<string, string> = {
-  MODEL_SHOP: 'Model',
-  COMPOSITE_SHOP: 'Composite',
-  PRV: 'PRV',
-  BHANG_SHOP: 'Bhang',
-  COUNTRY_LIQUOR: 'Country Liquor',
-  HBR: 'HBR',
-};
+const TYPE_SHORT_LABEL = SHOP_TYPE_SHORT_LABEL;
 
-// Distinct, non-purple palette using DaisyUI semantic classes
-const TYPE_BADGE: Record<string, string> = {
-  MODEL_SHOP: 'badge-info',
-  COMPOSITE_SHOP: 'badge-accent',
-  PRV: 'badge-success',
-  BHANG_SHOP: 'badge-warning',
-  COUNTRY_LIQUOR: 'badge-neutral',
-  HBR: 'badge-secondary',
-};
+const TYPE_BADGE = SHOP_TYPE_BADGE_CLASS;
 
 const fmt = (n: number) => `₹${n.toLocaleString('en-IN')}`;
 const fmtCr = (n: number) => `₹${(n / 1e7).toFixed(2)} Cr`;

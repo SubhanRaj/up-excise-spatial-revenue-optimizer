@@ -6,6 +6,7 @@ import { validateRow } from './validate';
 import type { StagedRow } from './types';
 import type ExcelJSNamespace from 'exceljs';
 import { SHOP_TYPES, SHOP_TYPE_LABELS } from '@excise/schema';
+import { STATUS_LABEL } from './status';
 
 declare global {
   // ExcelJS loaded from CDN in root layout.tsx — never bundled. The single spreadsheet
@@ -857,13 +858,22 @@ function buildSummarySheet(wb: ExcelJSNamespace.Workbook, districts: StateExport
   }
 
   const totalRevenue = shops.reduce((sum, s) => sum + s.totalRevenue, 0);
-  const submittedCount = districts.filter((d) => d.status === 'submitted').length;
+  const submittedOrVerifiedCount = districts.filter((d) => d.status === 'submitted' || d.status === 'verified').length;
 
   sectionTitle('State Totals');
   tableHeader(['Metric', 'Value']);
-  dataRow(['Districts Submitted', `${submittedCount} of ${districts.length}`]);
+  dataRow(['Districts Submitted', `${submittedOrVerifiedCount} of ${districts.length}`]);
   dataRow(['Total Shops', shops.length]);
   dataRow(['Total Revenue ₹', totalRevenue]);
+  r += 1;
+
+  sectionTitle('District Status Breakdown');
+  tableHeader(['Status', 'Districts']);
+  const statusCounts: Record<string, number> = {};
+  for (const d of districts) statusCounts[d.status] = (statusCounts[d.status] ?? 0) + 1;
+  for (const status of ['pending', 'in_progress', 'submitted', 'verified']) {
+    dataRow([STATUS_LABEL[status] ?? status, statusCounts[status] ?? 0]);
+  }
   r += 1;
 
   sectionTitle('Shop Type Breakdown');
@@ -908,6 +918,54 @@ function buildDistrictsSheet(wb: ExcelJSNamespace.Workbook, districts: StateExpo
     ]);
   }
   ws.columns = headers.map((h) => ({ width: Math.max(16, h.length + 4) }));
+  applyPrintSetup(ws, 1, headers.length);
+  ws.views = [{ state: 'frozen', ySplit: 1, xSplit: 0 }];
+}
+
+/** One row per district: status, circle/sector count, total shops/revenue, and a count +
+ * revenue column pair per shop type — the per-district detail behind the Summary sheet's
+ * state-wide totals, for admins who need to see progress and shop-type mix district by
+ * district in one sheet rather than opening all 75 per-district tabs. */
+function buildDistrictProgressSheet(
+  wb: ExcelJSNamespace.Workbook,
+  districts: StateExportDistrict[],
+  shops: ExportShopRow[],
+  units: StateExportUnit[],
+) {
+  const ws = wb.addWorksheet('District Progress');
+
+  const unitCountByDistrict = new Map<string, number>();
+  for (const u of units) unitCountByDistrict.set(u.districtName, (unitCountByDistrict.get(u.districtName) ?? 0) + 1);
+
+  const shopsByDistrict = new Map<string, ExportShopRow[]>();
+  for (const s of shops) {
+    const key = s.districtName ?? '';
+    if (!shopsByDistrict.has(key)) shopsByDistrict.set(key, []);
+    shopsByDistrict.get(key)!.push(s);
+  }
+
+  const typeHeaders = CIRCLE_SECTOR_TYPE_KEYS.flatMap((t) => [`${SHOP_TYPE_LABEL_LOOKUP[t]} Count`, `${SHOP_TYPE_LABEL_LOOKUP[t]} Revenue ₹`]);
+  const headers = ['District', 'Division', 'Status', 'Circle/Sector Count', 'Total Shops', 'Total Revenue ₹', ...typeHeaders];
+  ws.getRow(1).values = headers as ExcelJSNamespace.CellValue[];
+  styleHeaderRow(ws, 1);
+
+  for (const d of districts) {
+    const districtShops = shopsByDistrict.get(d.name) ?? [];
+    const byType: Record<string, { count: number; revenue: number }> = {};
+    for (const s of districtShops) {
+      if (!byType[s.shopType]) byType[s.shopType] = { count: 0, revenue: 0 };
+      byType[s.shopType]!.count += 1;
+      byType[s.shopType]!.revenue += s.totalRevenue;
+    }
+    const typeVals = CIRCLE_SECTOR_TYPE_KEYS.flatMap((t) => [byType[t]?.count ?? 0, byType[t]?.revenue ?? 0]);
+    ws.addRow([
+      d.name, d.division ?? '', STATUS_LABEL[d.status] ?? d.status,
+      unitCountByDistrict.get(d.name) ?? 0, districtShops.length, d.totalRevenue,
+      ...typeVals,
+    ]);
+  }
+
+  ws.columns = headers.map((h) => ({ width: Math.max(14, h.length + 2) }));
   applyPrintSetup(ws, 1, headers.length);
   ws.views = [{ state: 'frozen', ySplit: 1, xSplit: 0 }];
 }
@@ -968,6 +1026,7 @@ export async function generateFullStateWorkbook(
 
   buildSummarySheet(wb, districts, shops);
   buildDistrictsSheet(wb, districts);
+  buildDistrictProgressSheet(wb, districts, shops, units);
   buildCircleSectorSummarySheet(wb, shops, units);
   addShopSheet(wb, 'All Shops (Flat)', 'All Districts — Flat Shop List', shops, true);
 
