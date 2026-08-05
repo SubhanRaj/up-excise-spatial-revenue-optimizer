@@ -10,6 +10,20 @@ import type { StagedRow } from '@/lib/types';
 import { computeRevenue } from '@/lib/revenue';
 import { validateRow } from '@/lib/validate';
 import HelpPanel from '@/app/_components/HelpPanel';
+import { RevenueCell } from '@/components/RevenueCell';
+import { isLocked } from '@/lib/status';
+import { SHOP_TYPE_LABELS, SHOP_TYPES } from '@excise/schema';
+
+const TYPE_BADGE: Record<string, string> = {
+  MODEL_SHOP: 'badge-info',
+  COMPOSITE_SHOP: 'badge-accent',
+  PRV: 'badge-success',
+  BHANG_SHOP: 'badge-warning',
+  COUNTRY_LIQUOR: 'badge-neutral',
+  HBR: 'badge-secondary',
+};
+
+interface UnlockRequestInfo { status: 'pending' | 'approved' | 'denied'; reason: string; adminNote: string | null }
 
 const CHUNK_SIZE = 500;
 
@@ -147,7 +161,23 @@ export default function VerifyPage() {
   // longer makes sense — new uploads are blocked server-side (see POST /api/upload/chunk)
   // until an admin approves a data-correction unlock, at which point status flips back to
   // 'in_progress' and this reverts to the normal staged workflow on next load.
-  const [submitted, setSubmitted] = useState(false);
+  const [districtStatus, setDistrictStatus] = useState<string>('pending');
+  const submitted = isLocked(districtStatus);
+  const verified = districtStatus === 'verified';
+  // M-60 — the state-wide final-verification round. Only meaningful once the district has
+  // actually reached 'submitted': a district already 'verified' has its own read-only screen
+  // below, not the confirm/unlock screen.
+  const [verificationPhaseOpen, setVerificationPhaseOpen] = useState(false);
+  const finalVerificationMode = verificationPhaseOpen && districtStatus === 'submitted';
+  // Covers both the interactive confirm/unlock screen (still 'submitted') and its read-only
+  // successor once this DEO has already confirmed (now 'verified') — same screen, same data
+  // sync, only the bottom action area differs.
+  const finalScreenMode = verificationPhaseOpen && (districtStatus === 'submitted' || districtStatus === 'verified');
+  const [pendingUnlockRequest, setPendingUnlockRequest] = useState<UnlockRequestInfo | null>(null);
+  const [requestingUnlock, setRequestingUnlock] = useState(false);
+  const [confirmingVerify, setConfirmingVerify] = useState(false);
+  const [finalRows, setFinalRows] = useState<StagedRow[]>([]);
+  const [finalSearchQ, setFinalSearchQ] = useState('');
 
   const loadUnits = useCallback(async () => {
     if (!district) return [];
@@ -168,12 +198,52 @@ export default function VerifyPage() {
     }
   }, [district]);
 
-  useEffect(() => {
+  const loadDistrictStatus = useCallback(() => {
     if (!district) return;
     fetch(`/api/districts/${encodeURIComponent(district)}/status`)
-      .then((res) => (res.ok ? res.json() as Promise<{ districtStatus: string }> : { districtStatus: 'pending' }))
-      .then((data) => setSubmitted(data.districtStatus === 'submitted'));
+      .then((res) => (res.ok ? res.json() as Promise<{ districtStatus: string; verificationPhaseOpen: boolean }> : { districtStatus: 'pending', verificationPhaseOpen: false }))
+      .then((data) => {
+        setDistrictStatus(data.districtStatus);
+        setVerificationPhaseOpen(data.verificationPhaseOpen);
+      });
   }, [district]);
+
+  useEffect(() => { loadDistrictStatus(); }, [loadDistrictStatus]);
+
+  useEffect(() => {
+    if (!district) return;
+    fetch(`/api/districts/${encodeURIComponent(district)}/request-unlock`)
+      .then((res) => (res.ok ? res.json() as Promise<{ request: UnlockRequestInfo | null }> : { request: null }))
+      .then((data) => setPendingUnlockRequest(data.request));
+  }, [district]);
+
+  // One-time sync into local IndexedDB for the final-verification screen — avoids a fresh D1
+  // hit on every visit once this device already has the district's authoritative uploaded
+  // data cached (e.g. right after submitDistrict()'s own reseed, which sets this same flag).
+  useEffect(() => {
+    if (!district || !finalScreenMode) return;
+    const key = `verify-synced-${district}`;
+    let cancelled = false;
+    (async () => {
+      if (localStorage.getItem(key) !== 'true') {
+        await stagingDb.clearAll();
+        try {
+          const res = await fetch(`/api/districts/${encodeURIComponent(district)}/shops`);
+          if (res.ok) {
+            const body = await res.json() as { rows: StagedRow[] };
+            await stagingDb.putRows(body.rows.map((r) => ({ ...r, status: 'uploaded' as const })));
+          }
+          localStorage.setItem(key, 'true');
+        } catch {
+          // Best-effort — flag stays unset, next visit retries the D1 fetch.
+        }
+      }
+      if (cancelled) return;
+      const all = await stagingDb.getAll();
+      setFinalRows(all);
+    })();
+    return () => { cancelled = true; };
+  }, [district, finalScreenMode]);
 
   const loadUploadedRows = useCallback(async (): Promise<StagedRow[]> => {
     if (!district || !unitsReady) return [];
@@ -424,12 +494,15 @@ export default function VerifyPage() {
             const body = await shopsRes.json() as { rows: StagedRow[] };
             await stagingDb.putRows(body.rows.map((r) => ({ ...r, status: 'uploaded' as const })));
           }
+          // This device's local cache is now D1-fresh — the final-verification screen (once
+          // the state-wide round opens) can trust it without a redundant re-fetch.
+          localStorage.setItem(`verify-synced-${district}`, 'true');
         } catch {
           // Best-effort re-seed only — the district is already locked server-side regardless;
           // a failed re-seed just means the local "Shops Uploaded" cache stays empty until the
           // DEO next hits "Fetch from Server" on /home, not a data-loss risk.
         }
-        setSubmitted(true);
+        setDistrictStatus('submitted');
         await loadUploadedRows();
         await Swal?.fire({
           icon: rejectedCount > 0 ? 'warning' : 'success',
@@ -470,6 +543,108 @@ export default function VerifyPage() {
     notyf?.success('Staged data cleared.');
   }
 
+  // ── Final verification round (M-60) ─────────────────────────────────────────
+
+  async function confirmVerified() {
+    const Swal = (window as unknown as { Swal?: SwalLike }).Swal;
+    const confirm = await Swal?.fire({
+      icon: 'question',
+      title: 'Confirm this data is correct?',
+      html: `<p>You are confirming that all uploaded shop records for <b>${district}</b> are accurate. This locks in your final verification for headquarters.</p>
+             <p style="margin-top:8px;color:#64748b">आप पुष्टि कर रहे हैं कि सभी अपलोड किए गए रिकॉर्ड सही हैं। यह आपकी अंतिम पुष्टि के रूप में दर्ज होगा।</p>`,
+      showCancelButton: true,
+      confirmButtonText: 'Yes, everything is correct',
+      cancelButtonText: 'Let me check again',
+      confirmButtonColor: '#15803d',
+    } as unknown);
+    if (!confirm?.isConfirmed) return;
+
+    const name = await promptDeoNameAndLock(district);
+    if (!name) return;
+
+    setConfirmingVerify(true);
+    try {
+      const res = await fetch(`/api/districts/${encodeURIComponent(district)}/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ submittedByName: name }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({})) as { error?: string };
+        await Swal?.fire({ icon: 'error', title: 'Could not confirm', text: body.error ?? 'Please try again.' });
+        return;
+      }
+      setDistrictStatus('verified');
+      void Swal?.fire({
+        icon: 'success', title: 'Verified!',
+        html: `<p><b>${district}</b> has been marked as verified. Thank you for confirming your data.</p>`,
+      });
+    } finally {
+      setConfirmingVerify(false);
+    }
+  }
+
+  async function requestUnlockFinal() {
+    const Swal = (window as unknown as { Swal?: SwalLike }).Swal;
+    const result = await Swal?.fire({
+      icon: 'question',
+      title: 'Request data-correction unlock?',
+      html: `<p style="text-align:left">Explain which shop(s) had wrong data and what needs fixing for <b>${district}</b>. An Admin will review and either unlock re-uploading or deny the request. This does <b>not</b> delete anything already submitted.</p>
+             <p style="text-align:left;margin-top:6px;color:#64748b">बताएं कि किस दुकान का डेटा गलत था और क्या ठीक करना है। इससे पहले से सबमिट किया गया कोई डेटा हटता नहीं है।</p>`,
+      input: 'textarea',
+      inputPlaceholder: 'Reason (required)',
+      showCancelButton: true,
+      confirmButtonText: 'Submit Request',
+      cancelButtonText: 'Cancel',
+      inputValidator: (value: string) => (value && value.trim() ? undefined : 'Please enter a reason.'),
+    } as unknown);
+    if (!result?.isConfirmed) return;
+
+    setRequestingUnlock(true);
+    try {
+      const res = await fetch(`/api/districts/${encodeURIComponent(district)}/request-unlock`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: String((result as { value?: string }).value ?? '').trim() }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({})) as { error?: string };
+        await Swal?.fire({ icon: 'error', title: 'Could not submit request', text: body.error ?? 'Please try again.' });
+        return;
+      }
+      void Swal?.fire({
+        toast: true, position: 'top-end', icon: 'success', title: 'Unlock request submitted.',
+        showConfirmButton: false, timer: 3500, timerProgressBar: true,
+      });
+      loadDistrictStatus();
+      const req = await fetch(`/api/districts/${encodeURIComponent(district)}/request-unlock`)
+        .then((r) => (r.ok ? r.json() as Promise<{ request: UnlockRequestInfo | null }> : { request: null }));
+      setPendingUnlockRequest(req.request);
+    } finally {
+      setRequestingUnlock(false);
+    }
+  }
+
+  const finalTypeCounts = useMemo(() => {
+    const counts: Record<string, { count: number; revenue: number }> = {};
+    for (const s of finalRows) {
+      if (!counts[s.shopType]) counts[s.shopType] = { count: 0, revenue: 0 };
+      const entry = counts[s.shopType]!;
+      entry.count++;
+      entry.revenue += s.totalRevenue;
+    }
+    return counts;
+  }, [finalRows]);
+
+  const finalTotalRevenue = useMemo(() => finalRows.reduce((s, r) => s + r.totalRevenue, 0), [finalRows]);
+  const finalCircleCount = useMemo(() => new Set(finalRows.map((r) => r.circleSectorName)).size, [finalRows]);
+  const finalDistrictThanas = useMemo(() => new Set(finalRows.map((r) => r.thanaName)), [finalRows]);
+  const finalDisplayRows = useMemo(() => {
+    if (!finalSearchQ) return finalRows;
+    const q = finalSearchQ.toLowerCase();
+    return finalRows.filter((r) => r.shopName.toLowerCase().includes(q) || r.shopId.toLowerCase().includes(q) || r.thanaName.toLowerCase().includes(q));
+  }, [finalRows, finalSearchQ]);
+
   // Seeded from the registered unit list first (falling back to whatever's actually in
   // visibleRows in 'uploaded' view, where `units` isn't the relevant list) so a registered
   // circle/sector with zero rows still gets a real 0-count card instead of silently having
@@ -497,6 +672,135 @@ export default function VerifyPage() {
 
   if (!unitsChecked || !unitsReady) {
     return <div className="text-sm text-base-content/60 p-6">Checking your circles and sectors…</div>;
+  }
+
+  if (finalScreenMode) {
+    return (
+      <div className="space-y-5">
+        <div className="flex items-center gap-3 flex-wrap">
+          <div>
+            <h2 className="text-xl font-bold">Final Verification — {district}</h2>
+            <p className="text-xs text-base-content/60">अंतिम सत्यापन — कृपया अपना डेटा एक बार फिर जांचें</p>
+          </div>
+          <span className={`badge ${verified ? 'badge-info' : 'badge-success'}`}>{verified ? 'Verified' : 'Submitted'}</span>
+        </div>
+
+        {/* Stat cards */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="bg-base-100 rounded-xl border border-base-200 p-4 space-y-1">
+            <p className="text-[11px] uppercase tracking-widest font-medium text-base-content/60">Total Shops</p>
+            <p className="text-xl font-bold tabular-nums">{finalRows.length.toLocaleString()}</p>
+          </div>
+          <div className="bg-base-100 rounded-xl border border-base-200 p-4 space-y-1">
+            <p className="text-[11px] uppercase tracking-widest font-medium text-base-content/60">Circles &amp; Sectors</p>
+            <p className="text-xl font-bold tabular-nums">{finalCircleCount.toLocaleString()}</p>
+          </div>
+          <div className="bg-base-100 rounded-xl border border-base-200 p-4 space-y-1">
+            <p className="text-[11px] uppercase tracking-widest font-medium text-base-content/60">Total Revenue</p>
+            <p className="text-xl font-bold tabular-nums">{formatInr(finalTotalRevenue)}</p>
+          </div>
+          <div className="bg-base-100 rounded-xl border border-base-200 p-4 space-y-1">
+            <p className="text-[11px] uppercase tracking-widest font-medium text-base-content/60">District Excise Officer</p>
+            <p className="text-xl font-bold truncate">{session?.name ?? '—'}</p>
+          </div>
+        </div>
+
+        {/* Shop type breakdown */}
+        {finalRows.length > 0 && (
+          <div className="bg-base-100 rounded-xl border border-base-200 p-4">
+            <p className="text-[11px] uppercase tracking-widest font-medium text-base-content/60 mb-3">Shop Type Breakdown</p>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+              {SHOP_TYPES.map((t) => {
+                const c = finalTypeCounts[t];
+                if (!c) return null;
+                return (
+                  <div key={t} className="rounded-lg border border-base-200 p-3">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <span className={`badge badge-xs ${TYPE_BADGE[t]}`}>{' '}</span>
+                      <span className="text-xs font-medium text-base-content/90">{SHOP_TYPE_LABELS[t]}</span>
+                    </div>
+                    <p className="text-lg font-bold tabular-nums">{c.count}</p>
+                    <p className="text-[11px] text-base-content/60 tabular-nums">{formatInr(c.revenue)}</p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Data table */}
+        <div className="bg-base-100 rounded-xl border border-base-200 overflow-hidden">
+          <div className="flex items-center gap-3 p-4 border-b border-base-200">
+            <input
+              className="input input-bordered input-sm w-64"
+              placeholder="Search shop name / ID / Thana"
+              value={finalSearchQ}
+              onChange={(e) => setFinalSearchQ(e.target.value)}
+              aria-label="Search rows"
+            />
+            <span className="text-xs text-base-content/60">{finalDisplayRows.length.toLocaleString()} of {finalRows.length.toLocaleString()} shops</span>
+          </div>
+          <div className="overflow-auto max-h-[calc(100vh-460px)]">
+            <table className="table table-sm table-pin-rows" role="grid" aria-label="Final verification data">
+              <thead className="bg-base-200 z-10">
+                <tr>
+                  <th>Shop ID</th><th>Shop Name</th><th>Circle/Sector</th><th>Thana</th>
+                  <th>Adjacent Thanas</th><th>Type</th><th>Coords</th><th className="text-right">Revenue</th>
+                </tr>
+              </thead>
+              <tbody>
+                {finalDisplayRows.length === 0 ? (
+                  <tr><td colSpan={8} className="text-center py-8 text-base-content/60">{finalRows.length === 0 ? 'Loading district data…' : 'No shops match your search.'}</td></tr>
+                ) : finalDisplayRows.map((row) => (
+                  <tr key={row.id} role="row">
+                    <td className="font-mono text-xs">{row.shopId}</td>
+                    <td className="text-sm">{row.shopName}</td>
+                    <td className="text-xs">{row.circleSectorName}</td>
+                    <td className="text-xs">{row.thanaName}</td>
+                    <td className="min-w-48">
+                      <PillList raw={row.adjacentThanasRaw} districtThanas={finalDistrictThanas} onChange={() => {}} readOnly />
+                    </td>
+                    <td><span className={`badge badge-sm h-auto py-1 px-2 ${TYPE_BADGE[row.shopType] ?? 'badge-ghost'}`}>{SHOP_TYPE_LABELS[row.shopType as keyof typeof SHOP_TYPE_LABELS] ?? row.shopType}</span></td>
+                    <td className="font-mono text-xs">
+                      {row.latitudeDecimal != null ? `${row.latitudeDecimal.toFixed(4)}, ${row.longitudeDecimal!.toFixed(4)}` : <span className="text-base-content/45">—</span>}
+                    </td>
+                    <td className="text-right"><RevenueCell s={row} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Action area */}
+        {verified ? (
+          <div className="alert alert-info text-sm">
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><path d="m9 12 2 2 4-4"/></svg>
+            <span className="font-semibold">{district} has been verified. No further action is needed.</span>
+          </div>
+        ) : pendingUnlockRequest?.status === 'pending' ? (
+          <div className="alert alert-warning text-sm">
+            <span className="loading loading-spinner loading-sm shrink-0" />
+            <div>
+              <p className="font-semibold">Data-correction unlock request pending Admin review.</p>
+              <p className="text-xs opacity-80 mt-1">&quot;{pendingUnlockRequest.reason}&quot;</p>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-wrap gap-3 items-center">
+            <button className="btn btn-success btn-lg" onClick={confirmVerified} disabled={confirmingVerify || requestingUnlock}>
+              {confirmingVerify ? <span className="loading loading-spinner" /> : 'Everything is correct — Confirm & Verify'}
+            </button>
+            <button className="btn btn-outline btn-error" onClick={requestUnlockFinal} disabled={confirmingVerify || requestingUnlock}>
+              {requestingUnlock ? <span className="loading loading-spinner loading-xs" /> : 'I see wrong data — Request Unlock'}
+            </button>
+            {pendingUnlockRequest?.status === 'denied' && (
+              <p className="text-xs text-error w-full">Your last correction request was denied{pendingUnlockRequest.adminNote ? `: "${pendingUnlockRequest.adminNote}"` : '.'}</p>
+            )}
+          </div>
+        )}
+      </div>
+    );
   }
 
   return (

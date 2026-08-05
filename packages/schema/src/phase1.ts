@@ -63,7 +63,9 @@ export const districts = sqliteTable('districts', {
   bboxMinLon: real('bbox_min_lon'),
   bboxMaxLon: real('bbox_max_lon'),
 
-  // 'pending' | 'in_progress' | 'submitted'
+  // 'pending' | 'in_progress' | 'submitted' | 'verified' (M-60 final-verification round —
+  // reached only once verificationPhaseOpen is true and the DEO re-confirms their already-
+  // submitted data; 'verified' is treated identically to 'submitted' by every lock check)
   status: text('status').default('pending').notNull(),
   submittedAt: integer('submitted_at', { mode: 'timestamp' }),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
@@ -106,7 +108,7 @@ export const auditLog = sqliteTable('audit_log', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   // 'login' | 'logout' | 'login_cug' | 'upload_chunk' | 'district_submitted' | 'unit_registered'
   // | 'units_unlocked' | 'data_correction_unlocked' | 'district_master_updated' | 'bulk_provision'
-  // | 'unlock_requested' | 'unlock_request_denied'
+  // | 'unlock_requested' | 'unlock_request_denied' | 'district_verified' | 'verification_phase_toggled'
   eventType: text('event_type').notNull(),
   deoId: text('deo_id').notNull(),
   districtName: text('district_name'),

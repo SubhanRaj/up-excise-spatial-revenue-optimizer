@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import HelpPanel from '@/app/_components/HelpPanel';
 import { useAdminDistricts } from '@/hooks/useAdminDistricts';
+import { statusLabel, statusBadgeClass, isLocked } from '@/lib/status';
 
 const fmt = (n: number) => n >= 1e7 ? `₹${(n / 1e7).toFixed(2)} Cr` : n >= 1e5 ? `₹${(n / 1e5).toFixed(2)} L` : `₹${n.toLocaleString('en-IN')}`;
 
@@ -22,7 +23,7 @@ export default function DivisionPage({ params }: { params: Promise<{ division: s
   const totals = useMemo(() => ({
     vends: districts.reduce((s, d) => s + d.vendCount, 0),
     revenue: districts.reduce((s, d) => s + d.totalRevenue, 0),
-    submitted: districts.filter((d) => d.status === 'submitted').length,
+    submitted: districts.filter((d) => isLocked(d.status)).length,
     inProgress: districts.filter((d) => d.status === 'in_progress').length,
   }), [districts]);
 
@@ -103,8 +104,8 @@ export default function DivisionPage({ params }: { params: Promise<{ division: s
                     <td className="font-medium">{d.name}</td>
                     <td className="text-xs text-base-content/80">{d.deoName ?? '—'}</td>
                     <td>
-                      <span className={`badge badge-sm ${d.status === 'submitted' ? 'badge-success' : d.status === 'in_progress' ? 'badge-warning' : 'badge-ghost'}`}>
-                        {d.status === 'submitted' ? 'Submitted' : d.status === 'in_progress' ? 'In Progress' : 'Pending'}
+                      <span className={`badge badge-sm ${statusBadgeClass(d.status)}`}>
+                        {statusLabel(d.status)}
                       </span>
                     </td>
                     <td className="text-right tabular-nums">{d.vendCount.toLocaleString()}</td>

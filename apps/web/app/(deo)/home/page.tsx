@@ -9,6 +9,7 @@ import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { drizzle } from 'drizzle-orm/d1';
 import { districtCirclesSectors, districts } from '@excise/schema';
 import { eq } from 'drizzle-orm';
+import { isLocked } from '@/lib/status';
 
 // Fetched from GitHub (public repo) rather than served from this Worker — the manual is a
 // static reference doc regenerated ad hoc (see TEST.md), not something that needs to ship in
@@ -25,7 +26,8 @@ export default async function DeoDashboard() {
     db.select({ status: districts.status }).from(districts).where(eq(districts.name, district)).limit(1).then((r) => r[0] ?? null),
   ]);
   const hasUnits = unitsResult.length > 0;
-  const submitted = districtRow?.status === 'submitted';
+  const submitted = isLocked(districtRow?.status);
+  const verified = districtRow?.status === 'verified';
 
   return (
     <div className="space-y-8">
@@ -72,10 +74,14 @@ export default async function DeoDashboard() {
               3
             </div>
             <div>
-              <h3 className="font-semibold text-base">Step 3 — {submitted ? 'Submitted' : 'Verify & Submit'}</h3>
-              <p className="text-xs text-base-content/60">चरण 3 — {submitted ? 'सबमिट हो गया' : 'जांचें और सबमिट करें'}</p>
+              <h3 className="font-semibold text-base">Step 3 — {verified ? 'Verified' : submitted ? 'Submitted' : 'Verify & Submit'}</h3>
+              <p className="text-xs text-base-content/60">चरण 3 — {verified ? 'सत्यापित' : submitted ? 'सबमिट हो गया' : 'जांचें और सबमिट करें'}</p>
               <p className="text-sm text-base-content/80 mt-1">
-                {submitted ? 'Already submitted to headquarters — view your uploaded records (read-only)' : 'Review uploaded records, fix errors, then submit to headquarters'}
+                {verified
+                  ? 'Final verification complete — your data is confirmed and locked.'
+                  : submitted
+                  ? 'Already submitted to headquarters — view your uploaded records (read-only)'
+                  : 'Review uploaded records, fix errors, then submit to headquarters'}
               </p>
             </div>
             <div className="mt-auto"><span className="btn btn-success btn-sm w-full">{submitted ? 'View Uploaded Data' : 'Review'}</span></div>

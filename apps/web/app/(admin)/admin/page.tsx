@@ -6,7 +6,8 @@ import { useRouter } from 'next/navigation';
 import { useSession } from '@/hooks/useSession';
 import HelpPanel from '@/app/_components/HelpPanel';
 import { useAdminDistricts } from '@/hooks/useAdminDistricts';
-import { adminMapCache } from '@/lib/db';
+import { adminMapCache, adminSettingsCache } from '@/lib/db';
+import { STATUS_COLOR, statusLabel, statusBadgeClass, isLocked } from '@/lib/status';
 
 interface DistrictRow {
   name: string; division?: string; deoName?: string; expectedVendCount?: number;
@@ -15,11 +16,7 @@ interface DistrictRow {
 interface AdminOverview { districts: DistrictRow[]; stateTotals: { totalVendCount: number; totalRevenue: number } }
 interface MapRow { name: string; status: string; expectedVendCount?: number; vendCount: number; totalRevenue: number }
 
-const STATUS_COLORS: Record<string, string> = {
-  pending: '#94a3b8',     // slate-400
-  in_progress: '#f59e0b', // amber-500
-  submitted: '#16a34a',   // green-600
-};
+const STATUS_COLORS = STATUS_COLOR;
 
 const UP_BOUNDS: [[number, number], [number, number]] = [[23.8, 77.1], [30.4, 84.6]];
 const TILE_URLS = {
@@ -58,7 +55,7 @@ declare global {
 }
 
 export default function AdminPage() {
-  useSession();
+  const { session } = useSession();
   const router = useRouter();
   const routerRef = useRef(router);
   useEffect(() => { routerRef.current = router; }, [router]);
@@ -107,6 +104,63 @@ export default function AdminPage() {
     void fetchMapData();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // ── Final-verification round toggle ───────────────────────────────────────
+  interface SettingsInfo { verificationPhaseOpen: boolean; submittedCount: number; totalDistricts: number }
+  const [settings, setSettings] = useState<SettingsInfo | null>(null);
+  const [togglingSettings, setTogglingSettings] = useState(false);
+
+  async function fetchSettings(force = false) {
+    if (!force) {
+      const cached = await adminSettingsCache.get();
+      if (cached) { setSettings(cached as SettingsInfo); return; }
+    }
+    const res = await fetch('/api/admin/settings');
+    if (!res.ok) return;
+    const s = await res.json() as SettingsInfo;
+    adminSettingsCache.set(s);
+    setSettings(s);
+  }
+
+  useEffect(() => {
+    void fetchSettings();
+  }, []);
+
+  async function toggleVerificationPhase() {
+    if (!settings) return;
+    const next = !settings.verificationPhaseOpen;
+    const Swal = (window as unknown as { Swal?: { fire: (o: Record<string, unknown>) => Promise<{ isConfirmed: boolean }> } }).Swal;
+    const confirm = await Swal?.fire({
+      icon: 'warning',
+      title: next ? 'Open final verification for all DEOs?' : 'Close final verification?',
+      html: next
+        ? `<p>Every DEO whose district is <b>Submitted</b> will now see a read-only final-review screen instead of Circles/Upload/Verify, where they confirm their data one more time or request a correction unlock.</p><p style="margin-top:8px">${settings.submittedCount} of ${settings.totalDistricts} districts are currently Submitted.</p>`
+        : `<p>DEOs will stop seeing the final-review screen and return to their normal post-submission locked view.</p>`,
+      showCancelButton: true,
+      confirmButtonText: next ? 'Open Verification' : 'Close Verification',
+      cancelButtonText: 'Cancel',
+      confirmButtonColor: '#1d4ed8',
+    });
+    if (!confirm?.isConfirmed) return;
+
+    setTogglingSettings(true);
+    try {
+      const res = await fetch('/api/admin/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ verificationPhaseOpen: next }),
+      });
+      if (!res.ok) {
+        await Swal?.fire({ icon: 'error', title: 'Could not update', text: 'Please try again.' });
+        return;
+      }
+      const s = await res.json() as SettingsInfo;
+      adminSettingsCache.set(s);
+      setSettings(s);
+    } finally {
+      setTogglingSettings(false);
+    }
+  }
 
   useEffect(() => {
     const syncTheme = () => {
@@ -188,15 +242,15 @@ export default function AdminPage() {
     chartInstances.current.forEach((c) => c.destroy());
     chartInstances.current = [];
 
-    const statusCounts = { pending: 0, in_progress: 0, submitted: 0 };
+    const statusCounts = { pending: 0, in_progress: 0, submitted: 0, verified: 0 };
     data.districts.forEach((d) => { statusCounts[d.status as keyof typeof statusCounts] = (statusCounts[d.status as keyof typeof statusCounts] || 0) + 1; });
 
     if (chartRefs.doughnut.current) {
       chartInstances.current.push(new Chart(chartRefs.doughnut.current.getContext('2d')!, {
         type: 'doughnut',
         data: {
-          labels: ['Pending', 'In Progress', 'Submitted'],
-          datasets: [{ data: [statusCounts.pending, statusCounts.in_progress, statusCounts.submitted], backgroundColor: ['#d1d5db', '#fbbf24', '#15803d'] }],
+          labels: ['Pending', 'In Progress', 'Submitted', 'Verified'],
+          datasets: [{ data: [statusCounts.pending, statusCounts.in_progress, statusCounts.submitted, statusCounts.verified], backgroundColor: [STATUS_COLOR.pending, STATUS_COLOR.in_progress, STATUS_COLOR.submitted, STATUS_COLOR.verified] }],
         },
         options: { plugins: { legend: { position: 'bottom' } } },
       }));
@@ -225,7 +279,7 @@ export default function AdminPage() {
       if (!d.division) continue;
       const e = map.get(d.division) ?? { count: 0, submitted: 0, vends: 0, revenue: 0 };
       e.count++;
-      if (d.status === 'submitted') e.submitted++;
+      if (isLocked(d.status)) e.submitted++;
       e.vends += d.vendCount;
       e.revenue += d.totalRevenue;
       map.set(d.division, e);
@@ -258,7 +312,7 @@ export default function AdminPage() {
         <div className="grid md:grid-cols-3 gap-4">
           <div className="stat bg-base-100 rounded-box shadow">
             <div className="stat-title">Total Districts Submitted</div>
-            <div className="stat-value text-success">{data.districts.filter((d) => d.status === 'submitted').length}</div>
+            <div className="stat-value text-success">{data.districts.filter((d) => isLocked(d.status)).length}</div>
             <div className="stat-desc">of {data.districts.length}</div>
           </div>
           <div className="stat bg-base-100 rounded-box shadow">
@@ -269,6 +323,35 @@ export default function AdminPage() {
             <div className="stat-title">Total Annual Revenue</div>
             <div className="stat-value text-primary">{formatInr(data.stateTotals.totalRevenue)}</div>
           </div>
+        </div>
+      )}
+
+      {/* Final verification round — superadmin toggles, everyone sees progress */}
+      {settings && (
+        <div className="bg-base-100 rounded-box shadow p-4 flex items-center justify-between flex-wrap gap-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="font-semibold">Final Verification Round</h3>
+              <span className={`badge badge-sm ${settings.verificationPhaseOpen ? 'badge-info' : 'badge-ghost'}`}>
+                {settings.verificationPhaseOpen ? 'Open' : 'Closed'}
+              </span>
+            </div>
+            <p className="text-xs text-base-content/60 mt-0.5">
+              {settings.submittedCount} of {settings.totalDistricts} districts Submitted
+              {settings.verificationPhaseOpen && ' · Submitted districts\' DEOs currently see the final-review screen'}
+            </p>
+          </div>
+          {session?.role === 'superadmin' ? (
+            <button
+              className={`btn btn-sm ${settings.verificationPhaseOpen ? 'btn-outline btn-error' : 'btn-primary'}`}
+              onClick={toggleVerificationPhase}
+              disabled={togglingSettings}
+            >
+              {togglingSettings ? <span className="loading loading-spinner loading-xs" /> : settings.verificationPhaseOpen ? 'Close Verification' : 'Open Verification'}
+            </button>
+          ) : (
+            <span className="text-xs text-base-content/50">Owner/superadmin-only toggle</span>
+          )}
         </div>
       )}
 
@@ -285,7 +368,7 @@ export default function AdminPage() {
         </div>
         <div id="admin-map" ref={mapRef} style={{ height: 660 }} aria-label="UP district status choropleth map" role="img" />
         <div className="flex gap-4 mt-2 text-xs text-base-content/80">
-          {[['#94a3b8','Pending'],['#f59e0b','In Progress'],['#16a34a','Submitted']].map(([color, label]) => (
+          {[[STATUS_COLOR.pending,'Pending'],[STATUS_COLOR.in_progress,'In Progress'],[STATUS_COLOR.submitted,'Submitted'],[STATUS_COLOR.verified,'Verified']].map(([color, label]) => (
             <span key={label} className="flex items-center gap-1.5">
               <span className="inline-block w-3 h-3 rounded-sm border border-[#334155]" style={{ background: color }} />
               {label}
@@ -362,8 +445,8 @@ export default function AdminPage() {
                       : <span className="text-base-content/50">—</span>}
                   </td>
                   <td role="gridcell">
-                    <span className={`badge badge-sm ${d.status === 'submitted' ? 'badge-success' : d.status === 'in_progress' ? 'badge-warning' : 'badge-ghost'}`}>
-                      {d.status === 'submitted' ? 'Submitted' : d.status === 'in_progress' ? 'In Progress' : 'Pending'}
+                    <span className={`badge badge-sm ${statusBadgeClass(d.status)}`}>
+                      {statusLabel(d.status)}
                     </span>
                   </td>
                   <td role="gridcell">{d.vendCount.toLocaleString()}</td>

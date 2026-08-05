@@ -34,6 +34,8 @@ const EVENT_LABELS: Record<string, string> = {
   unlock_requested: 'Unlock requested',
   unlock_request_denied: 'Unlock request denied',
   data_correction_unlocked: 'Data-correction unlocked',
+  district_verified: 'District verified (final round)',
+  verification_phase_toggled: 'Final verification round toggled',
 };
 
 // Raw metadata JSON keys, as actually written across every auditLog insert — human labels
@@ -53,6 +55,8 @@ const METADATA_KEY_LABELS: Record<string, string> = {
   failed: 'Failed',
   reason: 'Reason',
   note: 'Note',
+  verifiedAt: 'Verified at',
+  verificationPhaseOpen: 'Verification round open',
 };
 
 // Admin-actor events carry actorName/actorDesignation (captured at write time). DEO-actor

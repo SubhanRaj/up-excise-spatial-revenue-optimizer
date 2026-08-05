@@ -6,9 +6,8 @@ import HelpPanel from '@/app/_components/HelpPanel';
 import { adminShopsCache, adminUnlockRequestsCache } from '@/lib/db';
 import { useSession } from '@/hooks/useSession';
 import { EditDistrictDrawer } from '@/app/_components/EditDistrictDrawer';
-
-const ON_PREMISES_CONSUMPTION_FEE = 300_000;
-const BHANG_MGQ_MULTIPLIER = 20;
+import { RevenueCell } from '@/components/RevenueCell';
+import { statusLabel, statusBadgeClass } from '@/lib/status';
 
 interface ShopRow {
   id: number;
@@ -91,86 +90,6 @@ const fmtCr = (n: number) => `₹${(n / 1e7).toFixed(2)} Cr`;
 type SortKey = 'shopId' | 'shopName' | 'thanaName' | 'totalRevenue' | 'shopType';
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
-
-function RevenueCell({ s }: { s: ShopRow }) {
-  const lines: [string, number][] = [];
-  if (s.shopType === 'MODEL_SHOP') {
-    lines.push(
-      ['License Fee (LF)', s.licenseFeeLf],
-      ['MGR Amount', s.mgrAmount],
-      ['On-Premises Consumption Fee', ON_PREMISES_CONSUMPTION_FEE],
-    );
-  } else if (s.shopType === 'COMPOSITE_SHOP') {
-    lines.push(
-      ['LF – FL', s.compositeLfFl],
-      ['LF – Beer', s.compositeLfBeer],
-      ['MGR – FL', s.compositeMgrFl],
-      ['MGR – Beer', s.compositeMgrBeer],
-    );
-  } else if (s.shopType === 'PRV') {
-    lines.push(['License Fee (LF)', s.licenseFeeLf], ['MGR Amount', s.mgrAmount]);
-  } else if (s.shopType === 'BHANG_SHOP') {
-    lines.push(
-      ['License Fee (LF)', s.licenseFeeLf],
-      [`MGQ (${s.mgqQuantity} × ₹${BHANG_MGQ_MULTIPLIER})`, s.mgqQuantity * BHANG_MGQ_MULTIPLIER],
-    );
-  } else if (s.shopType === 'COUNTRY_LIQUOR') {
-    lines.push(
-      ['Basic License Fee (BLF)', s.basicLicenseFeeBlf],
-      ['Consideration Fee', s.considerationFee],
-    );
-    if (s.hasCl5cc)
-      lines.push(['Special Beer LF', s.specialBeerLf], ['Special Beer MGR', s.specialBeerMgr]);
-  }
-
-  const [hAlign, setHAlign] = useState<'left' | 'right'>('left');
-  const [vAlign, setVAlign] = useState<'below' | 'above'>('below');
-  const POPUP_WIDTH = 224; // w-56
-  const POPUP_HEIGHT_EST = 100 + lines.length * 20;
-
-  // Same viewport-overflow check as HelpPanel's balloon flip, but bounded against the shop
-  // table's own `.overflow-auto` wrapper — not `window.innerWidth` — since that wrapper is
-  // narrower than the browser window (page padding, sidebar, etc). Checking against the full
-  // window let a popup near the table's own right edge (but still comfortably inside the
-  // window) pass the "fits" check while still overflowing the actual scrollable table
-  // container, which grows that container's scrollWidth instead of showing the breakdown.
-  function handleToggle(e: React.SyntheticEvent<HTMLDetailsElement>) {
-    if (!e.currentTarget.open) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const container = e.currentTarget.closest<HTMLElement>('.overflow-auto, .overflow-x-auto');
-    const bounds = container?.getBoundingClientRect();
-    const rightBound = bounds?.right ?? window.innerWidth;
-    const bottomBound = bounds?.bottom ?? window.innerHeight;
-    setHAlign(rect.left + POPUP_WIDTH > rightBound - 16 ? 'right' : 'left');
-    setVAlign(rect.bottom + POPUP_HEIGHT_EST > bottomBound - 16 ? 'above' : 'below');
-  }
-
-  return (
-    <details className="group relative cursor-pointer" onToggle={handleToggle}>
-      <summary className="list-none select-none font-mono text-xs font-medium tabular-nums hover:underline decoration-dotted underline-offset-2">
-        {fmt(s.totalRevenue)}
-        <span className="ml-1 text-base-content/50 group-open:hidden">▾</span>
-      </summary>
-      <div
-        className={`absolute z-10 w-56 rounded-lg border border-base-300 bg-base-100 p-3 shadow-lg text-xs ${hAlign === 'right' ? 'right-0' : 'left-0'} ${vAlign === 'above' ? 'bottom-full mb-1' : 'top-full mt-1'}`}
-      >
-        <p className="text-base-content/70 font-medium uppercase tracking-wide text-[10px] mb-2">Revenue Breakdown</p>
-        <div className="space-y-1">
-          {lines.map(([label, val]) => (
-            <div key={label} className="flex justify-between gap-3">
-              <span className="text-base-content/80 truncate">{label}</span>
-              <span className="font-mono tabular-nums shrink-0">{fmt(val)}</span>
-            </div>
-          ))}
-        </div>
-        <div className="mt-2 flex justify-between gap-3 border-t border-base-200 pt-2 font-semibold">
-          <span>Total</span>
-          <span className="font-mono tabular-nums">{fmt(s.totalRevenue)}</span>
-        </div>
-      </div>
-    </details>
-  );
-}
 
 function AdjThanas({ raw }: { raw: string | null }) {
   if (!raw) return <span className="text-base-content/50">—</span>;
@@ -599,8 +518,8 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
           </button>
         )}
         {detail && (
-          <span className={`badge badge-sm font-medium ${detail.status === 'submitted' ? 'badge-success' : detail.status === 'in_progress' ? 'badge-warning' : 'badge-ghost'}`}>
-            {detail.status === 'submitted' ? 'Submitted' : detail.status === 'in_progress' ? 'In Progress' : 'Pending'}
+          <span className={`badge badge-sm font-medium ${statusBadgeClass(detail.status)}`}>
+            {statusLabel(detail.status)}
           </span>
         )}
         <div className="ml-auto flex gap-2 items-center">

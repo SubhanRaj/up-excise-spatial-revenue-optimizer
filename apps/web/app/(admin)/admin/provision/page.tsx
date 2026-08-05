@@ -7,6 +7,7 @@ import { useAdminDistricts } from '@/hooks/useAdminDistricts';
 import { adminDistrictsCache } from '@/lib/db';
 import { useSession } from '@/hooks/useSession';
 import { EditDistrictDrawer as EditDrawer, type DistrictRow } from '@/app/_components/EditDistrictDrawer';
+import { statusLabel, statusBadgeClass } from '@/lib/status';
 
 export default function DistrictMasterPage() {
   const { session } = useSession();
@@ -151,7 +152,7 @@ export default function DistrictMasterPage() {
                     </td>
                     <td>{d.unitCount ?? 0}</td>
                     <td>{d.vendCount}</td>
-                    <td><span className={`badge badge-xs ${d.status === 'submitted' ? 'badge-success' : d.status === 'in_progress' ? 'badge-warning' : 'badge-ghost'}`}>{d.status === 'submitted' ? 'Submitted' : d.status === 'in_progress' ? 'In Progress' : 'Pending'}</span></td>
+                    <td><span className={`badge badge-xs ${statusBadgeClass(d.status)}`}>{statusLabel(d.status)}</span></td>
                     <td>
                       <button className="btn btn-ghost btn-xs btn-circle" onClick={() => setEditing(d)} aria-label={`Edit ${d.name}`}>
                         <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z"/></svg>

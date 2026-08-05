@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSession } from '@/hooks/useSession';
 import { stagingDb } from '@/lib/db';
 import HelpPanel from '@/app/_components/HelpPanel';
+import { isLocked } from '@/lib/status';
 
 export default function UploadPage() {
   const router = useRouter();
@@ -45,7 +46,7 @@ export default function UploadPage() {
   useEffect(() => { loadStatus(); }, [loadStatus]);
 
   const hasUnits = units.length > 0;
-  const submitted = districtStatus === 'submitted';
+  const submitted = isLocked(districtStatus);
 
   // Hard gate — this page is not reachable until circles/sectors are locked, matching the
   // server-side rejection every units-dependent API route already enforces. No degraded

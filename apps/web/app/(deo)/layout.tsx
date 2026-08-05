@@ -27,6 +27,7 @@ export default function DeoLayout({ children }: { children: React.ReactNode }) {
   // Defaults closed — Upload/Verify must not flash into view before the units check resolves.
   const [hasUnits, setHasUnits] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [finalScreenMode, setFinalScreenMode] = useState(false);
   const [uploadedCount, setUploadedCount] = useState(0);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
@@ -37,27 +38,39 @@ export default function DeoLayout({ children }: { children: React.ReactNode }) {
           .then(r => r.ok ? r.json() : [])
           .then(units => setHasUnits(units.length > 0));
         fetch(`/api/districts/${encodeURIComponent(session.districtName)}/status`)
-          .then(r => r.ok ? r.json() : { districtStatus: 'pending' })
-          .then((s: { districtStatus: string }) => setSubmitted(s.districtStatus === 'submitted'));
+          .then(r => r.ok ? r.json() : { districtStatus: 'pending', verificationPhaseOpen: false })
+          .then((s: { districtStatus: string; verificationPhaseOpen: boolean }) => {
+            setSubmitted(s.districtStatus === 'submitted' || s.districtStatus === 'verified');
+            // M-60 — once the state-wide final-verification round is open and this district
+            // has reached (or passed) 'submitted', the DEO sees only Dashboard + Verify —
+            // Circles/Upload/plain Verify/Uploaded Data all drop from the nav, since /verify
+            // itself becomes the final-review screen for this district.
+            setFinalScreenMode(s.verificationPhaseOpen && (s.districtStatus === 'submitted' || s.districtStatus === 'verified'));
+          });
       }
     });
     stagingDb.getByStatus('uploaded').then((rows) => setUploadedCount(rows.length)).catch(() => setUploadedCount(0));
   }, [pathname]);
 
-  const navLinks = [
-    { href: '/home', label: 'Dashboard' },
-    { href: '/units', label: 'Circles' },
-    // /upload stays reachable even once submitted — it shows its own locked view with the
-    // data-correction unlock request. /verify's staged-review workflow (Clear Staged Data,
-    // Submit District) no longer makes sense once submitted, so it drops from the nav —
-    // the read-only Uploaded Data link (below) is the only "verify" surface left.
-    ...(hasUnits ? [{ href: '/upload', label: 'Upload' }] : []),
-    ...(hasUnits && !submitted ? [{ href: '/verify', label: 'Verify' }] : []),
-    // Direct shortcut to the uploaded-data view (same destination as the Home dashboard's
-    // "Shops Uploaded" stat card) — only once locked units exist and something has actually
-    // been uploaded, so it never appears as a dead link.
-    ...(hasUnits && uploadedCount > 0 ? [{ href: '/verify?view=uploaded', label: 'Uploaded Data' }] : []),
-  ];
+  const navLinks = finalScreenMode
+    ? [
+        { href: '/home', label: 'Dashboard' },
+        { href: '/verify', label: 'Verify' },
+      ]
+    : [
+        { href: '/home', label: 'Dashboard' },
+        { href: '/units', label: 'Circles' },
+        // /upload stays reachable even once submitted — it shows its own locked view with the
+        // data-correction unlock request. /verify's staged-review workflow (Clear Staged Data,
+        // Submit District) no longer makes sense once submitted, so it drops from the nav —
+        // the read-only Uploaded Data link (below) is the only "verify" surface left.
+        ...(hasUnits ? [{ href: '/upload', label: 'Upload' }] : []),
+        ...(hasUnits && !submitted ? [{ href: '/verify', label: 'Verify' }] : []),
+        // Direct shortcut to the uploaded-data view (same destination as the Home dashboard's
+        // "Shops Uploaded" stat card) — only once locked units exist and something has actually
+        // been uploaded, so it never appears as a dead link.
+        ...(hasUnits && uploadedCount > 0 ? [{ href: '/verify?view=uploaded', label: 'Uploaded Data' }] : []),
+      ];
 
   return (
     <div className="min-h-screen bg-base-200">

@@ -5,6 +5,7 @@ import { eq, and } from 'drizzle-orm';
 import { getSession } from '@/lib/auth';
 import { districtCirclesSectors, districtUnlockRequests, auditLog, districts } from '@excise/schema';
 import { withErrorHandling } from '@/lib/with-error-handling';
+import { isLocked } from '@/lib/status';
 
 const REASON_MAX_LENGTH = 2000;
 
@@ -50,11 +51,12 @@ async function POST_(req: NextRequest, { params }: Ctx): Promise<NextResponse> {
 
   const districtRow = await db.select({ status: districts.status })
     .from(districts).where(eq(districts.name, district)).get();
-  // A district already submitted has its units locked as a side effect of that earlier
-  // step — this is a request to correct shop-level data, not to re-register units, so it
-  // skips the "units are locked" precondition below and is flagged for the resolve route
-  // to handle differently (reset status, never delete circles/sectors).
-  const isCorrection = districtRow?.status === 'submitted';
+  // A district already submitted (or verified — M-60's final-review re-confirmation) has its
+  // units locked as a side effect of that earlier step — this is a request to correct
+  // shop-level data, not to re-register units, so it skips the "units are locked"
+  // precondition below and is flagged for the resolve route to handle differently (reset
+  // status, never delete circles/sectors).
+  const isCorrection = isLocked(districtRow?.status);
 
   if (!isCorrection) {
     const locked = await db.select({ id: districtCirclesSectors.id })

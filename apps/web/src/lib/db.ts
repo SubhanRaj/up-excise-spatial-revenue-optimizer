@@ -137,6 +137,7 @@ function getAdminDb(): DexieInstance {
     _adminDb.version(2).stores({ export_cache: 'key', districts_cache: 'key' });
     _adminDb.version(3).stores({ export_cache: 'key', districts_cache: 'key', map_cache: 'key', shops_cache: 'key', audit_cache: 'key' });
     _adminDb.version(4).stores({ export_cache: 'key', districts_cache: 'key', map_cache: 'key', shops_cache: 'key', audit_cache: 'key', unlock_requests_cache: 'key' });
+    _adminDb.version(5).stores({ export_cache: 'key', districts_cache: 'key', map_cache: 'key', shops_cache: 'key', audit_cache: 'key', unlock_requests_cache: 'key', settings_cache: 'key' });
   }
   return _adminDb;
 }
@@ -258,6 +259,27 @@ export const adminUnlockRequestsCache = {
     getAdminDb().table<AdminKvCache<unknown>>('unlock_requests_cache').clear(),
 };
 
+// ── App settings cache (manual sync, same convention as adminUnlockRequestsCache) ──
+// Backs the verification-phase toggle/progress card on the admin overview page.
+
+const SETTINGS_KEY = 'app_settings';
+
+export const adminSettingsCache = {
+  get: () =>
+    getAdminDb().table<AdminKvCache<unknown>>('settings_cache')
+      .where('key').equals(SETTINGS_KEY).toArray()
+      .then((r) => {
+        const entry = r[0];
+        if (!entry) return null;
+        return entry.data;
+      }),
+  set: (data: unknown) =>
+    getAdminDb().table<AdminKvCache<unknown>>('settings_cache')
+      .put({ key: SETTINGS_KEY, data, fetchedAt: Date.now() }),
+  invalidate: () =>
+    getAdminDb().table<AdminKvCache<unknown>>('settings_cache').clear(),
+};
+
 // ── Global sync ──────────────────────────────────────────────────────────────
 // One button (in the admin navbar) clears every admin cache table at once, instead of each
 // page owning its own "Sync from Server" button. The caller still needs to force a refetch
@@ -271,5 +293,6 @@ export async function invalidateAllAdminCaches(): Promise<void> {
     adminAuditCache.invalidate(),
     adminUnlockRequestsCache.invalidate(),
     adminExportCache.clear(),
+    adminSettingsCache.invalidate(),
   ]);
 }

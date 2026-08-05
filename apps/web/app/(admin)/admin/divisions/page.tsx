@@ -4,6 +4,7 @@ import { useMemo } from 'react';
 import Link from 'next/link';
 import HelpPanel from '@/app/_components/HelpPanel';
 import { useAdminDistricts } from '@/hooks/useAdminDistricts';
+import { isLocked } from '@/lib/status';
 
 const fmt = (n: number) => n >= 1e7 ? `₹${(n / 1e7).toFixed(2)} Cr` : n >= 1e5 ? `₹${(n / 1e5).toFixed(2)} L` : `₹${n.toLocaleString('en-IN')}`;
 
@@ -17,7 +18,7 @@ export default function DivisionsPage() {
       const e = map.get(d.division) ?? { count: 0, submitted: 0, inProgress: 0, vends: 0, revenue: 0, districts: [] };
       e.count++;
       e.districts.push(d.name);
-      if (d.status === 'submitted') e.submitted++;
+      if (isLocked(d.status)) e.submitted++;
       else if (d.status === 'in_progress') e.inProgress++;
       e.vends += d.vendCount;
       e.revenue += d.totalRevenue;

@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import HelpPanel from '@/app/_components/HelpPanel';
 import { useAdminDistricts } from '@/hooks/useAdminDistricts';
 import type { AdminDistrictRow as DistrictRow } from '@/hooks/useAdminDistricts';
+import { statusLabel, statusBadgeClass, isLocked } from '@/lib/status';
 
 const fmt = (n: number) => n >= 1e7 ? `₹${(n / 1e7).toFixed(2)} Cr` : n >= 1e5 ? `₹${(n / 1e5).toFixed(2)} L` : `₹${n.toLocaleString('en-IN')}`;
 const fmtCoord = (n: number) => n.toFixed(4);
@@ -54,7 +55,7 @@ export default function DistrictsPage() {
   const totals = useMemo(() => ({
     vends: rows.reduce((s, r) => s + r.vendCount, 0),
     revenue: rows.reduce((s, r) => s + r.totalRevenue, 0),
-    submitted: rows.filter((r) => r.status === 'submitted').length,
+    submitted: rows.filter((r) => isLocked(r.status)).length,
   }), [rows]);
 
 
@@ -124,6 +125,7 @@ export default function DistrictsPage() {
             <option value="pending">Pending</option>
             <option value="in_progress">In Progress</option>
             <option value="submitted">Submitted</option>
+            <option value="verified">Verified</option>
           </select>
         </div>
 
@@ -183,8 +185,8 @@ export default function DistrictsPage() {
                         : <span className="text-base-content/40">—</span>}
                     </td>
                     <td>
-                      <span className={`badge badge-sm ${d.status === 'submitted' ? 'badge-success' : d.status === 'in_progress' ? 'badge-warning' : 'badge-ghost'}`}>
-                        {d.status === 'submitted' ? 'Submitted' : d.status === 'in_progress' ? 'In Progress' : 'Pending'}
+                      <span className={`badge badge-sm ${statusBadgeClass(d.status)}`}>
+                        {statusLabel(d.status)}
                       </span>
                     </td>
                     <td className="text-right tabular-nums">{(d.unitCount ?? 0).toLocaleString()}</td>
