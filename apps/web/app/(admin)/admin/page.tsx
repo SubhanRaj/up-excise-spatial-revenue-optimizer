@@ -110,7 +110,7 @@ export default function AdminPage() {
   }, []);
 
   // ── Final-verification round toggle ───────────────────────────────────────
-  interface SettingsInfo { verificationPhaseOpen: boolean; submittedCount: number; totalDistricts: number }
+  interface SettingsInfo { verificationPhaseOpen: boolean; everToggled: boolean; submittedCount: number; totalDistricts: number }
   const [settings, setSettings] = useState<SettingsInfo | null>(null);
   const [togglingSettings, setTogglingSettings] = useState(false);
 
@@ -355,31 +355,21 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* State-wide shop-type breakdown — sourced from the /admin/export IndexedDB cache
-          (never a fresh D1 query of its own). Shows a "Sync Data" prompt instead of
-          auto-fetching ~30K rows in the background when that cache doesn't exist yet. */}
-      <div className="card bg-base-100 shadow p-4">
-        <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-          <h3 className="font-semibold">Shop Type Breakdown — Statewide</h3>
-          {exportData && (
+      {/* State-wide shop-type breakdown — sourced from the /admin/export IndexedDB cache,
+          which the navbar's Sync All button already keeps populated (see
+          invalidateAllAdminCaches() in src/lib/db.ts), so this card just doesn't render
+          until that data exists rather than showing its own separate sync prompt. */}
+      {exportData && (
+        <div className="card bg-base-100 shadow p-4">
+          <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+            <h3 className="font-semibold">Shop Type Breakdown — Statewide</h3>
             <button className="btn btn-ghost btn-xs gap-1" onClick={syncExportData} disabled={exportSyncing}>
               {exportSyncing ? <span className="loading loading-spinner loading-xs" /> : (
                 <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21v-5h5"/></svg>
               )}
               Refresh
             </button>
-          )}
-        </div>
-        {!exportLoading && !exportData ? (
-          <div className="flex items-center justify-between gap-3 flex-wrap bg-base-200/50 rounded-lg px-4 py-3">
-            <p className="text-sm text-base-content/80">
-              Not synced on this device yet — pulls every shop row once (same data the Export page uses) and caches it locally, no repeat D1 hits.
-            </p>
-            <button className="btn btn-primary btn-sm shrink-0" onClick={syncExportData} disabled={exportSyncing}>
-              {exportSyncing ? <span className="loading loading-spinner loading-xs" /> : 'Sync Data'}
-            </button>
           </div>
-        ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
             {SHOP_TYPES.map((t) => {
               const c = shopTypeCounts[t];
@@ -396,8 +386,8 @@ export default function AdminPage() {
               );
             })}
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Final verification round — superadmin toggles, everyone sees progress */}
       {settings && (
@@ -406,7 +396,7 @@ export default function AdminPage() {
             <div className="flex items-center gap-2">
               <h3 className="font-semibold">Final Verification Round</h3>
               <span className={`badge badge-sm ${settings.verificationPhaseOpen ? 'badge-info' : 'badge-ghost'}`}>
-                {settings.verificationPhaseOpen ? 'Open' : 'Closed'}
+                {settings.verificationPhaseOpen ? 'Open' : settings.everToggled ? 'Closed' : 'Not Started Yet'}
               </span>
             </div>
             <p className="text-xs text-base-content/60 mt-0.5">
@@ -450,14 +440,15 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {/* Charts row — items-start so the grid doesn't force both cards to match height;
-          the doughnut only needs ~220px, the 20-bar chart needs much more, and stretching
-          the doughnut's card to match (or squeezing the bar chart to match the doughnut,
-          the original bug) both look wrong. Each card just sizes to its own content. */}
-      <div className="grid md:grid-cols-2 gap-6 items-start">
-        <div className="card bg-base-100 shadow p-4">
+      {/* Charts row — both cards stretch to equal height (default grid behavior); the
+          doughnut only needs a ~320px canvas, so it's centered in the remaining space
+          instead of left sitting at the top with dead space below it. */}
+      <div className="grid md:grid-cols-2 gap-6">
+        <div className="card bg-base-100 shadow p-4 flex flex-col">
           <h3 className="font-semibold mb-3">Submission Progress</h3>
-          <canvas ref={chartRefs.doughnut} style={{ maxHeight: 220 }} aria-label="Submission status doughnut chart" />
+          <div className="flex-1 flex items-center justify-center">
+            <canvas ref={chartRefs.doughnut} style={{ maxHeight: 320 }} aria-label="Submission status doughnut chart" />
+          </div>
         </div>
         <div className="card bg-base-100 shadow p-4">
           <h3 className="font-semibold mb-3">Top 20 Districts by Revenue</h3>

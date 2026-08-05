@@ -97,7 +97,7 @@ export default function CirclesSectorsPage() {
         </div>
         <div className="ml-auto">
           <HelpPanel pageKey="admin_circles_sectors" title="Circle & Sector Master">
-            <p>One row per registered circle/sector, across every district. Sourced from the same cached dataset the Export page uses — sync it below if it&apos;s not on this device yet.</p>
+            <p>One row per registered circle/sector, across every district.</p>
             <ul className="list-disc list-inside space-y-1 mt-1">
               <li><strong>0-shop rows</strong> — a circle/sector a DEO registered but never uploaded data for still shows, with a 0 shop count.</li>
               <li><strong>Type breakdown</strong> — per-shop-type badge counts for that circle/sector.</li>
@@ -107,13 +107,8 @@ export default function CirclesSectorsPage() {
       </div>
 
       {!loading && !data ? (
-        <div className="bg-base-100 rounded-xl border border-base-200 p-6 flex items-center justify-between gap-3 flex-wrap">
-          <p className="text-sm text-base-content/80">
-            This page needs the full-state shop dataset, which isn&apos;t cached on this device yet. Sync once — the same cache the Export page uses, no repeat D1 hits afterward.
-          </p>
-          <button className="btn btn-primary shrink-0" onClick={sync} disabled={syncing}>
-            {syncing ? <span className="loading loading-spinner loading-xs" /> : 'Sync Data'}
-          </button>
+        <div className="bg-base-100 rounded-xl border border-base-200 p-6 text-center text-sm text-base-content/70">
+          No data loaded yet — click <strong>Sync All</strong> at the top of the page.
         </div>
       ) : (
         <>
@@ -131,7 +126,7 @@ export default function CirclesSectorsPage() {
               <span className="text-xs text-base-content/70">Total revenue</span>
               <span className="font-bold text-primary tabular-nums">{fmt(totals.revenue)}</span>
             </div>
-            <button className="btn btn-ghost btn-xs gap-1 ml-auto" onClick={sync} disabled={syncing} title="Re-fetch the full-state dataset from D1">
+            <button className="btn btn-ghost btn-xs gap-1 ml-auto" onClick={sync} disabled={syncing} title="Refresh this data">
               {syncing ? <span className="loading loading-spinner loading-xs" /> : (
                 <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21v-5h5"/></svg>
               )}

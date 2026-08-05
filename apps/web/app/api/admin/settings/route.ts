@@ -27,6 +27,10 @@ async function GET_(): Promise<NextResponse> {
 
   return NextResponse.json({
     verificationPhaseOpen: settingsRow?.verificationPhaseOpen ?? false,
+    // null until the very first toggle (the seed migration inserts the row with this unset) —
+    // lets the client tell "never opened yet" apart from "was opened, now closed again"
+    // without a separate audit-log query.
+    everToggled: settingsRow?.updatedAt != null,
     submittedCount: allStatuses.filter((d) => isLocked(d.status)).length,
     totalDistricts: total,
   });
@@ -73,6 +77,7 @@ async function POST_(req: NextRequest): Promise<NextResponse> {
 
   return NextResponse.json({
     verificationPhaseOpen: body.verificationPhaseOpen,
+    everToggled: true,
     submittedCount: allStatuses.filter((d) => isLocked(d.status)).length,
     totalDistricts: totalRows[0]?.total ?? 0,
   });
