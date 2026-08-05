@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 const ON_PREMISES_CONSUMPTION_FEE = 300_000;
@@ -68,20 +68,46 @@ function breakdownLines(s: RevenueShopFields): [string, number][] {
 
 const POPUP_WIDTH = 224; // w-56
 
+// Only one breakdown popup open at a time across the whole table — each instance is an
+// independent <details>, so opening a second row's popup previously left the first one open
+// too (both are portaled to <body>, so nothing in the DOM tree naturally closed either one).
+// Tracked by a stable per-instance token (not function identity — a plain closure recreated
+// on every render would never equal itself across renders) paired with whichever `close`
+// closure was current when it opened.
+let active: { token: object; run: () => void } | null = null;
+
 export function RevenueCell({ s }: { s: RevenueShopFields }) {
   const lines = breakdownLines(s);
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState({ top: 0, left: 0 });
+  const detailsRef = useRef<HTMLDetailsElement>(null);
+  const popupRef = useRef<HTMLDivElement>(null);
+  const token = useRef({}).current;
 
   // Rendered via a fixed-position portal to <body> instead of an absolutely-positioned child
   // of the <details> — the previous approach measured correctly against the viewport but was
   // still a DOM descendant of the table's `.overflow-auto` wrapper, so CSS clipped it to that
   // wrapper's own (short, for a filtered few-row table) content box regardless of the flip
   // math. A portal has no such ancestor, so it can never be clipped by the table's scroll box.
+  function close() {
+    setOpen(false);
+    // Native <details> only closes itself when its own <summary> is clicked again — closing
+    // programmatically (outside click, Escape, filter change) has to also flip the DOM
+    // element's own open state, or the next click on the summary would toggle it back open
+    // immediately (browser thinks it's still open, so a click "closes" it right back to shut).
+    if (detailsRef.current) detailsRef.current.open = false;
+    if (active?.token === token) active = null;
+  }
+
   function handleToggle(e: React.SyntheticEvent<HTMLDetailsElement>) {
     const isOpen = e.currentTarget.open;
     setOpen(isOpen);
-    if (!isOpen) return;
+    if (!isOpen) {
+      if (active?.token === token) active = null;
+      return;
+    }
+    if (active && active.token !== token) active.run();
+    active = { token, run: close };
     const rect = e.currentTarget.getBoundingClientRect();
     const popupHeightEst = 100 + lines.length * 20;
     const fitsBelow = rect.bottom + popupHeightEst <= window.innerHeight - 16;
@@ -90,14 +116,49 @@ export function RevenueCell({ s }: { s: RevenueShopFields }) {
     setPos({ top, left });
   }
 
+  // A native <details> popover has no "click outside to dismiss" behavior at all — was easy to
+  // miss with the old absolutely-positioned version since it stayed visually pinned under its
+  // row, but the fixed-position portal can float directly over unrelated controls (a filter
+  // dropdown, another row) and silently intercept/obscure clicks there until the same summary
+  // is clicked again. Close on outside click, Escape, or the table scrolling out from under a
+  // popup whose position was only computed once at open time.
+  useEffect(() => {
+    if (!open) return;
+    function onPointerDown(e: MouseEvent) {
+      const target = e.target as Node;
+      if (detailsRef.current?.contains(target)) return;
+      if (popupRef.current?.contains(target)) return;
+      close();
+    }
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') close();
+    }
+    function onScroll() { close(); }
+    document.addEventListener('mousedown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    window.addEventListener('scroll', onScroll, true);
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('scroll', onScroll, true);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  // A row can unmount while its popup is still marked active (e.g. a type filter change
+  // removes it from the filtered list) — release the singleton so the next row to open
+  // doesn't try to close an already-gone instance.
+  useEffect(() => () => { if (active?.token === token) active = null; }, [token]);
+
   return (
-    <details className="cursor-pointer" onToggle={handleToggle}>
+    <details ref={detailsRef} className="cursor-pointer" onToggle={handleToggle}>
       <summary className="list-none select-none font-mono text-xs font-medium tabular-nums hover:underline decoration-dotted underline-offset-2">
         {fmt(s.totalRevenue)}
         <span className="ml-1 text-base-content/50">▾</span>
       </summary>
       {open && typeof document !== 'undefined' && createPortal(
         <div
+          ref={popupRef}
           style={{ position: 'fixed', top: pos.top, left: pos.left, width: POPUP_WIDTH }}
           className="z-[1200] rounded-lg border border-base-300 bg-base-100 p-3 shadow-lg text-xs"
         >
