@@ -450,17 +450,19 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {/* Submission progress */}
-      <div className="card bg-base-100 shadow p-4">
-        <h3 className="font-semibold mb-3">Submission Progress</h3>
-        <canvas ref={chartRefs.doughnut} style={{ maxHeight: 220 }} aria-label="Submission status doughnut chart" />
-      </div>
-
-      {/* Top 20 districts — a full-width, taller card so all 20 bar labels have room to
-          render (the old 220px shared-row height forced Chart.js to skip most labels). */}
-      <div className="card bg-base-100 shadow p-4">
-        <h3 className="font-semibold mb-3">Top 20 Districts by Revenue</h3>
-        <canvas ref={chartRefs.bar} style={{ maxHeight: 640 }} aria-label="Revenue by district bar chart" />
+      {/* Charts row — items-start so the grid doesn't force both cards to match height;
+          the doughnut only needs ~220px, the 20-bar chart needs much more, and stretching
+          the doughnut's card to match (or squeezing the bar chart to match the doughnut,
+          the original bug) both look wrong. Each card just sizes to its own content. */}
+      <div className="grid md:grid-cols-2 gap-6 items-start">
+        <div className="card bg-base-100 shadow p-4">
+          <h3 className="font-semibold mb-3">Submission Progress</h3>
+          <canvas ref={chartRefs.doughnut} style={{ maxHeight: 220 }} aria-label="Submission status doughnut chart" />
+        </div>
+        <div className="card bg-base-100 shadow p-4">
+          <h3 className="font-semibold mb-3">Top 20 Districts by Revenue</h3>
+          <canvas ref={chartRefs.bar} style={{ maxHeight: 440 }} aria-label="Revenue by district bar chart" />
+        </div>
       </div>
 
       {/* Divisions grid */}

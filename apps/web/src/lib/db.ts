@@ -281,22 +281,23 @@ export const adminSettingsCache = {
 };
 
 // ── Global sync ──────────────────────────────────────────────────────────────
-// One button (in the admin navbar) clears every admin cache table at once, instead of each
-// page owning its own "Sync from Server" button. The caller still needs to force a refetch
-// (e.g. window.location.reload()) — clearing IndexedDB alone doesn't re-run a mounted page's
-// already-resolved state.
+// One button (in the admin navbar) refreshes every admin cache table at once, instead of
+// each page owning its own "Sync from Server" button — this is the one gesture admins
+// actually reach for to get fresh data, so every cache needs to actually end up fresh after
+// it, not just cleared and left to whichever page happens to load next. The caller still
+// needs to force a refetch of the current page's own state afterward (e.g.
+// window.location.reload()) — clearing/repopulating IndexedDB alone doesn't re-run a
+// mounted page's already-resolved React state.
 //
-// adminExportCache is deliberately NOT included here. Every other cache below is cheap and
-// gets silently repopulated by its own page's hook on the very next load (districts, map,
-// audit, unlock requests all refetch lazily on a cache miss). The export cache holds the
-// full ~30K-row state-wide dataset and is only ever refilled by an explicit action — the
-// Export page's own "Refresh & Download", or the small "Refresh" buttons on the overview's
-// statewide breakdown card and the Circle & Sector Master page (M-61). Clearing it here used
-// to just mean the rarely-visited Export page had to re-sync once; now that two more
-// everyday admin surfaces depend on it, "Sync All" silently nuking it made those surfaces
-// show "not synced" right after the exact button an admin uses to keep everything fresh —
-// clearing it should stay a deliberate, dataset-specific action, not a side effect of the
-// generic sync-everything button.
+// The export cache (~30K shop rows + every circle/sector, state-wide) is the one exception
+// to "just clear it, the next page load refetches lazily" — nothing refetches it lazily, so
+// clearing it here without also refetching left the overview's statewide breakdown card and
+// the Circle & Sector Master page (M-61) permanently stuck on "not synced" the moment an
+// admin did the one thing they already do to refresh everything. Since Sync All is always an
+// explicit, user-clicked action — never automatic or on a timer — actually fetching the full
+// dataset here is the appropriate place for that cost, not a second dedicated button nobody
+// would remember to click. Each of those two pages still keeps its own small "Refresh"
+// button for refreshing just this one dataset without redoing everything else.
 export async function invalidateAllAdminCaches(): Promise<void> {
   await Promise.all([
     adminDistrictsCache.invalidate(),
@@ -305,5 +306,12 @@ export async function invalidateAllAdminCaches(): Promise<void> {
     adminAuditCache.invalidate(),
     adminUnlockRequestsCache.invalidate(),
     adminSettingsCache.invalidate(),
+    fetch('/api/admin/export/all')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => { if (data) return adminExportCache.set(data); })
+      .catch(() => {
+        // Best-effort — every other cache above still refreshes; this dataset just falls
+        // back to its own "Sync Data"/"Refresh" prompts on whichever page needs it.
+      }),
   ]);
 }
