@@ -15,7 +15,6 @@ export default function DistrictMasterPage() {
   const { districts: hookDistricts, loading } = useAdminDistricts();
   const [districtRows, setDistrictRows] = useState<DistrictRow[]>([]);
   const [editing, setEditing] = useState<DistrictRow | null>(null);
-  const [resetting, setResetting] = useState(false);
 
   // Seed local state from hook once data arrives
   useEffect(() => {
@@ -57,25 +56,6 @@ export default function DistrictMasterPage() {
     const a = document.createElement('a');
     a.href = url; a.download = 'deo-provision-template.xlsx'; a.click();
     URL.revokeObjectURL(url);
-  }
-
-  async function resetTestData() {
-    const Swal = (window as unknown as { Swal?: { fire: (o: Record<string, unknown>) => Promise<{ isConfirmed: boolean }> } }).Swal;
-    const confirmed = await Swal?.fire({
-      icon: 'warning',
-      title: 'Reset all test data?',
-      html: '<p>This will delete <b>ALL</b> shop data, circles/sectors, audit log, and DEO accounts, and reset all 75 districts to <b>pending</b>.</p><p style="margin-top:8px">Your admin account is preserved. This cannot be undone.</p>',
-      showCancelButton: true,
-      confirmButtonText: 'Yes, Reset Everything',
-      cancelButtonText: 'Cancel',
-      confirmButtonColor: '#b91c1c',
-    });
-    if (!confirmed?.isConfirmed) return;
-    setResetting(true);
-    await fetch('/api/admin/reset-test-data', { method: 'POST' });
-    adminDistrictsCache.invalidate();
-    setResetting(false);
-    window.location.reload();
   }
 
   async function provision() {
@@ -223,24 +203,6 @@ export default function DistrictMasterPage() {
           </div>
         )}
       </div>
-
-      {session?.role === 'superadmin' && (
-        <div className="card bg-base-100 shadow p-6 border border-error/30">
-          <h2 className="text-xl font-bold text-error mb-1">Danger Zone</h2>
-          <p className="text-sm text-base-content/90 mb-4">
-            Deletes all shop records, circles/sectors, audit log, and DEO accounts. Resets all 75 district statuses to pending.
-            Your admin account is preserved. Use this to wipe test data before the real campaign.
-          </p>
-          <button className="btn btn-error btn-sm" onClick={resetTestData} disabled={resetting}>
-            {resetting ? <span className="loading loading-spinner loading-sm" /> : (
-              <>
-                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
-                Reset All Test Data
-              </>
-            )}
-          </button>
-        </div>
-      )}
 
       {editing && (
         <EditDrawer district={editing} onClose={() => setEditing(null)} onSaved={(updated) => applyEdit(editing.name, updated)} />

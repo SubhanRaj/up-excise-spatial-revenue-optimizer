@@ -297,6 +297,10 @@ export default function AdminPage() {
     return counts;
   }, [exportData]);
 
+  // CL5CC is not a separate shop_type — it's COUNTRY_LIQUOR with has_cl5cc=true (see CLAUDE.md
+  // "CL5CC Rule"), so it needs its own card rather than a slot in the SHOP_TYPES loop above.
+  const cl5ccCount = useMemo(() => (exportData?.rows ?? []).filter((s) => s.hasCl5cc).length, [exportData]);
+
   const divisions = useMemo(() => {
     const map = new Map<string, { count: number; submitted: number; vends: number; revenue: number }>();
     for (const d of (data?.districts ?? [])) {
@@ -385,6 +389,16 @@ export default function AdminPage() {
                 </div>
               );
             })}
+            {cl5ccCount > 0 && (
+              <div className="rounded-lg border border-base-300 p-3">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <span className="badge badge-xs badge-outline text-[10px]">CL5CC</span>
+                  <span className="text-xs font-medium text-base-content/90">Country Liquor w/ Beer</span>
+                </div>
+                <p className="text-lg font-bold tabular-nums">{cl5ccCount.toLocaleString()}</p>
+                <p className="text-[11px] text-base-content/60">of Country Liquor</p>
+              </div>
+            )}
           </div>
         </div>
       )}

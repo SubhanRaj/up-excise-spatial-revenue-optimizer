@@ -628,6 +628,9 @@ export default function VerifyPage() {
     return counts;
   }, [finalRows]);
 
+  // CL5CC is not a separate shop_type — it's COUNTRY_LIQUOR with hasCl5cc=true (CLAUDE.md
+  // "CL5CC Rule"), so it needs its own card rather than a slot in the SHOP_TYPES loop below.
+  const finalCl5ccCount = useMemo(() => finalRows.filter((r) => r.hasCl5cc).length, [finalRows]);
   const finalTotalRevenue = useMemo(() => finalRows.reduce((s, r) => s + r.totalRevenue, 0), [finalRows]);
   const finalCircleCount = useMemo(() => new Set(finalRows.map((r) => r.circleSectorName)).size, [finalRows]);
   const finalDistrictThanas = useMemo(() => new Set(finalRows.map((r) => r.thanaName)), [finalRows]);
@@ -716,6 +719,16 @@ export default function VerifyPage() {
                   </div>
                 );
               })}
+              {finalCl5ccCount > 0 && (
+                <div className="rounded-lg border border-base-300 p-3">
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <span className="badge badge-xs badge-outline text-[10px]">CL5CC</span>
+                    <span className="text-xs font-medium text-base-content/90">Country Liquor w/ Beer</span>
+                  </div>
+                  <p className="text-lg font-bold tabular-nums">{finalCl5ccCount}</p>
+                  <p className="text-[11px] text-base-content/60">of Country Liquor</p>
+                </div>
+              )}
             </div>
           </div>
         )}
