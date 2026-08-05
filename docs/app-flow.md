@@ -137,7 +137,7 @@ flowchart TD
     AdminLogin([Admin logs in -> /admin]) --> CacheCheck{excise-admin IndexedDB\ncache fresh?}
 
     CacheCheck -->|fresh| UseCache[Serve from Dexie cache\nno D1 query]
-    CacheCheck -->|stale/missing/manual Sync| Fetch[Fetch from API]
+    CacheCheck -->|stale/missing| Fetch[Fetch from API]
 
     Fetch --> Districts[GET /api/admin/districts\n75 aggregate rows]
     Fetch --> MapData[GET /api/admin/map-data]
@@ -156,20 +156,23 @@ flowchart TD
     DistrictDetail --> ShopsFetch["GET /api/admin/districts/district/shops\n(only endpoint that loads shop rows)"]
     ShopsFetch --> ClientOps[All filter/sort/search/group/paginate\nclient-side with useMemo - zero extra API calls]
 
-    Render --> Provision["/admin/provision (District Master):\ninline edit drawer OR bulk Excel upload"]
+    Render --> Provision["/admin/provision (District Master):\ninline edit drawer OR bulk Excel upload\n- the old Danger Zone reset-all-data button\nwas removed entirely, M-62, no data-wipe\npath exists anywhere in the portal"]
     Provision --> PatchEP[PATCH /api/admin/districts/district\ndb.transaction: update districts + sync auth_users]
     Provision --> BulkEP[POST /api/admin/bulk-provision\ndb.transaction per row: districts + auth_users]
 
     Render --> SettingsCard["Admin overview: Final Verification\nRound card - GET/POST /api/admin/settings\nsuperadmin toggles, all admins see progress"]
 
-    Render --> ExportPage["/admin/export: full-state XLSX\nGET /api/admin/export/all -> ExcelJS in-browser"]
-    ExportPage --> ExportCache[(export_cache in\nexcise-admin IndexedDB\nall shop rows + all units, state-wide)]
+    SyncAll["Navbar Sync All button\ninvalidateAllAdminCaches()"] -->|clears| StoreCache
+    SyncAll -->|also actively re-fetches, M-62| ExportEP[GET /api/admin/export/all]
+    ExportEP --> ExportCache[(export_cache in\nexcise-admin IndexedDB\nall shop rows + all units, state-wide)]
 
-    ExportCache -.->|reused, no new D1 query| ShopTypeCard["Admin overview: Statewide Shop-Type\nBreakdown card + Circles/Sectors stat"]
-    ExportCache -.->|reused, no new D1 query| CirclesSectorsPage["/admin/circles-sectors:\nCircle/Sector Master table\none row per circle/sector, all districts"]
-    ShopTypeCard -.->|cache empty on this device| SyncPrompt["Sync Data button - explicit click,\nnever auto-fetched in background"]
-    CirclesSectorsPage -.->|cache empty on this device| SyncPrompt
-    SyncPrompt --> ExportPage
+    Render --> ExportPage["/admin/export: full-state 76-sheet XLSX\nbuilt in-browser from ExportCache"]
+    ExportPage -.->|cache empty, no Sync All yet| ExportEP
+
+    ExportCache -.->|reused, no new D1 query| ShopTypeCard["Admin overview: Statewide Shop-Type\nBreakdown card + Circles/Sectors stat\n- card just doesn't render until\nExportCache has data, no prompt/button"]
+    ExportCache -.->|reused, no new D1 query| CirclesSectorsPage["/admin/circles-sectors:\nCircle/Sector Master table\none row per circle/sector, all districts\n- plain 'click Sync All' text if empty"]
+    ExportCache -.->|reused, no new D1 query| ProgressBtn["Admin overview: Download Progress button\ngenerateDistrictProgressWorkbook - M-62\nlightweight 2-sheet XLSX, not the full export"]
+    ProgressBtn -.->|cache empty, click fetches once| ExportEP
 
     style UseCache fill:#16a34a,color:#fff
     style ClientOps fill:#16a34a,color:#fff
