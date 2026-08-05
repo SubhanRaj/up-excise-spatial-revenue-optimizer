@@ -202,7 +202,8 @@ All API routes are Next.js Route Handlers inside the single `up-excise-spatial-r
 | `PATCH` | `/api/admin/districts/[district]` | `api/admin/districts/[district]/route.ts` — District Master inline edit (division, DEO identity, expected vend count, bbox); atomic `db.batch`, syncs `auth_users`. **Owner/superadmin-only** — 403 for a plain `admin` role |
 | `GET` | `/api/admin/districts/[district]/shops` | `api/admin/districts/[district]/shops/route.ts` |
 | `GET` | `/api/admin/districts/[district]/export` | `api/admin/districts/[district]/export/route.ts` |
-| `GET` | `/api/admin/export/all` | `api/admin/export/all/route.ts` — returns `{ rows, units }`: every `phase1_raw_collection` row plus every `district_circles_sectors` row (low hundreds of rows, not district-filtered), so the full-state export's Circle-Sector Summary sheet can use the authoritative circle/sector type instead of guessing from shop data alone |
+| `GET` | `/api/admin/export/all` | `api/admin/export/all/route.ts` — returns `{ rows, units, hasMore }`: one 2000-row page of `phase1_raw_collection` (`?offset=`, ordered by `id`) plus every `district_circles_sectors` row (low hundreds, returned on the first page only) — paginated as of M-63, see the "Admin Data Loading" note below |
+| `GET` | `/api/admin/recent-district-lock` | `api/admin/recent-district-lock/route.ts` — M-63: `{ recentlyLocked: boolean }`, a single indexed `audit_log` lookup for a `district_submitted`/`district_verified` event in the last 30 minutes. Gates whether `invalidateAllAdminCaches()`'s Sync All actually re-pulls the full `export_cache` dataset |
 | `GET` | `/api/admin/map-data` | `api/admin/map-data/route.ts` |
 | `GET` | `/api/admin/search` | `api/admin/search/route.ts` |
 | `POST` | `/api/admin/bulk-provision` | `api/admin/bulk-provision/route.ts` — **Owner/superadmin-only** (creates DEO accounts and sends real magic-link emails) — 403 for a plain `admin` role |
@@ -356,6 +357,12 @@ Do not fetch `/api/auth/session` directly from page components — always go thr
 > **IndexedDB-first applies here too.** The same architecture used for DEO data applies to the admin portal. Admin pages must never call `fetch` directly to load primary data — they must go through cache wrappers in `apps/web/src/lib/db.ts` or hooks like `useAdminDistricts` (`apps/web/src/hooks/useAdminDistricts.ts`), which serve from the `excise-admin` Dexie DB cache (typically 5-min TTL) and only hit D1 on cache miss. This is strictly enforced.
 >
 > **`invalidateAllAdminCaches()`** (`apps/web/src/lib/db.ts`, backing the navbar's "Sync All" button) is the one place D1 traffic is intentionally batched behind a single explicit click rather than lazy per-cache misses — it clears every TTL-based cache (districts, map, audit, unlock requests, settings) *and* actively re-fetches and re-populates the heavier `export_cache` (~30K shop rows + every circle/sector, state-wide — used by `/admin/export`, the overview's Statewide Shop-Type Breakdown card, and `/admin/circles-sectors`, M-61). The other caches don't need an active re-fetch here since each page's own hook refetches lazily on the next cache miss anyway; `export_cache` is the exception because nothing else ever refetches it automatically, and two everyday admin surfaces now depend on it — leaving it merely cleared (an earlier version of this fix) meant those two pages stayed stuck on an empty state right after the exact button admins already click to refresh everything.
+>
+> **M-63 — Sync All D1-read throttling (silent, no UI change):** with real campaign data live, repeated Sync All clicks were pushing D1 read rows toward the free-tier daily cap, mainly from re-pulling the entire `export_cache` dataset on every click regardless of whether the underlying shop data had actually changed. Two guards, both invisible to the admin — the button itself has no disabled state or "already synced" message:
+> 1. **15-minute cooldown** (`admin-last-full-sync-at` in localStorage) — a click inside the cooldown window is a complete no-op, zero D1 reads of any kind, not even the cheap caches.
+> 2. **Past the cooldown**, the small/cheap caches (districts, map, audit, unlock requests, settings) still always clear as before. The expensive `export_cache` refetch is now gated behind `GET /api/admin/recent-district-lock` — a single indexed `audit_log` lookup (`al_created_at_idx`) for a `district_submitted`/`district_verified` event in the last 30 minutes. Only then does the full paginated re-fetch (below) actually run; otherwise `export_cache` is left untouched, since nothing in `phase1_raw_collection` could plausibly have changed (unit registration, logins, and every other audit event don't touch shop rows).
+>
+> **`GET /api/admin/export/all` itself is paginated (M-63)** — `?offset=` in 2000-row pages (`PAGE_SIZE` in that route, matching the existing server cap on `/api/admin/districts/[district]/shops`), ordered by `id`, `units` only returned on the first page. Before M-63 this route ran a single unbounded `SELECT *` over the whole table and serialized it in one Worker invocation — harmless against near-empty test data, but once real DEO uploads pushed `phase1_raw_collection` past 25,000 rows, that single invocation's JSON-serialization work exceeded the free-tier Worker CPU budget and surfaced as Cloudflare 1101/1102 error pages, seemingly at random (any of the three callers below could trigger it). `fetchFullExportData()` (`apps/web/src/lib/db.ts`) is the shared client-side pager — loops on `hasMore` and assembles the same `{ rows, units }` shape every caller already expected; `invalidateAllAdminCaches()`, `useAdminExportData().sync()`, and the `/admin/export` page's `refreshAndDownload()` all call it instead of duplicating a raw `fetch`.
 
 **Overview page (`/admin`):**
 - Default view **never loads shop rows**. Calls `GET /api/admin/districts` (one request, 75 aggregate rows) and `GET /api/admin/map-data`.
@@ -769,6 +776,7 @@ Full per-milestone delivery history (Objective, Deliverables, Exit Criterion, bu
 | M-60: State-Wide Final Verification Round; Shared RevenueCell (HBR Fix, Portal-Based Popup) | **Completed** |
 | M-61: Statewide Shop-Type/Circle-Sector Stats, Circle & Sector Master Page, District Progress Export | **Completed** |
 | M-62: Removed Standing Data-Wipe Endpoint; One-Click District Progress Download; CL5CC Card Fixes | **Completed** |
+| M-63: Paginated Full-State Export & Sync All D1-Read Throttling | **Completed** |
 
 See [summary.md](summary.md) for full milestone specs, entry/exit criteria, deliverable checklists, the backlog, and pre-campaign-blocker history.
 
@@ -802,6 +810,7 @@ All `localStorage` keys used by the portal, their owning component, and what the
 | `admin-page-size` | District detail page | `'10'` \| `'25'` \| `'50'` \| `'100'` \| `'all'` — persists rows-per-page selector |
 | `admin-group-by-type` | District detail page | `'true'` \| `'false'` — persists group-by-type toggle state across navigation |
 | `admin-group-{districtName}` | District detail page | JSON array of open group type strings — which shop-type groups are expanded |
+| `admin-last-full-sync-at` | `invalidateAllAdminCaches()` (`apps/web/src/lib/db.ts`) | Epoch ms of the last time Sync All actually ran (M-63) — a click within 15 minutes of this timestamp is a silent no-op, zero D1 reads |
 
 ---
 

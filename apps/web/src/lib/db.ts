@@ -171,6 +171,26 @@ export const adminDistrictsCache = {
 
 const EXPORT_CACHE_KEY = 'all_shops';
 
+// Pages through GET /api/admin/export/all (2000 rows/request server-side, see that route's
+// PAGE_SIZE comment) and assembles the full { rows, units } payload — replaces the single
+// unbounded fetch every caller used to do, which serialized the whole ~25K-row table in one
+// Worker invocation and exceeded the free-tier CPU budget once real data landed.
+export async function fetchFullExportData(): Promise<{ rows: unknown[]; units: unknown[] }> {
+  const rows: unknown[] = [];
+  let units: unknown[] = [];
+  let offset = 0;
+  for (;;) {
+    const res = await fetch(`/api/admin/export/all?offset=${offset}`);
+    if (!res.ok) throw new Error('export fetch failed');
+    const page = await res.json() as { rows: unknown[]; units: unknown[]; hasMore: boolean };
+    rows.push(...page.rows);
+    if (offset === 0) units = page.units;
+    if (!page.hasMore) break;
+    offset += page.rows.length;
+  }
+  return { rows, units };
+}
+
 export const adminExportCache = {
   get: () =>
     getAdminDb().table<AdminKvCache<unknown>>('export_cache')
@@ -298,20 +318,46 @@ export const adminSettingsCache = {
 // dataset here is the appropriate place for that cost, not a second dedicated button nobody
 // would remember to click. Each of those two pages still keeps its own small "Refresh"
 // button for refreshing just this one dataset without redoing everything else.
+//
+// M-63: repeated Sync All clicks were pushing D1 read rows toward the free-tier daily cap —
+// every click re-pulled the entire ~25K-row export dataset regardless of whether anything in
+// it had actually changed. Two independent guards, both silent (the button itself is
+// unchanged — no disabled state, no "already synced" message):
+//   1. A 15-minute client-side cooldown (`SYNC_COOLDOWN_KEY` in localStorage) — a click inside
+//      the cooldown window is a no-op, zero D1 reads of any kind.
+//   2. Past the cooldown, the cheap/small caches (audit, unlock requests, districts, map,
+//      settings) always refresh as before, but the expensive export_cache refetch only
+//      actually runs if GET /api/admin/recent-district-lock (a single indexed audit_log
+//      lookup) reports a district finished a final submission/verification in the last 30
+//      minutes — i.e. the shop-row dataset itself could plausibly have changed. Unit
+//      registration, logins, and every other audit event don't count; those don't touch
+//      phase1_raw_collection.
+const SYNC_COOLDOWN_KEY = 'admin-last-full-sync-at';
+const SYNC_COOLDOWN_MS = 15 * 60 * 1000;
+
 export async function invalidateAllAdminCaches(): Promise<void> {
-  await Promise.all([
+  const lastSync = Number(localStorage.getItem(SYNC_COOLDOWN_KEY) ?? 0);
+  if (Date.now() - lastSync < SYNC_COOLDOWN_MS) return;
+  localStorage.setItem(SYNC_COOLDOWN_KEY, String(Date.now()));
+
+  const [recentLock] = await Promise.all([
+    fetch('/api/admin/recent-district-lock')
+      .then((r) => (r.ok ? r.json() as Promise<{ recentlyLocked: boolean }> : { recentlyLocked: false }))
+      .catch(() => ({ recentlyLocked: false })),
     adminDistrictsCache.invalidate(),
     adminMapCache.invalidate(),
     adminShopsCache.invalidate(),
     adminAuditCache.invalidate(),
     adminUnlockRequestsCache.invalidate(),
     adminSettingsCache.invalidate(),
-    fetch('/api/admin/export/all')
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => { if (data) return adminExportCache.set(data); })
+  ]);
+
+  if (recentLock.recentlyLocked) {
+    await fetchFullExportData()
+      .then((data) => adminExportCache.set(data))
       .catch(() => {
         // Best-effort — every other cache above still refreshes; this dataset just falls
         // back to its own "Sync Data"/"Refresh" prompts on whichever page needs it.
-      }),
-  ]);
+      });
+  }
 }

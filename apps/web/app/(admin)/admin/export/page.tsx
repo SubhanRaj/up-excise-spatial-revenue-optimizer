@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import HelpPanel from '@/app/_components/HelpPanel';
-import { adminExportCache } from '@/lib/db';
+import { adminExportCache, fetchFullExportData } from '@/lib/db';
 import { useAdminDistricts } from '@/hooks/useAdminDistricts';
 import type { ExportShopRow, StateExportUnit } from '@/lib/excel';
 
@@ -30,8 +30,7 @@ export default function ExportPage() {
   async function refreshAndDownload() {
     setLoading(true);
     try {
-      const res = await fetch('/api/admin/export/all');
-      const data = await res.json() as ExportCacheData;
+      const data = await fetchFullExportData() as ExportCacheData;
       await adminExportCache.set(data);
       const ts = Date.now();
       setCachedAt(ts);

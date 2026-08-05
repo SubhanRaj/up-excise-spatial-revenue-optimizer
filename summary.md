@@ -1285,6 +1285,27 @@ flowchart LR
 
 ---
 
+### M-63: Paginated Full-State Export & Sync All D1-Read Throttling ✅ Complete
+
+**Objective:** Two related production issues surfaced once real DEO campaign data landed (`phase1_raw_collection` reached 25,394 rows in prod D1): (1) `sro.exciseup.in` intermittently returned Cloudflare 1101/1102 error pages, and (2) D1's daily read-row quota was approaching its free-tier cap. Both traced back to `GET /api/admin/export/all`.
+
+**Root cause:** that route ran a single unbounded `db.select().from(phase1RawCollection).all()` — every column, every row, no pagination — then `JSON.stringify`'d the whole result in one Worker invocation. Fine against the near-empty test data it was built and tested against; at 25K+ real rows, the serialization work alone exceeded the free-tier Worker CPU budget (surfacing as the 1101/1102 errors), and it was called from three different surfaces (`invalidateAllAdminCaches()` / Sync All, the `/admin/export` page, `useAdminExportData().sync()`), so every one of them was also driving D1 read-row usage every time an admin clicked, regardless of whether the underlying shop data had actually changed since the last click.
+
+**Change:**
+
+- [x] **`GET /api/admin/export/all`** (`apps/web/app/api/admin/export/all/route.ts`) now paginates: `?offset=`, 2000 rows/page (`PAGE_SIZE`, matching the existing server cap on `/api/admin/districts/[district]/shops`), ordered by `id` for stable pagination; response gains `hasMore`. `district_circles_sectors` (`units`, low hundreds of rows) is only queried and returned on the first page (`offset === 0`) — no reason to re-fetch it on every subsequent page.
+- [x] **`fetchFullExportData()`** (new, `apps/web/src/lib/db.ts`) — the shared client-side pager: loops on `hasMore`, assembles pages into the same `{ rows, units }` shape every caller already expected. All three callers (`invalidateAllAdminCaches()`, `useAdminExportData().sync()`, `/admin/export`'s `refreshAndDownload()`) replaced their own raw `fetch('/api/admin/export/all')` with this, so the pagination logic lives in exactly one place.
+- [x] **`GET /api/admin/recent-district-lock`** (new route) — a single indexed `audit_log` lookup (`al_created_at_idx`) for a `district_submitted`/`district_verified` event in the last 30 minutes, returning `{ recentlyLocked: boolean }`. Deliberately narrow: unit registration, logins, and every other audit event type don't count, since none of them touch `phase1_raw_collection` — only a final district submission or verification can plausibly have changed the shop-row dataset.
+- [x] **`invalidateAllAdminCaches()`** (Sync All's handler) gained two silent guards, neither surfaced in the UI — the button keeps its existing appearance and behavior in every case:
+  1. A 15-minute client-side cooldown (`admin-last-full-sync-at` in localStorage) — a click inside that window is a complete no-op, zero D1 reads of any kind, not even the cheap caches.
+  2. Past the cooldown, the small/cheap caches (districts, map, audit, unlock requests, settings) still always clear as before — these stay cheap regardless of what changed. The expensive `export_cache` refetch (the ~25K-row dataset) now only actually runs if `GET /api/admin/recent-district-lock` reports a recent district lock; otherwise `export_cache` is left completely untouched rather than cleared-and-stale, so the overview breakdown card and Circle & Sector Master page keep serving whatever was last synced instead of dropping to an empty state for no reason.
+- [x] CLAUDE.md updated: new API table rows for both `/api/admin/export/all`'s pagination and the new `/api/admin/recent-district-lock` route, an expanded "Admin Data Loading" note explaining both guards and the pagination history, the `admin-last-full-sync-at` localStorage key added to the registry, and the milestone table.
+- [x] Verified with `pnpm typecheck` and `pnpm test` (Excel OOXML limits check, unaffected by this change).
+
+**Exit criterion:** `GET /api/admin/export/all` never serializes more than 2000 rows in a single Worker invocation, eliminating the CPU-budget-driven 1101/1102 errors. Sync All no longer re-pulls the full state-wide shop dataset on every click — only when a district has genuinely finished locking its data in the last half hour — cutting D1 read-row consumption from repeated admin clicks without changing what the button looks like or how it behaves from an admin's perspective.
+
+---
+
 ## Backlog / Not Started
 
 - [x] ~~Verify `exciseup.in` in Resend and switch `RESEND_FROM_EMAIL`~~ — Done. `mail.exciseup.in` verified; `RESEND_FROM_EMAIL` set to `noreply@mail.exciseup.in` on this project's Worker, and the same address set as `FROM_EMAIL` on the sibling `excise-revenue-recovery-portal` project's Worker (different env var name there, same Resend account/domain). Magic-link email is now the Admin/HQ login channel only (DEOs use CUG login as of M-17).

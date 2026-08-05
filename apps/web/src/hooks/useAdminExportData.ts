@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { adminExportCache } from '@/lib/db';
+import { adminExportCache, fetchFullExportData } from '@/lib/db';
 import type { ExportShopRow, StateExportUnit } from '@/lib/excel';
 
 export interface AdminExportData { rows: ExportShopRow[]; units: StateExportUnit[] }
@@ -30,8 +30,7 @@ export function useAdminExportData() {
   async function sync(): Promise<AdminExportData> {
     setSyncing(true);
     try {
-      const res = await fetch('/api/admin/export/all');
-      const d = await res.json() as AdminExportData;
+      const d = await fetchFullExportData() as AdminExportData;
       await adminExportCache.set(d);
       setData(d);
       setFetchedAt(Date.now());
