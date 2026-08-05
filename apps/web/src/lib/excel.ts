@@ -970,6 +970,39 @@ function buildDistrictProgressSheet(
   ws.views = [{ state: 'frozen', ySplit: 1, xSplit: 0 }];
 }
 
+function buildStatusSummarySheet(wb: ExcelJSNamespace.Workbook, districts: StateExportDistrict[]) {
+  const ws = wb.addWorksheet('Summary');
+  const statusCounts: Record<string, number> = {};
+  for (const d of districts) statusCounts[d.status] = (statusCounts[d.status] ?? 0) + 1;
+
+  ws.getRow(1).values = ['Status', 'Districts'] as ExcelJSNamespace.CellValue[];
+  styleHeaderRow(ws, 1);
+  for (const status of ['pending', 'in_progress', 'submitted', 'verified']) {
+    ws.addRow([STATUS_LABEL[status] ?? status, statusCounts[status] ?? 0]);
+  }
+  const totalRow = ws.addRow(['Total', districts.length]);
+  totalRow.font = { bold: true };
+  totalRow.eachCell((cell) => { cell.border = { top: { style: 'thin' } }; });
+
+  ws.columns = [{ width: 20 }, { width: 14 }];
+}
+
+/** Lightweight one-click download — just district status + per-district progress, not the
+ * full 76-sheet state export. For an admin who wants a quick status snapshot without
+ * generating every per-district/all-shops sheet. */
+export async function generateDistrictProgressWorkbook(
+  districts: StateExportDistrict[],
+  shops: ExportShopRow[],
+  units: StateExportUnit[],
+): Promise<Blob> {
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'UP Excise Spatial Revenue Optimizer';
+  wb.created = new Date();
+  buildStatusSummarySheet(wb, districts);
+  buildDistrictProgressSheet(wb, districts, shops, units);
+  return new Blob([await wb.xlsx.writeBuffer()], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+}
+
 function buildCircleSectorSummarySheet(wb: ExcelJSNamespace.Workbook, shops: ExportShopRow[], units: StateExportUnit[]) {
   const ws = wb.addWorksheet('Circle-Sector Summary');
   const headers = [

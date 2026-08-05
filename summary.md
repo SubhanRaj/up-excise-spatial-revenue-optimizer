@@ -1268,6 +1268,23 @@ flowchart LR
 
 ---
 
+### M-62: Removed Standing Data-Wipe Endpoint; One-Click District Progress Download; CL5CC Card Fixes ✅ Complete
+
+**Security fix — removed the "Danger Zone" data-wipe feature entirely.** User spotted `/admin/provision`'s "Reset All Test Data" button (and its backing `POST /api/admin/reset-test-data` route) live on the production portal — it deletes every `phase1_raw_collection` row, every `district_circles_sectors` row, the entire `audit_log`, and every DEO `auth_users` row, then resets all 75 districts to `pending`. Though gated to the superadmin account, a standing one-click full-wipe capability on a live portal holding real collected government data is an unacceptable liability regardless of the gate — a compromised superadmin session, a phishing hit, or a simple misclick could destroy the entire campaign's collected data with no recovery path. Removed completely, at every level: the UI button and its SweetAlert2 confirmation flow, the `resetTestData()` handler, and the `api/admin/reset-test-data/route.ts` file itself — deleted, not just unlinked. Confirmed via repo-wide grep that no reference to the feature remains anywhere in live code (the historical M-10/M-38 write-ups earlier in this file, describing when the feature was built and bug-fixed, are left as accurate history — this entry documents its removal, not a retroactive edit of the record).
+
+**One-click District Progress download.** Following up on M-61's "District Progress" sheet (buried inside the 76-sheet full-state export), added a lightweight standalone download: a "Download Progress" button on the `/admin` overview's Submission Progress card. `generateDistrictProgressWorkbook()` (`apps/web/src/lib/excel.ts`) builds a 2-sheet workbook — a small district-status-count summary plus the District Progress table — reusing the same `export_cache` data (populated by Sync All in normal use); if that cache is empty, the click itself fetches it once (`useAdminExportData().sync()` now returns the fetched data directly, since a React state update isn't visible synchronously right after `await`).
+
+**CL5CC missing from two new breakdown cards.** The admin district detail page's "Shop Type Breakdown" bar has always shown a separate CL5CC card (Country Liquor with the special-beer-license flag — not a distinct `shop_type`, see CLAUDE.md's "CL5CC Rule") alongside the six real shop-type cards. Both M-61's new statewide breakdown card (`/admin` overview) and the DEO `/verify` final-verification screen's breakdown bar copied the `SHOP_TYPES.map()` loop but missed this extra card — added to both, matching the existing pattern exactly.
+
+**Also, same-day UI polish from user feedback on M-61:**
+- Removed the technical "not synced on this device yet... no repeat D1 hits" explanation and its own "Sync Data" button from both the overview breakdown card (which now simply doesn't render until data exists) and the Circle & Sector Master page (which now shows one plain sentence — "click Sync All" — instead of explaining IndexedDB/D1 caching to admins who have no reason to know about it).
+- Reverted the charts row back to side-by-side (two-column grid, no `items-start`) — the doughnut canvas is now centered and sized up (320px) inside the equal-height card instead of leaving dead space, addressing the "empty space" complaint from the earlier `items-start` attempt.
+- "Final Verification Round" card now shows "Not Started Yet" instead of "Closed" before the toggle has ever been used — a new `everToggled` flag from `GET /api/admin/settings` (`app_settings.updatedAt IS NOT NULL`).
+
+**Exit criterion:** No data-wipe capability exists anywhere in the deployed portal, at UI or API level. Admins can download just the district-progress snapshot in one click without generating the full export. Both new shop-type breakdown cards show CL5CC. Sync-related UI on admin pages reads in plain language, with no IndexedDB/D1 jargon exposed to end users.
+
+---
+
 ## Backlog / Not Started
 
 - [x] ~~Verify `exciseup.in` in Resend and switch `RESEND_FROM_EMAIL`~~ — Done. `mail.exciseup.in` verified; `RESEND_FROM_EMAIL` set to `noreply@mail.exciseup.in` on this project's Worker, and the same address set as `FROM_EMAIL` on the sibling `excise-revenue-recovery-portal` project's Worker (different env var name there, same Resend account/domain). Magic-link email is now the Admin/HQ login channel only (DEOs use CUG login as of M-17).

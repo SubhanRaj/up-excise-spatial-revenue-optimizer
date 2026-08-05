@@ -11,6 +11,7 @@ import { adminMapCache, adminSettingsCache } from '@/lib/db';
 import { STATUS_COLOR, statusLabel, statusBadgeClass, isLocked } from '@/lib/status';
 import { SHOP_TYPE_BADGE_CLASS } from '@/lib/shop-type';
 import { SHOP_TYPES, SHOP_TYPE_LABELS } from '@excise/schema';
+import type { StateExportDistrict } from '@/lib/excel';
 
 interface DistrictRow {
   name: string; division?: string; deoName?: string; expectedVendCount?: number;
@@ -163,6 +164,31 @@ export default function AdminPage() {
       setSettings(s);
     } finally {
       setTogglingSettings(false);
+    }
+  }
+
+  // One-click lightweight status/progress download — uses whatever export data is already
+  // cached (populated by Sync All in normal use); if none exists yet, fetches it once on this
+  // explicit click rather than requiring a separate sync step first.
+  const [downloadingProgress, setDownloadingProgress] = useState(false);
+  async function downloadProgress() {
+    setDownloadingProgress(true);
+    try {
+      const ds = exportData ?? await syncExportData();
+      const { generateDistrictProgressWorkbook } = await import('@/lib/excel');
+      const blob = await generateDistrictProgressWorkbook(
+        (data?.districts ?? []) as unknown as StateExportDistrict[],
+        ds.rows,
+        ds.units,
+      );
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'up-excise-district-progress.xlsx';
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setDownloadingProgress(false);
     }
   }
 
@@ -459,7 +485,15 @@ export default function AdminPage() {
           instead of left sitting at the top with dead space below it. */}
       <div className="grid md:grid-cols-2 gap-6">
         <div className="card bg-base-100 shadow p-4 flex flex-col">
-          <h3 className="font-semibold mb-3">Submission Progress</h3>
+          <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+            <h3 className="font-semibold">Submission Progress</h3>
+            <button className="btn btn-outline btn-xs gap-1" onClick={downloadProgress} disabled={downloadingProgress}>
+              {downloadingProgress ? <span className="loading loading-spinner loading-xs" /> : (
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/><polyline points="7 11 12 16 17 11"/><line x1="12" y1="4" x2="12" y2="16"/></svg>
+              )}
+              Download Progress
+            </button>
+          </div>
           <div className="flex-1 flex items-center justify-center">
             <canvas ref={chartRefs.doughnut} style={{ maxHeight: 320 }} aria-label="Submission status doughnut chart" />
           </div>

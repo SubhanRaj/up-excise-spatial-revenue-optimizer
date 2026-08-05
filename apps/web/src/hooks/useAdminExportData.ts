@@ -24,7 +24,10 @@ export function useAdminExportData() {
     });
   }, []);
 
-  async function sync() {
+  // Returns the freshly-fetched data (not just setting state) — React state updates aren't
+  // visible synchronously after `await sync()`, so a caller that needs the data right away
+  // (e.g. a download button building a workbook) reads the return value instead of `data`.
+  async function sync(): Promise<AdminExportData> {
     setSyncing(true);
     try {
       const res = await fetch('/api/admin/export/all');
@@ -32,6 +35,7 @@ export function useAdminExportData() {
       await adminExportCache.set(d);
       setData(d);
       setFetchedAt(Date.now());
+      return d;
     } finally {
       setSyncing(false);
     }
