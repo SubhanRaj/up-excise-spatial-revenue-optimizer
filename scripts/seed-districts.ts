@@ -27,7 +27,7 @@ const DIVISIONS: Record<string, string[]> = {
   Aligarh: ['Aligarh', 'Etah', 'Hathras', 'Kasganj'],
   Ayodhya: ['Ambedkar Nagar', 'Amethi', 'Ayodhya', 'Barabanki', 'Sultanpur'],
   Azamgarh: ['Azamgarh', 'Ballia', 'Mau'],
-  Bareilly: ['Badaun', 'Bareilly', 'Pilibhit', 'Shahjahanpur'],
+  Bareilly: ['Budaun', 'Bareilly', 'Pilibhit', 'Shahjahanpur'],
   Basti: ['Basti', 'Sant Kabir Nagar', 'Siddharth Nagar'],
   Chitrakoot: ['Banda', 'Chitrakoot', 'Hamirpur', 'Mahoba'],
   Devipatan: ['Bahraich', 'Balrampur', 'Gonda', 'Shravasti'],
