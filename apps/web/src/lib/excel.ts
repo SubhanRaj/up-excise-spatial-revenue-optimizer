@@ -7,6 +7,7 @@ import type { StagedRow } from './types';
 import type ExcelJSNamespace from 'exceljs';
 import { SHOP_TYPES, SHOP_TYPE_LABELS } from '@excise/schema';
 import { STATUS_LABEL } from './status';
+import { compareUnitName } from './unit-sort';
 
 declare global {
   // ExcelJS loaded from CDN in root layout.tsx — never bundled. The single spreadsheet
@@ -1030,7 +1031,7 @@ function buildCircleSectorSummarySheet(wb: ExcelJSNamespace.Workbook, shops: Exp
     entry.byType[s.shopType] = (entry.byType[s.shopType] ?? 0) + 1;
   }
 
-  const rows = Array.from(map.values()).sort((a, b) => a.district.localeCompare(b.district) || a.name.localeCompare(b.name));
+  const rows = Array.from(map.values()).sort((a, b) => a.district.localeCompare(b.district) || compareUnitName(a.name, b.name));
   ws.getRow(1).values = headers as ExcelJSNamespace.CellValue[];
   styleHeaderRow(ws, 1);
   for (const e of rows) {

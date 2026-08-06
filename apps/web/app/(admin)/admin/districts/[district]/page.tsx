@@ -9,6 +9,7 @@ import { EditDistrictDrawer } from '@/app/_components/EditDistrictDrawer';
 import { RevenueCell } from '@/components/RevenueCell';
 import { statusLabel, statusBadgeClass } from '@/lib/status';
 import { SHOP_TYPE_BADGE_CLASS, SHOP_TYPE_SHORT_LABEL } from '@/lib/shop-type';
+import { compareUnitName } from '@/lib/unit-sort';
 
 interface ShopRow {
   id: number;
@@ -378,7 +379,7 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
   const cl5ccCount = useMemo(() => allShops.filter((s) => s.hasCl5cc).length, [allShops]);
 
   const circles = useMemo(
-    () => Array.from(new Set(allShops.map((s) => s.circleSectorName).filter(Boolean))).sort(),
+    () => Array.from(new Set(allShops.map((s) => s.circleSectorName).filter(Boolean))).sort(compareUnitName),
     [allShops],
   );
 
@@ -403,7 +404,7 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
       entry.revenue += s.totalRevenue;
       entry.byType[s.shopType] = (entry.byType[s.shopType] ?? 0) + 1;
     }
-    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+    return Array.from(map.values()).sort((a, b) => compareUnitName(a.name, b.name));
   }, [allShops, detail]);
 
   const effectivePageSize = pageSize === 'all' ? filteredSorted.length || 1 : pageSize;

@@ -6,6 +6,7 @@ import HelpPanel from '@/app/_components/HelpPanel';
 import { useAdminDistricts } from '@/hooks/useAdminDistricts';
 import { useAdminExportData } from '@/hooks/useAdminExportData';
 import { SHOP_TYPE_BADGE_CLASS, SHOP_TYPE_SHORT_LABEL } from '@/lib/shop-type';
+import { compareUnitName } from '@/lib/unit-sort';
 import { SHOP_TYPES, SHOP_TYPE_LABELS } from '@excise/schema';
 
 const fmt = (n: number) => n >= 1e7 ? `₹${(n / 1e7).toFixed(2)} Cr` : n >= 1e5 ? `₹${(n / 1e5).toFixed(2)} L` : `₹${n.toLocaleString('en-IN')}`;
@@ -69,10 +70,19 @@ export default function CirclesSectorsPage() {
       return true;
     });
     out = [...out].sort((a, b) => {
-      const av = sortKey === 'thanaCount' ? a.thanas.size : sortKey === 'district' ? a.district : sortKey === 'name' ? a.name : a[sortKey];
-      const bv = sortKey === 'thanaCount' ? b.thanas.size : sortKey === 'district' ? b.district : sortKey === 'name' ? b.name : b[sortKey];
-      if (typeof av === 'number' && typeof bv === 'number') return sortDir === 'asc' ? av - bv : bv - av;
-      return sortDir === 'asc' ? String(av).localeCompare(String(bv)) : String(bv).localeCompare(String(av));
+      // 'name' is a circle/sector label ("Sector - 1", "Circle 2 - X") — plain string compare
+      // sorts it lexicographically ("Sector - 10" before "Sector - 2"); compareUnitName
+      // orders sectors before circles, each numerically. Sorting by 'district' also
+      // tie-breaks with it so units within the same district land in the same natural order.
+      if (sortKey === 'name' || sortKey === 'district') {
+        const primary = sortKey === 'district' ? a.district.localeCompare(b.district) : compareUnitName(a.name, b.name);
+        const secondary = sortKey === 'district' ? compareUnitName(a.name, b.name) : a.district.localeCompare(b.district);
+        const result = primary || secondary;
+        return sortDir === 'asc' ? result : -result;
+      }
+      const av = sortKey === 'thanaCount' ? a.thanas.size : a[sortKey];
+      const bv = sortKey === 'thanaCount' ? b.thanas.size : b[sortKey];
+      return sortDir === 'asc' ? av - bv : bv - av;
     });
     return out;
   }, [rows, search, districtFilter, sortKey, sortDir]);
