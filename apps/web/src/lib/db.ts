@@ -21,6 +21,7 @@ interface DexieInstance {
 }
 
 import type { StagedRow } from './types';
+import type { ExportShopRow, StateExportUnit } from './excel';
 
 function makeDexie(name: string): DexieInstance {
   const D = (globalThis as unknown as { Dexie: new (name: string) => DexieInstance }).Dexie;
@@ -319,31 +320,103 @@ export const adminSettingsCache = {
 // would remember to click. Each of those two pages still keeps its own small "Refresh"
 // button for refreshing just this one dataset without redoing everything else.
 //
-// M-63: repeated Sync All clicks were pushing D1 read rows toward the free-tier daily cap —
-// every click re-pulled the entire ~25K-row export dataset regardless of whether anything in
-// it had actually changed. Two independent guards, both silent (the button itself is
-// unchanged — no disabled state, no "already synced" message):
+// M-63 first tried gating the *whole* export_cache refetch behind "did any district lock
+// recently" — still an all-or-nothing ~25K-row repull the moment one of 75 districts changed.
+// M-64 replaced that with per-district patching: GET /api/admin/changed-districts (single
+// indexed audit_log scan) reports exactly which district names changed since this device's
+// last export sync; only those districts' rows/units get re-fetched (via the existing
+// single-district shops/detail routes) and spliced into the cached dataset in place. A Sync
+// All click where nothing relevant changed touches zero shop-row D1 reads. Two independent
+// guards remain, both silent (the button itself is unchanged — no disabled state, no
+// "already synced" message):
 //   1. A 15-minute client-side cooldown (`SYNC_COOLDOWN_KEY` in localStorage) — a click inside
 //      the cooldown window is a no-op, zero D1 reads of any kind.
 //   2. Past the cooldown, the cheap/small caches (audit, unlock requests, districts, map,
-//      settings) always refresh as before, but the expensive export_cache refetch only
-//      actually runs if GET /api/admin/recent-district-lock (a single indexed audit_log
-//      lookup) reports a district finished a final submission/verification in the last 30
-//      minutes — i.e. the shop-row dataset itself could plausibly have changed. Unit
-//      registration, logins, and every other audit event don't count; those don't touch
-//      phase1_raw_collection.
+//      settings) always refresh as before; export_cache only touches D1 for districts that
+//      actually appear in the changed-districts response.
 const SYNC_COOLDOWN_KEY = 'admin-last-full-sync-at';
 const SYNC_COOLDOWN_MS = 15 * 60 * 1000;
+
+// If localStorage's watermark and IndexedDB's export_cache ever fall out of sync (e.g. site
+// data cleared selectively), changed-districts could report most/all 75 districts at once —
+// fetching each individually would be more requests than just re-pulling everything in
+// PAGE_SIZE-sized pages. Past this many changed districts, fall back to one full refetch.
+const MAX_INCREMENTAL_DISTRICTS = 15;
+const EXPORT_WATERMARK_KEY = 'admin-export-sync-watermark';
+
+// Re-fetches only the given districts' shop rows and units, and splices them into the
+// existing export_cache in place — never touches any district not in `names`, so data for
+// every other district is left exactly as it was, not deleted or blanked while its own fetch
+// is pending.
+async function patchExportCacheForDistricts(names: string[]): Promise<void> {
+  const cached = await adminExportCache.get();
+  const existing = (cached?.data as { rows: ExportShopRow[]; units: StateExportUnit[] } | undefined)
+    ?? { rows: [], units: [] };
+
+  const fetched = await Promise.all(names.map(async (name) => {
+    const [shopsRes, detailRes] = await Promise.all([
+      fetch(`/api/admin/districts/${encodeURIComponent(name)}/shops?pageSize=all`),
+      fetch(`/api/admin/districts/${encodeURIComponent(name)}`),
+    ]);
+    const shopsRows = shopsRes.ok ? ((await shopsRes.json()) as { rows: ExportShopRow[] }).rows : null;
+    const units = detailRes.ok ? ((await detailRes.json()) as { units: StateExportUnit[] }).units : null;
+    return { name, shopsRows, units };
+  }));
+
+  // A district whose fetch failed keeps its old cached rows/units rather than being wiped —
+  // "no error reaches the portal" means a bad response here must never delete good local data.
+  const failed = new Set(fetched.filter((f) => f.shopsRows === null || f.units === null).map((f) => f.name));
+  const toReplace = new Set(names.filter((n) => !failed.has(n)));
+
+  const rows = existing.rows.filter((r) => !toReplace.has(r.districtName ?? ''));
+  const units = existing.units.filter((u) => !toReplace.has(u.districtName));
+  for (const f of fetched) {
+    if (failed.has(f.name)) continue;
+    rows.push(...(f.shopsRows as ExportShopRow[]));
+    units.push(...(f.units as StateExportUnit[]));
+  }
+  await adminExportCache.set({ rows, units });
+}
+
+async function syncExportCache(): Promise<void> {
+  const cached = await adminExportCache.get();
+  if (!cached) {
+    // Never synced on this device yet — one full paginated pull, same as before M-64.
+    try {
+      const data = await fetchFullExportData();
+      await adminExportCache.set(data);
+      localStorage.setItem(EXPORT_WATERMARK_KEY, String(Date.now()));
+    } catch {
+      // Best-effort — falls back to the per-page Sync/Refresh prompts.
+    }
+    return;
+  }
+
+  const watermark = Number(localStorage.getItem(EXPORT_WATERMARK_KEY) ?? 0);
+  try {
+    const res = await fetch(`/api/admin/changed-districts?since=${watermark}`);
+    if (!res.ok) return;
+    const { districts: changed, at } = (await res.json()) as { districts: string[]; at: number };
+    if (changed.length === 0) return;
+
+    if (changed.length > MAX_INCREMENTAL_DISTRICTS) {
+      const data = await fetchFullExportData();
+      await adminExportCache.set(data);
+    } else {
+      await patchExportCacheForDistricts(changed);
+    }
+    localStorage.setItem(EXPORT_WATERMARK_KEY, String(at));
+  } catch {
+    // Best-effort — export_cache just stays at its last-known-good state; nothing is deleted.
+  }
+}
 
 export async function invalidateAllAdminCaches(): Promise<void> {
   const lastSync = Number(localStorage.getItem(SYNC_COOLDOWN_KEY) ?? 0);
   if (Date.now() - lastSync < SYNC_COOLDOWN_MS) return;
   localStorage.setItem(SYNC_COOLDOWN_KEY, String(Date.now()));
 
-  const [recentLock] = await Promise.all([
-    fetch('/api/admin/recent-district-lock')
-      .then((r) => (r.ok ? r.json() as Promise<{ recentlyLocked: boolean }> : { recentlyLocked: false }))
-      .catch(() => ({ recentlyLocked: false })),
+  await Promise.all([
     adminDistrictsCache.invalidate(),
     adminMapCache.invalidate(),
     adminShopsCache.invalidate(),
@@ -352,12 +425,5 @@ export async function invalidateAllAdminCaches(): Promise<void> {
     adminSettingsCache.invalidate(),
   ]);
 
-  if (recentLock.recentlyLocked) {
-    await fetchFullExportData()
-      .then((data) => adminExportCache.set(data))
-      .catch(() => {
-        // Best-effort — every other cache above still refreshes; this dataset just falls
-        // back to its own "Sync Data"/"Refresh" prompts on whichever page needs it.
-      });
-  }
+  await syncExportCache();
 }

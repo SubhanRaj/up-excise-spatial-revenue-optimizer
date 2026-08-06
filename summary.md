@@ -1306,6 +1306,24 @@ flowchart LR
 
 ---
 
+### M-64: Per-District Incremental Export Sync ✅ Complete
+
+**Objective:** M-63's `recent-district-lock` gate was still all-or-nothing — if *any* one of the 75 districts locked in the last 30 minutes, Sync All re-pulled the entire ~25K-row `export_cache` dataset again, even though 74 other districts' data hadn't changed at all.
+
+**Change:**
+
+- [x] **`GET /api/admin/changed-districts`** (new route, replaces `recent-district-lock`) — a single indexed `audit_log` scan (`al_created_at_idx`) for `district_submitted`/`district_verified`/`units_unlocked`/`data_correction_unlocked` events after a caller-supplied `?since=<epochMs>` watermark. Returns `{ districts: string[], at: number }` — the actual district names that changed, not just a boolean, plus the max event timestamp seen (used as the next watermark, avoiding client/server clock skew).
+- [x] **`syncExportCache()`** (`apps/web/src/lib/db.ts`, replaces the old inline `recentLock` check in `invalidateAllAdminCaches()`) — reads `admin-export-sync-watermark` from localStorage, calls the new route, and for each changed district re-fetches just that district's shop rows (`GET /api/admin/districts/[district]/shops?pageSize=all`, existing route) and units (`GET /api/admin/districts/[district]`, existing route). `patchExportCacheForDistricts()` splices the fetched rows/units into the cached `export_cache` in place — every district not in the changed list is left completely untouched.
+- [x] **No data-loss paths:** a district whose incremental fetch fails (network error, non-OK response) keeps its previously-cached rows/units rather than being blanked or removed — the cache is only ever patched with confirmed-good data, never cleared speculatively. Every fetch failure is caught and swallowed (`syncExportCache()`'s own try/catch), so a bad response never surfaces as an error in the admin UI — worst case, that district's cached data is one sync cycle stale until the next successful click.
+- [x] **Fallback safety valve:** if `changed-districts` reports more than 15 districts at once (only plausible if a device's localStorage watermark and IndexedDB cache fell out of sync independently — e.g. partial site-data clear), `syncExportCache()` falls back to one full paginated `fetchFullExportData()` instead of firing 15+ small per-district requests.
+- [x] The very first sync on a device (no `export_cache` entry yet) is unaffected — still one full paginated pull, exactly as M-63 left it. Only every sync *after* that becomes incremental.
+- [x] CLAUDE.md updated: API table swaps `recent-district-lock` for `changed-districts`, the "Admin Data Loading" note gets a new M-64 paragraph, `admin-export-sync-watermark` added to the localStorage registry, milestone table updated.
+- [x] Verified with `pnpm typecheck` and `pnpm test`.
+
+**Exit criterion:** A Sync All click where no district's shop/unit data changed since the last sync touches zero shop-row D1 reads (down from a full 25K-row repull whenever any district happened to lock in the preceding 30 minutes). When something did change, only that district's own rows/units are re-fetched — every other district's cached data is provably untouched, and no fetch failure can delete or corrupt already-cached data or surface as a portal-facing error.
+
+---
+
 ## Backlog / Not Started
 
 - [x] ~~Verify `exciseup.in` in Resend and switch `RESEND_FROM_EMAIL`~~ — Done. `mail.exciseup.in` verified; `RESEND_FROM_EMAIL` set to `noreply@mail.exciseup.in` on this project's Worker, and the same address set as `FROM_EMAIL` on the sibling `excise-revenue-recovery-portal` project's Worker (different env var name there, same Resend account/domain). Magic-link email is now the Admin/HQ login channel only (DEOs use CUG login as of M-17).
