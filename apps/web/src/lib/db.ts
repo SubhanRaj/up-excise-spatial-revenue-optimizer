@@ -143,30 +143,6 @@ function getAdminDb(): DexieInstance {
   return _adminDb;
 }
 
-// ── Districts aggregate cache (TTL: 5 min) ─────────────────────────────────
-
-const DISTRICTS_KEY = 'districts';
-const DISTRICTS_TTL_MS = 5 * 60 * 1000;
-
-export const adminDistrictsCache = {
-  get: () =>
-    getAdminDb().table<AdminKvCache<unknown>>('districts_cache')
-      .where('key').equals(DISTRICTS_KEY).toArray()
-      .then((r) => {
-        const entry = r[0];
-        if (!entry) return null;
-        if (Date.now() - entry.fetchedAt > DISTRICTS_TTL_MS) return null;
-        return entry.data;
-      }),
-
-  set: (data: unknown) =>
-    getAdminDb().table<AdminKvCache<unknown>>('districts_cache')
-      .put({ key: DISTRICTS_KEY, data, fetchedAt: Date.now() }),
-
-  invalidate: () =>
-    getAdminDb().table<AdminKvCache<unknown>>('districts_cache').clear(),
-};
-
 // ── Full-state export cache ─────────────────────────────────────────────────
 // Holds { rows, units } from GET /api/admin/export/all — shop rows plus every
 // district_circles_sectors row, used together to build the multi-sheet workbook.
@@ -207,116 +183,64 @@ export const adminExportCache = {
     getAdminDb().table<AdminKvCache<unknown>>('export_cache').clear(),
 };
 
-// Shared 5-min freshness window for the "TTL: 5 min" caches below — none of them actually
-// checked this against fetchedAt until this fix (see adminDistrictsCache's identical bug),
-// so a cache populated once could be served indefinitely until an explicit Sync All, which
-// itself has its own 15-min cooldown that can silently no-op. Now every one of these self-heals
-// on the next read past 5 minutes, regardless of whether Sync All ever ran.
+// Shared 5-min freshness window for the small per-page caches below — none of them actually
+// checked fetchedAt against this until a real bug surfaced (a cache populated once could be
+// served indefinitely until an explicit Sync All, which itself has its own 15-min cooldown
+// that can silently no-op). makeKvCache below is the one place this check now lives, so a
+// future cache added the same way can't independently forget it.
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
+// One Dexie table, one key shape (key + data + fetchedAt), one TTL check — every small
+// admin cache below (districts/map/shops/audit/unlock-requests/settings) is this same shape,
+// so they're generated from one factory instead of six copy-pasted objects. `fixedKey` caches
+// are page-wide singletons (`.get()`/`.set(data)`); omitting it makes a cache keyed by whatever
+// string the caller passes (`.get(k)`/`.set(k, data)`), used by shops (per-district) and audit
+// (per-page). export_cache stays separate — it's a different shape ({rows, units}, ~25K rows,
+// patched incrementally rather than replaced wholesale) so a shared KV factory doesn't fit it.
+function makeKvCache<T>(table: string, opts: { fixedKey?: string; ttlMs?: number } = {}) {
+  const { fixedKey, ttlMs } = opts;
+  return {
+    get: (key: string = fixedKey!) =>
+      getAdminDb().table<AdminKvCache<T>>(table)
+        .where('key').equals(key).toArray()
+        .then((r) => {
+          const entry = r[0];
+          if (!entry) return null;
+          if (ttlMs && Date.now() - entry.fetchedAt > ttlMs) return null;
+          return entry.data;
+        }),
+    set: (keyOrData: string | T, data?: T) => {
+      const [key, value] = fixedKey !== undefined ? [fixedKey, keyOrData as T] : [keyOrData as string, data as T];
+      return getAdminDb().table<AdminKvCache<T>>(table).put({ key, data: value, fetchedAt: Date.now() });
+    },
+    invalidate: () => getAdminDb().table<AdminKvCache<T>>(table).clear(),
+  };
+}
+
+// ── Districts aggregate cache (TTL: 5 min) ──────────────────────────────────
+export const adminDistrictsCache = makeKvCache<unknown>('districts_cache', { fixedKey: 'districts', ttlMs: CACHE_TTL_MS });
+
 // ── Map cache (TTL: 5 min) ─────────────────────────────────────────────────
+export const adminMapCache = makeKvCache<unknown>('map_cache', { fixedKey: 'map_data', ttlMs: CACHE_TTL_MS });
 
-export const adminMapCache = {
-  get: () =>
-    getAdminDb().table<AdminKvCache<unknown>>('map_cache')
-      .where('key').equals('map_data').toArray()
-      .then((r) => {
-        const entry = r[0];
-        if (!entry) return null;
-        if (Date.now() - entry.fetchedAt > CACHE_TTL_MS) return null;
-        return entry.data;
-      }),
-  set: (data: unknown) =>
-    getAdminDb().table<AdminKvCache<unknown>>('map_cache')
-      .put({ key: 'map_data', data, fetchedAt: Date.now() }),
-  invalidate: () =>
-    getAdminDb().table<AdminKvCache<unknown>>('map_cache').clear(),
-};
+// ── Shops cache (TTL: 5 min, keyed by district name) ───────────────────────
+export const adminShopsCache = makeKvCache<unknown>('shops_cache', { ttlMs: CACHE_TTL_MS });
 
-// ── Shops cache (TTL: 5 min) ───────────────────────────────────────────────
+// ── Audit cache (keyed by page number; never actually read — the audit page always
+// fetches fresh by design, this exists only for a possible future consumer) ────────────────
+export const adminAuditCache = makeKvCache<unknown>('audit_cache', { ttlMs: 60 * 1000 });
 
-export const adminShopsCache = {
-  get: (districtName: string) =>
-    getAdminDb().table<AdminKvCache<unknown>>('shops_cache')
-      .where('key').equals(districtName).toArray()
-      .then((r) => {
-        const entry = r[0];
-        if (!entry) return null;
-        if (Date.now() - entry.fetchedAt > CACHE_TTL_MS) return null;
-        return entry.data;
-      }),
-  set: (districtName: string, data: unknown) =>
-    getAdminDb().table<AdminKvCache<unknown>>('shops_cache')
-      .put({ key: districtName, data, fetchedAt: Date.now() }),
-  invalidate: () =>
-    getAdminDb().table<AdminKvCache<unknown>>('shops_cache').clear(),
-};
-
-// ── Audit cache (TTL: 1 min) ───────────────────────────────────────────────
-
-export const adminAuditCache = {
-  get: (page: string) =>
-    getAdminDb().table<AdminKvCache<unknown>>('audit_cache')
-      .where('key').equals(page).toArray()
-      .then((r) => {
-        const entry = r[0];
-        if (!entry) return null;
-        return entry.data;
-      }),
-  set: (page: string, data: unknown) =>
-    getAdminDb().table<AdminKvCache<unknown>>('audit_cache')
-      .put({ key: page, data, fetchedAt: Date.now() }),
-  invalidate: () =>
-    getAdminDb().table<AdminKvCache<unknown>>('audit_cache').clear(),
-};
-
-// ── Unlock requests cache (5-min TTL self-heal, plus manual sync via Sync All) ──
+// ── Unlock requests cache (TTL: 5 min, plus manual sync via Sync All) ──
 // A stale entry here isn't just cosmetic — it could show a request as still pending after
 // another admin (a different device/session) already resolved it, or hide a genuinely new
 // request until Sync All runs. TTL bounds how long that can persist without user action.
+export const adminUnlockRequestsCache = makeKvCache<unknown>('unlock_requests_cache', { fixedKey: 'unlock_requests', ttlMs: CACHE_TTL_MS });
 
-const UNLOCK_REQUESTS_KEY = 'unlock_requests';
-
-export const adminUnlockRequestsCache = {
-  get: () =>
-    getAdminDb().table<AdminKvCache<unknown>>('unlock_requests_cache')
-      .where('key').equals(UNLOCK_REQUESTS_KEY).toArray()
-      .then((r) => {
-        const entry = r[0];
-        if (!entry) return null;
-        if (Date.now() - entry.fetchedAt > CACHE_TTL_MS) return null;
-        return entry.data;
-      }),
-  set: (data: unknown) =>
-    getAdminDb().table<AdminKvCache<unknown>>('unlock_requests_cache')
-      .put({ key: UNLOCK_REQUESTS_KEY, data, fetchedAt: Date.now() }),
-  invalidate: () =>
-    getAdminDb().table<AdminKvCache<unknown>>('unlock_requests_cache').clear(),
-};
-
-// ── App settings cache (5-min TTL self-heal, plus manual sync via Sync All) ──
+// ── App settings cache (TTL: 5 min, plus manual sync via Sync All) ──
 // Backs the verification-phase toggle/progress card on the admin overview page. A stale
 // entry here could show "verification not open" to one admin/device while it's actually
 // open — worse than most staleness since admins relay this state to DEOs verbally.
-
-const SETTINGS_KEY = 'app_settings';
-
-export const adminSettingsCache = {
-  get: () =>
-    getAdminDb().table<AdminKvCache<unknown>>('settings_cache')
-      .where('key').equals(SETTINGS_KEY).toArray()
-      .then((r) => {
-        const entry = r[0];
-        if (!entry) return null;
-        if (Date.now() - entry.fetchedAt > CACHE_TTL_MS) return null;
-        return entry.data;
-      }),
-  set: (data: unknown) =>
-    getAdminDb().table<AdminKvCache<unknown>>('settings_cache')
-      .put({ key: SETTINGS_KEY, data, fetchedAt: Date.now() }),
-  invalidate: () =>
-    getAdminDb().table<AdminKvCache<unknown>>('settings_cache').clear(),
-};
+export const adminSettingsCache = makeKvCache<unknown>('settings_cache', { fixedKey: 'app_settings', ttlMs: CACHE_TTL_MS });
 
 // ── Global sync ──────────────────────────────────────────────────────────────
 // One button (in the admin navbar) refreshes every admin cache table at once, instead of
