@@ -767,7 +767,18 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
 
         {/* Table */}
         <div className="overflow-auto max-h-[calc(100vh-250px)] rounded-xl border border-base-200">
-          <table className="table table-xs table-pin-rows w-full" role="grid">
+          <table className="table table-xs table-pin-rows table-fixed w-full" role="grid">
+            <colgroup>
+              <col className="w-[9%]" />
+              <col className="w-[16%]" />
+              <col className="w-[10%]" />
+              <col className="w-[9%]" />
+              <col className="w-[18%]" />
+              <col className="w-[9%]" />
+              <col className="w-[12%]" />
+              <col className="w-[9%]" />
+              <col className="w-[8%]" />
+            </colgroup>
             <thead className="bg-base-200 text-[11px] uppercase tracking-wide text-base-content/70 z-10">
               <tr>
                 <th

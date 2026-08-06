@@ -155,6 +155,7 @@ export const adminDistrictsCache = {
       .then((r) => {
         const entry = r[0];
         if (!entry) return null;
+        if (Date.now() - entry.fetchedAt > DISTRICTS_TTL_MS) return null;
         return entry.data;
       }),
 
@@ -206,6 +207,13 @@ export const adminExportCache = {
     getAdminDb().table<AdminKvCache<unknown>>('export_cache').clear(),
 };
 
+// Shared 5-min freshness window for the "TTL: 5 min" caches below — none of them actually
+// checked this against fetchedAt until this fix (see adminDistrictsCache's identical bug),
+// so a cache populated once could be served indefinitely until an explicit Sync All, which
+// itself has its own 15-min cooldown that can silently no-op. Now every one of these self-heals
+// on the next read past 5 minutes, regardless of whether Sync All ever ran.
+const CACHE_TTL_MS = 5 * 60 * 1000;
+
 // ── Map cache (TTL: 5 min) ─────────────────────────────────────────────────
 
 export const adminMapCache = {
@@ -215,6 +223,7 @@ export const adminMapCache = {
       .then((r) => {
         const entry = r[0];
         if (!entry) return null;
+        if (Date.now() - entry.fetchedAt > CACHE_TTL_MS) return null;
         return entry.data;
       }),
   set: (data: unknown) =>
@@ -233,6 +242,7 @@ export const adminShopsCache = {
       .then((r) => {
         const entry = r[0];
         if (!entry) return null;
+        if (Date.now() - entry.fetchedAt > CACHE_TTL_MS) return null;
         return entry.data;
       }),
   set: (districtName: string, data: unknown) =>
@@ -260,7 +270,10 @@ export const adminAuditCache = {
     getAdminDb().table<AdminKvCache<unknown>>('audit_cache').clear(),
 };
 
-// ── Unlock requests cache (manual sync, same convention as adminAuditCache) ─────
+// ── Unlock requests cache (5-min TTL self-heal, plus manual sync via Sync All) ──
+// A stale entry here isn't just cosmetic — it could show a request as still pending after
+// another admin (a different device/session) already resolved it, or hide a genuinely new
+// request until Sync All runs. TTL bounds how long that can persist without user action.
 
 const UNLOCK_REQUESTS_KEY = 'unlock_requests';
 
@@ -271,6 +284,7 @@ export const adminUnlockRequestsCache = {
       .then((r) => {
         const entry = r[0];
         if (!entry) return null;
+        if (Date.now() - entry.fetchedAt > CACHE_TTL_MS) return null;
         return entry.data;
       }),
   set: (data: unknown) =>
@@ -280,8 +294,10 @@ export const adminUnlockRequestsCache = {
     getAdminDb().table<AdminKvCache<unknown>>('unlock_requests_cache').clear(),
 };
 
-// ── App settings cache (manual sync, same convention as adminUnlockRequestsCache) ──
-// Backs the verification-phase toggle/progress card on the admin overview page.
+// ── App settings cache (5-min TTL self-heal, plus manual sync via Sync All) ──
+// Backs the verification-phase toggle/progress card on the admin overview page. A stale
+// entry here could show "verification not open" to one admin/device while it's actually
+// open — worse than most staleness since admins relay this state to DEOs verbally.
 
 const SETTINGS_KEY = 'app_settings';
 
@@ -292,6 +308,7 @@ export const adminSettingsCache = {
       .then((r) => {
         const entry = r[0];
         if (!entry) return null;
+        if (Date.now() - entry.fetchedAt > CACHE_TTL_MS) return null;
         return entry.data;
       }),
   set: (data: unknown) =>
