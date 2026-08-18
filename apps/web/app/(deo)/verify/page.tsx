@@ -13,7 +13,9 @@ import HelpPanel from '@/app/_components/HelpPanel';
 import { RevenueCell } from '@/components/RevenueCell';
 import { isLocked } from '@/lib/status';
 import { SHOP_TYPE_LABELS, SHOP_TYPES } from '@excise/schema';
-import { SHOP_TYPE_BADGE_CLASS as TYPE_BADGE } from '@/lib/shop-type';
+import { ShopExplorer, type ShopExplorerRow } from '@/components/ShopExplorer';
+import { UnitsModal } from '@/components/UnitsModal';
+import { useShopAggregates } from '@/hooks/useShopAggregates';
 
 interface UnlockRequestInfo { status: 'pending' | 'approved' | 'denied'; reason: string; adminNote: string | null }
 
@@ -135,6 +137,11 @@ export default function VerifyPage() {
   // with "All units must have at least one row" and gave no indication which unit(s) were
   // actually missing.
   const [units, setUnits] = useState<string[]>([]);
+  // Full {name,type} rows for the same registered units — needed by UnitsModal/ShopExplorer's
+  // circle/sector breakdown (sector vs. circle grouping), which `units` above (names only)
+  // can't provide.
+  const [unitsFull, setUnitsFull] = useState<{ name: string; type: string }[]>([]);
+  const [showUnitsModal, setShowUnitsModal] = useState(false);
   const [activeUnit, setActiveUnit] = useState<string>('');
   const [pageSize, setPageSize] = useState<number>(() => {
     try { return Number(localStorage.getItem('verificationPageSize')) || 50; } catch { return 50; }
@@ -169,7 +176,6 @@ export default function VerifyPage() {
   const [requestingUnlock, setRequestingUnlock] = useState(false);
   const [confirmingVerify, setConfirmingVerify] = useState(false);
   const [finalRows, setFinalRows] = useState<StagedRow[]>([]);
-  const [finalSearchQ, setFinalSearchQ] = useState('');
 
   const loadUnits = useCallback(async () => {
     if (!district) return [];
@@ -178,6 +184,7 @@ export default function VerifyPage() {
       const data = res.ok ? await res.json() as { id: number; name: string; type: string }[] : [];
       const unitNames = [...new Set(data.map((u) => u.name).filter(Boolean))];
       setUnits(unitNames);
+      setUnitsFull(data.map((u) => ({ name: u.name, type: u.type })));
       setActiveUnit((prev) => prev || unitNames[0] || '');
       setUnitsReady(unitNames.length > 0);
       return unitNames;
@@ -617,28 +624,16 @@ export default function VerifyPage() {
     }
   }
 
-  const finalTypeCounts = useMemo(() => {
-    const counts: Record<string, { count: number; revenue: number }> = {};
-    for (const s of finalRows) {
-      if (!counts[s.shopType]) counts[s.shopType] = { count: 0, revenue: 0 };
-      const entry = counts[s.shopType]!;
-      entry.count++;
-      entry.revenue += s.totalRevenue;
-    }
-    return counts;
-  }, [finalRows]);
-
-  // CL5CC is not a separate shop_type — it's COUNTRY_LIQUOR with hasCl5cc=true (CLAUDE.md
-  // "CL5CC Rule"), so it needs its own card rather than a slot in the SHOP_TYPES loop below.
-  const finalCl5ccCount = useMemo(() => finalRows.filter((r) => r.hasCl5cc).length, [finalRows]);
+  // Rows retrieved from stagingDb.getAll() always have their (Dexie auto-assigned) id
+  // populated — this filter just satisfies TypeScript that id is no longer optional, since
+  // ShopExplorer keys rows by it.
+  const finalShopRows = useMemo(
+    () => finalRows.filter((r): r is StagedRow & { id: number } => r.id != null) as ShopExplorerRow[],
+    [finalRows],
+  );
+  const { typeCounts: finalTypeCounts, cl5ccCount: finalCl5ccCount } = useShopAggregates(finalShopRows, unitsFull);
   const finalTotalRevenue = useMemo(() => finalRows.reduce((s, r) => s + r.totalRevenue, 0), [finalRows]);
   const finalCircleCount = useMemo(() => new Set(finalRows.map((r) => r.circleSectorName)).size, [finalRows]);
-  const finalDistrictThanas = useMemo(() => new Set(finalRows.map((r) => r.thanaName)), [finalRows]);
-  const finalDisplayRows = useMemo(() => {
-    if (!finalSearchQ) return finalRows;
-    const q = finalSearchQ.toLowerCase();
-    return finalRows.filter((r) => r.shopName.toLowerCase().includes(q) || r.shopId.toLowerCase().includes(q) || r.thanaName.toLowerCase().includes(q));
-  }, [finalRows, finalSearchQ]);
 
   // Seeded from the registered unit list first (falling back to whatever's actually in
   // visibleRows in 'uploaded' view, where `units` isn't the relevant list) so a registered
@@ -685,11 +680,21 @@ export default function VerifyPage() {
           <div className="bg-base-100 rounded-xl border border-base-200 p-4 space-y-1">
             <p className="text-[11px] uppercase tracking-widest font-medium text-base-content/60">Total Shops</p>
             <p className="text-xl font-bold tabular-nums">{finalRows.length.toLocaleString()}</p>
+            <p className="text-xs text-base-content/70">
+              {SHOP_TYPES.map((t) => finalTypeCounts[t] ? `${SHOP_TYPE_LABELS[t]}: ${finalTypeCounts[t].count}` : null).filter(Boolean).join(' · ')}
+            </p>
           </div>
-          <div className="bg-base-100 rounded-xl border border-base-200 p-4 space-y-1">
+          <button
+            type="button"
+            onClick={() => unitsFull.length > 0 && setShowUnitsModal(true)}
+            className={`bg-base-100 rounded-xl border border-base-200 p-4 space-y-1 text-left ${unitsFull.length > 0 ? 'cursor-pointer hover:border-primary/50 hover:shadow-md transition-all' : ''}`}
+          >
             <p className="text-[11px] uppercase tracking-widest font-medium text-base-content/60">Circles &amp; Sectors</p>
-            <p className="text-xl font-bold tabular-nums">{finalCircleCount.toLocaleString()}</p>
-          </div>
+            <p className={`text-xl font-bold tabular-nums ${unitsFull.length > 0 ? 'text-primary' : ''}`}>{finalCircleCount.toLocaleString()}</p>
+            <p className="text-xs text-base-content/70">
+              {unitsFull.filter((u) => u.type === 'sector').length} sectors · {unitsFull.filter((u) => u.type === 'circle').length} circles
+            </p>
+          </button>
           <div className="bg-base-100 rounded-xl border border-base-200 p-4 space-y-1">
             <p className="text-[11px] uppercase tracking-widest font-medium text-base-content/60">Total Revenue</p>
             <p className="text-xl font-bold tabular-nums">{formatInr(finalTotalRevenue)}</p>
@@ -699,83 +704,11 @@ export default function VerifyPage() {
             <p className="text-xl font-bold truncate">{session?.name ?? '—'}</p>
           </div>
         </div>
-
-        {/* Shop type breakdown */}
-        {finalRows.length > 0 && (
-          <div className="bg-base-100 rounded-xl border border-base-200 p-4">
-            <p className="text-[11px] uppercase tracking-widest font-medium text-base-content/60 mb-3">Shop Type Breakdown</p>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-              {SHOP_TYPES.map((t) => {
-                const c = finalTypeCounts[t];
-                if (!c) return null;
-                return (
-                  <div key={t} className="rounded-lg border border-base-200 p-3">
-                    <div className="flex items-center gap-1.5 mb-1">
-                      <span className={`badge badge-xs ${TYPE_BADGE[t]}`}>{' '}</span>
-                      <span className="text-xs font-medium text-base-content/90">{SHOP_TYPE_LABELS[t]}</span>
-                    </div>
-                    <p className="text-lg font-bold tabular-nums">{c.count}</p>
-                    <p className="text-[11px] text-base-content/60 tabular-nums">{formatInr(c.revenue)}</p>
-                  </div>
-                );
-              })}
-              {finalCl5ccCount > 0 && (
-                <div className="rounded-lg border border-base-300 p-3">
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <span className="badge badge-xs badge-outline text-[10px]">CL5CC</span>
-                    <span className="text-xs font-medium text-base-content/90">Country Liquor w/ Beer</span>
-                  </div>
-                  <p className="text-lg font-bold tabular-nums">{finalCl5ccCount}</p>
-                  <p className="text-[11px] text-base-content/60">of Country Liquor</p>
-                </div>
-              )}
-            </div>
-          </div>
+        {showUnitsModal && (
+          <UnitsModal units={unitsFull} districtName={district} onClose={() => setShowUnitsModal(false)} />
         )}
 
-        {/* Data table */}
-        <div className="bg-base-100 rounded-xl border border-base-200 overflow-hidden">
-          <div className="flex items-center gap-3 p-4 border-b border-base-200">
-            <input
-              className="input input-bordered input-sm w-64"
-              placeholder="Search shop name / ID / Thana"
-              value={finalSearchQ}
-              onChange={(e) => setFinalSearchQ(e.target.value)}
-              aria-label="Search rows"
-            />
-            <span className="text-xs text-base-content/60">{finalDisplayRows.length.toLocaleString()} of {finalRows.length.toLocaleString()} shops</span>
-          </div>
-          <div className="overflow-auto max-h-[calc(100vh-460px)]">
-            <table className="table table-sm table-pin-rows" role="grid" aria-label="Final verification data">
-              <thead className="bg-base-200 z-10">
-                <tr>
-                  <th>Shop ID</th><th>Shop Name</th><th>Circle/Sector</th><th>Thana</th>
-                  <th>Adjacent Thanas</th><th>Type</th><th>Coords</th><th className="text-right">Revenue</th>
-                </tr>
-              </thead>
-              <tbody>
-                {finalDisplayRows.length === 0 ? (
-                  <tr><td colSpan={8} className="text-center py-8 text-base-content/60">{finalRows.length === 0 ? 'Loading district data…' : 'No shops match your search.'}</td></tr>
-                ) : finalDisplayRows.map((row) => (
-                  <tr key={row.id} role="row">
-                    <td className="font-mono text-xs">{row.shopId}</td>
-                    <td className="text-sm">{row.shopName}</td>
-                    <td className="text-xs">{row.circleSectorName}</td>
-                    <td className="text-xs">{row.thanaName}</td>
-                    <td className="min-w-48">
-                      <PillList raw={row.adjacentThanasRaw} districtThanas={finalDistrictThanas} onChange={() => {}} readOnly />
-                    </td>
-                    <td><span className={`badge badge-sm h-auto py-1 px-2 ${TYPE_BADGE[row.shopType] ?? 'badge-ghost'}`}>{SHOP_TYPE_LABELS[row.shopType as keyof typeof SHOP_TYPE_LABELS] ?? row.shopType}</span></td>
-                    <td className="font-mono text-xs">
-                      {row.latitudeDecimal != null ? `${row.latitudeDecimal.toFixed(4)}, ${row.longitudeDecimal!.toFixed(4)}` : <span className="text-base-content/45">—</span>}
-                    </td>
-                    <td className="text-right"><RevenueCell s={row} /></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <ShopExplorer shops={finalShopRows} units={unitsFull} districtName={district} loading={finalRows.length === 0} storageKeyPrefix="deo-final" />
 
         {/* Action area */}
         {verified ? (

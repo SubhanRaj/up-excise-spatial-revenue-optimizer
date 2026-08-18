@@ -55,6 +55,22 @@ export default async function DeoDashboard() {
           </p>
           <Link href="/units" className="btn btn-primary btn-lg mt-6 w-full sm:w-auto">Create Circles &amp; Sectors →</Link>
         </div>
+      ) : submitted ? (
+        // Once locked (submitted/verified), Upload/Verify are no longer next actions — the
+        // Verify nav link is the only surface left, and it becomes a read-only view (or the
+        // final-verification screen). These step cards reappear automatically the moment an
+        // admin approves a data-correction unlock and status drops back to 'in_progress',
+        // since that flips `submitted` back to false on next load — no separate flag needed.
+        <div className="card bg-base-100 shadow p-6 max-w-xl mx-auto text-center space-y-2">
+          <h3 className="font-semibold text-base">{verified ? 'Verified' : 'Submitted to headquarters'}</h3>
+          <p className="text-xs text-base-content/60">{verified ? 'सत्यापित' : 'मुख्यालय को सबमिट किया गया'}</p>
+          <p className="text-sm text-base-content/80">
+            {verified
+              ? 'Your final verification is complete and locked.'
+              : 'Found wrong data for a shop? Go to Upload and request a data-correction unlock.'}
+          </p>
+          <Link href="/verify" className="btn btn-success btn-sm mt-2">Go to Verify</Link>
+        </div>
       ) : (
         <div className="grid md:grid-cols-2 gap-5">
           <Link href="/upload" className="card bg-base-100 shadow hover:shadow-lg transition-all hover:-translate-y-0.5 p-6 flex flex-col gap-4">
@@ -69,22 +85,16 @@ export default async function DeoDashboard() {
             <div className="mt-auto"><span className="btn btn-secondary btn-sm w-full">Upload</span></div>
           </Link>
 
-          <Link href={submitted ? '/verify?view=uploaded' : '/verify'} className="card bg-base-100 shadow hover:shadow-lg transition-all hover:-translate-y-0.5 p-6 flex flex-col gap-4">
+          <Link href="/verify" className="card bg-base-100 shadow hover:shadow-lg transition-all hover:-translate-y-0.5 p-6 flex flex-col gap-4">
             <div className="w-12 h-12 rounded-full bg-success text-success-content flex items-center justify-center text-xl font-bold">
               3
             </div>
             <div>
-              <h3 className="font-semibold text-base">Step 3 — {verified ? 'Verified' : submitted ? 'Submitted' : 'Verify & Submit'}</h3>
-              <p className="text-xs text-base-content/60">चरण 3 — {verified ? 'सत्यापित' : submitted ? 'सबमिट हो गया' : 'जांचें और सबमिट करें'}</p>
-              <p className="text-sm text-base-content/80 mt-1">
-                {verified
-                  ? 'Final verification complete — your data is confirmed and locked.'
-                  : submitted
-                  ? 'Already submitted to headquarters — view your uploaded records (read-only)'
-                  : 'Review uploaded records, fix errors, then submit to headquarters'}
-              </p>
+              <h3 className="font-semibold text-base">Step 3 — Verify &amp; Submit</h3>
+              <p className="text-xs text-base-content/60">चरण 3 — जांचें और सबमिट करें</p>
+              <p className="text-sm text-base-content/80 mt-1">Review uploaded records, fix errors, then submit to headquarters</p>
             </div>
-            <div className="mt-auto"><span className="btn btn-success btn-sm w-full">{submitted ? 'View Uploaded Data' : 'Review'}</span></div>
+            <div className="mt-auto"><span className="btn btn-success btn-sm w-full">Review</span></div>
           </Link>
         </div>
       )}

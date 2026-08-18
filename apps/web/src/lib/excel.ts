@@ -571,6 +571,34 @@ export async function generateTemplate(districtName: string, units: string[]): P
   wsGuide.getRow(1).values = COLUMN_GUIDE[0] as ExcelJSNamespace.CellValue[];
   styleHeaderRow(wsGuide, 1);
   for (const row of COLUMN_GUIDE.slice(1)) wsGuide.addRow(row);
+
+  // "After You Upload" section — this sheet previously only ever described the columns to
+  // fill in, while the DEO User Manual (PDF, see TEST.md) separately documents the whole
+  // /verify review screen (unit tabs, search, type/circle filters, Group by Type, the
+  // Circle/Sector Breakdown export, coordinate warning icons). A DEO who only ever opens this
+  // Excel file — the common case, since Inspectors hand it directly to the DEO — had no way
+  // to learn those review features existed. Kept brief and pointed at the review screen's own
+  // in-app Help panel for the full detail, rather than duplicating the whole manual here.
+  const afterUploadTitleRow = wsGuide.rowCount + 2;
+  wsGuide.addRow([]);
+  wsGuide.addRow(['After You Upload — Reviewing on the Verify Page / अपलोड के बाद — Verify पेज पर समीक्षा']);
+  wsGuide.addRow([
+    'Once uploaded, review your data on the portal\'s Verify page before submitting to headquarters.\n' +
+    'अपलोड के बाद, headquarters को सबमिट करने से पहले पोर्टल के Verify पेज पर अपने डेटा की समीक्षा करें।',
+  ]);
+  wsGuide.addRow([
+    '• Rows are grouped into tabs by Circle/Sector — click a tab to switch. Every registered Circle/Sector needs at least one valid row before Submit District activates.\n' +
+    '• Search finds a shop by ID, name, or Thana as you type.\n' +
+    '• The Type filter and the "Group by Type" toggle cluster rows by shop type, each with its own subtotal — useful for checking one shop type at a time across a large district.\n' +
+    '• A red Adjacent Thana pill is a same-district self-consistency hint, not an error — it just means that name hasn\'t (yet) appeared as a Thana elsewhere in this district\'s own data. Only a fully blank Adjacent Thana cell blocks submission.\n' +
+    '• A ⚠ icon on Coordinates means the point falls outside the UP bounding box — a warning to double-check, never a block.\n\n' +
+    '• सर्कल/सेक्टर के अनुसार पंक्तियाँ tabs में बंटी होती हैं — बदलने के लिए किसी tab पर क्लिक करें। Submit District सक्रिय होने से पहले हर रजिस्टर्ड सर्कल/सेक्टर में कम से कम एक मान्य पंक्ति होनी चाहिए।\n' +
+    '• Search टाइप करते ही ID, नाम या थाने से दुकान ढूंढ लेता है।\n' +
+    '• Type filter और "Group by Type" टॉगल दुकान के प्रकार के अनुसार पंक्तियों को समूहित करते हैं, हर समूह के अपने उप-योग के साथ।\n' +
+    '• लाल Adjacent Thana pill एक ही-जिले की स्व-संगति संकेत है, त्रुटि नहीं — इसका मतलब बस यह है कि वह नाम अभी तक इस जिले के अपने डेटा में कहीं और थाने के रूप में मौजूद नहीं है। केवल पूरी तरह खाली Adjacent Thana cell सबमिशन रोकती है।\n' +
+    '• Coordinates पर ⚠ का मतलब है बिंदु UP bounding box के बाहर है — यह केवल जांचने की चेतावनी है, कभी रोक नहीं।',
+  ]);
+
   wsGuide.columns = [{ width: 24 }, { width: 55 }, { width: 26 }, { width: 45 }];
   for (let r = 2; r <= wsGuide.rowCount; r++) {
     wsGuide.getRow(r).eachCell({ includeEmpty: false }, (cell) => {
@@ -578,6 +606,10 @@ export async function generateTemplate(districtName: string, units: string[]): P
     });
   }
   const guideColCount = (COLUMN_GUIDE[0] as unknown[]).length;
+  // spliceRows below inserts 2 rows at the very top and shifts every existing row (and its
+  // merges/styles) down by 2 — so the "After You Upload" section is merged/styled AFTER that
+  // insertion, using the shifted row numbers, matching the same order the two warning banners
+  // below already rely on (merge-after-splice, never merge-then-splice-over-it).
   wsGuide.spliceRows(1, 0, [
     '⚠ Use Microsoft Excel 2013 or later (or Excel Online) to open and fill this file. Excel 2007/2010 do not reliably show its dropdowns and validation rules, which can let wrong data get typed in undetected.\n' +
     'केवल Microsoft Excel 2013 या नए वर्शन में यह फ़ाइल खोलें और भरें। पुराने Excel (2007/2010) में इस फ़ाइल के dropdown और validation सही से नहीं दिखते, जिससे गलत डेटा बिना पकड़े भर सकता है।',
@@ -599,6 +631,18 @@ export async function generateTemplate(districtName: string, units: string[]): P
   wsGuide.getRow(2).height = 90;
   applyPrintSetup(wsGuide, 3, guideColCount);
   wsGuide.views = [{ state: 'frozen', ySplit: 3, xSplit: 0 }];
+
+  const afterUploadTitleRow2 = afterUploadTitleRow + 2; // +2 for the two warning rows spliced in above
+  wsGuide.mergeCells(afterUploadTitleRow2, 1, afterUploadTitleRow2, guideColCount);
+  const afterUploadTitleCell = wsGuide.getCell(afterUploadTitleRow2, 1);
+  afterUploadTitleCell.font = { bold: true, size: 12, color: { argb: 'FF0F2A44' } };
+  afterUploadTitleCell.alignment = { vertical: 'middle' };
+  wsGuide.mergeCells(afterUploadTitleRow2 + 1, 1, afterUploadTitleRow2 + 1, guideColCount);
+  wsGuide.getRow(afterUploadTitleRow2 + 1).height = 30;
+  wsGuide.mergeCells(afterUploadTitleRow2 + 2, 1, afterUploadTitleRow2 + 2, guideColCount);
+  const afterUploadBodyCell = wsGuide.getCell(afterUploadTitleRow2 + 2, 1);
+  afterUploadBodyCell.alignment = { wrapText: true, vertical: 'top' };
+  wsGuide.getRow(afterUploadTitleRow2 + 2).height = 240;
 
   // Hidden, not deleted — the circle/sector dropdown on Data Entry still
   // references it by name. Hidden because it's pure repetition of data the DEO already
