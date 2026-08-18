@@ -1342,6 +1342,59 @@ flowchart LR
 
 ---
 
+### M-66: Final Verification Round Toggle Opened to Any Admin ✅ Complete
+
+**Objective:** With all 75 districts submitted, the department's actual approving authority for the closing "final verification round" — an `admin`-role account (`decpehq@gmail.com`) — had no way to open it. The toggle button on `/admin`'s "Final Verification Round" card was owner/superadmin-only (M-60's original design), but the account that holds real sign-off authority for this step is a plain `admin`, not the developer's owner/superadmin bypass account (`shubhanraj2002@gmail.com`).
+
+**Root cause:** `POST /api/admin/settings` (`apps/web/app/api/admin/settings/route.ts`) and the `/admin` overview page's button (`app/(admin)/admin/page.tsx`) both gated on `user.role !== 'superadmin'`. This was a stricter gate than every comparable admin action in the app — unlock-request approval (`POST /api/admin/unlock-requests/resolve`), for instance, has always been open to any plain `admin`, precisely because that's the role real department staff hold day to day, with owner/superadmin reserved for the developer's own account-management and district-master-editing surfaces.
+
+**Change:**
+- [x] `POST /api/admin/settings` now accepts `role: 'admin'` or `'superadmin'` (was `'superadmin'` only), matching the same `GET` route's existing check.
+- [x] The `/admin` overview page's toggle button now renders for `session?.role === 'admin' || 'superadmin'`; the fallback text changed from "Owner/superadmin-only toggle" to "Admin-only toggle".
+- [x] No D1 write was needed — the fix is purely a permission-gate change in application code, not an `auth_users` row edit. `decpehq@gmail.com`'s existing `role: 'admin'` account (already used to approve every unlock request to date) gained the button automatically once deployed.
+- [x] CLAUDE.md updated: the M-60 write-up's toggle-gating description now reflects the admin-open policy.
+- [x] Deployed via direct `wrangler`/`@opennextjs/cloudflare` build+deploy (not just the CI push) at the user's request, ahead of the CI run landing.
+
+**Exit criterion:** Any `admin` or `superadmin` account can open/close the state-wide final verification round from `/admin`'s overview page; District Master and Admin Users remain owner/superadmin-only, unaffected by this change.
+
+---
+
+### M-67: DEO Final-Verification Screen at Parity with Admin (`ShopExplorer`), Real DEO Name, Excel Instructions Update ✅ Complete
+
+**Objective:** Multiple gaps reported in the same session, all rooted in the DEO `/verify` final-verification screen (M-60) having been hand-built as a deliberately smaller subset of the admin district detail page's table, rather than sharing its implementation — exactly the kind of drift a prior request for "an exact replica of the admin page" had already tried and failed to prevent by copy-pasting once instead of sharing code:
+1. `/home` dashboard kept showing "Step 2 — Upload" and "Step 3 — Verify & Submit" cards even once a district was locked (submitted/verified), when neither step applies anymore.
+2. The DEO screen's "Circles & Sectors" stat card was a plain number, not clickable (admin's own version opens a modal listing every circle/sector by name).
+3. Clicking a shop-type breakdown tile did nothing (admin's filters the table).
+4. The table had no sort, no type/circle filter, no group-by-type — search only.
+5. No Circle/Sector Breakdown table (per-unit shop count, distinct thana count, revenue, per-type badges) — admin has one.
+6. The "Total Shops" stat card had no per-type breakdown line.
+7. No per-district or per-circle/sector XLSX export — admin has both.
+8. The DEO Excel template's "Instructions" sheet only ever described columns to fill in; the separate DEO User Manual PDF documents the `/verify` review screen's features (unit tabs, Group by Type, etc.) but the Excel file itself — the thing DEOs actually open, since Inspectors hand it to them directly — never mentioned any of that.
+9. The final-verification screen's "District Excise Officer" stat card showed `session.name` (the login account's `auth_users.name`, often still an English placeholder like "Lucknow DEO" set at provisioning) instead of the DEO's own confirmed name from submission.
+10. The confirm/unlock button copy ("Everything is correct — Confirm & Verify" / "I see wrong data — Request Unlock") read too casually for what is, in effect, an official liability-bearing sign-off screen.
+
+**Root cause (1–7):** the DEO screen and the admin district detail page each independently implemented their own version of "browse this district's shops" — the DEO version was built smaller from the start (M-60) and every later admin-side improvement (filters, sort, group-by-type, Circle/Sector Breakdown, exports) never got ported over, since there was no shared code to port.
+
+**Root cause (9):** `districts.deoName` is correctly overwritten with the DEO's own self-attested name at submission time (M-53), but no DEO-facing `GET` route ever returned that column — only the admin-facing `GET /api/admin/districts/[district]` did. The DEO screen fell back to `session.name`, a different field entirely (the login account's name, never touched by M-53's write).
+
+**Change:**
+- [x] **`apps/web/src/components/ShopExplorer.tsx`** (new) — the shared, single implementation of the shop-type breakdown bar (click-to-filter), the Circle/Sector Breakdown table (with per-row XLSX export), and the filterable/sortable/groupable/paginated shop table with full-district XLSX export. Takes a `storageKeyPrefix` prop (`'admin'` for the admin page, keeping its existing localStorage keys; `'deo-final'` for the DEO screen) so the two portals' toolbar preferences never collide on a shared browser.
+- [x] **`apps/web/src/components/UnitsModal.tsx`** (new, extracted verbatim from the admin page) — the circles/sectors-by-name modal, now used by both the admin district detail page and the DEO screen's newly-clickable "Circles & Sectors" stat card.
+- [x] **`apps/web/src/hooks/useShopAggregates.ts`** (new) — shared `typeCounts`/`cl5ccCount`/`circles`/`circleStats` computation, called independently by each page (admin page for its own stat-card sub-lines, `ShopExplorer` internally, and the DEO screen for its "Total Shops" breakdown line) rather than threaded through props — cheap enough per-district that duplicate computation costs nothing measurable.
+- [x] Admin district detail page (`app/(admin)/admin/districts/[district]/page.tsx`) rewritten to use `ShopExplorer`/`UnitsModal`/`useShopAggregates` instead of ~350 lines of inline table/toolbar/breakdown JSX — behavior unchanged, now the shared implementation.
+- [x] DEO `/verify` final-verification screen (`app/(deo)/verify/page.tsx`) rewritten the same way — gained sort, type/circle filters, group-by-type, the Circle/Sector Breakdown table, per-district and per-circle/sector XLSX export, and a clickable circles/sectors stat card with the same modal, all for free from the shared component.
+- [x] `/home` dashboard: once a district is locked (`isLocked(status)`), the Step 2/3 cards are replaced by a single status card ("Submitted to headquarters" or "Verified") with a "Go to Verify" link — no separate flag needed, since the cards reappear automatically the moment an admin approves a data-correction unlock and status drops back to `in_progress`.
+- [x] Excel template's Instructions sheet (`generateTemplate()`, `apps/web/src/lib/excel.ts`) gained a new bilingual "After You Upload — Reviewing on the Verify Page" section (merged banner rows, styled like the existing warning banners) covering unit tabs, search, type/circle filters, Group by Type, the Adjacent Thana red-pill semantics, and coordinate warning icons. Verified row/merge alignment with a throwaway inspection script (real ExcelJS round-trip, not just the OOXML-limits check) before committing, since merging cells *before* `spliceRows()` inserts rows above them is untested territory in this codebase — restructured to merge/style *after* the splice instead, matching the existing warning-banner pattern, to avoid relying on unverified merge-shifting behavior.
+- [x] `GET /api/districts/[district]/status` now also returns `deoName` (from `districts.deoName`); the DEO screen's stat card reads `confirmedDeoName ?? session?.name` instead of `session?.name` alone.
+- [x] Button/copy wording formalized: "Everything is correct — Confirm & Verify" → "Re-Verify & Lock the Data You Have Uploaded"; "I see wrong data — Request Unlock" → "Request Unlock — If You Found Wrong Data"; the two adjacent "Found wrong data for a shop?" sentences on `/verify` and `/home` reworded to match.
+- [x] `pnpm --filter web test` (the mandatory Excel OOXML-limits check) and `pnpm typecheck` run after every change touching `excel.ts`'s merged cells; a full `next build` run (not just `tsc --noEmit`) to catch anything a bare typecheck wouldn't (unused imports, static-generation issues) before each deploy.
+- [x] CLAUDE.md updated: `ShopExplorer`/`UnitsModal`/`useShopAggregates` pointers added to the "State-wide final verification round" and "District detail page" sections; localStorage registry table split into `admin-*` and `deo-final-*` rows reflecting the new `storageKeyPrefix` scheme.
+- [x] Deployed via direct `wrangler`/`@opennextjs/cloudflare` build+deploy at the user's request (two separate deploys — the `ShopExplorer` parity work, then the `deoName`/wording follow-up — rather than waiting for CI on either).
+
+**Exit criterion:** The DEO final-verification screen and the admin district detail page render from the same `ShopExplorer` component, so a future improvement to one automatically reaches the other. `/home` never shows an Upload/Verify step card that doesn't apply to the district's current lock state. The Excel template's own Instructions sheet documents the post-upload review screen's features, not just column definitions. The "District Excise Officer" card shows the DEO's real confirmed name. The final sign-off screen's button copy reads as a formal confirmation action, not a casual question.
+
+---
+
 ## Backlog / Not Started
 
 - [x] ~~Verify `exciseup.in` in Resend and switch `RESEND_FROM_EMAIL`~~ — Done. `mail.exciseup.in` verified; `RESEND_FROM_EMAIL` set to `noreply@mail.exciseup.in` on this project's Worker, and the same address set as `FROM_EMAIL` on the sibling `excise-revenue-recovery-portal` project's Worker (different env var name there, same Resend account/domain). Magic-link email is now the Admin/HQ login channel only (DEOs use CUG login as of M-17).

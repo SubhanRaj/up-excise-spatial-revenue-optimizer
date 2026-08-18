@@ -787,6 +787,8 @@ Full per-milestone delivery history (Objective, Deliverables, Exit Criterion, bu
 | M-63: Paginated Full-State Export & Sync All D1-Read Throttling | **Completed** |
 | M-64: Per-District Incremental Export Sync | **Completed** |
 | M-65: Admin Cache TTL Enforcement, `makeKvCache` Factory, Shop Table Column-Width Fix | **Completed** |
+| M-66: Final Verification Round Toggle Opened to Any Admin | **Completed** |
+| M-67: DEO Final-Verification Screen at Parity with Admin (`ShopExplorer`), Real DEO Name, Excel Instructions Update | **Completed** |
 
 See [summary.md](summary.md) for full milestone specs, entry/exit criteria, deliverable checklists, the backlog, and pre-campaign-blocker history.
 

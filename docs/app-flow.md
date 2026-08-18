@@ -102,7 +102,7 @@ flowchart TD
 
     Done -.->|Admin opens the state-wide\nfinal verification round\nM-60, /admin overview toggle| VerifyRoundCheck{"GET .../status: verificationPhaseOpen=true\nAND districtStatus=submitted?"}
     VerifyRoundCheck -->|yes| FinalNav["DEO nav collapses to\nDashboard + Verify only"]
-    FinalNav --> FinalScreen["/verify final-verification screen:\nstat cards, shop-type breakdown,\nread-only table with RevenueCell popup"]
+    FinalNav --> FinalScreen["/verify final-verification screen:\nstat cards (clickable Circles/Sectors),\nShopExplorer - same shared component as\nadmin district detail: filters, sort,\ngroup-by-type, Circle/Sector Breakdown,\nXLSX export, RevenueCell popup - M-67"]
     FinalScreen --> SyncOnce{"localStorage verify-synced-{district}\nalready set?"}
     SyncOnce -->|yes| LocalRead[(Read straight from\nphase1_staging IndexedDB\nzero D1 hits)]
     SyncOnce -->|no| OneTimeFetch[Wipe local staging,\nGET .../shops once,\nset the localStorage flag]
@@ -154,13 +154,13 @@ flowchart TD
     ClickPolygon --> DistrictDetail["/admin/districts/[district]"]
     DrillDistricts --> DistrictDetail
     DistrictDetail --> ShopsFetch["GET /api/admin/districts/district/shops\n(only endpoint that loads shop rows)"]
-    ShopsFetch --> ClientOps[All filter/sort/search/group/paginate\nclient-side with useMemo - zero extra API calls]
+    ShopsFetch --> ClientOps[ShopExplorer component: filter/sort/search/\ngroup/paginate client-side with useMemo\n- zero extra API calls - shared with DEO\nfinal-verification screen, M-67]
 
     Render --> Provision["/admin/provision (District Master):\ninline edit drawer OR bulk Excel upload\n- the old Danger Zone reset-all-data button\nwas removed entirely, M-62, no data-wipe\npath exists anywhere in the portal"]
     Provision --> PatchEP[PATCH /api/admin/districts/district\ndb.transaction: update districts + sync auth_users]
     Provision --> BulkEP[POST /api/admin/bulk-provision\ndb.transaction per row: districts + auth_users]
 
-    Render --> SettingsCard["Admin overview: Final Verification\nRound card - GET/POST /api/admin/settings\nsuperadmin toggles, all admins see progress"]
+    Render --> SettingsCard["Admin overview: Final Verification\nRound card - GET/POST /api/admin/settings\nany admin/superadmin toggles, M-66"]
 
     SyncAll["Navbar Sync All button\ninvalidateAllAdminCaches()"] -->|clears| StoreCache
     SyncAll -->|also actively re-fetches, M-62| ExportEP[GET /api/admin/export/all]

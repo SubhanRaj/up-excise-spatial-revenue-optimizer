@@ -125,7 +125,9 @@ Strictly gated, one step at a time — nothing is shown before its prerequisite 
 2. **Upload (`/upload`)** — unlocks automatically once circles/sectors are locked; download the district template (3 sheets: Data Entry with a locked, tooltip-annotated header row; Instructions; a hidden Reference Data sheet feeding the circle/sector dropdown), consolidate Inspector sections, upload the single `.xlsx` file.
 3. **Verify & Submit (`/verify`)** — review staged rows (a red adjacent-Thana pill is a same-district typo hint, not a hard block — see "Adjacent Thana Cross-District Rule" in CLAUDE.md), then submit to headquarters behind a final SweetAlert2 confirmation.
 
-Upload and Verify are not rendered — not merely disabled — until circles/sectors are locked, on both `/home` and the DEO nav bar. Page titles and step headings carry a Hindi subtitle; underlying data stays English-only.
+Upload and Verify are not rendered — not merely disabled — until circles/sectors are locked, on both `/home` and the DEO nav bar. `/home`'s Step 2/3 cards themselves disappear once a district is locked (submitted/verified) — replaced by a single status card — and reappear automatically if an admin approves a data-correction unlock. Page titles and step headings carry a Hindi subtitle; underlying data stays English-only.
+
+**Final Verification Round** — once the state-wide round is open (admin-toggled, see below) and a DEO's district is submitted/verified, `/verify` renders a dedicated read-only review screen instead of the staged-review UI: stat cards (Total Shops with a per-type breakdown, a clickable Circles & Sectors card, Total Revenue, the DEO's own confirmed name), then the exact same `ShopExplorer` component the admin district detail page uses — type breakdown bar, Circle/Sector Breakdown table, sortable/filterable/groupable shop table, per-district and per-circle/sector XLSX export. The DEO confirms ("Re-Verify & Lock the Data You Have Uploaded") or requests a correction unlock.
 
 ---
 
@@ -160,6 +162,7 @@ Upload and Verify are not rendered — not merely disabled — until circles/sec
 - Every create/edit/delete is audit-logged with the acting superadmin's identity
 
 **District detail (`/admin/districts/[district]`):**
+- The type breakdown bar, Circle/Sector Breakdown table, and the shop table (toolbar/sort/filters/group-by-type/pagination/export) are the shared `ShopExplorer` component — the same one the DEO Final Verification Round screen (`/verify`) uses, so the two portals' shop-browsing UI can't drift apart from each other.
 - All `phase1_raw_collection` fields: shop ID, name, circle/sector, thana, adjacent thanas (flex-wrap pills), type + CL5CC sub-badge, coordinates, revenue
 - Collapsible per-row revenue breakdown (`<details>/<summary>` — no modal)
 - Full type labels: "Composite Shop (FL + Beer)", "PRV (Premium Retail Vend)"
