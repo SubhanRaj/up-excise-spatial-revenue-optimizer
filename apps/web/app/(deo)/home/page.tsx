@@ -67,7 +67,7 @@ export default async function DeoDashboard() {
           <p className="text-sm text-base-content/80">
             {verified
               ? 'Your final verification is complete and locked.'
-              : 'Found wrong data for a shop? Go to Upload and request a data-correction unlock.'}
+              : 'Re-verify your uploaded data, or request an unlock if you found wrong data.'}
           </p>
           <Link href="/verify" className="btn btn-success btn-sm mt-2">Go to Verify</Link>
         </div>

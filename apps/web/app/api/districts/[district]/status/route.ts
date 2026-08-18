@@ -24,7 +24,7 @@ async function GET_(
     db.select({ circleSectorName: phase1RawCollection.circleSectorName, rowCount: count(phase1RawCollection.id) })
       .from(phase1RawCollection).where(eq(phase1RawCollection.districtName, district))
       .groupBy(phase1RawCollection.circleSectorName).all(),
-    db.select({ status: districts.status }).from(districts).where(eq(districts.name, district)).get(),
+    db.select({ status: districts.status, deoName: districts.deoName }).from(districts).where(eq(districts.name, district)).get(),
     db.select({ verificationPhaseOpen: appSettings.verificationPhaseOpen }).from(appSettings).where(eq(appSettings.id, 1)).get(),
   ]);
 
@@ -35,6 +35,11 @@ async function GET_(
     canSubmit: summary.every((s) => s.rowCount > 0),
     districtStatus: districtRow?.status ?? 'pending',
     verificationPhaseOpen: settingsRow?.verificationPhaseOpen ?? false,
+    // Only meaningful once submitted — see districts.deoName's schema comment and M-53's
+    // submit-time write (POST /api/districts/[district]/submit). Before that it's whatever
+    // English placeholder an admin set at provisioning (e.g. "Lucknow DEO"), which is not
+    // useful to show as "the DEO" on a DEO-facing screen.
+    deoName: districtRow?.deoName ?? null,
   });
 }
 

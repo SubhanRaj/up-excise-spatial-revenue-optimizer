@@ -176,6 +176,11 @@ export default function VerifyPage() {
   const [requestingUnlock, setRequestingUnlock] = useState(false);
   const [confirmingVerify, setConfirmingVerify] = useState(false);
   const [finalRows, setFinalRows] = useState<StagedRow[]>([]);
+  // districts.deoName — the DEO's own self-attested, liability-confirmed name written at
+  // submission time (M-53), not the login account's `auth_users.name` (often still the
+  // English placeholder an admin set at provisioning, e.g. "Lucknow DEO"). session.name is
+  // the wrong field for "who submitted this district" and was showing that stale placeholder.
+  const [confirmedDeoName, setConfirmedDeoName] = useState<string | null>(null);
 
   const loadUnits = useCallback(async () => {
     if (!district) return [];
@@ -200,10 +205,11 @@ export default function VerifyPage() {
   const loadDistrictStatus = useCallback(() => {
     if (!district) return;
     fetch(`/api/districts/${encodeURIComponent(district)}/status`)
-      .then((res) => (res.ok ? res.json() as Promise<{ districtStatus: string; verificationPhaseOpen: boolean }> : { districtStatus: 'pending', verificationPhaseOpen: false }))
+      .then((res) => (res.ok ? res.json() as Promise<{ districtStatus: string; verificationPhaseOpen: boolean; deoName: string | null }> : { districtStatus: 'pending', verificationPhaseOpen: false, deoName: null }))
       .then((data) => {
         setDistrictStatus(data.districtStatus);
         setVerificationPhaseOpen(data.verificationPhaseOpen);
+        setConfirmedDeoName(data.deoName);
       });
   }, [district]);
 
@@ -701,7 +707,7 @@ export default function VerifyPage() {
           </div>
           <div className="bg-base-100 rounded-xl border border-base-200 p-4 space-y-1">
             <p className="text-[11px] uppercase tracking-widest font-medium text-base-content/60">District Excise Officer</p>
-            <p className="text-xl font-bold truncate">{session?.name ?? '—'}</p>
+            <p className="text-xl font-bold truncate">{confirmedDeoName ?? session?.name ?? '—'}</p>
           </div>
         </div>
         {showUnitsModal && (
@@ -727,10 +733,10 @@ export default function VerifyPage() {
         ) : (
           <div className="flex flex-wrap gap-3 items-center">
             <button className="btn btn-success btn-lg" onClick={confirmVerified} disabled={confirmingVerify || requestingUnlock}>
-              {confirmingVerify ? <span className="loading loading-spinner" /> : 'Everything is correct — Confirm & Verify'}
+              {confirmingVerify ? <span className="loading loading-spinner" /> : 'Re-Verify & Lock the Data You Have Uploaded'}
             </button>
             <button className="btn btn-outline btn-error" onClick={requestUnlockFinal} disabled={confirmingVerify || requestingUnlock}>
-              {requestingUnlock ? <span className="loading loading-spinner loading-xs" /> : 'I see wrong data — Request Unlock'}
+              {requestingUnlock ? <span className="loading loading-spinner loading-xs" /> : 'Request Unlock — If You Found Wrong Data'}
             </button>
             {pendingUnlockRequest?.status === 'denied' && (
               <p className="text-xs text-error w-full">Your last correction request was denied{pendingUnlockRequest.adminNote ? `: "${pendingUnlockRequest.adminNote}"` : '.'}</p>
@@ -951,7 +957,7 @@ export default function VerifyPage() {
           <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><path d="m9 12 2 2 4-4"/></svg>
           <div>
             <p className="font-semibold">{district} has been submitted to headquarters — this is a read-only view of the uploaded data.</p>
-            <p className="text-xs opacity-80 mt-1">Found wrong data for a shop? Go to <Link href="/upload" className="link font-semibold">Upload</Link> and request a data-correction unlock.</p>
+            <p className="text-xs opacity-80 mt-1">To correct a shop&apos;s data, go to <Link href="/upload" className="link font-semibold">Upload</Link> and request a data-correction unlock.</p>
           </div>
         </div>
       ) : (
