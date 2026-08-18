@@ -1,6 +1,6 @@
 # CLAUDE.md — State Excise Portal: Spatial & Revenue Optimization System
 
-> Rolling-session / OTP-skip logic: see [AUTH_ROLLING_SESSION.md](./AUTH_ROLLING_SESSION.md) for the quick pointer (`maybeRenewAdminSession()` in `apps/web/src/lib/auth.ts`) before concluding it's absent.
+> Rolling-session logic: this project DOES have it — a 7-day sliding renewal for admin/superadmin sessions via `maybeRenewAdminSession()` in `apps/web/src/lib/auth.ts` (DEO sessions stay a flat 24h, unrolled). See "Session lifetime is role-dependent" under Auth Facade below before concluding it's absent.
 
 > This file is the authoritative context document for Claude Code when working in this repository.
 > Read it fully before making any changes or suggestions.
