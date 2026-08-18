@@ -38,11 +38,12 @@ async function GET_(): Promise<NextResponse> {
 
 export const GET = withErrorHandling('admin/settings:GET', GET_);
 
-// Owner/superadmin-only — this flag changes what every DEO with a submitted district sees on
-// next page load, same blast radius as District Master edits.
+// Open to any admin/superadmin — same as unlock-request approval, since the department's
+// actual approving authority (decpehq@gmail.com) holds a plain 'admin' account, not the
+// owner/superadmin bypass.
 async function POST_(req: NextRequest): Promise<NextResponse> {
   const user = await getSession();
-  if (!user || user.role !== 'superadmin') {
+  if (!user || !['admin', 'superadmin'].includes(user.role)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 

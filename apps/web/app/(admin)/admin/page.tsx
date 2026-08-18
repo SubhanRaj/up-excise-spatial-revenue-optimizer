@@ -444,7 +444,7 @@ export default function AdminPage() {
               {settings.verificationPhaseOpen && ' · Submitted districts\' DEOs currently see the final-review screen'}
             </p>
           </div>
-          {session?.role === 'superadmin' ? (
+          {session?.role === 'admin' || session?.role === 'superadmin' ? (
             <button
               className={`btn btn-sm ${settings.verificationPhaseOpen ? 'btn-outline btn-error' : 'btn-primary'}`}
               onClick={toggleVerificationPhase}
@@ -453,7 +453,7 @@ export default function AdminPage() {
               {togglingSettings ? <span className="loading loading-spinner loading-xs" /> : settings.verificationPhaseOpen ? 'Close Verification' : 'Open Verification'}
             </button>
           ) : (
-            <span className="text-xs text-base-content/50">Owner/superadmin-only toggle</span>
+            <span className="text-xs text-base-content/50">Admin-only toggle</span>
           )}
         </div>
       )}
