@@ -866,3 +866,10 @@ All Claude-assisted commits carry the trailer:
 ```
 Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
 ```
+
+## Writing docs/commits/comments
+
+Use the `dev-docs-human` skill (`~/.claude/skills/dev-docs-human`) for README/architecture-doc/
+code-comment/PR-description writing — invoke with `/dev-docs-human`, or it triggers automatically
+on dev-facing doc work. Cuts AI narrative tells: before/after story framing, "X, not Y" contrast
+used to explain a design choice, inflated vocabulary, emoji-heading README theater.
