@@ -1395,6 +1395,25 @@ flowchart LR
 
 ---
 
+### M-68: Cross-District Authorization Fix on DEO Routes; Idempotent Re-Upload; Locked "Fetch from Server" ✅ Complete
+
+**Objective:** Ahead of opening the state-wide final verification round (M-60) to all 75 districts at once, review the DEO-facing routes and local-cache behavior that round would put under real load, and fix anything that wouldn't hold up.
+
+**Root cause:** `GET /api/districts/[district]/shops`, `GET /api/districts/[district]/status`, `POST /api/districts/[district]/submit`, `GET /api/districts/[district]/template`, and `GET`/`POST /api/districts/[district]/units` checked `getSession()` for a valid DEO session but never checked that the session's own `districtName` matched the `:district` route param. `request-unlock` and `verify` — added later, in M-60 — already had that check; the five older routes predate it and were never retrofitted. `getSession()` alone only confirms the caller is some authenticated DEO, not that they own the district in the URL — any DEO could read another district's shop data, or call `submit` to lock a district that wasn't theirs, by changing the district name in the request. `POST /api/upload/chunk` had the same gap on `districtName`, plus a second one: it took `deoId` from the request body instead of the session, so a client could attribute an upload to a different DEO account.
+
+**Change:**
+- [x] Added `if (user.districtName !== district) return 403` to all five routes above (GET and POST where both exist), matching the check `request-unlock`/`verify` already had.
+- [x] `POST /api/upload/chunk` now reads `deoId` from `user.deoId` instead of the request body, and applies the same `districtName` ownership check.
+- [x] `stagingDb.putRows()` (`apps/web/src/lib/db.ts`) now skips re-staging a row that's byte-identical to its already-uploaded copy (compared field-by-field, excluding `id`/`status`/`errorReason`/`coordinateWarning`). Before this, re-uploading a corrected Excel file after a data-correction unlock queued every shop in the district as `pending`, not just the one(s) that changed — D1's `onConflictDoUpdate` made that safe to write, but it meant a one-shop fix still re-sent and re-wrote the whole district on Submit District.
+- [x] `HomeStats` (`app/(deo)/home/HomeStats.tsx`) disables its "Fetch from Server" button once the district is locked (submitted/verified) — nothing on the server can change until an unlock is approved, so there's nothing to fetch. Takes a `locked` prop from the server-rendered `districts.status` already read in `app/(deo)/home/page.tsx`; re-enables itself automatically once status drops back to `in_progress`.
+- [x] Confirmed the final-verification screen's own D1 read pattern needed no change: `verify-synced-{district}` in `localStorage` already gates it to one fetch per district per device, with no button to force a re-fetch, and `submitDistrict()` already re-affirms that flag with fresh data right after each real resubmit.
+- [x] End-to-end pass over the final verification round's read/export surfaces before demoing it: `ShopExplorer`'s per-district and per-circle/sector XLSX export, `RevenueCell`'s HBR breakdown and portal-popup behavior, the Excel Instructions sheet's row/merge alignment, and worksheet-name sanitization (`sanitizeSheetName()`, 31-char cap, forbidden characters) on every export path — no issues found beyond the routes above.
+- [x] `pnpm typecheck` and `pnpm --filter web test` (the OOXML-limits check) run clean; deployed via direct `wrangler`/`@opennextjs/cloudflare` build+deploy.
+
+**Exit criterion:** A DEO session can only read or write the district it belongs to, on every route under `/api/districts/[district]/*` and `/api/upload/chunk`. A data-correction re-upload only re-sends the shop(s) that actually changed. A locked district's local dashboard doesn't keep re-pulling data that can't change.
+
+---
+
 ## Backlog / Not Started
 
 - [x] ~~Verify `exciseup.in` in Resend and switch `RESEND_FROM_EMAIL`~~ — Done. `mail.exciseup.in` verified; `RESEND_FROM_EMAIL` set to `noreply@mail.exciseup.in` on this project's Worker, and the same address set as `FROM_EMAIL` on the sibling `excise-revenue-recovery-portal` project's Worker (different env var name there, same Resend account/domain). Magic-link email is now the Admin/HQ login channel only (DEOs use CUG login as of M-17).

@@ -353,6 +353,7 @@ Do not fetch `/api/auth/session` directly from page components — always go thr
 - **No data in URL query parameters.** All mutations use HTTP POST with JSON body. GET endpoints return only read-only reference data. No sensitive field ever appears in a URL. Exception: the magic-link token in `/auth/verify?token=xxx` — this is a one-time-use opaque random token (not user data).
 - **No secrets in source.** All keys (`SESSION_SECRET`, `API_SECRET`, `RESEND_API_KEY`, `RESEND_FROM_EMAIL`) are Cloudflare Worker Secrets set via `wrangler secret put --name up-excise-spatial-revenue-optimizer-web`. Nothing sensitive is in `.env`, `wrangler.jsonc`, or GitHub secrets beyond the CF deploy token.
 - **Session credentials stay in cookies.** They never touch `localStorage`, `sessionStorage`, or IndexedDB.
+- **Every `/api/districts/[district]/*` route (and `/api/upload/chunk`, which takes `districtName` in its body) must check `user.districtName === district` and return 403 on mismatch, in addition to the plain `getSession()` unauthenticated check.** These routes are DEO-only (see the Route Map above); without the ownership check, `getSession()` alone confirms the caller is *some* logged-in DEO, not that they own the district in the URL/body, and a session cookie is trivial to reuse against a different district name in the request. `upload/chunk` also takes `deoId` from `user.deoId`, never from the request body — a client-supplied identity field is an unrelated way to fake authorship of the same routes. `request-unlock` and `verify` had this check from the start; `shops`, `status`, `submit`, `template`, and `units` (GET and POST) didn't, and any authenticated DEO could read, or in `submit`'s case lock, a district that wasn't theirs by editing the request. Fixed 2026-08-27. Apply the same `user.districtName === district` check to any new route added under `/api/districts/[district]/*`.
 
 ### Admin Data Loading
 
@@ -789,6 +790,7 @@ Full per-milestone delivery history (Objective, Deliverables, Exit Criterion, bu
 | M-65: Admin Cache TTL Enforcement, `makeKvCache` Factory, Shop Table Column-Width Fix | **Completed** |
 | M-66: Final Verification Round Toggle Opened to Any Admin | **Completed** |
 | M-67: DEO Final-Verification Screen at Parity with Admin (`ShopExplorer`), Real DEO Name, Excel Instructions Update | **Completed** |
+| M-68: Cross-District Authorization Fix on DEO Routes; Idempotent Re-Upload; Locked "Fetch from Server" | **Completed** |
 
 See [summary.md](summary.md) for full milestone specs, entry/exit criteria, deliverable checklists, the backlog, and pre-campaign-blocker history.
 
