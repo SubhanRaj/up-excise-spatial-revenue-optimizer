@@ -20,7 +20,7 @@ interface DexieInstance {
   transaction<T>(mode: 'rw', tables: DexieTable<unknown>[], fn: () => Promise<T>): Promise<T>;
 }
 
-import type { StagedRow } from './types';
+import type { Phase1RowInput, StagedRow } from './types';
 import type { ExportShopRow, StateExportUnit } from './excel';
 
 function makeDexie(name: string): DexieInstance {
@@ -43,6 +43,24 @@ function getDb(): DexieInstance {
   return _db;
 }
 
+// Fields that make two rows for the same shop_id actually different data — id/status/
+// errorReason/coordinateWarning are bookkeeping, not content, and uploadedByDeo can
+// legitimately differ (a different Inspector/DEO re-consolidated the file) without the row
+// itself having changed. Used by putRows() below to skip re-staging a row that's byte-identical
+// to what's already uploaded, so a data-correction re-upload only queues the shop(s) that
+// actually changed instead of every shop in the district.
+const CONTENT_FIELDS: (keyof Phase1RowInput)[] = [
+  'circleSectorName', 'thanaName', 'adjacentThanasRaw', 'shopName', 'shopType', 'hasCl5cc',
+  'latitudeDms', 'longitudeDms', 'latitudeDecimal', 'longitudeDecimal',
+  'licenseFeeLf', 'basicLicenseFeeBlf', 'mgrAmount',
+  'compositeLfFl', 'compositeLfBeer', 'compositeMgrFl', 'compositeMgrBeer',
+  'mgqQuantity', 'considerationFee', 'specialBeerLf', 'specialBeerMgr', 'totalRevenue',
+];
+
+function rowContentEqual(a: StagedRow, b: StagedRow): boolean {
+  return CONTENT_FIELDS.every((f) => a[f] === b[f]);
+}
+
 export const stagingDb = {
   // Replaces a district's staged (non-uploaded) rows with a fresh parse — this was
   // documented ("re-uploading replaces staged data, uploaded rows are preserved") but never
@@ -50,6 +68,12 @@ export const stagingDb = {
   // parseExcelFile() call always produces id-less row objects, so every re-upload silently
   // added a second (or third...) copy on top of the old staged rows instead of replacing
   // them — the real cause of /verify appearing to show "old data" after a corrected re-upload.
+  //
+  // Also skips re-staging any row that's byte-identical to its already-uploaded copy (see
+  // rowContentEqual above) — without this, re-uploading a whole corrected district file to fix
+  // one shop queued every shop in the district as 'pending', and Submit District would then
+  // re-send and re-write all of them (idempotent at the D1 row level via onConflictDoUpdate,
+  // but still every row's worth of network + D1 write cost for a one-shop fix).
   putRows: async (rows: StagedRow[]) => {
     if (rows.length > 0) {
       const district = rows[0]!.districtName;
@@ -58,6 +82,11 @@ export const stagingDb = {
         existing.filter((r) => r.status !== 'uploaded' && r.id != null)
           .map((r) => getDb().table<StagedRow>('phase1_staging').delete(r.id!))
       );
+      const uploadedByShopId = new Map(existing.filter((r) => r.status === 'uploaded').map((r) => [r.shopId, r]));
+      rows = rows.filter((r) => {
+        const prev = uploadedByShopId.get(r.shopId);
+        return !prev || !rowContentEqual(r, prev);
+      });
     }
     return getDb().table<StagedRow>('phase1_staging').bulkPut(rows);
   },

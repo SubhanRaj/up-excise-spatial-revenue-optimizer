@@ -23,7 +23,13 @@ async function POST_(req: NextRequest): Promise<NextResponse> {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const body = await req.json() as ChunkBody;
-  const { rows, deoId, districtName, circleSectorName, chunkIndex } = body;
+  const { rows, districtName, circleSectorName, chunkIndex } = body;
+  // deoId is the acting DEO's own identity, not client-supplied data — trusting the body's
+  // deoId would let a DEO attribute an upload to a different account. Same reasoning for the
+  // districtName check below: without it, any authenticated DEO could write into (or read
+  // via the sibling GET routes) a district that isn't theirs by just changing the request.
+  const deoId = user.deoId;
+  if (user.districtName !== districtName) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   if (!Array.isArray(rows) || rows.length === 0) {
     return NextResponse.json({ error: 'rows must be a non-empty array' }, { status: 400 });

@@ -13,6 +13,8 @@ async function GET_(_req: NextRequest, { params }: Ctx): Promise<NextResponse> {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { district } = await params;
+  if (user.districtName !== district) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+
   const { env } = await getCloudflareContext({ async: true }) as { env: CloudflareEnv };
   const db = drizzle(env.DB);
   const rows = await db
@@ -33,6 +35,8 @@ async function POST_(req: NextRequest, { params }: Ctx): Promise<NextResponse> {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { district } = await params;
+  if (user.districtName !== district) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+
   const body = await req.json() as { circles?: string[]; sectors?: string[] };
   const circles = (body.circles ?? []).map((n) => n.trim()).filter(Boolean);
   const sectors = (body.sectors ?? []).map((n) => n.trim()).filter(Boolean);

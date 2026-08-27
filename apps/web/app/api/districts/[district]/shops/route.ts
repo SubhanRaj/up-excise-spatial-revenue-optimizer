@@ -15,6 +15,8 @@ async function GET_(
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { district } = await params;
+  if (user.districtName !== district) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+
   const { env } = await getCloudflareContext({ async: true }) as { env: CloudflareEnv };
   const db = drizzle(env.DB);
   const rows = await db

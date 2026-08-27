@@ -14,11 +14,13 @@ async function POST_(
   const user = await getSession();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
+  const { district } = await params;
+  if (user.districtName !== district) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+
   const body = await req.json().catch(() => ({})) as { submittedByName?: string };
   const submittedByName = body.submittedByName?.trim();
   if (!submittedByName) return NextResponse.json({ error: 'submittedByName is required' }, { status: 400 });
 
-  const { district } = await params;
   const { env } = await getCloudflareContext({ async: true }) as { env: CloudflareEnv };
   const db = drizzle(env.DB);
 

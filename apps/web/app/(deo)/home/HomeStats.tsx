@@ -34,7 +34,7 @@ function getLastSyncedLabel(): string | null {
   }
 }
 
-export default function HomeStats({ district }: { district: string }) {
+export default function HomeStats({ district, locked }: { district: string; locked: boolean }) {
   const [circles, setCircles] = useState<number | null>(null);
   const [circlesError, setCirclesError] = useState<string | null>(null);
   const [staged, setStaged] = useState<number | null>(null);
@@ -120,8 +120,10 @@ export default function HomeStats({ district }: { district: string }) {
       <div className="flex justify-end">
         <button
           onClick={handleSync}
-          disabled={isBusy || !!cooldownLabel}
-          title={syncError ? `Failed: ${syncError}` : lastSyncedLabel ?? 'Never fetched yet'}
+          disabled={isBusy || !!cooldownLabel || locked}
+          title={locked
+            ? 'District is locked — data cannot change until an unlock is approved, so there is nothing new to fetch.'
+            : syncError ? `Failed: ${syncError}` : lastSyncedLabel ?? 'Never fetched yet'}
           className="btn btn-sm btn-outline bg-base-100 shadow gap-1.5"
         >
           {syncing ? (
@@ -129,7 +131,7 @@ export default function HomeStats({ district }: { district: string }) {
           ) : (
             <>
               <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4.05 11a8 8 0 1 1 .5 4m-.5-4H8m-4 0V7"/></svg>
-              {cooldownLabel ?? 'Fetch from Server'}
+              {locked ? 'Locked' : cooldownLabel ?? 'Fetch from Server'}
             </>
           )}
         </button>
