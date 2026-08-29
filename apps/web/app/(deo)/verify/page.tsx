@@ -389,7 +389,7 @@ export default function VerifyPage() {
     const pending = rows.filter((r) => r.status === 'pending');
     if (pending.length === 0) {
       const notyf = (window as unknown as { notyf?: { success: (m: string) => void } }).notyf;
-      notyf?.success('All rows already uploaded!');
+      notyf?.success('All rows already uploaded.');
       return;
     }
 
@@ -582,7 +582,7 @@ export default function VerifyPage() {
       setDistrictStatus('verified');
       void Swal?.fire({
         icon: 'success', title: 'Verified!',
-        html: `<p><b>${district}</b> has been marked as verified. Thank you for confirming your data.</p>`,
+        html: `<p><b>${district}</b> has been marked as verified.</p>`,
       });
     } finally {
       setConfirmingVerify(false);

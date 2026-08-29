@@ -791,6 +791,7 @@ Full per-milestone delivery history (Objective, Deliverables, Exit Criterion, bu
 | M-66: Final Verification Round Toggle Opened to Any Admin | **Completed** |
 | M-67: DEO Final-Verification Screen at Parity with Admin (`ShopExplorer`), Real DEO Name, Excel Instructions Update | **Completed** |
 | M-68: Cross-District Authorization Fix on DEO Routes; Idempotent Re-Upload; Locked "Fetch from Server" | **Completed** |
+| M-69: Excel Instructions Sheet Gains a Per-Shop-Type Revenue Formula Table | **Completed** |
 
 See [summary.md](summary.md) for full milestone specs, entry/exit criteria, deliverable checklists, the backlog, and pre-campaign-blocker history.
 

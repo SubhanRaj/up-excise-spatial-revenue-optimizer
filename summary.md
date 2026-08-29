@@ -1414,6 +1414,24 @@ flowchart LR
 
 ---
 
+### M-69: Excel Instructions Sheet Gains a Per-Shop-Type Revenue Formula Table ✅ Complete
+
+**Objective:** An audit of the portal's UI copy, the Excel template, and the DEO User Manual PDF against the two writing-style skills (`/dev-docs-human`, `/general-english`), plus a direct report that the Excel Instructions sheet's fee guidance was misleading compared to the PDF.
+
+**Root cause:** the Instructions sheet's `COLUMN_GUIDE` table explains each financial column in isolation (one row per column, with a "Required For" list of shop types) — correct on a field-by-field basis, but answering "which fees do I fill in for my shop type" means scanning all 11 financial rows and piecing it together. The DEO User Manual PDF has always had the inverse view — one row per shop type, with that type's full formula — because `build-manual-pdf.spec.ts`'s `buildRevenueFormulasSection()` builds exactly that table. The Excel file itself never had an equivalent, and CLAUDE.md's own admission is that many DEOs only ever open the Excel file and never see the PDF.
+
+**Change:**
+- [x] Added `REVENUE_FORMULA_GUIDE` to `excel.ts` — a bilingual, per-shop-type formula table (same seven rows as the PDF's Section 12 and roadmap.md §4.4), sourced from the same `BHANG_MGQ_MULTIPLIER`/`ON_PREMISES_CONSUMPTION_FEE` constants `revenue.ts` computes from, so the number in the sheet can't drift from the number the Worker actually applies.
+- [x] Spliced this table into the "Instructions" sheet right after the existing column-by-column table and before the "After You Upload" section.
+- [x] Generated a real template with the real `exceljs` package and read back every Instructions-sheet cell to confirm the new table renders correctly and the existing column-by-column table, `FIELD_GATES` cell-level enforcement, and `computeRevenue()` all still agree with each other and with roadmap.md §4.3/§4.4 — they already did; the gap was a missing summary view, not a wrong value anywhere.
+- [x] Fixed a real staleness found during the audit: the bulk-provision template's Column Guide sheet described Expected Vend Count as feeding an "X of Y uploaded" progress display — that display was removed from the District Master list table in M-52. Corrected to describe where the field actually surfaces today (the Districts export sheet's "Expected Vends" column).
+- [x] Cut one chatty filler line ("Thank you for confirming your data.") from the DEO final-verification success dialog. A full sweep of the app's Swal/Notyf copy and HelpPanel text against the two skills' banned-phrase lists (inflated vocabulary, "X, not Y" contrast rhetoric, rule-of-three, vague authority, chatty filler) found nothing else — the existing copy was already plain and direct.
+- [x] `pnpm typecheck` and `pnpm --filter web test` (OOXML-limits check) run clean; deployed via direct `wrangler`/`@opennextjs/cloudflare` build+deploy.
+
+**Exit criterion:** A DEO who only opens the Excel file can find their shop type's full revenue formula in one place on the Instructions sheet, matching the PDF and roadmap.md exactly.
+
+---
+
 ## Backlog / Not Started
 
 - [x] ~~Verify `exciseup.in` in Resend and switch `RESEND_FROM_EMAIL`~~ — Done. `mail.exciseup.in` verified; `RESEND_FROM_EMAIL` set to `noreply@mail.exciseup.in` on this project's Worker, and the same address set as `FROM_EMAIL` on the sibling `excise-revenue-recovery-portal` project's Worker (different env var name there, same Resend account/domain). Magic-link email is now the Admin/HQ login channel only (DEOs use CUG login as of M-17).

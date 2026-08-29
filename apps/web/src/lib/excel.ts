@@ -5,7 +5,7 @@ import { computeRevenue } from './revenue';
 import { validateRow } from './validate';
 import type { StagedRow } from './types';
 import type ExcelJSNamespace from 'exceljs';
-import { SHOP_TYPES, SHOP_TYPE_LABELS } from '@excise/schema';
+import { SHOP_TYPES, SHOP_TYPE_LABELS, BHANG_MGQ_MULTIPLIER, ON_PREMISES_CONSUMPTION_FEE } from '@excise/schema';
 import { STATUS_LABEL } from './status';
 import { compareUnitName } from './unit-sort';
 
@@ -402,6 +402,23 @@ const COLUMN_GUIDE: unknown[][] = [
   [FRIENDLY_LABELS.special_beer_mgr, 'Annual beer Minimum Guaranteed Revenue (INR).\nवार्षिक बियर न्यूनतम गारंटीड राजस्व (INR)।', 'COUNTRY_LIQUOR + CL5CC only / केवल CL5CC', 'Locked to 0 unless shop_type is COUNTRY_LIQUOR and has_cl5cc = true.\nतभी भरा जा सकता है जब shop_type COUNTRY_LIQUOR हो और has_cl5cc = true हो।'],
 ];
 
+// COLUMN_GUIDE above explains each column in isolation, so answering "which fees do I fill
+// in for my shop type" means scanning all 11 financial rows and piecing it together. The
+// DEO User Manual PDF (build-manual-pdf.spec.ts) has always had a per-shop-type formula
+// table for exactly this reason — this is that same table, added to the Instructions sheet
+// itself, since a DEO who only ever opens the Excel file (the common case — Inspectors hand
+// it directly to the DEO) never saw the PDF's version.
+const REVENUE_FORMULA_GUIDE: [string, string, string][] = [
+  ['Shop Type / दुकान प्रकार', 'Annual Revenue Formula / वार्षिक राजस्व सूत्र', 'Note / नोट'],
+  ['MODEL_SHOP', `License Fee (LF) + Min. Guaranteed Revenue (MGR) + ₹${ON_PREMISES_CONSUMPTION_FEE.toLocaleString('en-IN')} (fixed On Premises Consumption Fee)`, 'The fixed fee is a department-set constant — not a field you fill in.\nयह शुल्क विभाग द्वारा तय एक स्थिर राशि है — यह कोई ऐसा field नहीं है जिसे आपको भरना है।'],
+  ['COMPOSITE_SHOP', 'Composite LF – Foreign Liquor + Composite LF – Beer + Composite MGR – Foreign Liquor + Composite MGR – Beer', 'Leave License Fee (LF) and Min. Guaranteed Revenue (MGR) blank/0 — the portal computes both automatically from these four fields.\nLicense Fee (LF) और Min. Guaranteed Revenue (MGR) खाली/0 छोड़ें — पोर्टल इन दोनों को इन चार fields से स्वतः गणना कर लेता है।'],
+  ['PRV', 'License Fee (LF) + Min. Guaranteed Revenue (MGR)', '—'],
+  ['BHANG_SHOP', `License Fee (LF) + (MGQ Quantity × ₹${BHANG_MGQ_MULTIPLIER}/unit)`, 'MGQ Quantity is a COUNT of units, not a rupee amount.\nMGQ मात्रा यूनिटों की गिनती है, रुपये की राशि नहीं।'],
+  ['COUNTRY_LIQUOR (standard)', 'Basic License Fee (BLF) + Consideration Fee', 'Used when Has CL5CC? is FALSE.\nयह तब उपयोग होता है जब Has CL5CC? — FALSE हो।'],
+  ['COUNTRY_LIQUOR + CL5CC', 'Basic License Fee (BLF) + Consideration Fee + Special Beer LF + Special Beer MGR', 'Only when Has CL5CC? is TRUE — the two Special Beer fields only unlock in Excel for this combination.\nकेवल तभी जब Has CL5CC? — TRUE हो — इस संयोजन में ही दोनों Special Beer fields Excel में खुलते हैं।'],
+  ['HBR', 'License Fee (LF) + Consideration Fee', 'Consideration Fee here means the total consideration fee for the previous license year\'s lifting, not the current year.\nयहां Consideration Fee का मतलब है पिछले लाइसेंस वर्ष की lifting का कुल प्रतिफल शुल्क, चालू वर्ष का नहीं।'],
+];
+
 // Per-column hover tooltip (Excel cell "note" — small red triangle, shows on mouseover)
 // on the Data Entry header row, so a DEO doesn't have to flip to the Instructions sheet
 // for a field's rules. Derived from COLUMN_GUIDE (same row order as TEMPLATE_HEADERS) so
@@ -572,6 +589,11 @@ export async function generateTemplate(districtName: string, units: string[]): P
   styleHeaderRow(wsGuide, 1);
   for (const row of COLUMN_GUIDE.slice(1)) wsGuide.addRow(row);
 
+  wsGuide.addRow([]);
+  wsGuide.addRow(REVENUE_FORMULA_GUIDE[0] as ExcelJSNamespace.CellValue[]);
+  styleHeaderRow(wsGuide, wsGuide.rowCount);
+  for (const row of REVENUE_FORMULA_GUIDE.slice(1)) wsGuide.addRow(row);
+
   // "After You Upload" section — this sheet previously only ever described the columns to
   // fill in, while the DEO User Manual (PDF, see TEST.md) separately documents the whole
   // /verify review screen (unit tabs, search, type/circle filters, Group by Type, the
@@ -692,7 +714,7 @@ export async function generateProvisionTemplate(rows: ProvisionTemplateRow[] = [
     ['DEO Name', 'Full name of the District Excise Officer', 'For display in the admin portal only'],
     ['DEO Email', 'Department-issued email address for this DEO', 'For records only — DEOs sign in via CUG, not email/magic-link. Must be unique across all 75 rows.'],
     ['DEO Identifier', 'Department-assigned alphanumeric ID for this DEO', 'Stored on every shop record as uploaded_by_deo. Must be unique.'],
-    ['Expected Vend Count', 'Approximate number of retail vends in the district', 'Used for "X of Y uploaded" progress display in the portal'],
+    ['Expected Vend Count', 'Approximate number of retail vends in the district', 'Optional. Shown on the Districts export sheet as "Expected Vends"; not shown on the District Master list table.'],
   ];
 
   const wb = new ExcelJS.Workbook();
