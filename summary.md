@@ -1522,9 +1522,10 @@ flowchart LR
 **Change:**
 - [x] `/home`'s "Fetch from Server" button (`HomeStats.tsx`) no longer disables and relabels itself "Locked" on a submitted/verified district. It pulls already-uploaded rows into local IndexedDB, a read, so the lock has no bearing on it.
 - [x] `/upload`'s locked view (shown while a district is submitted/verified, before or after a data-correction unlock is approved) now has its own "Download Current Data (.xlsx)" button, calling the same `downloadTemplate()` the unlocked view already uses. A DEO can pull the pre-filled template as soon as an unlock is approved without waiting on the page to first re-render into its unlocked state.
+- [x] Extracted the drop-zone/status-alert markup into a shared `renderDropzone()` and added it to the locked view too, right below the download button. Parsing a file into local `stagingDb` never touches the server — only `POST /api/upload/chunk` (called from `/verify`'s submit flow) enforces the lock — so the DEO can select and stage their corrected file the moment it's edited, even while the unlock is still pending, instead of waiting for the page to flip into its unlocked state.
 - [x] `pnpm typecheck` and `pnpm --filter web test` run clean; deployed via direct `wrangler`/`@opennextjs/cloudflare` build+deploy.
 
-**Exit criterion:** A DEO can fetch/download current D1 data for their district at any time, locked or not.
+**Exit criterion:** A DEO can fetch/download current D1 data and stage a corrected file for their district at any time, locked or not.
 
 ---
 
