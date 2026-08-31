@@ -122,6 +122,32 @@ export const stagingDb = {
   },
 };
 
+/** Ensures this device's local staging cache matches D1 for `district`, reusing the same
+ * `verify-synced-{district}` flag the final-verification screen sets after its own one-time
+ * sync (apps/web/app/(deo)/verify/page.tsx). A data-correction unlock never touches any
+ * phase1_raw_collection row — it only flips districts.status — so a cache already synced from
+ * an earlier visit (including the final-verification screen's own sync, or a prior call to
+ * this same function) is still accurate and this is a no-op D1-wise. Used by /upload's
+ * "Download District Template" so the downloaded file can be pre-filled with current data
+ * without a redundant D1 read every time it's clicked. */
+export async function ensureDistrictSynced(district: string): Promise<StagedRow[]> {
+  const key = `verify-synced-${district}`;
+  if (localStorage.getItem(key) !== 'true') {
+    await stagingDb.clearAll();
+    try {
+      const res = await fetch(`/api/districts/${encodeURIComponent(district)}/shops`);
+      if (res.ok) {
+        const body = await res.json() as { rows: StagedRow[] };
+        await stagingDb.putRows(body.rows.map((r) => ({ ...r, status: 'uploaded' as const })));
+      }
+      localStorage.setItem(key, 'true');
+    } catch {
+      // Best-effort — flag stays unset, next call retries the D1 fetch.
+    }
+  }
+  return stagingDb.getByDistrict(district);
+}
+
 interface QueuedChunk {
   id?: number;
   chunkIndex: number;

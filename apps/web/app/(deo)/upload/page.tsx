@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSession } from '@/hooks/useSession';
-import { stagingDb } from '@/lib/db';
+import { stagingDb, ensureDistrictSynced } from '@/lib/db';
 import HelpPanel from '@/app/_components/HelpPanel';
 import { isLocked } from '@/lib/status';
 
@@ -138,11 +138,16 @@ export default function UploadPage() {
     );
   }
 
+  // Pre-fills the downloaded template with the district's current D1 data — a data-correction
+  // unlock resets districts.status but never touches phase1_raw_collection, so on the
+  // re-download after an unlock the DEO is editing the real existing rows in place rather than
+  // retyping the whole district from memory. ensureDistrictSynced() only hits D1 once per
+  // sync cycle (shared with the final-verification screen's own sync flag); a first-ever
+  // upload with no D1 rows yet naturally comes back empty and the sheet is blank as before.
   async function downloadTemplate() {
-    const res = await fetch(`/api/districts/${encodeURIComponent(district)}/template`);
-    const meta = await res.json() as { districtName: string; units: { name: string }[] };
+    const existingRows = district ? await ensureDistrictSynced(district) : [];
     const { generateTemplate } = await import('@/lib/excel');
-    const blob = await generateTemplate(meta.districtName, meta.units.map((u) => u.name));
+    const blob = await generateTemplate(district, units.map((u) => u.name), existingRows);
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url; a.download = `${district}-template.xlsx`; a.click();

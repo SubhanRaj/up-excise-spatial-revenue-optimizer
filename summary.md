@@ -1485,6 +1485,22 @@ flowchart LR
 
 ---
 
+### M-73: Pre-Filled Data-Correction Template, Shared D1-Sync Cache for Re-Uploads ✅ Complete
+
+**Objective:** the data-correction unlock flow (M-54) always downloaded a blank template — a DEO fixing one wrong shop out of hundreds had to retype the whole district from memory into that blank sheet. Pre-fill it with the district's current D1 data instead, and avoid hitting D1 again on every repeat visit or download while doing so.
+
+**Change:**
+- [x] `generateTemplate()` (`apps/web/src/lib/excel.ts`) takes an optional third `existingRows` argument and writes them as real data rows starting at row 3 — same column order, same friendly `shop_type` label, same data-validation ranges (already independent of row count). A DEO now edits the wrong cell directly instead of re-entering every shop.
+- [x] Added `ensureDistrictSynced()` (`apps/web/src/lib/db.ts`) — reuses the `verify-synced-{district}` `localStorage` flag the final-verification screen (M-60) already sets. An unlock resets `districts.status` but never touches `phase1_raw_collection`, so a cache synced on an earlier visit — by either screen — is still accurate; the function only hits D1 when the flag isn't already set, and refreshes local `stagingDb` from that same read. `/upload`'s "Download District Template" button calls it: one D1 read per real unlock cycle, not one per click or page reload.
+- [x] Combined with the existing idempotent-re-upload behavior (`putRows()`, M-68) and `POST /api/upload/chunk`'s `onConflictDoUpdate`, a correction now costs at most one D1 read plus writes for only the rows the DEO actually changed — the three pieces (pre-filled download, cached sync, idempotent upload) were built independently across M-68 and this milestone but compound into the full loop the user described.
+- [x] `/upload`'s download handler now reads circle/sector names from the page's own already-loaded `units` state instead of a separate API call. Removed the now-fully-unused `GET /api/districts/[district]/template` route (it only ever returned district name + units, both already available client-side) and its Route Map entry.
+- [x] Verified the prefill directly: generated a real template with a fake existing row via the real `exceljs` package and read the values back — every field round-trips correctly, including the `shop_type` friendly label.
+- [x] `pnpm typecheck` and `pnpm --filter web test` run clean; deployed via direct `wrangler`/`@opennextjs/cloudflare` build+deploy.
+
+**Exit criterion:** Re-downloading the template after a data-correction unlock shows the district's real current data, not a blank sheet. Repeated downloads, reloads, or page visits during one correction cycle cost zero additional D1 reads once the first sync has happened.
+
+---
+
 ## Backlog / Not Started
 
 - [x] ~~Verify `exciseup.in` in Resend and switch `RESEND_FROM_EMAIL`~~ — Done. `mail.exciseup.in` verified; `RESEND_FROM_EMAIL` set to `noreply@mail.exciseup.in` on this project's Worker, and the same address set as `FROM_EMAIL` on the sibling `excise-revenue-recovery-portal` project's Worker (different env var name there, same Resend account/domain). Magic-link email is now the Admin/HQ login channel only (DEOs use CUG login as of M-17).

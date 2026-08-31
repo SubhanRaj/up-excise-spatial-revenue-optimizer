@@ -576,14 +576,33 @@ async function buildShopDataSheet(
  * ExcelJS produces spec-compliant OOXML natively (freeze panes, print setup, data
  * validation) so there is no hand-edited worksheet XML that can corrupt the file.
  */
-export async function generateTemplate(districtName: string, units: string[]): Promise<Blob> {
+export async function generateTemplate(districtName: string, units: string[], existingRows?: StagedRow[]): Promise<Blob> {
   const titleText = `District: ${districtName.toUpperCase()}   |   UP Excise Spatial Revenue Optimizer   |   DEO Data Entry Template`;
 
   const wb = new ExcelJS.Workbook();
   wb.creator = 'UP Excise Spatial Revenue Optimizer';
   wb.created = new Date();
 
-  await buildShopDataSheet(wb, 'Data Entry', titleText, units);
+  const dataSheet = await buildShopDataSheet(wb, 'Data Entry', titleText, units);
+
+  // Data-correction unlock: the DEO re-downloads this same template pre-filled with the
+  // district's current D1 data instead of a blank sheet, so a correction is "edit the wrong
+  // cell" rather than "retype the whole district from memory." Column-level unlock and every
+  // data-validation range were already set up against VALIDATION_ROW_LIMIT above, independent
+  // of how many rows actually have values, so writing real rows here doesn't need any of that
+  // touched again.
+  if (existingRows && existingRows.length > 0) {
+    existingRows.forEach((row, i) => {
+      dataSheet.getRow(i + 3).values = [
+        row.circleSectorName, row.thanaName, row.adjacentThanasRaw ?? '',
+        row.shopId, row.shopName, SHOP_TYPE_LABEL_LOOKUP[row.shopType] ?? row.shopType, row.hasCl5cc,
+        row.latitudeDecimal ?? null, row.longitudeDecimal ?? null,
+        row.licenseFeeLf, row.basicLicenseFeeBlf, row.mgrAmount,
+        row.compositeLfFl, row.compositeLfBeer, row.compositeMgrFl, row.compositeMgrBeer,
+        row.mgqQuantity, row.considerationFee, row.specialBeerLf, row.specialBeerMgr,
+      ] as ExcelJSNamespace.CellValue[];
+    });
+  }
 
   const wsGuide = wb.addWorksheet('Instructions');
   wsGuide.getRow(1).values = COLUMN_GUIDE[0] as ExcelJSNamespace.CellValue[];
