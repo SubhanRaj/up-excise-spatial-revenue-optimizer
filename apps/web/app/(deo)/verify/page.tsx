@@ -14,6 +14,7 @@ import { RevenueCell } from '@/components/RevenueCell';
 import { isLocked } from '@/lib/status';
 import { SHOP_TYPE_LABELS, SHOP_TYPES } from '@excise/schema';
 import { ShopExplorer, type ShopExplorerRow } from '@/components/ShopExplorer';
+import { ThanaVariantsCard } from '@/components/ThanaVariantsCard';
 import { UnitsModal } from '@/components/UnitsModal';
 import { useShopAggregates } from '@/hooks/useShopAggregates';
 
@@ -328,6 +329,11 @@ export default function VerifyPage() {
   const districtThanas = useMemo(() => new Set((viewMode === 'uploaded' ? uploadedRows : rows).map((r) => r.thanaName)), [rows, uploadedRows, viewMode]);
 
   const visibleRows = viewMode === 'uploaded' ? uploadedRows : rows;
+
+  // Same data-quality check the final-verification screen (ShopExplorer) already has — but
+  // this staged/uploaded table is the one a DEO looks at before ever reaching final
+  // verification, so surfacing it only there meant most DEOs never saw it until much later.
+  const { thanaVariants: stagedThanaVariants } = useShopAggregates(visibleRows, unitsFull);
 
   // A row whose circle_sector_name doesn't exactly match a registered unit (a typo, or an
   // Inspector pasting the column instead of using the dropdown — Excel's list validation
@@ -859,6 +865,8 @@ export default function VerifyPage() {
         )}
       </div>
 
+      <ThanaVariantsCard clusters={stagedThanaVariants} />
+
       {/* Verification table */}
       {unitsReady && paged.length > 0 && (
         <>
@@ -915,7 +923,7 @@ export default function VerifyPage() {
                         <span className="text-xs text-base-content/60" aria-label="No coordinates">—</span>
                       )}
                     </td>
-                    <td role="gridcell" className="text-xs font-mono">{formatInr(row.totalRevenue)}</td>
+                    <td role="gridcell" className="text-xs font-mono relative"><RevenueCell s={row} /></td>
                     <td role="gridcell">
                       <span className={`badge badge-xs ${row.status === 'uploaded' ? 'badge-success' : row.status === 'error' ? 'badge-error' : 'badge-ghost'}`}>
                         {row.status}

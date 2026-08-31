@@ -1465,6 +1465,26 @@ flowchart LR
 
 ---
 
+### M-72: Digit-Aware Thana Clustering, Data-Quality Checks on the DEO Staged-Review Table, Manual Rework ✅ Complete
+
+**Objective:** three follow-ups from reviewing M-70/M-71 against real Noida data and the actual DEO workflow: the Thana-variant clustering wrongly grouped different Noida sector numbers together; the DEO's normal pre-submission review table (as opposed to the read-only final-verification screen) never showed either new data-quality check; and the DEO User Manual PDF didn't mention either check at all.
+
+**Root cause (clustering):** `findThanaNameVariants()` ran plain Levenshtein distance over every pair of names. For short, mostly-numeric names like "Sector 62" and "Sector 74", that distance is small — the shared "Sector " prefix dominates the string — so the function clustered different real stations together. It simultaneously *missed* genuine variants of the same station when the surrounding text differed a lot ("Sector 62" vs "62, Noida" have a large edit distance despite naming the same place). The bug was treating a name's digits as just more characters, when for a sector-numbered station the digits are the one part of the name that's actually meaningful.
+
+**Root cause (staged-review table):** `ShopExplorer` (with `RevenueCell` and, as of this milestone, `ThanaVariantsCard`) is only used by the DEO's *final-verification* screen — a separate, read-only view that only exists once a district reaches `submitted`/`verified` under the M-60 final-verification round. The DEO's everyday `/verify` table, used before that point on every district, is a hand-built table that predates both new checks, so a DEO could go through their normal review-and-submit flow without ever seeing either warning.
+
+**Change:**
+- [x] `findThanaNameVariants()` now extracts each name's digit sequence first. Two names with different digit sequences never cluster, no matter how close the edit distance; two names with the *same* digit sequence always cluster, no matter how different the rest of the string looks. Plain edit distance is only used when neither name has digits at all (the original "Kotwali"/"Kotwaali" case). Verified against real Noida data: "Sector 20, noida" now clusters only with "Noida Sec-20", not with "Sector 24" or "SECTOR-113".
+- [x] Extracted the "Possible Duplicate Thana Names" card into a shared `ThanaVariantsCard` component (`apps/web/src/components/ThanaVariantsCard.tsx`), used by both `ShopExplorer` and the DEO staged-review table directly.
+- [x] `/verify`'s staged/uploaded review table now renders `RevenueCell` (the ⚠ wrong-field badge) in its Revenue column instead of a bare formatted number, and shows `ThanaVariantsCard` above the table — both computed from `useShopAggregates(visibleRows, unitsFull)`, called a second time alongside the existing final-verification aggregates.
+- [x] Added items #7 and #8 to the DEO User Manual's "Read This First — Common Mistakes to Avoid" page, matching the existing six items' bilingual format, explaining the ⚠ revenue badge and the duplicate-Thana card. Extended Section 14's copy to point at them.
+- [x] Regenerated the actual manual end to end — rebuilt the worker, ran the full Playwright screenshot walkthrough (`manual-screenshots.spec.ts`) against a reset local Agra district on the OpenNext preview server, then rebuilt the PDF (`build-manual-pdf.spec.ts`). Found and fixed a real bug in the walkthrough's own test fixture in the process: its demo COUNTRY_LIQUOR row had a stray `mgq_quantity` value (a BHANG_SHOP-only field) — exactly the M-70 wrong-column pattern — which the new blocking `validateRow()` check correctly rejected, breaking the walkthrough. Confirmed the new PDF pages render correctly.
+- [x] `pnpm typecheck` and `pnpm --filter web test` run clean; deployed via direct `wrangler`/`@opennextjs/cloudflare` build+deploy; PDF and screenshots committed (fetched by the app from GitHub raw, not bundled in the Worker — no redeploy needed for manual-only changes).
+
+**Exit criterion:** Noida's genuinely distinct sector-numbered stations are never flagged as duplicates of each other, while real formatting variants of the same sector still are. A DEO sees both new data-quality checks during normal pre-submission review, not only after a district reaches final verification. The manual explains both checks with the same screenshots-and-bilingual-text format as everything else in it.
+
+---
+
 ## Backlog / Not Started
 
 - [x] ~~Verify `exciseup.in` in Resend and switch `RESEND_FROM_EMAIL`~~ — Done. `mail.exciseup.in` verified; `RESEND_FROM_EMAIL` set to `noreply@mail.exciseup.in` on this project's Worker, and the same address set as `FROM_EMAIL` on the sibling `excise-revenue-recovery-portal` project's Worker (different env var name there, same Resend account/domain). Magic-link email is now the Admin/HQ login channel only (DEOs use CUG login as of M-17).

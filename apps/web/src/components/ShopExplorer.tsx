@@ -2,6 +2,7 @@
 
 import { memo, useMemo, useState } from 'react';
 import { RevenueCell, type RevenueShopFields } from '@/components/RevenueCell';
+import { ThanaVariantsCard } from '@/components/ThanaVariantsCard';
 import { SHOP_TYPE_BADGE_CLASS, SHOP_TYPE_SHORT_LABEL } from '@/lib/shop-type';
 import { SHOP_TYPE_LABELS, SHOP_TYPES } from '@excise/schema';
 import { useShopAggregates } from '@/hooks/useShopAggregates';
@@ -336,28 +337,7 @@ export function ShopExplorer({
 
       {/* Possible Thana name spelling variants — not auto-merged, a human confirms these are
           really the same place before anything changes (see findThanaNameVariants). */}
-      {!loading && thanaVariants.length > 0 && (
-        <div className="bg-warning/5 rounded-xl border border-warning/30 p-4">
-          <p className="text-[11px] uppercase tracking-widest font-medium text-warning mb-2">
-            ⚠ Possible Duplicate Thana Names ({thanaVariants.length})
-          </p>
-          <p className="text-xs text-base-content/70 mb-3">
-            These groups of Thana names look like spelling variants of the same place, which inflates the Thana count on the breakdown above. Confirm with the DEO and correct any typos via a data-correction re-upload.
-          </p>
-          <div className="flex flex-wrap gap-3">
-            {thanaVariants.map((group) => (
-              <div key={group.join('|')} className="flex flex-wrap items-center gap-1 rounded-lg border border-warning/40 bg-base-100 px-2.5 py-1.5">
-                {group.map((name, i) => (
-                  <span key={name}>
-                    <span className="text-xs font-medium">{name}</span>
-                    {i < group.length - 1 && <span className="text-base-content/40 mx-1">≈</span>}
-                  </span>
-                ))}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      {!loading && <ThanaVariantsCard clusters={thanaVariants} />}
 
       {/* Table card */}
       <div className="bg-base-100 rounded-xl border border-base-200 overflow-hidden">

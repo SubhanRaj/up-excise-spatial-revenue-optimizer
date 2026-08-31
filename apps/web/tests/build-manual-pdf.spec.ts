@@ -121,8 +121,8 @@ const SECTIONS: Section[] = [
     file: '12-verify-rows.png',
     titleEn: '14. Verify & Submit',
     titleHi: '१४. जाँचें और सबमिट करें',
-    textEn: 'Review every row, grouped by Circle/Sector. Any adjacent-Thana entry shown in red is a possible typo — it does not block submission but is worth double-checking. Use the search box to find a specific shop by name or ID.',
-    textHi: 'Circle/Sector के अनुसार समूहीकृत हर row की समीक्षा करें। लाल रंग में दिखाई देने वाली कोई भी adjacent-Thana प्रविष्टि एक संभावित टाइपो है — यह सबमिशन को नहीं रोकती लेकिन इसे दोबारा जांचना उचित है। किसी विशेष दुकान को नाम या ID से खोजने के लिए search box का उपयोग करें।',
+    textEn: 'Review every row, grouped by Circle/Sector. Any adjacent-Thana entry shown in red is a possible typo — it does not block submission but is worth double-checking. Use the search box to find a specific shop by name or ID. A ⚠ next to a shop\'s revenue amount and the "Possible Duplicate Thana Names" card (if it appears) are both worth checking before you submit — see #7 and #8 on the "Read This First" page.',
+    textHi: 'Circle/Sector के अनुसार समूहीकृत हर row की समीक्षा करें। लाल रंग में दिखाई देने वाली कोई भी adjacent-Thana प्रविष्टि एक संभावित टाइपो है — यह सबमिशन को नहीं रोकती लेकिन इसे दोबारा जांचना उचित है। किसी विशेष दुकान को नाम या ID से खोजने के लिए search box का उपयोग करें। दुकान की revenue राशि के पास ⚠ और "Possible Duplicate Thana Names" कार्ड (अगर दिखे) दोनों सबमिट करने से पहले जांचने योग्य हैं — देखें "Read This First" पेज पर #7 और #8।',
   },
   {
     file: '13-verify-confirm-submit.png',
@@ -419,6 +419,18 @@ test('build bilingual DEO User Manual PDF from captured screenshots', async ({ p
     <p><span class="num">6</span><strong class="head">On the Verify page, a red Adjacent Thana name (as opposed to a fully blank cell) is NOT an error.</strong></p>
     <p class="en">A blank cell is blocked (see #5 above) — but if you've entered a name and it still shows red, that only means that Thana name doesn't (yet) appear elsewhere in this district's own uploaded data — usually because no shop from that Thana has been uploaded in this particular batch yet, not a mistake. It is worth a quick spelling double-check, but a red name by itself does <strong>not</strong> block submission and does not need to be fixed before you submit.</p>
     <p class="hi">खाली cell को रोका जाता है (ऊपर #5 देखें) — लेकिन अगर आपने कोई नाम भरा है और वह फिर भी लाल दिखता है, तो इसका मतलब बस इतना है कि वह Thana नाम अभी तक इस जिले के अपने अपलोड किए गए डेटा में कहीं और मौजूद नहीं है — आमतौर पर इसलिए क्योंकि उस Thana की कोई दुकान अभी तक इस batch में अपलोड नहीं हुई, यह कोई गलती नहीं है। वर्तनी एक बार जांच लेना उचित है, लेकिन अकेले लाल नाम होने से सबमिशन <strong>नहीं</strong> रुकता और सबमिट करने से पहले इसे ठीक करने की आवश्यकता नहीं है।</p>
+  </div>
+
+  <div class="warn-item">
+    <p><span class="num">7</span><strong class="head">A ⚠ next to a shop's revenue amount means part of it was not counted.</strong></p>
+    <p class="en">Each shop type calculates Total Revenue from a fixed set of fields — see Section 12. If a fee is entered into a field that shop type does not use, the portal accepts the entry but leaves it out of Total Revenue, and marks the amount with a ⚠. Tap the amount to open the Revenue Breakdown, find the field listed under "Entered but not counted," and move that value into the correct field for the shop's type.</p>
+    <p class="hi">हर दुकान प्रकार अपना Total Revenue कुछ निश्चित fields से निकालता है — देखें खंड १२। अगर कोई शुल्क ऐसे field में भरा गया है जो उस दुकान प्रकार में उपयोग नहीं होता, तो पोर्टल उसे स्वीकार तो कर लेता है, लेकिन उसे Total Revenue में नहीं गिनता और राशि पर ⚠ दिखाता है। राशि पर टैप करके Revenue Breakdown खोलें, "Entered but not counted" के नीचे दिख रहे field को देखें, और उस value को दुकान के सही field में ले जाएं।</p>
+  </div>
+
+  <div class="warn-item">
+    <p><span class="num">8</span><strong class="head">Check "Possible Duplicate Thana Names" if it appears on your Verify page.</strong></p>
+    <p class="en">This card lists station names that look like spelling variants of the same place — for example "Kotwali" and "Kotwaali." If two names really are the same station, agree on one spelling with your Inspectors and correct it before resubmitting. If they are genuinely different stations, no action is needed — the card is a prompt to check, not an error.</p>
+    <p class="hi">यह कार्ड उन थाना नामों को दिखाता है जो एक ही जगह की वर्तनी में भिन्नता जैसे लगते हैं — उदाहरण के लिए "Kotwali" और "Kotwaali"। अगर दोनों नाम वास्तव में एक ही थाना हैं, तो अपने Inspectors के साथ एक वर्तनी तय करें और दोबारा सबमिट करने से पहले उसे ठीक करें। अगर वे वास्तव में अलग-अलग थाने हैं, तो कुछ करने की आवश्यकता नहीं है — यह कार्ड केवल जांचने के लिए है, त्रुटि नहीं।</p>
   </div>
 </div>
 
