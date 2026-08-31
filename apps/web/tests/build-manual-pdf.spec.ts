@@ -104,8 +104,8 @@ const SECTIONS: Section[] = [
     file: '10-upload-empty.png',
     titleEn: '10. Download the Template & Upload District File',
     titleHi: '१०. टेम्पलेट डाउनलोड करें और जिला फ़ाइल अपलोड करें',
-    textEn: 'First tap "Download District Template" — this generates a bilingual Excel workbook pre-filled with your registered Circle/Sector names (see Section 11 for what\'s inside). Give copies to your Inspectors to fill, then collect the filled sections, consolidate them into one district Excel file, and select it here. Every shop must reference a Circle/Sector name exactly as registered in Step 1.',
-    textHi: 'सबसे पहले "Download District Template" पर टैप करें — यह आपके पंजीकृत Circle/Sector नामों से पहले से भरा हुआ एक द्विभाषी Excel workbook बनाता है (अंदर क्या है, यह जानने के लिए खंड ११ देखें)। भरने के लिए इसकी प्रतियां अपने Inspectors को दें, फिर भरे गए हिस्से इकट्ठा करें, उन्हें एक जिला Excel फ़ाइल में मिलाएं, और उसे यहां चुनें। प्रत्येक दुकान को ठीक उसी Circle/Sector नाम का संदर्भ देना चाहिए जो चरण 1 में पंजीकृत किया गया था।',
+    textEn: 'First tap "Download District Data" — this generates a bilingual Excel workbook pre-filled with your registered Circle/Sector names (see Section 11 for what\'s inside). Give copies to your Inspectors to fill, then collect the filled sections, consolidate them into one district Excel file, and select it here. Every shop must reference a Circle/Sector name exactly as registered in Step 1.',
+    textHi: 'सबसे पहले "Download District Data" पर टैप करें — यह आपके पंजीकृत Circle/Sector नामों से पहले से भरा हुआ एक द्विभाषी Excel workbook बनाता है (अंदर क्या है, यह जानने के लिए खंड ११ देखें)। भरने के लिए इसकी प्रतियां अपने Inspectors को दें, फिर भरे गए हिस्से इकट्ठा करें, उन्हें एक जिला Excel फ़ाइल में मिलाएं, और उसे यहां चुनें। प्रत्येक दुकान को ठीक उसी Circle/Sector नाम का संदर्भ देना चाहिए जो चरण 1 में पंजीकृत किया गया था।',
   },
   // Sections 11 & 12 (template columns table + revenue formulas) are inserted programmatically
   // below, right after this array, since their content is read from the real downloaded

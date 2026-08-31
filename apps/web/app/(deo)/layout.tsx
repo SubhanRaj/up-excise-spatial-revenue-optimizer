@@ -65,11 +65,13 @@ export default function DeoLayout({ children }: { children: React.ReactNode }) {
         // Submit District) no longer makes sense once submitted, so it drops from the nav —
         // the read-only Uploaded Data link (below) is the only "verify" surface left.
         ...(hasUnits ? [{ href: '/upload', label: 'Upload' }] : []),
-        ...(hasUnits && !submitted ? [{ href: '/verify', label: 'Verify' }] : []),
         // Direct shortcut to the uploaded-data view (same destination as the Home dashboard's
         // "Shops Uploaded" stat card) — only once locked units exist and something has actually
         // been uploaded, so it never appears as a dead link.
         ...(hasUnits && uploadedCount > 0 ? [{ href: '/verify?view=uploaded', label: 'Uploaded Data' }] : []),
+        // Verify is last — it's the final step in the flow (submit to headquarters), so it
+        // reads left-to-right as Circles → Upload → Uploaded Data → Verify.
+        ...(hasUnits && !submitted ? [{ href: '/verify', label: 'Verify' }] : []),
       ];
 
   return (

@@ -115,7 +115,7 @@ test.describe('DEO Manual — screenshot walkthrough', () => {
     await page.goto('/upload');
     const [download] = await Promise.all([
       page.waitForEvent('download'),
-      page.click('button:has-text("Download District Template")'),
+      page.click('button:has-text("Download District Data")'),
     ]);
     const templateSamplePath = path.join(os.tmpdir(), 'excise-manual-template-sample.xlsx');
     await download.saveAs(templateSamplePath);

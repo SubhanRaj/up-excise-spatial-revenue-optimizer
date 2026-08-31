@@ -128,7 +128,7 @@ export const stagingDb = {
  * phase1_raw_collection row — it only flips districts.status — so a cache already synced from
  * an earlier visit (including the final-verification screen's own sync, or a prior call to
  * this same function) is still accurate and this is a no-op D1-wise. Used by /upload's
- * "Download District Template" so the downloaded file can be pre-filled with current data
+ * "Download District Data" so the downloaded file can be pre-filled with current data
  * without a redundant D1 read every time it's clicked. */
 export async function ensureDistrictSynced(district: string): Promise<StagedRow[]> {
   const key = `verify-synced-${district}`;
