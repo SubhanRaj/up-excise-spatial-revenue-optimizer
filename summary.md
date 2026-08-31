@@ -1432,6 +1432,24 @@ flowchart LR
 
 ---
 
+### M-70: Wrong-Column Money Detection, Thana Name Variant Detection, and a Prod Data-Quality Audit ✅ Complete
+
+**Objective:** two data-entry mistake patterns were showing up in real submitted data — money entered in a fee field a shop's type doesn't count (so it never reaches Total Revenue), and the same physical Thana entered under two or three spellings (inflating a district's real Thana count). Catch both going forward, and audit the 75 already-submitted districts for how much of this already exists.
+
+**Root cause:** `validateRow()` only ever checked that a row's `total_revenue` matched what its own fields sum to — a row with money in the wrong field is internally self-consistent (the wrong total matches the wrong fields), so this check never caught it. Separately, every place that counted distinct Thanas per circle/sector (`useShopAggregates`, the circle-sector export sheet) built a `Set` from the raw, unnormalized `thanaName` string, so two spellings of one real place always counted as two.
+
+**Change:**
+- [x] Added `MONEY_FIELD_GATES`/`isStrayMoneyValue()` to `packages/schema/src/constants.ts` — which shop types (and CL5CC state) each money field is active for, mirroring the Revenue Formulas table in CLAUDE.md/roadmap.md exactly. Shared by `validateRow()` (now a blocking error — future uploads with a stray value can't be submitted) and `RevenueCell` (a ⚠ badge next to the revenue figure, plus a "not counted" section in the breakdown popup — live on both the admin district page and the DEO final-verification screen, since they share the component).
+- [x] Added `apps/web/src/lib/thana-name.ts` — `normalizeThanaName()` (case/whitespace only, applied everywhere a Thana count is derived from a Set) and `findThanaNameVariants()` (Levenshtein-based clustering, review-only — never auto-merges, since a wrong merge could hide two genuinely different Thanas). `ShopExplorer` shows a "Possible Duplicate Thana Names" card per district when clusters exist.
+- [x] `scripts/audit-data-quality.mts` — a one-time script against prod D1 (not part of any deploy). Found **12,361** wrong-column money entries across **39** of 75 districts, and Thana name variant clusters in **27** districts, on data submitted before this fix existed.
+- [x] Reviewed Lucknow's data by hand as a clean reference pattern (`ALL CAPS`, bare station names, no punctuation, Adjacent Thanas as a real multi-name list) and wrote `scripts/audit-thana-patterns.mts` (a second one-time diagnostic, not wired into the app) checking every district against that pattern: **7,912** shops (49 districts) with only one Adjacent Thana listed, **642** shops (3 districts — Ghazipur, Rampur, Gautam Buddha Nagar) with the field fully blank (pre-dates the M-58 mandatory-presence fix), plus formatting artifacts (trailing commas, double spaces) and Gautam Buddha Nagar's sector-numbered station names appearing in several inconsistent formats.
+- [x] Published a findings report (Artifact) summarizing all of the above with real examples, for the pre-campaign meeting and as a reverification-round checklist for DEOs.
+- [x] `pnpm typecheck` and `pnpm --filter web test` (OOXML-limits check) run clean; deployed via direct `wrangler`/`@opennextjs/cloudflare` build+deploy.
+
+**Exit criterion:** A new upload with money in the wrong fee field is rejected before it reaches D1. Every shop's revenue figure shows a ⚠ if it has one. Every district page lists its own likely Thana-name spelling variants. The scale of pre-existing bad data across all 75 districts is known and documented, not guessed at.
+
+---
+
 ## Backlog / Not Started
 
 - [x] ~~Verify `exciseup.in` in Resend and switch `RESEND_FROM_EMAIL`~~ — Done. `mail.exciseup.in` verified; `RESEND_FROM_EMAIL` set to `noreply@mail.exciseup.in` on this project's Worker, and the same address set as `FROM_EMAIL` on the sibling `excise-revenue-recovery-portal` project's Worker (different env var name there, same Resend account/domain). Magic-link email is now the Admin/HQ login channel only (DEOs use CUG login as of M-17).
