@@ -80,7 +80,7 @@ export default async function DeoDashboard() {
             <div>
               <h3 className="font-semibold text-base">Step 2 — Upload District File</h3>
               <p className="text-xs text-base-content/60">चरण 2 — जिला फ़ाइल अपलोड करें</p>
-              <p className="text-sm text-base-content/80 mt-1">Download the template, get it filled, then upload the completed Excel file here</p>
+              <p className="text-sm text-base-content/80 mt-1">Download the district data Excel, get it filled, then upload the completed file here</p>
             </div>
             <div className="mt-auto"><span className="btn btn-secondary btn-sm w-full">Upload</span></div>
           </Link>
@@ -92,7 +92,7 @@ export default async function DeoDashboard() {
             <div>
               <h3 className="font-semibold text-base">Step 3 — Verify &amp; Submit</h3>
               <p className="text-xs text-base-content/60">चरण 3 — जांचें और सबमिट करें</p>
-              <p className="text-sm text-base-content/80 mt-1">Review uploaded records, fix errors, then submit to headquarters</p>
+              <p className="text-sm text-base-content/80 mt-1">Review your staged records, fix errors, then submit to headquarters</p>
             </div>
             <div className="mt-auto"><span className="btn btn-success btn-sm w-full">Review</span></div>
           </Link>
