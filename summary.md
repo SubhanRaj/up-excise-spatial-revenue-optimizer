@@ -1575,6 +1575,20 @@ flowchart LR
 
 ---
 
+### M-79: Stray-Money Check Made Non-Blocking (Was Silently Dropping Rows On Upload) ✅ Complete
+
+**Objective:** DEOs started reporting failed uploads — "unable to upload," a district showing "0 of 60 rows uploaded." Root cause: M-70's stray-money check (`isStrayMoneyValue()` — a shop type with money filled into a field its formula doesn't use) was wired into `validateRow()` as a blocking `RowError`, the same shared function both `/upload`'s client-side parse step and `POST /api/upload/chunk` call. A row that fails `validateRow()` gets `status: 'error'` and is excluded from submission entirely — this is the exact same mistake the coordinate-bbox check right next to it in the same file was already fixed for (see that section's own comment, still present, explaining why a blocking check there was wrong). The prod audit that built the stray-money detector in the first place (`scripts/audit-data-quality.mts`) had already found this pattern in 39 of 75 districts — a real, common habit, not a rare typo — so any of those districts re-uploading (a data-correction unlock, or any future re-upload) had most or all of their rows silently dropped, since the habit repeats across the whole file.
+
+**Change:**
+- [x] Removed the `MONEY_FIELD_GATES` loop from `validateRow()` (`apps/web/src/lib/validate.ts`) — it no longer pushes a `RowError` for a stray money value. Dropped the now-unused `MONEY_FIELD_GATES`/`MONEY_FIELD_LABELS`/`isStrayMoneyValue` imports from that file.
+- [x] `RevenueCell` (`apps/web/src/components/RevenueCell.tsx`) is unaffected — it already recomputes `isStrayMoneyValue()` independently from the row's own fields for its ⚠ badge and breakdown popup, it never read `validateRow()`'s error list. The visual flag for admins and DEOs reviewing already-uploaded data is unchanged; only the block on new uploads is gone.
+- [x] `POST /api/upload/chunk` shares the same `validateRow()`, so the Worker's own gate is fixed by the same one-function change — no separate server-side fix needed.
+- [x] `pnpm typecheck` and `pnpm --filter web test` run clean; deployed via direct `wrangler`/`@opennextjs/cloudflare` build+deploy.
+
+**Exit criterion:** A row with money in a field its shop type doesn't use uploads and submits normally — it still shows the ⚠ warning on the revenue figure wherever `RevenueCell` renders it, but no longer gets excluded from submission.
+
+---
+
 ## Backlog / Not Started
 
 - [x] ~~Verify `exciseup.in` in Resend and switch `RESEND_FROM_EMAIL`~~ — Done. `mail.exciseup.in` verified; `RESEND_FROM_EMAIL` set to `noreply@mail.exciseup.in` on this project's Worker, and the same address set as `FROM_EMAIL` on the sibling `excise-revenue-recovery-portal` project's Worker (different env var name there, same Resend account/domain). Magic-link email is now the Admin/HQ login channel only (DEOs use CUG login as of M-17).

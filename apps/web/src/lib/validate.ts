@@ -1,4 +1,4 @@
-import { SHOP_TYPES, SHOP_TYPE_LABELS, MONEY_FIELD_GATES, MONEY_FIELD_LABELS, isStrayMoneyValue } from '@excise/schema';
+import { SHOP_TYPES, SHOP_TYPE_LABELS } from '@excise/schema';
 import type { Phase1RowInput } from './types';
 import { computeRevenue } from './revenue';
 
@@ -62,17 +62,17 @@ export function validateRow(r: Phase1RowInput): RowError[] {
   // A money value entered in a field this shop type's formula doesn't use never reaches
   // Total Revenue — computeRevenue() below only sums the fields the type actually dispatches
   // on, so a row with money stuck in the wrong column still passes the total-matches check
-  // that follows (the wrong total is self-consistent with the wrong fields) and previously
-  // slipped through undetected, quietly undercounting that shop's revenue.
-  for (const gate of MONEY_FIELD_GATES) {
-    const value = r[gate.key as keyof Phase1RowInput] as unknown as number;
-    if (isStrayMoneyValue(gate.key, value, r.shopType, r.hasCl5cc)) {
-      errors.push({
-        field: gate.key,
-        message: `${MONEY_FIELD_LABELS[gate.key] ?? gate.key} doesn't apply to shop type "${SHOP_TYPE_LABELS[r.shopType as keyof typeof SHOP_TYPE_LABELS] ?? r.shopType}" and won't count toward Total Revenue. Move ₹${value.toLocaleString('en-IN')} to the correct field for this shop type, or clear it if it was entered by mistake.`,
-      });
-    }
-  }
+  // that follows (the wrong total is self-consistent with the wrong fields), quietly
+  // undercounting that shop's revenue. This used to also push a blocking RowError here (M-70),
+  // same mistake the coordinate-bbox check below already made and was fixed for: a district
+  // where this stray-money pattern is systemic across most/all rows (a real, common habit —
+  // the prod audit that motivated this check found it in 39 of 75 districts) had every one of
+  // those rows silently dropped from submission, not just flagged, reproducing as "0 of 60
+  // rows uploaded" for any DEO whose district has this pattern. `isStrayMoneyValue()` still
+  // runs independently in `RevenueCell` (shared by the admin district page and the DEO
+  // final-verification screen) for the ⚠ badge and breakdown, which is unaffected by this —
+  // that check recomputes from the row's own fields, it never depended on this list of errors.
+  // Do not re-add a blocking check here.
 
   // Out-of-bounds coordinates are a non-blocking warning, not a validation error — per
   // CLAUDE.md's Coordinate Handling rule, they are "flagged with a warning... never silently
