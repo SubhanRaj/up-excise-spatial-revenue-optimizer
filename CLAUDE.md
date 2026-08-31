@@ -806,6 +806,7 @@ Full per-milestone delivery history (Objective, Deliverables, Exit Criterion, bu
 | M-75: Fetch/Download From D1 No Longer Blocked By District Lock | **Completed** |
 | M-76: has_cl5cc Restored to a TRUE/FALSE Dropdown | **Completed** |
 | M-77: Bulk Approve/Deny on Unlock Requests | **Completed** |
+| M-78: DEO Manual Regenerated for M-73 Through M-77 | **Completed** |
 
 See [summary.md](summary.md) for full milestone specs, entry/exit criteria, deliverable checklists, the backlog, and pre-campaign-blocker history.
 

@@ -204,11 +204,15 @@ test.describe('DEO Manual — screenshot walkthrough', () => {
     await expect(page.locator('text=Unlock request pending Admin review.')).toBeVisible({ timeout: 10000 });
     await shot(page, 'units-unlock-pending');
 
-    // Admin resolves the unlock request
+    // Admin resolves the unlock request. The district-detail visit above already populated
+    // adminUnlockRequestsCache with an empty result (no pending row existed yet) — Sync All
+    // is the real admin affordance for pulling in the request created since, same as any
+    // admin would click to see it.
     await loginAs(page, ownerEmailHash);
     await page.goto('/admin/unlock-requests');
     await expect(page.locator('h1').filter({ hasText: 'Unlock Requests' })).toBeVisible();
-    await page.waitForTimeout(1000);
+    await page.click('button[title="Sync all admin data from the server"]');
+    await expect(page.locator('text=Circle 4 Kheragarh')).toBeVisible({ timeout: 10000 });
     await shot(page, 'admin-unlock-requests-list');
 
     console.log(`Saved ${shotIndex} screenshots to ${SHOTS_DIR}`);

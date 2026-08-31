@@ -1559,6 +1559,22 @@ flowchart LR
 
 ---
 
+### M-78: DEO Manual Regenerated for M-73 Through M-77 ✅ Complete
+
+**Objective:** the manual's screenshots and copy were last captured at M-72. Five DEO/admin-facing milestones landed since (M-73's pre-filled download, M-75's locked-view download+upload and reordered nav, M-76's `has_cl5cc` dropdown, M-77's bulk unlock checkboxes) without the manual being touched.
+
+**Change:**
+- [x] Reset local D1's Agra district to `pending` and re-ran the full Playwright walkthrough (`manual-screenshots.spec.ts`) against the current build via the OpenNext Cloudflare preview server, recapturing all 19 screenshots.
+- [x] Fixed a stale-cache issue the walkthrough surfaced in its own admin-unlock-requests screenshot: `adminUnlockRequestsCache` had already been populated with an empty result during an earlier admin page visit in the same walkthrough, so the final screenshot showed "No unlock requests" instead of the DEO's just-submitted request. Added a Sync All click before that screenshot — the same thing a real admin would do to see a request submitted moments ago, not a change to app behavior.
+- [x] Rebuilt `docs/manual/DEO-User-Manual.pdf` (33 pages, same as before) from the fresh screenshots — confirmed via `pdftotext` that "Download District Template" no longer appears anywhere, and confirmed visually that the nav bar screenshot shows Verify last and the admin unlock-requests screenshot shows the new checkbox column with a real pending request in it.
+- [x] `pnpm typecheck` runs clean; `docs/manual/screenshots/*.png` and `DEO-User-Manual.pdf` committed.
+
+**Known gap, not addressed here:** the manual still has no dedicated section walking through the full post-submission correction loop (request unlock → admin approves → download current data → fix → re-upload from the locked view → re-submit) — the existing screenshots stop at the admin seeing the pending request, before approving it. Content addition, not staleness; flagged for a future pass.
+
+**Exit criterion:** The manual's screenshots and copy match the live app as of M-77 — no stale button labels, nav order, or missing UI elements from the milestones since M-72.
+
+---
+
 ## Backlog / Not Started
 
 - [x] ~~Verify `exciseup.in` in Resend and switch `RESEND_FROM_EMAIL`~~ — Done. `mail.exciseup.in` verified; `RESEND_FROM_EMAIL` set to `noreply@mail.exciseup.in` on this project's Worker, and the same address set as `FROM_EMAIL` on the sibling `excise-revenue-recovery-portal` project's Worker (different env var name there, same Resend account/domain). Magic-link email is now the Admin/HQ login channel only (DEOs use CUG login as of M-17).
