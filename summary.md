@@ -1491,13 +1491,13 @@ flowchart LR
 
 **Change:**
 - [x] `generateTemplate()` (`apps/web/src/lib/excel.ts`) takes an optional third `existingRows` argument and writes them as real data rows starting at row 3 — same column order, same friendly `shop_type` label, same data-validation ranges (already independent of row count). A DEO now edits the wrong cell directly instead of re-entering every shop.
-- [x] Added `ensureDistrictSynced()` (`apps/web/src/lib/db.ts`) — reuses the `verify-synced-{district}` `localStorage` flag the final-verification screen (M-60) already sets. An unlock resets `districts.status` but never touches `phase1_raw_collection`, so a cache synced on an earlier visit — by either screen — is still accurate; the function only hits D1 when the flag isn't already set, and refreshes local `stagingDb` from that same read. `/upload`'s "Download District Template" button calls it: one D1 read per real unlock cycle, not one per click or page reload.
+- [x] Added `ensureDistrictSynced()` (`apps/web/src/lib/db.ts`) — reuses the `verify-synced-{district}` `localStorage` flag the final-verification screen (M-60) already sets. An unlock resets `districts.status` but never touches `phase1_raw_collection`, so a cache synced on an earlier visit — by either screen — is still accurate; the function only hits D1 when the flag isn't already set, and refreshes local `stagingDb` from that same read. `/upload`'s "Download District Template" button calls it, so a real unlock cycle costs exactly one D1 read, regardless of how many times the button is clicked or the page reloaded.
 - [x] Combined with the existing idempotent-re-upload behavior (`putRows()`, M-68) and `POST /api/upload/chunk`'s `onConflictDoUpdate`, a correction now costs at most one D1 read plus writes for only the rows the DEO actually changed — the three pieces (pre-filled download, cached sync, idempotent upload) were built independently across M-68 and this milestone but compound into the full loop the user described.
 - [x] `/upload`'s download handler now reads circle/sector names from the page's own already-loaded `units` state instead of a separate API call. Removed the now-fully-unused `GET /api/districts/[district]/template` route (it only ever returned district name + units, both already available client-side) and its Route Map entry.
 - [x] Verified the prefill directly: generated a real template with a fake existing row via the real `exceljs` package and read the values back — every field round-trips correctly, including the `shop_type` friendly label.
 - [x] `pnpm typecheck` and `pnpm --filter web test` run clean; deployed via direct `wrangler`/`@opennextjs/cloudflare` build+deploy.
 
-**Exit criterion:** Re-downloading the template after a data-correction unlock shows the district's real current data, not a blank sheet. Repeated downloads, reloads, or page visits during one correction cycle cost zero additional D1 reads once the first sync has happened.
+**Exit criterion:** Re-downloading the template after a data-correction unlock shows the district's real current data. Repeated downloads, reloads, or page visits during one correction cycle cost zero additional D1 reads once the first sync has happened.
 
 ---
 
@@ -1552,7 +1552,7 @@ flowchart LR
 - [x] Added a checkbox column: a per-row checkbox on every `pending` request, plus a header checkbox that selects/deselects all currently visible pending requests. `approved`/`denied` rows have no checkbox — there's nothing to bulk-resolve on them.
 - [x] Selecting one or more rows shows an "Approve Selected" / "Deny Selected" bar. Either one prompts for a single note (SweetAlert2, same required-note pattern as the single-row action) and applies it to every selected request.
 - [x] No new API route — the bulk action is a client-side `Promise.all` loop over the existing `POST /api/admin/unlock-requests/resolve`, called once per selected id. That route already branches its behavior on each request's own `requestType`, so a mixed batch of `'units'` and `'data_correction'` requests resolves correctly with no extra client-side branching.
-- [x] A partial failure (e.g. a request another admin already resolved) doesn't lose the rows that did succeed — the summary dialog reports how many of the selection succeeded and asks the admin to refresh and retry the rest, rather than silently swallowing the mismatch.
+- [x] A partial failure (e.g. a request another admin already resolved) doesn't lose the rows that did succeed — the summary dialog reports how many of the selection succeeded and asks the admin to refresh and retry the rest.
 - [x] `pnpm typecheck` and `pnpm --filter web test` run clean; deployed via direct `wrangler`/`@opennextjs/cloudflare` build+deploy.
 
 **Exit criterion:** An admin can select several pending unlock requests and approve or deny them all with one note and one click.
@@ -1569,7 +1569,7 @@ flowchart LR
 - [x] Rebuilt `docs/manual/DEO-User-Manual.pdf` (33 pages, same as before) from the fresh screenshots — confirmed via `pdftotext` that "Download District Template" no longer appears anywhere, and confirmed visually that the nav bar screenshot shows Verify last and the admin unlock-requests screenshot shows the new checkbox column with a real pending request in it.
 - [x] `pnpm typecheck` runs clean; `docs/manual/screenshots/*.png` and `DEO-User-Manual.pdf` committed.
 
-**Known gap, not addressed here:** the manual still has no dedicated section walking through the full post-submission correction loop (request unlock → admin approves → download current data → fix → re-upload from the locked view → re-submit) — the existing screenshots stop at the admin seeing the pending request, before approving it. Content addition, not staleness; flagged for a future pass.
+**Known gap, left for a future pass:** the manual still has no dedicated section walking through the full post-submission correction loop (request unlock → admin approves → download current data → fix → re-upload from the locked view → re-submit) — the existing screenshots stop at the admin seeing the pending request, before approving it. This is new content to write, separate from the staleness fixes this milestone covers.
 
 **Exit criterion:** The manual's screenshots and copy match the live app as of M-77 — no stale button labels, nav order, or missing UI elements from the milestones since M-72.
 
@@ -1591,14 +1591,14 @@ flowchart LR
 
 ### M-80: Removed Redundant map-data Endpoint & a Sync-All Regression of M-74 ✅ Complete
 
-**Objective:** pulled real Cloudflare usage numbers (`wrangler d1 info`) after M-79 to check headroom against the free-tier caps documented in roadmap.md §3.1 — D1 reads were at 3.85M of the 5M/day limit, 77%. Traced two concrete, measurable causes rather than guessing.
+**Objective:** pulled real Cloudflare usage numbers (`wrangler d1 info`) after M-79 to check headroom against the free-tier caps documented in roadmap.md §3.1 — D1 reads were at 3.85M of the 5M/day limit, 77%. Traced two concrete, measurable causes.
 
 **Findings and change:**
 - [x] `GET /api/admin/map-data` ran the same `GROUP BY district_name` aggregate over the full `phase1_raw_collection` table as `GET /api/admin/districts` — confirmed via a direct `COUNT(*)` query that this table has 29,731 rows, so every call to either endpoint costs roughly that many rows read. Every field the map needs (name, status, expected/actual vend count, revenue) is already in the districts response the Overview page (`/admin`) fetches anyway, so the map now derives its choropleth data from `useAdminDistricts()`'s already-cached result instead of a second ~30K-row scan. Deleted the route, `adminMapCache`, and the page's own `fetchMapData()`/`mapData` state; the "Retry" button now calls the districts hook's own `refresh()`.
 - [x] `invalidateAllAdminCaches()` (the Sync All handler, `apps/web/src/lib/db.ts`) still called `adminShopsCache.invalidate()` — a leftover from before M-74 changed that cache to check per-district staleness via `GET /api/admin/changed-districts` instead of a fixed TTL. Wiping the whole cache on every Sync All click forced a full re-fetch on the next visit to *every* previously-cached district page, changed or not — silently undoing M-74's fix the moment an admin clicked the one button they'd use to refresh everything. Removed it from the invalidate list.
 - [x] `pnpm typecheck` and `pnpm --filter web test` run clean; deployed via direct `wrangler`/`@opennextjs/cloudflare` build+deploy.
 
-**Exit criterion:** The Overview page's choropleth map renders from one D1-backed fetch, not two identical ones. Clicking Sync All no longer forces a full shop-data re-fetch on unchanged districts.
+**Exit criterion:** The Overview page's choropleth map renders from a single D1-backed fetch. Clicking Sync All no longer forces a full shop-data re-fetch on unchanged districts.
 
 ---
 
