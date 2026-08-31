@@ -75,7 +75,10 @@ export default function AdminPage() {
   const mapData = data?.districts ?? [];
   const apiError = !districtsLoading && hookDistricts.length === 0 ? 'API error — your session may have expired, please sign in again.' : null;
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
-  useEffect(() => { if (data) setLastRefresh(new Date()); }, [data]);
+  // `data` is rebuilt as a new object every render, so it can't be a dependency here without
+  // looping forever — hookDistricts only gets a new array reference when useAdminDistricts()
+  // actually sets new data, so that's the stable thing to watch instead.
+  useEffect(() => { if (hookDistricts.length > 0) setLastRefresh(new Date()); }, [hookDistricts]);
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstance = useRef<LeafletMap | null>(null);
