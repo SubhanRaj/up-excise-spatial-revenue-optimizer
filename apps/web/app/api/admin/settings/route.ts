@@ -33,6 +33,11 @@ async function GET_(): Promise<NextResponse> {
     everToggled: settingsRow?.updatedAt != null,
     submittedCount: allStatuses.filter((d) => isLocked(d.status)).length,
     totalDistricts: total,
+    // Public/domain-restricted CARTO basemap key, not a security secret — CARTO now requires
+    // one on every raster tile request (basemaps.cartocdn.com stopped serving anonymously).
+    // Piggybacks on this already-cached, already-authenticated settings call instead of a
+    // dedicated endpoint.
+    cartoApiKey: env.CARTO_API_KEY ?? null,
   });
 }
 
@@ -81,6 +86,7 @@ async function POST_(req: NextRequest): Promise<NextResponse> {
     everToggled: true,
     submittedCount: allStatuses.filter((d) => isLocked(d.status)).length,
     totalDistricts: totalRows[0]?.total ?? 0,
+    cartoApiKey: env.CARTO_API_KEY ?? null,
   });
 }
 

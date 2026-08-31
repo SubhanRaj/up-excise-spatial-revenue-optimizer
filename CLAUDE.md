@@ -38,6 +38,7 @@ All secrets, keys, and environment variables are confirmed set. Do not question,
 | `RESEND_FROM_EMAIL` | ✓ Set |
 | `SUPERADMIN_EMAIL_HASH` | ✓ Set |
 | `DEMO_CUG` | ✓ Set — raw 10-digit test CUG number for the "Demo DEO Officer" account (`DEO-DEMO-001`); never write the raw value into source or docs, see TEST.md's "Manual CUG Login Test". As of 2026-07-20 the account itself was deleted from prod D1 (go-live cleanup, see M-22) — the secret is still valid whenever `pnpm seed:demo` re-creates the account for testing |
+| `CARTO_API_KEY` | ✓ Set (M-82) — free, domain-restricted CARTO basemap key (carto.com/basemaps/apikey); CARTO stopped serving `basemaps.cartocdn.com` raster tiles anonymously. Not a security secret (it's sent to the browser on every map tile request, same as any client-side map API key), but still lives only as a Worker secret, never hardcoded — `GET /api/admin/settings` reads it server-side and hands it to the one authenticated admin page that renders the choropleth map |
 
 **GitHub Actions Secrets** (repo → Settings → Secrets → Actions — used at build/deploy time):
 
@@ -213,7 +214,7 @@ All API routes are Next.js Route Handlers inside the single `up-excise-spatial-r
 | `PATCH` | `/api/admin/users/[id]` | `api/admin/users/[id]/route.ts` — edits name/email/designation on a `role: 'admin'` row; 409 on email collision; rejects email changes on the row matching `SUPERADMIN_EMAIL_HASH` (that account's sign-in identity is fixed by server config, not editable in-app); changing email invalidates that user's outstanding magic links. **Owner/superadmin-only** |
 | `DELETE` | `/api/admin/users/[id]` | `api/admin/users/[id]/route.ts` — deletes a `role: 'admin'` row plus its sessions and magic links atomically; refuses to delete the owner/superadmin row or the caller's own account (self-lockout guard). **Owner/superadmin-only** |
 | `GET` | `/api/admin/audit-log` | `api/admin/audit-log/route.ts` |
-| `GET` | `/api/admin/settings` | `api/admin/settings/route.ts` — `{ verificationPhaseOpen, submittedCount, totalDistricts }`. Open to any `admin`/`superadmin` (read-only progress display) |
+| `GET` | `/api/admin/settings` | `api/admin/settings/route.ts` — `{ verificationPhaseOpen, submittedCount, totalDistricts, cartoApiKey }`. Open to any `admin`/`superadmin` (read-only progress display); `cartoApiKey` (M-82) rides along on this same call so the overview map's tile requests carry the required CARTO key without a dedicated endpoint |
 | `POST` | `/api/admin/settings` | `api/admin/settings/route.ts` — `{ verificationPhaseOpen: boolean }`; flips the M-60 state-wide final-verification switch and audit-logs `verification_phase_toggled`. **Owner/superadmin-only** — 403 for a plain `admin` role |
 | `GET` | `/api/admin/unlock-requests` | `api/admin/unlock-requests/route.ts` — all `district_unlock_requests` rows, newest first |
 | `POST` | `/api/admin/unlock-requests/resolve` | `api/admin/unlock-requests/resolve/route.ts` — `{ id, action: 'approve'\|'deny', note }`; behavior branches on the request's `requestType` (M-54): for `'units'`, approve deletes that district's `district_circles_sectors` rows and audit-logs `units_unlocked`; for `'data_correction'`, approve only resets `districts.status` to `'in_progress'` (no rows deleted) and audit-logs `data_correction_unlocked`. Deny audit-logs `unlock_request_denied` either way. Open to plain `admin`, not owner/superadmin-only. This is the **only** route that can unlock a district — there is no admin override that doesn't go through a real `district_unlock_requests` row. Bulk approve/deny on `/admin/unlock-requests` (M-77) is a client-side loop over this same one-request-at-a-time route — no separate bulk endpoint — so a mixed selection of `'units'` and `'data_correction'` requests resolves correctly with no extra handling. |
@@ -811,6 +812,7 @@ Full per-milestone delivery history (Objective, Deliverables, Exit Criterion, bu
 | M-79: Stray-Money Check Made Non-Blocking (Was Silently Dropping Rows On Upload) | **Completed** |
 | M-80: Removed Redundant map-data Endpoint & a Sync-All Regression of M-74 | **Completed** |
 | M-81: Fixed Admin Overview Infinite-Render Loop Introduced by M-80 | **Completed** |
+| M-82: CARTO Basemap API Key; "Verified" Wording on the DEO Read-Only View | **Completed** |
 
 See [summary.md](summary.md) for full milestone specs, entry/exit criteria, deliverable checklists, the backlog, and pre-campaign-blocker history.
 

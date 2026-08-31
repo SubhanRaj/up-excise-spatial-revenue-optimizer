@@ -92,7 +92,7 @@ export default function AdminPage() {
   const chartInstances = useRef<{ destroy: () => void }[]>([]);
 
   // ── Final-verification round toggle ───────────────────────────────────────
-  interface SettingsInfo { verificationPhaseOpen: boolean; everToggled: boolean; submittedCount: number; totalDistricts: number }
+  interface SettingsInfo { verificationPhaseOpen: boolean; everToggled: boolean; submittedCount: number; totalDistricts: number; cartoApiKey: string | null }
   const [settings, setSettings] = useState<SettingsInfo | null>(null);
   const [togglingSettings, setTogglingSettings] = useState(false);
 
@@ -189,14 +189,21 @@ export default function AdminPage() {
     };
   }, []);
 
+  // CARTO stopped serving basemaps.cartocdn.com anonymously and now requires a `key` query
+  // param on every tile request — a free, domain-restricted key (carto.com/basemaps/apikey),
+  // not a security secret, so it's fine to carry on the client. Read from the already-fetched
+  // settings response rather than a dedicated endpoint.
+  const tileUrl = (t: 'light' | 'dark') =>
+    settings?.cartoApiKey ? `${TILE_URLS[t]}?key=${settings.cartoApiKey}` : TILE_URLS[t];
+
   useEffect(() => {
-    if (!mapInstance.current || typeof L === 'undefined') return;
+    if (!mapInstance.current || typeof L === 'undefined' || !settings) return;
 
     baseLayer.current?.remove();
-    baseLayer.current = L.tileLayer(TILE_URLS[theme], {
+    baseLayer.current = L.tileLayer(tileUrl(theme), {
       attribution: '© CartoDB',
     }).addTo(mapInstance.current);
-  }, [theme]);
+  }, [theme, settings]);
 
   // Initialize Leaflet choropleth
   useEffect(() => {
@@ -211,7 +218,7 @@ export default function AdminPage() {
     }
 
     if (!baseLayer.current) {
-      baseLayer.current = L.tileLayer(TILE_URLS[theme], {
+      baseLayer.current = L.tileLayer(tileUrl(theme), {
         attribution: '© CartoDB',
       }).addTo(mapInstance.current);
     }

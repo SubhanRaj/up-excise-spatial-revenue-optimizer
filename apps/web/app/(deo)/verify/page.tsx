@@ -964,7 +964,11 @@ export default function VerifyPage() {
         <div className="alert alert-success text-sm">
           <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><path d="m9 12 2 2 4-4"/></svg>
           <div>
-            <p className="font-semibold">{district} has been submitted to headquarters — this is a read-only view of the uploaded data.</p>
+            <p className="font-semibold">
+              {verified
+                ? `${district} has been verified and locked — this is a read-only view of the confirmed data.`
+                : `${district} has been submitted to headquarters — this is a read-only view of the uploaded data.`}
+            </p>
             <p className="text-xs opacity-80 mt-1">To correct a shop&apos;s data, go to <Link href="/upload" className="link font-semibold">Upload</Link> and request a data-correction unlock.</p>
           </div>
         </div>

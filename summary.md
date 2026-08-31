@@ -1617,6 +1617,20 @@ flowchart LR
 
 ---
 
+### M-82: CARTO Basemap API Key; "Verified" Wording on the DEO Read-Only View ✅ Complete
+
+**Objective:** two independent fixes surfaced together — the overview map's basemap tiles stopped loading, and the DEO's post-lock read-only view undersold a `verified` district as merely `submitted`.
+
+**CARTO API key:** `basemaps.cartocdn.com` stopped serving raster tiles without an API key. Signed up for a free, domain-restricted key at carto.com/basemaps/apikey and set it as the `CARTO_API_KEY` Worker secret — never in source or `.env`, same as every other credential in this project. `GET /api/admin/settings` (already the one cached, authenticated call the overview page makes on load) now also returns `cartoApiKey`, and both `L.tileLayer()` calls in `/admin` append it as `?key=`. This key is domain-restricted rather than a security secret — it's sent to the browser on every tile request, the same as any client-side map SDK key — but it still only ever lives as a Worker secret, matching how every credential in this project is handled regardless of sensitivity.
+
+**"Verified" wording:** `isLocked()` already treats `submitted` and `verified` as one locked state everywhere upload/edit gates check it, and `/verify`'s status badge and the final-verification screen already label a `verified` district correctly. One spot didn't: the read-only fallback alert on `/verify` (shown once `verificationPhaseOpen` is off, e.g. the admin closed the round after this district was verified) said "has been submitted to headquarters" regardless of which of the two locked states the district was actually in. It now reads "has been verified and locked" for `verified` districts, matching the badge and the `/home` dashboard's existing wording for the same state.
+
+**Confirmed already correct, no change needed:** a district's post-correction-unlock re-upload already goes through the normal staged-review workflow before a DEO can resubmit — approving a `data_correction` unlock resets `districts.status` to `'in_progress'` (see the "Data-correction unlock" note under DEO Workflow), which takes the DEO out of both the locked read-only view and the final-verification screen and back into `/verify`'s normal Staged/Uploaded review UI. A second "Submit District" (or, if the verification round is still open, a second "Confirm & Verify") only becomes available after that review, exactly as before any correction.
+
+**Exit criterion:** the overview choropleth map renders tiles again; a `verified` district's read-only view on `/verify` says so instead of "submitted."
+
+---
+
 ## Backlog / Not Started
 
 - [x] ~~Verify `exciseup.in` in Resend and switch `RESEND_FROM_EMAIL`~~ — Done. `mail.exciseup.in` verified; `RESEND_FROM_EMAIL` set to `noreply@mail.exciseup.in` on this project's Worker, and the same address set as `FROM_EMAIL` on the sibling `excise-revenue-recovery-portal` project's Worker (different env var name there, same Resend account/domain). Magic-link email is now the Admin/HQ login channel only (DEOs use CUG login as of M-17).
