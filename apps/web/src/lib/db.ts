@@ -278,8 +278,15 @@ export const adminDistrictsCache = makeKvCache<unknown>('districts_cache', { fix
 // ── Map cache (TTL: 5 min) ─────────────────────────────────────────────────
 export const adminMapCache = makeKvCache<unknown>('map_cache', { fixedKey: 'map_data', ttlMs: CACHE_TTL_MS });
 
-// ── Shops cache (TTL: 5 min, keyed by district name) ───────────────────────
-export const adminShopsCache = makeKvCache<unknown>('shops_cache', { ttlMs: CACHE_TTL_MS });
+// ── Shops cache (keyed by district name, no time-based TTL) ────────────────
+// A district's shop rows only ever change on a submit/verify/unlock event — a fixed 5-min
+// TTL like the other caches would force a full ~pageSize=all re-fetch on every visit past
+// that window regardless of whether anything actually changed, which is real D1-read cost
+// for 75 districts an admin might revisit all day. The district detail page instead checks
+// `GET /api/admin/changed-districts?since=<this entry's fetchedAt>` — the same cheap single
+// indexed audit_log scan Sync All's export sync already uses (M-64) — and only re-fetches
+// this district's shop rows when its own name comes back in that list.
+export const adminShopsCache = makeKvCache<unknown>('shops_cache');
 
 // ── Audit cache (keyed by page number; never actually read — the audit page always
 // fetches fresh by design, this exists only for a possible future consumer) ────────────────

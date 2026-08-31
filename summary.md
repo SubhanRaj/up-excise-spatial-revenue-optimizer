@@ -1501,6 +1501,20 @@ flowchart LR
 
 ---
 
+### M-74: District Detail Page Skips Re-Fetching Unchanged Districts ✅ Complete
+
+**Objective:** the admin district detail page's shop-rows cache (`adminShopsCache`) carried a flat 5-minute TTL — a real cost with 75 districts an admin might revisit throughout the day, since every visit past that window re-ran the full `pageSize=all` shop-rows query regardless of whether that specific district had changed at all.
+
+**Change:**
+- [x] Removed the TTL from `adminShopsCache` (`apps/web/src/lib/db.ts`) — it's now cache-forever at the storage layer.
+- [x] The district detail page now stores its own `fetchedAt` alongside the cached district/shop data and, on each visit, checks `GET /api/admin/changed-districts?since=<that fetchedAt>` — the same single indexed `audit_log` scan Sync All's export sync already uses (M-64) — before deciding whether to re-run the expensive full shop-rows fetch. A network failure on that check fails toward a real re-fetch rather than serving stale data.
+- [x] The existing explicit refresh after approving an unlock (`unlockUnits()` → `refreshShops()`) is unchanged — that's a real, known change on the admin's own device, so it re-fetches directly without asking the server first.
+- [x] `pnpm typecheck` and `pnpm --filter web test` run clean; deployed via direct `wrangler`/`@opennextjs/cloudflare` build+deploy.
+
+**Exit criterion:** Revisiting a district detail page for a district that hasn't changed costs one cheap indexed scan, never the full shop-rows read — no matter how long it's been since the last visit.
+
+---
+
 ## Backlog / Not Started
 
 - [x] ~~Verify `exciseup.in` in Resend and switch `RESEND_FROM_EMAIL`~~ — Done. `mail.exciseup.in` verified; `RESEND_FROM_EMAIL` set to `noreply@mail.exciseup.in` on this project's Worker, and the same address set as `FROM_EMAIL` on the sibling `excise-revenue-recovery-portal` project's Worker (different env var name there, same Resend account/domain). Magic-link email is now the Admin/HQ login channel only (DEOs use CUG login as of M-17).

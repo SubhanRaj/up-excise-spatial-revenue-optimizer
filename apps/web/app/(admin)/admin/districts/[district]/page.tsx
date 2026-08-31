@@ -69,19 +69,26 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
   useEffect(() => {
     async function load() {
       setLoading(true);
-      const cached = await adminShopsCache.get(name);
+      const cached = await adminShopsCache.get(name) as { d: DistrictDetail; s: { rows: ShopExplorerRow[] }; fetchedAt: number } | null;
       if (cached) {
-        const { d, s } = cached as { d: DistrictDetail, s: { rows: ShopExplorerRow[] } };
-        setDetail(d);
-        setAllShops(s.rows);
-        setLoading(false);
-        return;
+        // Cheap check first: did *this* district actually change since we cached it? If not,
+        // skip the expensive pageSize=all shop-rows read entirely — this is what lets a
+        // revisit any time later still cost nothing beyond one indexed audit_log scan.
+        const changed = await fetch(`/api/admin/changed-districts?since=${cached.fetchedAt}`)
+          .then((r) => r.ok ? r.json() as Promise<{ districts: string[] }> : { districts: [name] })
+          .catch(() => ({ districts: [name] })); // network hiccup — fail toward a real refetch, not stale data
+        if (!changed.districts.includes(name)) {
+          setDetail(cached.d);
+          setAllShops(cached.s.rows);
+          setLoading(false);
+          return;
+        }
       }
       const [d, s] = await Promise.all([
         fetch(`/api/admin/districts/${encodeURIComponent(name)}`).then((r) => r.json()),
         fetch(`/api/admin/districts/${encodeURIComponent(name)}/shops?pageSize=all`).then((r) => r.json()),
       ]);
-      adminShopsCache.set(name, { d, s });
+      adminShopsCache.set(name, { d, s, fetchedAt: Date.now() });
       setDetail(d as DistrictDetail);
       setAllShops((s as { rows: ShopExplorerRow[] }).rows);
       setLoading(false);
@@ -162,7 +169,7 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
       fetch(`/api/admin/districts/${encodeURIComponent(name)}`).then((r) => r.json()),
       fetch(`/api/admin/districts/${encodeURIComponent(name)}/shops?pageSize=all`).then((r) => r.json()),
     ]);
-    adminShopsCache.set(name, { d, s });
+    adminShopsCache.set(name, { d, s, fetchedAt: Date.now() });
     setDetail(d as DistrictDetail);
     setAllShops((s as { rows: ShopExplorerRow[] }).rows);
     setLoading(false);
