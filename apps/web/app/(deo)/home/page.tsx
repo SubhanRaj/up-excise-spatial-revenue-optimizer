@@ -41,7 +41,7 @@ export default async function DeoDashboard() {
         <div className="badge badge-primary badge-outline p-3 text-sm font-medium self-start">Phase 1 — Data Collection</div>
       </div>
 
-      <HomeStats district={district} locked={submitted} />
+      <HomeStats district={district} />
 
       {!hasUnits ? (
         <div className="card bg-base-100 shadow-lg border-2 border-primary/30 p-8 max-w-xl mx-auto items-center text-center">
