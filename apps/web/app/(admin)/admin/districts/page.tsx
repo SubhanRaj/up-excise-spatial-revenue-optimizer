@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import HelpPanel from '@/app/_components/HelpPanel';
 import { useAdminDistricts } from '@/hooks/useAdminDistricts';
 import type { AdminDistrictRow as DistrictRow } from '@/hooks/useAdminDistricts';
-import { statusLabel, statusBadgeClass, isLocked } from '@/lib/status';
+import { STATUS_LABEL, statusLabel, statusBadgeClass, isLocked } from '@/lib/status';
 import { exportDistrictsPdf } from '@/lib/pdf';
 
 const fmt = (n: number) => n >= 1e7 ? `₹${(n / 1e7).toFixed(2)} Cr` : n >= 1e5 ? `₹${(n / 1e5).toFixed(2)} L` : `₹${n.toLocaleString('en-IN')}`;
@@ -28,6 +28,10 @@ export default function DistrictsPage() {
   const [sortKey, setSortKey] = useState<SortKey>('name');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [exportingPdf, setExportingPdf] = useState(false);
+  // Separate from the on-screen `statusFilter` above — the export always reports a
+  // deliberately-chosen slice (or all 75), independent of whatever the table happens to be
+  // filtered to at the moment.
+  const [pdfStatusFilter, setPdfStatusFilter] = useState('all');
 
   // Force-refetch from D1 first — a status report meant to be shared/discussed shouldn't
   // ship whatever's sitting in the (up to 5-min-stale) IndexedDB cache.
@@ -35,7 +39,7 @@ export default function DistrictsPage() {
     setExportingPdf(true);
     try {
       const fresh = await refresh();
-      exportDistrictsPdf(fresh);
+      exportDistrictsPdf(fresh, pdfStatusFilter);
     } finally {
       setExportingPdf(false);
     }
@@ -82,7 +86,18 @@ export default function DistrictsPage() {
           <p className="text-sm text-base-content/70 mt-0.5">Complete registry of all 75 Uttar Pradesh districts. Select a district to view its shop-level records.</p>
         </div>
         <div className="ml-auto flex items-center gap-2">
-          <button className="btn btn-sm btn-outline" onClick={exportPdf} disabled={exportingPdf} title="Refreshes from the server, then downloads a PDF status report — all 75 districts, sorted by division">
+          <select
+            className="select select-sm select-bordered bg-base-100"
+            value={pdfStatusFilter}
+            onChange={(e) => setPdfStatusFilter(e.target.value)}
+            title="Which districts to include in the exported PDF"
+          >
+            <option value="all">Export: All</option>
+            {Object.entries(STATUS_LABEL).map(([key, label]) => (
+              <option key={key} value={key}>Export: {label} only</option>
+            ))}
+          </select>
+          <button className="btn btn-sm btn-outline" onClick={exportPdf} disabled={exportingPdf} title="Refreshes from the server, then downloads a PDF status report sorted by division">
             {exportingPdf ? <span className="loading loading-spinner loading-xs" /> : 'Export PDF'}
           </button>
           <HelpPanel pageKey="admin_districts_list" title="All Districts">
@@ -91,7 +106,7 @@ export default function DistrictsPage() {
               <li><strong>Division filter</strong> — narrow to a single division.</li>
               <li><strong>Status filter</strong> — pending, in_progress, or submitted.</li>
               <li><strong>Sort</strong> — click any column header.</li>
-              <li><strong>Export PDF</strong> — refreshes from the server and downloads a district status report (all 75 districts, sorted by division) for sharing outside the portal.</li>
+              <li><strong>Export PDF</strong> — pick All or one status from the dropdown, then refreshes from the server and downloads a district status report (sorted by division) for sharing outside the portal.</li>
             </ul>
           </HelpPanel>
         </div>

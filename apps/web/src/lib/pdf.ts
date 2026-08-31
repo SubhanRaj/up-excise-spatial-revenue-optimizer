@@ -1,6 +1,6 @@
 'use client';
 
-import { STATUS_COLOR, statusLabel } from './status';
+import { STATUS_COLOR, STATUS_LABEL, statusLabel } from './status';
 
 // jsPDF + jspdf-autotable loaded from CDN in root layout.tsx (never bundled), same convention
 // as ExcelJS. autoTable draws a real bordered/paginated table with fixed column widths and
@@ -50,18 +50,42 @@ export interface DistrictPdfRow {
 
 const fmtInr = (n: number) => n >= 1e7 ? `Rs ${(n / 1e7).toFixed(2)} Cr` : n >= 1e5 ? `Rs ${(n / 1e5).toFixed(2)} L` : `Rs ${n.toLocaleString('en-IN')}`;
 
+// India doesn't observe DST, so this offset is always correct — but the report is for a
+// state-government audience and read on whatever device/timezone the recipient is in, so the
+// timestamp must be pinned to IST explicitly rather than trusting Date's own toLocaleString
+// (which reports the *viewer's device* timezone, not necessarily IST).
+function istTimestamp(d: Date): { filenamePart: string; displayPart: string } {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Kolkata',
+      day: '2-digit', month: '2-digit', year: '2-digit',
+      hour: '2-digit', minute: '2-digit', hour12: true,
+    }).formatToParts(d).map((p) => [p.type, p.value]),
+  );
+  const { day, month, year, hour, minute, dayPeriod } = parts;
+  return {
+    filenamePart: `${day}${month}${year}-${hour}${minute}${dayPeriod}`,
+    displayPart: `${day}/${month}/${year}, ${hour}:${minute} ${dayPeriod} IST`,
+  };
+}
+
+const STATUS_FILTER_LABEL: Record<string, string> = { all: 'All', ...STATUS_LABEL };
+
 /** District status report — sorted by division then name, for sharing outside the portal. */
-export function exportDistrictsPdf(rows: DistrictPdfRow[]): void {
-  const sorted = [...rows].sort((a, b) =>
+export function exportDistrictsPdf(rows: DistrictPdfRow[], statusFilter: string = 'all'): void {
+  const filtered = statusFilter === 'all' ? rows : rows.filter((r) => r.status === statusFilter);
+  const sorted = [...filtered].sort((a, b) =>
     (a.division ?? '').localeCompare(b.division ?? '') || a.name.localeCompare(b.name));
 
   const doc = new jspdf.jsPDF({ orientation: 'portrait' });
+  const { filenamePart, displayPart } = istTimestamp(new Date());
+  const filterLabel = STATUS_FILTER_LABEL[statusFilter] ?? 'All';
 
   doc.setFontSize(14);
-  doc.text('UP Excise — District Status Report', 14, 15);
+  doc.text(`UP Excise — District Status Report${statusFilter === 'all' ? '' : ` (${filterLabel})`}`, 14, 15);
   doc.setFontSize(9);
   doc.setTextColor(100, 116, 139);
-  doc.text(`Generated ${new Date().toLocaleString('en-IN')} · ${sorted.length} of 75 districts`, 14, 21);
+  doc.text(`Generated ${displayPart} · ${sorted.length} of 75 districts`, 14, 21);
 
   doc.autoTable({
     startY: 26,
@@ -91,6 +115,6 @@ export function exportDistrictsPdf(rows: DistrictPdfRow[]): void {
     },
   });
 
-  const filename = `up-excise-district-status-${new Date().toISOString().slice(0, 10)}.pdf`;
+  const filename = `UP-Excise-SRO-Status-Report-${filenamePart}${statusFilter === 'all' ? '' : `-${filterLabel.replace(/\s+/g, '')}`}.pdf`;
   doc.save(filename);
 }

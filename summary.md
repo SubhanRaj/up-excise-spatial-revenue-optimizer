@@ -1662,6 +1662,20 @@ The browser's own print dialog produces the PDF ("Save as PDF" / "Microsoft Prin
 
 ---
 
+### M-85: Per-Status PDF Export Filter; IST-Correct Timestamped Filename ✅ Complete
+
+**Objective:** two gaps in M-84's export — no way to export just one status (e.g. only Verified districts, or everything except Submitted/Verified), and the "Generated ..." timestamp used the *viewer's device* timezone rather than IST, which matters for a state-government report that could be opened anywhere.
+
+**Change:**
+- [x] A dropdown next to Export PDF on `/admin/districts` — All, or exactly one of Pending / In Progress / Submitted / Verified, built from `STATUS_LABEL` (`lib/status.ts`) so a new status value only needs adding there, not in a second hardcoded list. Deliberately a separate piece of state from the table's own `statusFilter` — the export is always a considered choice, not a side effect of whatever the table happens to be filtered to at the moment.
+- [x] `exportDistrictsPdf()` takes the chosen status as a second argument, filters before sorting, and puts the filter name in both the PDF's title line and the filename.
+- [x] Filename is now `UP-Excise-SRO-Status-Report-<ddmmyy>-<hhmmAM/PM>[-<Status>].pdf` — e.g. `UP-Excise-SRO-Status-Report-310826-0754PM-Submitted.pdf` — built from `Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Kolkata', ... })`, not `Date.toLocaleString()`, which was silently reporting whatever timezone the browser/OS happens to be set to rather than IST. The in-PDF "Generated ..." line uses the same IST-pinned formatter.
+- [x] Verified live: a throwaway Playwright run selected "Submitted only," downloaded the file, and confirmed the filename matched the exact pattern with the correct IST time.
+
+**Exit criterion:** the export dropdown produces a correctly-filtered PDF for each status, and the filename/timestamp are IST-correct regardless of the device's own timezone.
+
+---
+
 ## Backlog / Not Started
 
 - [x] ~~Verify `exciseup.in` in Resend and switch `RESEND_FROM_EMAIL`~~ — Done. `mail.exciseup.in` verified; `RESEND_FROM_EMAIL` set to `noreply@mail.exciseup.in` on this project's Worker, and the same address set as `FROM_EMAIL` on the sibling `excise-revenue-recovery-portal` project's Worker (different env var name there, same Resend account/domain). Magic-link email is now the Admin/HQ login channel only (DEOs use CUG login as of M-17).
