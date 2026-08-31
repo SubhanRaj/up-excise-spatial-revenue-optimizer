@@ -1544,6 +1544,21 @@ flowchart LR
 
 ---
 
+### M-77: Bulk Approve/Deny on Unlock Requests ✅ Complete
+
+**Objective:** `/admin/unlock-requests` only resolved one request at a time — during a campaign closing phase with many districts requesting unlock together, an admin had to open the same note prompt once per district.
+
+**Change:**
+- [x] Added a checkbox column: a per-row checkbox on every `pending` request, plus a header checkbox that selects/deselects all currently visible pending requests. `approved`/`denied` rows have no checkbox — there's nothing to bulk-resolve on them.
+- [x] Selecting one or more rows shows an "Approve Selected" / "Deny Selected" bar. Either one prompts for a single note (SweetAlert2, same required-note pattern as the single-row action) and applies it to every selected request.
+- [x] No new API route — the bulk action is a client-side `Promise.all` loop over the existing `POST /api/admin/unlock-requests/resolve`, called once per selected id. That route already branches its behavior on each request's own `requestType`, so a mixed batch of `'units'` and `'data_correction'` requests resolves correctly with no extra client-side branching.
+- [x] A partial failure (e.g. a request another admin already resolved) doesn't lose the rows that did succeed — the summary dialog reports how many of the selection succeeded and asks the admin to refresh and retry the rest, rather than silently swallowing the mismatch.
+- [x] `pnpm typecheck` and `pnpm --filter web test` run clean; deployed via direct `wrangler`/`@opennextjs/cloudflare` build+deploy.
+
+**Exit criterion:** An admin can select several pending unlock requests and approve or deny them all with one note and one click.
+
+---
+
 ## Backlog / Not Started
 
 - [x] ~~Verify `exciseup.in` in Resend and switch `RESEND_FROM_EMAIL`~~ — Done. `mail.exciseup.in` verified; `RESEND_FROM_EMAIL` set to `noreply@mail.exciseup.in` on this project's Worker, and the same address set as `FROM_EMAIL` on the sibling `excise-revenue-recovery-portal` project's Worker (different env var name there, same Resend account/domain). Magic-link email is now the Admin/HQ login channel only (DEOs use CUG login as of M-17).
