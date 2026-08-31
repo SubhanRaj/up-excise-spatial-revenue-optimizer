@@ -1646,6 +1646,22 @@ The browser's own print dialog produces the PDF ("Save as PDF" / "Microsoft Prin
 
 ---
 
+### M-84: Replaced Print-to-PDF with a Real jsPDF/autoTable Export ✅ Complete
+
+**Objective:** M-83's `window.print()` approach depends on the browser/OS print driver for column widths, wrapping, and page breaks — not reliable enough for a document meant to go into a meeting. Replaced it with a real PDF built client-side, following the same pattern the sibling `UP-excise-mailer` project uses for its own campaign-recipient PDF export (there, server-side via DomPDF from a plain HTML table; here, client-side since Workers can't run a PDF rendering engine and CPU-heavy work stays out of the Worker per this project's Cloudflare Free Tier rule).
+
+**Change:**
+- [x] Added jsPDF 2.5.1 and jspdf-autotable 3.8.2 to the CDN script stack (`app/layout.tsx`) and the service worker's offline pre-cache list — same CDN-only convention as ExcelJS, Dexie, and every other library in this project.
+- [x] `apps/web/src/lib/pdf.ts` — `exportDistrictsPdf()` builds the report with `autoTable`: fixed column widths, real borders, automatic pagination, the Status column colored per `STATUS_COLOR` (same palette as the on-screen badge and the choropleth map).
+- [x] The report is always sorted by division then district name, regardless of whatever sort/filter is active on screen — a shareable status snapshot, not a mirror of the admin's current table view.
+- [x] Clicking Export PDF force-refetches `GET /api/admin/districts` first (`useAdminDistricts().refresh()`, changed to return the fresh rows directly instead of only updating state) so the numbers in the PDF are guaranteed current, not whatever's sitting in the IndexedDB cache from up to 5 minutes ago.
+- [x] Reverted every `print:hidden` / `@media print` change from M-83 (the navbar, the ViewPrefsPanel FAB, the toolbar) — none of it is needed once the export no longer goes through the browser's print pipeline.
+- [x] Verified live before considering it done, not just typechecked: a throwaway Playwright spec logged in, clicked Export PDF, caught the actual download event, and confirmed the downloaded file starts with the `%PDF-` header and is over 1KB — catches a broken CDN global name or a script-load-order bug, neither of which `tsc` would catch.
+
+**Exit criterion:** Export PDF on `/admin/districts` downloads a real, correctly-formatted PDF built from freshly-fetched data, sorted by division.
+
+---
+
 ## Backlog / Not Started
 
 - [x] ~~Verify `exciseup.in` in Resend and switch `RESEND_FROM_EMAIL`~~ — Done. `mail.exciseup.in` verified; `RESEND_FROM_EMAIL` set to `noreply@mail.exciseup.in` on this project's Worker, and the same address set as `FROM_EMAIL` on the sibling `excise-revenue-recovery-portal` project's Worker (different env var name there, same Resend account/domain). Magic-link email is now the Admin/HQ login channel only (DEOs use CUG login as of M-17).

@@ -60,14 +60,17 @@ export function useAdminDistricts() {
     });
   }, []);
 
-  function refresh() {
+  // Returns the freshly-fetched rows directly — a caller that needs guaranteed-current data
+  // right now (e.g. a PDF export for a meeting) can await this instead of racing the next
+  // render for the state update above.
+  async function refresh(): Promise<AdminDistrictRow[]> {
     setLoading(true);
     adminDistrictsCache.invalidate();
-    fetchDistricts().then((data) => {
-      setDistricts(data.districts);
-      setStateTotals(data.stateTotals);
-      setLoading(false);
-    });
+    const data = await fetchDistricts();
+    setDistricts(data.districts);
+    setStateTotals(data.stateTotals);
+    setLoading(false);
+    return data.districts;
   }
 
   return { districts, stateTotals, loading, refresh };

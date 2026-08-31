@@ -295,6 +295,8 @@ All API routes are same-origin Next.js Route Handlers. The browser sends the ses
 | **SweetAlert2** | 11.14.5 | `https://cdn.jsdelivr.net/npm/sweetalert2@11.14.5/dist/sweetalert2.all.min.js` | All pages |
 | **Notyf** (JS + CSS) | 3.10.0 | `https://cdn.jsdelivr.net/npm/notyf@3.10.0/notyf.min.{js,css}` | All pages |
 | **ExcelJS** | **4.4.0** | `https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js` | All pages — the only spreadsheet library; reads, writes, and exports |
+| **jsPDF** | 2.5.1 | `https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js` | All pages — PDF export (`apps/web/src/lib/pdf.ts`), currently the districts status report |
+| **jspdf-autotable** | 3.8.2 | `https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js` | All pages — must load after jsPDF; attaches `doc.autoTable()` |
 | **Chart.js** | **4.4.7** | `https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js` | All pages |
 | **Leaflet.js** (JS + CSS) | **1.9.4** | `https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.{js,css}` | All pages |
 
@@ -388,7 +390,7 @@ Do not fetch `/api/auth/session` directly from page components — always go thr
 - Client-side search (matches district, division, DEO name, DEO email — `deoEmail` is matched but not rendered, see below), division filter, status filter, and sortable columns. No additional API calls.
 - **Read-only view.** DEO name, email, and coordinates are displayed for browsing only — there is no edit UI on this page. The DEO email column itself is **not rendered** (only DEO name) to keep the table uncluttered; all district/DEO editing happens on the District Master page (`/admin/provision`), described below.
 - Division badge in each row links to `/admin/divisions/[division]`.
-- **"Export PDF" button (M-83)** calls `window.print()` with a `print:` Tailwind-variant stylesheet — no PDF library. The navbar, the ViewPrefsPanel FAB, the search/filter toolbar, and the per-row "View →" column all carry `print:hidden`; a print-only header (district count + generation timestamp) replaces the screen header. The browser's own print dialog's "Save as PDF" produces the file — this is a print-styled version of whatever the table currently shows (filtered/sorted the same way), meant for sharing a district-status snapshot in a meeting, not a data-interchange export (those stay XLSX per the CSV/XLSX rule above).
+- **"Export PDF" button** builds a real PDF client-side via jsPDF + jspdf-autotable (CDN-loaded, see Frontend CDN Stack) — not the browser's print dialog. A CSS-print-based export (M-83's first attempt) was replaced the same day (M-84) because print-to-PDF rendering (column wrapping, page breaks) varies by browser/OS print driver and can't be controlled precisely; `autoTable` draws a real bordered, paginated table with fixed column widths instead. Clicking the button force-refetches `GET /api/admin/districts` first (bypassing the IndexedDB cache, via `useAdminDistricts().refresh()`) so the exported numbers are guaranteed current, then downloads a report sorted by division then district name regardless of whatever sort/filter the on-screen table currently has — a shareable snapshot, not a mirror of the admin's current view. `apps/web/src/lib/pdf.ts` holds the builder (`exportDistrictsPdf`); status text is colored per `STATUS_COLOR` (`lib/status.ts`), same palette as the badge and the choropleth map. This stays a client-side, dependency-loaded-from-CDN export, consistent with the CDN-first rule — no server-side rendering, no new Worker CPU cost.
 
 **Divisions page (`/admin/divisions`):**
 - 18 division cards derived client-side from `GET /api/admin/districts`. Shows district count, submission progress, and revenue per division.
@@ -815,6 +817,7 @@ Full per-milestone delivery history (Objective, Deliverables, Exit Criterion, bu
 | M-81: Fixed Admin Overview Infinite-Render Loop Introduced by M-80 | **Completed** |
 | M-82: CARTO Basemap API Key; "Verified" Wording on the DEO Read-Only View | **Completed** |
 | M-83: Print-to-PDF Export on the Districts List | **Completed** |
+| M-84: Replaced Print-to-PDF with a Real jsPDF/autoTable Export | **Completed** |
 
 See [summary.md](summary.md) for full milestone specs, entry/exit criteria, deliverable checklists, the backlog, and pre-campaign-blocker history.
 

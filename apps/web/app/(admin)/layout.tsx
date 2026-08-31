@@ -246,7 +246,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   return (
     <div className="min-h-screen bg-base-200">
       {/* z-[1000] — must exceed Leaflet tooltip pane (z-index 650) */}
-      <nav className="print:hidden navbar bg-base-100 shadow-sm px-3 sm:px-6 sticky top-0 z-[1000]">
+      <nav className="navbar bg-base-100 shadow-sm px-3 sm:px-6 sticky top-0 z-[1000]">
         <div className="flex-1 flex items-center gap-2 sm:gap-3">
           <button
             type="button"

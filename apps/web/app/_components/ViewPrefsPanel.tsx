@@ -164,7 +164,7 @@ export default function ViewPrefsPanel() {
 
       {/* FAB */}
       <button
-        className={`print:hidden fixed bottom-4 right-4 z-40 rounded-full w-10 h-10 flex items-center justify-center border shadow-lg transition-colors ${
+        className={`fixed bottom-4 right-4 z-40 rounded-full w-10 h-10 flex items-center justify-center border shadow-lg transition-colors ${
           open ? 'bg-primary text-primary-content border-primary' : 'bg-base-100 border-base-300 hover:bg-base-200 text-base-content'
         }`}
         onClick={() => setOpen((v) => !v)}
