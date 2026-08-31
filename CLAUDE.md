@@ -810,6 +810,7 @@ Full per-milestone delivery history (Objective, Deliverables, Exit Criterion, bu
 | M-78: DEO Manual Regenerated for M-73 Through M-77 | **Completed** |
 | M-79: Stray-Money Check Made Non-Blocking (Was Silently Dropping Rows On Upload) | **Completed** |
 | M-80: Removed Redundant map-data Endpoint & a Sync-All Regression of M-74 | **Completed** |
+| M-81: Fixed Admin Overview Infinite-Render Loop Introduced by M-80 | **Completed** |
 
 See [summary.md](summary.md) for full milestone specs, entry/exit criteria, deliverable checklists, the backlog, and pre-campaign-blocker history.
 

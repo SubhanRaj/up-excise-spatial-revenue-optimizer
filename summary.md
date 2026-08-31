@@ -1602,6 +1602,21 @@ flowchart LR
 
 ---
 
+### M-81: Fixed Admin Overview Infinite-Render Loop Introduced by M-80 ✅ Complete
+
+**Objective:** M-80's own edit to `/admin` broke the whole admin nav — every menu link stopped responding.
+
+**Root cause:** the `data` object (`{ districts: hookDistricts, stateTotals }`) is rebuilt inline on every render — a new object, new reference, every time. A new `useEffect(() => { if (data) setLastRefresh(new Date()); }, [data])` was added to replace the "last refresh" timestamp that used to be set by the removed `fetchMapData()`. Once `data` stopped being `null` (districts loaded), that effect never stabilized: it ran on every render, called `setLastRefresh`, which triggered another render, which rebuilt `data` as a new object again, which re-ran the effect — an infinite loop React can't recover from on its own. From the outside this looks exactly like "the whole page stopped working."
+
+**Change:**
+- [x] Changed the effect's dependency from `data` to `hookDistricts` — the array `useAdminDistricts()` returns, which only gets a new reference when the hook actually sets new data (inside its own fetch/cache resolution, not on every render), so the effect now only fires on a real data change.
+- [x] Verified against a real browser before redeploying, not just `tsc`: a throwaway Playwright spec logged into the local preview server as the superadmin test account, loaded `/admin`, clicked the Districts nav link, and confirmed the URL actually changed to `/admin/districts` with no "Maximum update depth exceeded" console error. `pnpm typecheck` alone would not have caught this — the bug is a runtime render-loop, not a type error.
+- [x] Bumped the service worker's `CACHE` constant (`apps/web/public/sw.js`) so an admin whose browser already cached the broken bundle gets the fix without needing to know to hard-refresh.
+
+**Exit criterion:** `/admin`'s nav links work again — clicking one actually navigates, with no console errors and no unresponsive UI.
+
+---
+
 ## Backlog / Not Started
 
 - [x] ~~Verify `exciseup.in` in Resend and switch `RESEND_FROM_EMAIL`~~ — Done. `mail.exciseup.in` verified; `RESEND_FROM_EMAIL` set to `noreply@mail.exciseup.in` on this project's Worker, and the same address set as `FROM_EMAIL` on the sibling `excise-revenue-recovery-portal` project's Worker (different env var name there, same Resend account/domain). Magic-link email is now the Admin/HQ login channel only (DEOs use CUG login as of M-17).
