@@ -160,6 +160,7 @@ When files for any app or package do not exist yet, do not create them speculati
 | `/admin/audit` | `app/(admin)/admin/audit/page.tsx` | `admin` |
 | `/admin/export` | `app/(admin)/admin/export/page.tsx` | `admin` |
 | `/admin/circles-sectors` | `app/(admin)/admin/circles-sectors/page.tsx` | `admin` — Circle & Sector Master, read-only, open to all admins (not owner/superadmin-gated) |
+| `/admin/data-quality` | `app/(admin)/admin/data-quality/page.tsx` | `admin` — Data Quality Review (M-70), static findings report for the pre-campaign meeting and reverification round, open to all admins. Deliberately has no per-district breakdown — see the M-70 entries in this file and summary.md for why |
 
 **How Next.js App Router derives URLs:** route groups `(name)` are stripped; every other folder becomes a URL segment; `[param]` is a dynamic segment.
 
@@ -795,6 +796,7 @@ Full per-milestone delivery history (Objective, Deliverables, Exit Criterion, bu
 | M-68: Cross-District Authorization Fix on DEO Routes; Idempotent Re-Upload; Locked "Fetch from Server" | **Completed** |
 | M-69: Excel Instructions Sheet Gains a Per-Shop-Type Revenue Formula Table | **Completed** |
 | M-70: Wrong-Column Money Detection, Thana Name Variant Detection, and a Prod Data-Quality Audit | **Completed** |
+| M-71: In-App Data Quality Review Page (`/admin/data-quality`) | **Completed** |
 
 See [summary.md](summary.md) for full milestone specs, entry/exit criteria, deliverable checklists, the backlog, and pre-campaign-blocker history.
 

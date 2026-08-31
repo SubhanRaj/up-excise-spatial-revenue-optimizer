@@ -1450,6 +1450,21 @@ flowchart LR
 
 ---
 
+### M-71: In-App Data Quality Review Page (`/admin/data-quality`) ✅ Complete
+
+**Objective:** M-70's findings needed to be reachable inside the portal for the pre-campaign meeting, not only as a standalone artifact, and written for a senior-officer audience rather than a developer one.
+
+**Change:**
+- [x] Added `/admin/data-quality` (`app/(admin)/admin/data-quality/page.tsx`) — a static page covering the same six findings as the M-70 report, plus the reverification checklist. Open to any `admin`/`superadmin`, linked from the main admin navbar (desktop and mobile drawer).
+- [x] The page reports aggregate counts only — no per-district breakdown or ranking. Per the working decision behind this: a list naming which districts have the most errors, handed to DEOs, would let them fix only the specific flagged items rather than genuinely reviewing their own data. The findings describe the *type* of mistake to check for; the reverification checklist is written to be handed to DEOs directly for exactly that reason.
+- [x] Found and fixed a third un-normalized Thana `Set` while building this page: `/admin/circles-sectors` built its own circle/sector aggregation independently of `useShopAggregates` (predating that shared hook) and had the same raw-`thanaName`-in-a-`Set` bug M-70 fixed elsewhere. Now uses `normalizeThanaName()` too.
+- [x] Re-wrote the standalone artifact's copy alongside this page — plain, present-tense, no developer terms (`shop_type`, `roadmap.md §4.4`, table/column names) — and removed the per-district ranking lists from it as well, so the two copies describe the same six findings the same way.
+- [x] `pnpm typecheck` and `pnpm --filter web test` run clean; deployed via direct `wrangler`/`@opennextjs/cloudflare` build+deploy.
+
+**Exit criterion:** The Data Quality Review is reachable from the admin navbar, describes each finding in language a non-technical reviewer can act on, and contains no data that identifies a specific district's error count.
+
+---
+
 ## Backlog / Not Started
 
 - [x] ~~Verify `exciseup.in` in Resend and switch `RESEND_FROM_EMAIL`~~ — Done. `mail.exciseup.in` verified; `RESEND_FROM_EMAIL` set to `noreply@mail.exciseup.in` on this project's Worker, and the same address set as `FROM_EMAIL` on the sibling `excise-revenue-recovery-portal` project's Worker (different env var name there, same Resend account/domain). Magic-link email is now the Admin/HQ login channel only (DEOs use CUG login as of M-17).

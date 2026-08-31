@@ -186,6 +186,7 @@ function getBreadcrumbs(pathname: string): { label: string; href: string | null 
     '/admin/unlock-requests': [{ label: 'Overview', href: '/admin' }, { label: 'Unlock Requests', href: null }],
     '/admin/audit': [{ label: 'Overview', href: '/admin' }, { label: 'Audit Log', href: null }],
     '/admin/export': [{ label: 'Overview', href: '/admin' }, { label: 'Export', href: null }],
+    '/admin/data-quality': [{ label: 'Overview', href: '/admin' }, { label: 'Data Quality', href: null }],
   };
   return MAP[pathname] ?? [];
 }
@@ -232,6 +233,7 @@ const NAV_LINKS = (session: ReturnType<typeof useSession>['session']) => [
   { href: '/admin/unlock-requests', label: 'Unlock Requests', active: (p: string) => p === '/admin/unlock-requests' },
   { href: '/admin/audit', label: 'Audit', active: (p: string) => p === '/admin/audit' },
   { href: '/admin/export', label: 'Export', active: (p: string) => p === '/admin/export' },
+  { href: '/admin/data-quality', label: 'Data Quality', active: (p: string) => p === '/admin/data-quality' },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {

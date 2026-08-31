@@ -7,6 +7,7 @@ import { useAdminDistricts } from '@/hooks/useAdminDistricts';
 import { useAdminExportData } from '@/hooks/useAdminExportData';
 import { SHOP_TYPE_BADGE_CLASS, SHOP_TYPE_SHORT_LABEL } from '@/lib/shop-type';
 import { compareUnitName } from '@/lib/unit-sort';
+import { normalizeThanaName } from '@/lib/thana-name';
 import { SHOP_TYPES, SHOP_TYPE_LABELS } from '@excise/schema';
 
 const fmt = (n: number) => n >= 1e7 ? `₹${(n / 1e7).toFixed(2)} Cr` : n >= 1e5 ? `₹${(n / 1e5).toFixed(2)} L` : `₹${n.toLocaleString('en-IN')}`;
@@ -54,7 +55,7 @@ export default function CirclesSectorsPage() {
         entry = { district, name: s.circleSectorName, type: 'unit', thanas: new Set(), count: 0, revenue: 0, byType: {} };
         map.set(key, entry);
       }
-      entry.thanas.add(s.thanaName);
+      entry.thanas.add(normalizeThanaName(s.thanaName));
       entry.count += 1;
       entry.revenue += s.totalRevenue;
       entry.byType[s.shopType] = (entry.byType[s.shopType] ?? 0) + 1;
