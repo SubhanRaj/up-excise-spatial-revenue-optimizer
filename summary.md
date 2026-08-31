@@ -1631,6 +1631,21 @@ flowchart LR
 
 ---
 
+### M-83: Print-to-PDF Export on the Districts List ✅ Complete
+
+**Objective:** give admins a way to export the district status table (name, division, DEO, status, revenue) as a PDF for sharing outside the portal — a meeting handout, not a data-interchange file.
+
+**Change:** an "Export PDF" button on `/admin/districts` calls `window.print()`. No PDF library — Tailwind's `print:` variant (already loaded via the CDN script) hides everything that doesn't belong in a printed report and swaps in a print-only header:
+- [x] `print:hidden` on the admin navbar (`app/(admin)/layout.tsx`), the `ViewPrefsPanel` FAB, the search/filter toolbar, and the per-row "View →" column.
+- [x] A print-only block (`hidden print:block`) showing the report title, generation timestamp, and row count, replacing the screen header.
+- [x] The table itself prints as-is — same filter/sort/search state the admin left it in, so the printed report matches what they were just looking at.
+
+The browser's own print dialog produces the PDF ("Save as PDF" / "Microsoft Print to PDF" / macOS's PDF menu, depending on OS) — this stays a client-side, dependency-free export, consistent with the project's CDN-first rule, and doesn't compete with the XLSX exports used for actual data interchange (`/admin/export`, per-district downloads).
+
+**Exit criterion:** clicking Export PDF on `/admin/districts` opens the print dialog with a clean report layout — no nav, no filters, no action buttons — that saves to PDF correctly.
+
+---
+
 ## Backlog / Not Started
 
 - [x] ~~Verify `exciseup.in` in Resend and switch `RESEND_FROM_EMAIL`~~ — Done. `mail.exciseup.in` verified; `RESEND_FROM_EMAIL` set to `noreply@mail.exciseup.in` on this project's Worker, and the same address set as `FROM_EMAIL` on the sibling `excise-revenue-recovery-portal` project's Worker (different env var name there, same Resend account/domain). Magic-link email is now the Admin/HQ login channel only (DEOs use CUG login as of M-17).

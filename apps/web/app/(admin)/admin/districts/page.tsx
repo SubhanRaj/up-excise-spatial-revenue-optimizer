@@ -67,16 +67,26 @@ export default function DistrictsPage() {
           <h1 className="text-2xl font-bold tracking-tight">All Districts</h1>
           <p className="text-sm text-base-content/70 mt-0.5">Complete registry of all 75 Uttar Pradesh districts. Select a district to view its shop-level records.</p>
         </div>
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex items-center gap-2 print:hidden">
+          <button className="btn btn-sm btn-outline" onClick={() => window.print()} title="Opens the browser's print dialog — choose &quot;Save as PDF&quot; to export">
+            Export PDF
+          </button>
           <HelpPanel pageKey="admin_districts_list" title="All Districts">
             <p>Full list of all 75 UP districts. Filter by division or status. Click a district row to open its shop-level detail view.</p>
             <ul className="list-disc list-inside space-y-1 mt-1">
               <li><strong>Division filter</strong> — narrow to a single division.</li>
               <li><strong>Status filter</strong> — pending, in_progress, or submitted.</li>
               <li><strong>Sort</strong> — click any column header.</li>
+              <li><strong>Export PDF</strong> — opens the print dialog with a report-friendly layout (no nav, no filters); choose &quot;Save as PDF&quot; there.</li>
             </ul>
           </HelpPanel>
         </div>
+      </div>
+
+      {/* Print-only header — the screen header above is hidden when printing */}
+      <div className="hidden print:block">
+        <h1 className="text-xl font-bold">UP Excise — District Status Report</h1>
+        <p className="text-xs text-base-content/70">Generated {new Date().toLocaleString('en-IN')} · {rows.length} of 75 districts shown</p>
       </div>
 
       {/* Stat chips */}
@@ -105,7 +115,7 @@ export default function DistrictsPage() {
       {/* Table card */}
       <div className="bg-base-100 rounded-xl border border-base-200 overflow-hidden">
         {/* Toolbar */}
-        <div className={`flex flex-wrap gap-3 items-center p-4 border-b border-base-200 ${loading ? 'pointer-events-none opacity-50' : ''}`}>
+        <div className={`print:hidden flex flex-wrap gap-3 items-center p-4 border-b border-base-200 ${loading ? 'pointer-events-none opacity-50' : ''}`}>
           <div className="relative flex-1 min-w-[200px]">
             <svg xmlns="http://www.w3.org/2000/svg" className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-base-content/50" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
             <input
@@ -153,7 +163,7 @@ export default function DistrictsPage() {
                 <th className="cursor-pointer hover:text-base-content text-right" onClick={() => handleSort('totalRevenue')}>
                   Revenue <SortIcon active={sortKey === 'totalRevenue'} dir={sortDir} />
                 </th>
-                <th></th>
+                <th className="print:hidden"></th>
               </tr>
             </thead>
             <tbody>
@@ -192,7 +202,7 @@ export default function DistrictsPage() {
                     <td className="text-right tabular-nums">{(d.unitCount ?? 0).toLocaleString()}</td>
                     <td className="text-right tabular-nums">{d.vendCount.toLocaleString()}</td>
                     <td className="text-right font-mono text-xs tabular-nums">{fmt(d.totalRevenue)}</td>
-                    <td>
+                    <td className="print:hidden">
                       <button className="btn btn-ghost btn-xs" onClick={(e) => { e.stopPropagation(); router.push(`/admin/districts/${encodeURIComponent(d.name)}`); }}>View →</button>
                     </td>
                   </tr>

@@ -388,6 +388,7 @@ Do not fetch `/api/auth/session` directly from page components — always go thr
 - Client-side search (matches district, division, DEO name, DEO email — `deoEmail` is matched but not rendered, see below), division filter, status filter, and sortable columns. No additional API calls.
 - **Read-only view.** DEO name, email, and coordinates are displayed for browsing only — there is no edit UI on this page. The DEO email column itself is **not rendered** (only DEO name) to keep the table uncluttered; all district/DEO editing happens on the District Master page (`/admin/provision`), described below.
 - Division badge in each row links to `/admin/divisions/[division]`.
+- **"Export PDF" button (M-83)** calls `window.print()` with a `print:` Tailwind-variant stylesheet — no PDF library. The navbar, the ViewPrefsPanel FAB, the search/filter toolbar, and the per-row "View →" column all carry `print:hidden`; a print-only header (district count + generation timestamp) replaces the screen header. The browser's own print dialog's "Save as PDF" produces the file — this is a print-styled version of whatever the table currently shows (filtered/sorted the same way), meant for sharing a district-status snapshot in a meeting, not a data-interchange export (those stay XLSX per the CSV/XLSX rule above).
 
 **Divisions page (`/admin/divisions`):**
 - 18 division cards derived client-side from `GET /api/admin/districts`. Shows district count, submission progress, and revenue per division.
@@ -813,6 +814,7 @@ Full per-milestone delivery history (Objective, Deliverables, Exit Criterion, bu
 | M-80: Removed Redundant map-data Endpoint & a Sync-All Regression of M-74 | **Completed** |
 | M-81: Fixed Admin Overview Infinite-Render Loop Introduced by M-80 | **Completed** |
 | M-82: CARTO Basemap API Key; "Verified" Wording on the DEO Read-Only View | **Completed** |
+| M-83: Print-to-PDF Export on the Districts List | **Completed** |
 
 See [summary.md](summary.md) for full milestone specs, entry/exit criteria, deliverable checklists, the backlog, and pre-campaign-blocker history.
 
