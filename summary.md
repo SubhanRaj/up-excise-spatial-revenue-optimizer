@@ -1529,6 +1529,21 @@ flowchart LR
 
 ---
 
+### M-76: has_cl5cc Restored to a TRUE/FALSE Dropdown ✅ Complete
+
+**Objective:** M-36 traded away `has_cl5cc`'s dropdown arrow for a hard Excel-cell-level gate blocking `TRUE` on any non-Country-Liquor row. In real district data, most rows are `FALSE`, and with no dropdown a DEO had no visible way to see `TRUE` was ever a valid choice on this column — they had to already know to type it. Several districts came back with `FALSE` on every single row, some of which should have had `TRUE` set.
+
+**Change:**
+- [x] `has_cl5cc`'s data validation (`apps/web/src/lib/excel.ts`, `buildShopDataSheet`) changed from a `type: 'custom'` formula back to a `type: 'list'` dropdown (`"TRUE,FALSE"`).
+- [x] The Excel-cell-level block on `TRUE` for a non-Country-Liquor row is gone, but the correctness check is not — `validateRow()` (`apps/web/src/lib/validate.ts`) already rejects that combination the moment the file is parsed in `/upload`, before any network call, and the Worker independently re-checks it on upload. Both of those ran unconditionally before this change too; only the Excel-cell gate is removed.
+- [x] Updated the `has_cl5cc` header tooltip/Instructions-sheet copy (`COLUMN_GUIDE` in `excel.ts`), `docs/templates/README.md`, and CLAUDE.md's CL5CC Rule section to describe the dropdown and the parse-time/Worker checks, replacing the M-36-era wording about the cell itself rejecting the value.
+- [x] Verified empirically: generated a real template with the real `exceljs` package and read back the column's data validation — `type: "list"`, `formulae: ["\"TRUE,FALSE\""]`.
+- [x] `pnpm typecheck` and `pnpm --filter web test` (OOXML limits check) run clean; deployed via direct `wrangler`/`@opennextjs/cloudflare` build+deploy.
+
+**Exit criterion:** A freshly downloaded template's `has_cl5cc` column has a working dropdown arrow listing `TRUE` and `FALSE`. A `TRUE` on a non-Country-Liquor row is still caught, now at parse time in `/upload` instead of inside Excel itself.
+
+---
+
 ## Backlog / Not Started
 
 - [x] ~~Verify `exciseup.in` in Resend and switch `RESEND_FROM_EMAIL`~~ — Done. `mail.exciseup.in` verified; `RESEND_FROM_EMAIL` set to `noreply@mail.exciseup.in` on this project's Worker, and the same address set as `FROM_EMAIL` on the sibling `excise-revenue-recovery-portal` project's Worker (different env var name there, same Resend account/domain). Magic-link email is now the Admin/HQ login channel only (DEOs use CUG login as of M-17).

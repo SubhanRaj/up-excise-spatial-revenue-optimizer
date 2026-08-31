@@ -387,7 +387,7 @@ const COLUMN_GUIDE: unknown[][] = [
   [FRIENDLY_LABELS.shop_id, 'Department-assigned license/registration ID.\nविभाग द्वारा दिया गया लाइसेंस/पंजीकरण आईडी।', 'All shop types / सभी प्रकार', 'Alphanumeric. Must be unique within the district. For HBR shops, include "HBR" in the ID (e.g. HBR001) so bar licenses are identifiable by ID alone — a soft warning, not a blocking rule.\nअक्षर व अंक। जिले में अद्वितीय होना चाहिए। HBR दुकानों के लिए, ID में "HBR" शामिल करें (जैसे HBR001) ताकि bar license सिर्फ ID से पहचाने जा सकें — यह एक सुझाव है, अनिवार्य नियम नहीं।'],
   [FRIENDLY_LABELS.shop_name, 'Official name of the retail vend.\nदुकान का आधिकारिक नाम।', 'All shop types / सभी प्रकार', 'English only.\nकेवल अंग्रेज़ी में।'],
   [FRIENDLY_LABELS.shop_type, 'Shop classification — choose from the dropdown.\nदुकान का वर्गीकरण — dropdown से चुनें।', 'All shop types / सभी प्रकार', 'MODEL_SHOP | COMPOSITE_SHOP | PRV | BHANG_SHOP | COUNTRY_LIQUOR | HBR'],
-  [FRIENDLY_LABELS.has_cl5cc, 'TRUE = Country Liquor shop that ALSO has the CL5CC beer endorsement. FALSE = every other case, including a standard Country Liquor shop that sells only country liquor and no beer. Type TRUE or FALSE.\nTRUE = ऐसी Country Liquor दुकान जिसके पास CL5CC बियर endorsement भी है। FALSE = बाकी हर स्थिति, जिसमें एक सामान्य Country Liquor दुकान भी शामिल है जो केवल देशी शराब बेचती है, बियर नहीं। TRUE या FALSE टाइप करें।', 'All shop types (FALSE/blank) — TRUE only for COUNTRY_LIQUOR / सभी प्रकार (FALSE/खाली) — TRUE केवल COUNTRY_LIQUOR के लिए', 'FALSE (or leaving it blank) is correct and expected for every shop type — including most Country Liquor shops, which don\'t have the beer endorsement. The cell itself rejects TRUE unless Shop Type is Country Liquor; FALSE/blank is always accepted.\nFALSE (या खाली छोड़ना) हर दुकान प्रकार के लिए सही और सामान्य है — जिसमें अधिकतर Country Liquor दुकानें भी शामिल हैं, जिनके पास बियर endorsement नहीं होता। Cell खुद TRUE को अस्वीकार कर देगा जब तक Shop Type Country Liquor न हो; FALSE/खाली हमेशा मान्य है।'],
+  [FRIENDLY_LABELS.has_cl5cc, 'TRUE = Country Liquor shop that ALSO has the CL5CC beer endorsement. FALSE = every other case, including a standard Country Liquor shop that sells only country liquor and no beer. Choose from the dropdown.\nTRUE = ऐसी Country Liquor दुकान जिसके पास CL5CC बियर endorsement भी है। FALSE = बाकी हर स्थिति, जिसमें एक सामान्य Country Liquor दुकान भी शामिल है जो केवल देशी शराब बेचती है, बियर नहीं। dropdown से चुनें।', 'All shop types (FALSE/blank) — TRUE only for COUNTRY_LIQUOR / सभी प्रकार (FALSE/खाली) — TRUE केवल COUNTRY_LIQUOR के लिए', 'FALSE (or leaving it blank) is correct and expected for every shop type — including most Country Liquor shops, which don\'t have the beer endorsement. A TRUE entered on any other shop type is caught and rejected the moment the file is opened in the portal, before it reaches the server.\nFALSE (या खाली छोड़ना) हर दुकान प्रकार के लिए सही और सामान्य है — जिसमें अधिकतर Country Liquor दुकानें भी शामिल हैं, जिनके पास बियर endorsement नहीं होता। किसी अन्य दुकान प्रकार पर भरा गया TRUE पोर्टल में फ़ाइल खोलते ही पकड़ लिया जाता है और सर्वर तक पहुंचने से पहले ही अस्वीकार हो जाता है।'],
   [FRIENDLY_LABELS.latitude, 'Latitude — DMS or Decimal.\nअक्षांश — DMS या Decimal में।', 'All shop types (fill in when known) / सभी प्रकार (जब पता हो तब भरें)', 'e.g. 26°50\'48.12"N or 26.8467'],
   [FRIENDLY_LABELS.longitude, 'Longitude — DMS or Decimal.\nदेशांतर — DMS या Decimal में।', 'All shop types (fill in when known) / सभी प्रकार (जब पता हो तब भरें)', 'e.g. 80°56\'46.3"E or 80.9462'],
   [FRIENDLY_LABELS.license_fee_lf, 'Annual license fee (INR, whole rupees).\nवार्षिक लाइसेंस शुल्क (INR, पूर्ण रुपयों में)।', 'MODEL_SHOP, PRV, BHANG_SHOP, HBR', 'Locked to 0 for other shop types — cell will reject entry. For Composite Shop, leave this blank/0 — the portal computes it automatically from Composite LF – Foreign Liquor + Composite LF – Beer below.\nअन्य दुकान प्रकार के लिए यह 0 पर locked है — गलत entry स्वीकार नहीं होगी। Composite Shop के लिए इसे खाली/0 छोड़ें — पोर्टल इसे नीचे दिए गए Composite LF – Foreign Liquor + Composite LF – Beer से स्वतः गणना कर लेगा।'],
@@ -490,23 +490,20 @@ async function buildShopDataSheet(
   const shopTypeLetter = colLetter(shopTypeCol);
   const cl5ccLetter = colLetter(cl5ccCol);
 
-  // has_cl5cc: a custom formula, not a plain list dropdown — TRUE is only accepted when
-  // shop_type is Country Liquor; FALSE (and blank) are always accepted regardless of type.
-  // This used to be a `custom` formula comparing the cell against the *quoted text*
-  // "true"/"false", which never matched a real Boolean cell value and rejected every entry
-  // in both directions (fixed to a plain list dropdown in M-31). That old bug was the quoting,
-  // not the custom-formula approach itself — this formula uses the same unquoted boolean
-  // literal comparison (`=TRUE`/`=FALSE`) already proven correct in the FIELD_GATES loop
-  // below. The tradeoff versus the M-31 dropdown: no autofill/dropdown arrow on this cell
-  // anymore (Excel can't combine a `list` and a `custom` validation on one cell) — the DEO
-  // types TRUE or FALSE, which Excel auto-converts to a native Boolean the same way either
-  // input method would.
+  // has_cl5cc: a plain TRUE/FALSE list dropdown (M-76). M-36 traded this dropdown away for a
+  // `custom` formula that hard-blocked TRUE on any non-Country-Liquor row directly in Excel —
+  // but a cell with a `custom` validation has no dropdown arrow at all (Excel allows only one
+  // validation type per cell), so a district where every row happened to be FALSE gave DEOs no
+  // visible way to see TRUE was ever a valid option, they had to already know to type it. The
+  // invalid-combination check this gave up is not lost — `validateRow()` (`lib/validate.ts`)
+  // rejects TRUE on a non-Country-Liquor row at parse time, before any network call, and the
+  // Worker re-checks it independently on upload — so the correctness guarantee is unchanged,
+  // only which layer catches it.
   validations.add(`${cl5ccLetter}3:${cl5ccLetter}${VALIDATION_ROW_LIMIT}`, {
-    type: 'custom', allowBlank: true,
-    formulae: [`=OR($${cl5ccLetter}3="",$${cl5ccLetter}3=FALSE,AND($${cl5ccLetter}3=TRUE,$${shopTypeLetter}3="${SHOP_TYPE_LABELS.COUNTRY_LIQUOR}"))`],
-    showInputMessage: true, promptTitle: 'CL5CC', prompt: 'Type TRUE or FALSE. TRUE is only valid when Shop Type is Country Liquor.',
+    type: 'list', allowBlank: true, formulae: ['"TRUE,FALSE"'],
+    showInputMessage: true, promptTitle: 'CL5CC', prompt: 'Choose TRUE or FALSE. TRUE is only valid when Shop Type is Country Liquor.',
     showErrorMessage: true, errorStyle: 'error', errorTitle: 'Invalid value',
-    error: 'Type TRUE or FALSE. TRUE is only valid when Shop Type is Country Liquor.\nTRUE या FALSE टाइप करें। TRUE केवल तभी मान्य है जब Shop Type Country Liquor हो।',
+    error: 'Choose TRUE or FALSE from the dropdown.\nTRUE या FALSE dropdown से चुनें।',
   });
   if (units.length > 0) {
     validations.add(`${colLetter(unitCol)}3:${colLetter(unitCol)}${VALIDATION_ROW_LIMIT}`, {

@@ -597,7 +597,7 @@ No other values are accepted. The Worker validates this on every inbound row. `H
 
 ### CL5CC Rule
 - CL5CC is **not a separate shop type**. It is `COUNTRY_LIQUOR` with `has_cl5cc = true`.
-- If `has_cl5cc = true`, then `shop_type` must be `COUNTRY_LIQUOR`. The DEO Excel template's `has_cl5cc` cell itself rejects `TRUE` unless `shop_type` is Country Liquor (a custom data-validation formula, not a plain dropdown — see `apps/web/src/lib/excel.ts`), and the Worker independently rejects any other combination on upload as a second layer.
+- If `has_cl5cc = true`, then `shop_type` must be `COUNTRY_LIQUOR`. The DEO Excel template's `has_cl5cc` column is a plain TRUE/FALSE dropdown (M-76) — the combination itself is enforced one layer down, not at the Excel cell: `validateRow()` (`apps/web/src/lib/excel.ts`'s `parseExcelFile()` calls it) rejects `TRUE` on a non-`COUNTRY_LIQUOR` row the moment the file is opened in `/upload`, before any network call, and the Worker independently rejects any other combination on upload as a second layer.
 - The frontend shows `special_beer_lf` and `special_beer_mgr` input fields only when `has_cl5cc` is checked. When unchecked, both values must be set to `0` before submission.
 
 ### Adjacent Thana Cross-District Rule
@@ -804,6 +804,7 @@ Full per-milestone delivery history (Objective, Deliverables, Exit Criterion, bu
 | M-73: Pre-Filled Data-Correction Template, Shared D1-Sync Cache for Re-Uploads | **Completed** |
 | M-74: District Detail Page Skips Re-Fetching Unchanged Districts | **Completed** |
 | M-75: Fetch/Download From D1 No Longer Blocked By District Lock | **Completed** |
+| M-76: has_cl5cc Restored to a TRUE/FALSE Dropdown | **Completed** |
 
 See [summary.md](summary.md) for full milestone specs, entry/exit criteria, deliverable checklists, the backlog, and pre-campaign-blocker history.
 
