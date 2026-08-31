@@ -1,4 +1,4 @@
-import { SHOP_TYPES, SHOP_TYPE_LABELS } from '@excise/schema';
+import { SHOP_TYPES, SHOP_TYPE_LABELS, MONEY_FIELD_GATES, MONEY_FIELD_LABELS, isStrayMoneyValue } from '@excise/schema';
 import type { Phase1RowInput } from './types';
 import { computeRevenue } from './revenue';
 
@@ -56,6 +56,21 @@ export function validateRow(r: Phase1RowInput): RowError[] {
     }
     if (r.compositeMgrFl + r.compositeMgrBeer !== r.mgrAmount) {
       errors.push({ field: 'mgrAmount', message: 'Min. Guaranteed Revenue (MGR) must equal Composite MGR – Foreign Liquor + Composite MGR – Beer' });
+    }
+  }
+
+  // A money value entered in a field this shop type's formula doesn't use never reaches
+  // Total Revenue — computeRevenue() below only sums the fields the type actually dispatches
+  // on, so a row with money stuck in the wrong column still passes the total-matches check
+  // that follows (the wrong total is self-consistent with the wrong fields) and previously
+  // slipped through undetected, quietly undercounting that shop's revenue.
+  for (const gate of MONEY_FIELD_GATES) {
+    const value = r[gate.key as keyof Phase1RowInput] as unknown as number;
+    if (isStrayMoneyValue(gate.key, value, r.shopType, r.hasCl5cc)) {
+      errors.push({
+        field: gate.key,
+        message: `${MONEY_FIELD_LABELS[gate.key] ?? gate.key} doesn't apply to shop type "${SHOP_TYPE_LABELS[r.shopType as keyof typeof SHOP_TYPE_LABELS] ?? r.shopType}" and won't count toward Total Revenue. Move ₹${value.toLocaleString('en-IN')} to the correct field for this shop type, or clear it if it was entered by mistake.`,
+      });
     }
   }
 

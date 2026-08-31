@@ -8,6 +8,7 @@ import type ExcelJSNamespace from 'exceljs';
 import { SHOP_TYPES, SHOP_TYPE_LABELS, BHANG_MGQ_MULTIPLIER, ON_PREMISES_CONSUMPTION_FEE } from '@excise/schema';
 import { STATUS_LABEL } from './status';
 import { compareUnitName } from './unit-sort';
+import { normalizeThanaName } from './thana-name';
 
 declare global {
   // ExcelJS loaded from CDN in root layout.tsx — never bundled. The single spreadsheet
@@ -1091,7 +1092,7 @@ function buildCircleSectorSummarySheet(wb: ExcelJSNamespace.Workbook, shops: Exp
       entry = { district, name: s.circleSectorName, type: 'unit', thanas: new Set(), count: 0, revenue: 0, byType: {} };
       map.set(key, entry);
     }
-    entry.thanas.add(s.thanaName);
+    entry.thanas.add(normalizeThanaName(s.thanaName));
     entry.count += 1;
     entry.revenue += s.totalRevenue;
     entry.byType[s.shopType] = (entry.byType[s.shopType] ?? 0) + 1;

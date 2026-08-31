@@ -103,7 +103,7 @@ export function ShopExplorer({
   loading?: boolean;
   storageKeyPrefix: string;
 }) {
-  const { typeCounts, cl5ccCount, circles, circleStats } = useShopAggregates(shops, units);
+  const { typeCounts, cl5ccCount, circles, circleStats, thanaVariants } = useShopAggregates(shops, units);
 
   const [showCircleStats, setShowCircleStats] = useState(true);
   const [search, setSearch] = useState('');
@@ -331,6 +331,31 @@ export function ShopExplorer({
               </table>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Possible Thana name spelling variants — not auto-merged, a human confirms these are
+          really the same place before anything changes (see findThanaNameVariants). */}
+      {!loading && thanaVariants.length > 0 && (
+        <div className="bg-warning/5 rounded-xl border border-warning/30 p-4">
+          <p className="text-[11px] uppercase tracking-widest font-medium text-warning mb-2">
+            ⚠ Possible Duplicate Thana Names ({thanaVariants.length})
+          </p>
+          <p className="text-xs text-base-content/70 mb-3">
+            These groups of Thana names look like spelling variants of the same place, which inflates the Thana count on the breakdown above. Confirm with the DEO and correct any typos via a data-correction re-upload.
+          </p>
+          <div className="flex flex-wrap gap-3">
+            {thanaVariants.map((group) => (
+              <div key={group.join('|')} className="flex flex-wrap items-center gap-1 rounded-lg border border-warning/40 bg-base-100 px-2.5 py-1.5">
+                {group.map((name, i) => (
+                  <span key={name}>
+                    <span className="text-xs font-medium">{name}</span>
+                    {i < group.length - 1 && <span className="text-base-content/40 mx-1">≈</span>}
+                  </span>
+                ))}
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

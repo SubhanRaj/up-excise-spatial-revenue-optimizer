@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react';
 import { compareUnitName } from '@/lib/unit-sort';
+import { normalizeThanaName, findThanaNameVariants } from '@/lib/thana-name';
 
 export interface AggregateShop {
   shopType: string;
@@ -58,7 +59,7 @@ export function useShopAggregates<T extends AggregateShop>(
         entry = { name: s.circleSectorName, type: 'unit', thanas: new Set(), count: 0, revenue: 0, byType: {} };
         map.set(s.circleSectorName, entry);
       }
-      entry.thanas.add(s.thanaName);
+      entry.thanas.add(normalizeThanaName(s.thanaName));
       entry.count += 1;
       entry.revenue += s.totalRevenue;
       entry.byType[s.shopType] = (entry.byType[s.shopType] ?? 0) + 1;
@@ -66,5 +67,15 @@ export function useShopAggregates<T extends AggregateShop>(
     return Array.from(map.values()).sort((a, b) => compareUnitName(a.name, b.name));
   }, [shops, units]);
 
-  return { typeCounts, cl5ccCount, circles, circleStats };
+  // Same-district Thana names that look like typos of each other (e.g. "Kotwali" /
+  // "Kotwaali") — surfaced for human review, not auto-merged (see findThanaNameVariants).
+  // This is why a district's Circle/Sector Breakdown "Thanas" column can read 5-6 when the
+  // real count is 2: exact-string counting (even after the case/whitespace normalization
+  // above) still treats a genuine spelling variant as a distinct Thana.
+  const thanaVariants = useMemo(
+    () => findThanaNameVariants(shops.map((s) => s.thanaName).filter(Boolean)),
+    [shops],
+  );
+
+  return { typeCounts, cl5ccCount, circles, circleStats, thanaVariants };
 }

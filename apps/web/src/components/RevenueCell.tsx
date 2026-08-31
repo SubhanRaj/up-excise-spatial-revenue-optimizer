@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { MONEY_FIELD_GATES, MONEY_FIELD_LABELS, isStrayMoneyValue } from '@excise/schema';
 
 const ON_PREMISES_CONSUMPTION_FEE = 300_000;
 const BHANG_MGQ_MULTIPLIER = 20;
@@ -66,6 +67,15 @@ function breakdownLines(s: RevenueShopFields): [string, number][] {
   return lines;
 }
 
+/** Money sitting in a field this shop type's formula ignores — never reaches Total Revenue,
+ * usually because a DEO filled the wrong column for this shop's type. See MONEY_FIELD_GATES. */
+function strayLines(s: RevenueShopFields): [string, number][] {
+  return MONEY_FIELD_GATES
+    .map((g) => [g.key, (s as unknown as Record<string, number>)[g.key]] as [string, number])
+    .filter(([key, value]) => isStrayMoneyValue(key, value, s.shopType, s.hasCl5cc))
+    .map(([key, value]) => [MONEY_FIELD_LABELS[key] ?? key, value]);
+}
+
 const POPUP_WIDTH = 224; // w-56
 
 // Only one breakdown popup open at a time across the whole table — each instance is an
@@ -78,6 +88,7 @@ let active: { token: object; run: () => void } | null = null;
 
 export function RevenueCell({ s }: { s: RevenueShopFields }) {
   const lines = breakdownLines(s);
+  const stray = strayLines(s);
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState({ top: 0, left: 0 });
   const detailsRef = useRef<HTMLDetailsElement>(null);
@@ -109,7 +120,7 @@ export function RevenueCell({ s }: { s: RevenueShopFields }) {
     if (active && active.token !== token) active.run();
     active = { token, run: close };
     const rect = e.currentTarget.getBoundingClientRect();
-    const popupHeightEst = 100 + lines.length * 20;
+    const popupHeightEst = 100 + lines.length * 20 + (stray.length ? 40 + stray.length * 20 : 0);
     const fitsBelow = rect.bottom + popupHeightEst <= window.innerHeight - 16;
     const left = Math.min(Math.max(rect.left, 8), window.innerWidth - POPUP_WIDTH - 8);
     const top = fitsBelow ? rect.bottom + 4 : Math.max(8, rect.top - popupHeightEst - 4);
@@ -153,6 +164,7 @@ export function RevenueCell({ s }: { s: RevenueShopFields }) {
   return (
     <details ref={detailsRef} className="cursor-pointer" onToggle={handleToggle}>
       <summary className="list-none select-none font-mono text-xs font-medium tabular-nums hover:underline decoration-dotted underline-offset-2">
+        {stray.length > 0 && <span className="text-warning mr-1" title="Money entered in a field this shop type doesn't count — check the breakdown">⚠</span>}
         {fmt(s.totalRevenue)}
         <span className="ml-1 text-base-content/50">▾</span>
       </summary>
@@ -175,6 +187,19 @@ export function RevenueCell({ s }: { s: RevenueShopFields }) {
             <span>Total</span>
             <span className="font-mono tabular-nums">{fmt(s.totalRevenue)}</span>
           </div>
+          {stray.length > 0 && (
+            <div className="mt-2 border-t border-warning/30 pt-2">
+              <p className="text-warning font-medium text-[10px] mb-1">⚠ Entered but not counted (wrong column?)</p>
+              <div className="space-y-1">
+                {stray.map(([label, val]) => (
+                  <div key={label} className="flex justify-between gap-3">
+                    <span className="text-base-content/80 truncate">{label}</span>
+                    <span className="font-mono tabular-nums shrink-0">{fmt(val)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>,
         document.body,
       )}
