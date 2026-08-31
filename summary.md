@@ -1515,6 +1515,19 @@ flowchart LR
 
 ---
 
+### M-75: Fetch/Download From D1 No Longer Blocked By District Lock ✅ Complete
+
+**Objective:** two DEO-side actions that only read from D1 were disabled while a district was locked (submitted or verified), even though a district's lock only means new writes are rejected — reading is unaffected by it.
+
+**Change:**
+- [x] `/home`'s "Fetch from Server" button (`HomeStats.tsx`) no longer disables and relabels itself "Locked" on a submitted/verified district. It pulls already-uploaded rows into local IndexedDB, a read, so the lock has no bearing on it.
+- [x] `/upload`'s locked view (shown while a district is submitted/verified, before or after a data-correction unlock is approved) now has its own "Download Current Data (.xlsx)" button, calling the same `downloadTemplate()` the unlocked view already uses. A DEO can pull the pre-filled template as soon as an unlock is approved without waiting on the page to first re-render into its unlocked state.
+- [x] `pnpm typecheck` and `pnpm --filter web test` run clean; deployed via direct `wrangler`/`@opennextjs/cloudflare` build+deploy.
+
+**Exit criterion:** A DEO can fetch/download current D1 data for their district at any time, locked or not.
+
+---
+
 ## Backlog / Not Started
 
 - [x] ~~Verify `exciseup.in` in Resend and switch `RESEND_FROM_EMAIL`~~ — Done. `mail.exciseup.in` verified; `RESEND_FROM_EMAIL` set to `noreply@mail.exciseup.in` on this project's Worker, and the same address set as `FROM_EMAIL` on the sibling `excise-revenue-recovery-portal` project's Worker (different env var name there, same Resend account/domain). Magic-link email is now the Admin/HQ login channel only (DEOs use CUG login as of M-17).

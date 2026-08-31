@@ -110,6 +110,12 @@ export default function UploadPage() {
           </div>
         </div>
 
+        <button className="btn btn-outline btn-sm self-start" onClick={downloadTemplate} aria-label="Download district Excel template">
+          {/* tabler:download */}
+          <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/><polyline points="7 11 12 16 17 11"/><line x1="12" y1="4" x2="12" y2="16"/></svg>
+          Download Current Data (.xlsx)
+        </button>
+
         {unlockRequest?.status === 'pending' ? (
           <div className="alert alert-info text-sm">
             <span className="loading loading-spinner loading-sm shrink-0" />
