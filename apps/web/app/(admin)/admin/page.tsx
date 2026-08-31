@@ -7,7 +7,7 @@ import { useSession } from '@/hooks/useSession';
 import HelpPanel from '@/app/_components/HelpPanel';
 import { useAdminDistricts } from '@/hooks/useAdminDistricts';
 import { useAdminExportData } from '@/hooks/useAdminExportData';
-import { adminMapCache, adminSettingsCache } from '@/lib/db';
+import { adminSettingsCache } from '@/lib/db';
 import { STATUS_COLOR, statusLabel, statusBadgeClass, isLocked } from '@/lib/status';
 import { SHOP_TYPE_BADGE_CLASS } from '@/lib/shop-type';
 import { SHOP_TYPES, SHOP_TYPE_LABELS } from '@excise/schema';
@@ -18,7 +18,6 @@ interface DistrictRow {
   status: string; submittedAt?: string; vendCount: number; totalRevenue: number;
 }
 interface AdminOverview { districts: DistrictRow[]; stateTotals: { totalVendCount: number; totalRevenue: number } }
-interface MapRow { name: string; status: string; expectedVendCount?: number; vendCount: number; totalRevenue: number }
 
 const STATUS_COLORS = STATUS_COLOR;
 
@@ -63,14 +62,20 @@ export default function AdminPage() {
   const router = useRouter();
   const routerRef = useRef(router);
   useEffect(() => { routerRef.current = router; }, [router]);
-  const { districts: hookDistricts, stateTotals, loading: districtsLoading } = useAdminDistricts();
+  const { districts: hookDistricts, stateTotals, loading: districtsLoading, refresh: refreshDistricts } = useAdminDistricts();
   const { data: exportData, loading: exportLoading, syncing: exportSyncing, sync: syncExportData } = useAdminExportData();
   const data: AdminOverview | null = hookDistricts.length > 0
     ? { districts: hookDistricts as DistrictRow[], stateTotals }
     : null;
-  const [mapData, setMapData] = useState<MapRow[]>([]);
-  const [apiError, setApiError] = useState<string | null>(null);
+  // The map only ever needs name/status/expectedVendCount/vendCount/totalRevenue — every field
+  // already present on the districts list useAdminDistricts() fetches. This used to be a
+  // second endpoint (`/api/admin/map-data`) running the exact same GROUP BY aggregate over the
+  // full ~30K-row phase1_raw_collection table a second time on every Overview page load —
+  // removed entirely rather than cached separately, since the data was never actually different.
+  const mapData = data?.districts ?? [];
+  const apiError = !districtsLoading && hookDistricts.length === 0 ? 'API error — your session may have expired, please sign in again.' : null;
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
+  useEffect(() => { if (data) setLastRefresh(new Date()); }, [data]);
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstance = useRef<LeafletMap | null>(null);
@@ -82,33 +87,6 @@ export default function AdminPage() {
     pie: useRef<HTMLCanvasElement>(null),
   };
   const chartInstances = useRef<{ destroy: () => void }[]>([]);
-
-  async function fetchMapData(force = false) {
-    if (!force) {
-      const cached = await adminMapCache.get();
-      if (cached) {
-        setMapData(cached as MapRow[]);
-        setApiError(null);
-        setLastRefresh(new Date());
-        return;
-      }
-    }
-    const mapRes = await fetch('/api/admin/map-data');
-    if (!mapRes.ok) {
-      setApiError(`API error — your session may have expired, please sign in again.`);
-      return;
-    }
-    const data = await mapRes.json() as MapRow[];
-    adminMapCache.set(data);
-    setMapData(data);
-    setApiError(null);
-    setLastRefresh(new Date());
-  }
-
-  useEffect(() => {
-    void fetchMapData();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   // ── Final-verification round toggle ───────────────────────────────────────
   interface SettingsInfo { verificationPhaseOpen: boolean; everToggled: boolean; submittedCount: number; totalDistricts: number }
@@ -358,7 +336,7 @@ export default function AdminPage() {
           {/* tabler:alert-circle */}
           <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
           <span>{apiError}</span>
-          <button className="btn btn-sm btn-ghost" onClick={() => fetchMapData(true)}>Retry</button>
+          <button className="btn btn-sm btn-ghost" onClick={refreshDistricts}>Retry</button>
         </div>
       )}
       {/* State totals */}

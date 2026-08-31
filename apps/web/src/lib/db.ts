@@ -275,9 +275,6 @@ function makeKvCache<T>(table: string, opts: { fixedKey?: string; ttlMs?: number
 // ── Districts aggregate cache (TTL: 5 min) ──────────────────────────────────
 export const adminDistrictsCache = makeKvCache<unknown>('districts_cache', { fixedKey: 'districts', ttlMs: CACHE_TTL_MS });
 
-// ── Map cache (TTL: 5 min) ─────────────────────────────────────────────────
-export const adminMapCache = makeKvCache<unknown>('map_cache', { fixedKey: 'map_data', ttlMs: CACHE_TTL_MS });
-
 // ── Shops cache (keyed by district name, no time-based TTL) ────────────────
 // A district's shop rows only ever change on a submit/verify/unlock event — a fixed 5-min
 // TTL like the other caches would force a full ~pageSize=all re-fetch on every visit past
@@ -419,10 +416,12 @@ export async function invalidateAllAdminCaches(): Promise<void> {
   if (Date.now() - lastSync < SYNC_COOLDOWN_MS) return;
   localStorage.setItem(SYNC_COOLDOWN_KEY, String(Date.now()));
 
+  // adminShopsCache is deliberately not cleared here (M-74 changed it to check staleness
+  // per-district via /api/admin/changed-districts instead of a fixed TTL) — wiping it on every
+  // Sync All would force a full re-fetch on the next visit to every previously-cached district,
+  // even ones that never changed, undoing the whole point of that optimization.
   await Promise.all([
     adminDistrictsCache.invalidate(),
-    adminMapCache.invalidate(),
-    adminShopsCache.invalidate(),
     adminAuditCache.invalidate(),
     adminUnlockRequestsCache.invalidate(),
     adminSettingsCache.invalidate(),

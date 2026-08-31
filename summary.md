@@ -1589,6 +1589,19 @@ flowchart LR
 
 ---
 
+### M-80: Removed Redundant map-data Endpoint & a Sync-All Regression of M-74 ✅ Complete
+
+**Objective:** pulled real Cloudflare usage numbers (`wrangler d1 info`) after M-79 to check headroom against the free-tier caps documented in roadmap.md §3.1 — D1 reads were at 3.85M of the 5M/day limit, 77%. Traced two concrete, measurable causes rather than guessing.
+
+**Findings and change:**
+- [x] `GET /api/admin/map-data` ran the same `GROUP BY district_name` aggregate over the full `phase1_raw_collection` table as `GET /api/admin/districts` — confirmed via a direct `COUNT(*)` query that this table has 29,731 rows, so every call to either endpoint costs roughly that many rows read. Every field the map needs (name, status, expected/actual vend count, revenue) is already in the districts response the Overview page (`/admin`) fetches anyway, so the map now derives its choropleth data from `useAdminDistricts()`'s already-cached result instead of a second ~30K-row scan. Deleted the route, `adminMapCache`, and the page's own `fetchMapData()`/`mapData` state; the "Retry" button now calls the districts hook's own `refresh()`.
+- [x] `invalidateAllAdminCaches()` (the Sync All handler, `apps/web/src/lib/db.ts`) still called `adminShopsCache.invalidate()` — a leftover from before M-74 changed that cache to check per-district staleness via `GET /api/admin/changed-districts` instead of a fixed TTL. Wiping the whole cache on every Sync All click forced a full re-fetch on the next visit to *every* previously-cached district page, changed or not — silently undoing M-74's fix the moment an admin clicked the one button they'd use to refresh everything. Removed it from the invalidate list.
+- [x] `pnpm typecheck` and `pnpm --filter web test` run clean; deployed via direct `wrangler`/`@opennextjs/cloudflare` build+deploy.
+
+**Exit criterion:** The Overview page's choropleth map renders from one D1-backed fetch, not two identical ones. Clicking Sync All no longer forces a full shop-data re-fetch on unchanged districts.
+
+---
+
 ## Backlog / Not Started
 
 - [x] ~~Verify `exciseup.in` in Resend and switch `RESEND_FROM_EMAIL`~~ — Done. `mail.exciseup.in` verified; `RESEND_FROM_EMAIL` set to `noreply@mail.exciseup.in` on this project's Worker, and the same address set as `FROM_EMAIL` on the sibling `excise-revenue-recovery-portal` project's Worker (different env var name there, same Resend account/domain). Magic-link email is now the Admin/HQ login channel only (DEOs use CUG login as of M-17).
