@@ -1797,6 +1797,18 @@ The browser's own print dialog produces the PDF ("Save as PDF" / "Microsoft Prin
 
 ---
 
+### M-94: "Delete Shop Data" Opened to Any Admin ✅ Complete
+
+**Objective:** M-93 gated Delete Shop Data to `superadmin` only, matching District Master and Admin Users. The department's day-to-day admins hold plain `admin` accounts, not the owner/superadmin bypass — restricting a recovery action like this to one account meant every future doubled-upload case had to wait on the superadmin specifically.
+
+**Change:**
+- [x] `POST /api/admin/districts/[district]/clear-data` now accepts `admin` or `superadmin`, same gate as unlock-request approval.
+- [x] The district detail page's button and its Help panel entry are shown to any signed-in admin.
+
+**Exit criterion:** any admin, not just the superadmin account, can clear a district's shop data through the UI.
+
+---
+
 ## Backlog / Not Started
 
 - [x] ~~Verify `exciseup.in` in Resend and switch `RESEND_FROM_EMAIL`~~ — Done. `mail.exciseup.in` verified; `RESEND_FROM_EMAIL` set to `noreply@mail.exciseup.in` on this project's Worker, and the same address set as `FROM_EMAIL` on the sibling `excise-revenue-recovery-portal` project's Worker (different env var name there, same Resend account/domain). Magic-link email is now the Admin/HQ login channel only (DEOs use CUG login as of M-17).

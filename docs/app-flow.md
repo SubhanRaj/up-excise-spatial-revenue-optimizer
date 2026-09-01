@@ -161,7 +161,7 @@ flowchart TD
     DrillDistricts --> DistrictDetail
     DistrictDetail --> ShopsFetch["GET /api/admin/districts/district/shops\n(only endpoint that loads shop rows)"]
     ShopsFetch --> ClientOps[ShopExplorer component: filter/sort/search/\ngroup/paginate client-side with useMemo\n- zero extra API calls - shared with DEO\nfinal-verification screen, M-67]
-    DistrictDetail --> ClearData["Delete Shop Data button\nsuperadmin-only, type-district-name\n+ reason to confirm, M-93"]
+    DistrictDetail --> ClearData["Delete Shop Data button\nany admin, type-district-name\n+ reason to confirm, M-93/M-94"]
     ClearData --> ClearEP["POST /api/admin/districts/district/clear-data\ndeletes phase1_raw_collection rows only,\nresets status to pending,\naudit-logs district_data_cleared"]
 
     Render --> Provision["/admin/provision (District Master):\ninline edit drawer OR bulk Excel upload\n- the old Danger Zone reset-all-data button\nwas removed entirely, M-62; Delete Shop Data\n(M-93, district detail page) is the one\nremaining data-wipe path, scoped to shop\nrows only and audit-logged"]

@@ -175,7 +175,7 @@ Upload and Verify are not rendered — not merely disabled — until circles/sec
 - Rows per page: 10 / 25 / 50 / 100 / All — preference persisted to `localStorage`
 - Per-district XLSX export (ExcelJS — CSV is never used anywhere in this app, see "Data Rules"); this is a read-only report, not the DEO upload template — re-uploading it fails, since its column layout doesn't match
 - "Download Re-upload Template" — the actual dropdown-intact DEO template (same builder as `/upload`'s own download), pre-filled with this district's current data, for an admin to hand a DEO directly or recover a device stuck showing 0 local shops
-- "Delete Shop Data" (superadmin-only, shown only when the district has shop rows) — deletes only this district's shop records and resets its status to Pending, for recovering from a bad upload (e.g. a duplicated file doubling every count); circles/sectors, the DEO's account, and the audit log are untouched, and the deletion itself is audit-logged with the admin's typed reason. Two SweetAlert2 confirmations first, the second requiring the district name typed exactly
+- "Delete Shop Data" (any admin, shown only when the district has shop rows) — deletes only this district's shop records and resets its status to Pending, for recovering from a bad upload (e.g. a duplicated file doubling every count); circles/sectors, the DEO's account, and the audit log are untouched, and the deletion itself is audit-logged with the admin's typed reason. Two SweetAlert2 confirmations first, the second requiring the district name typed exactly
 - "Unlock Requested" button — only rendered when that district actually has a pending self-service unlock request on file; there is no admin-initiated unlock without one
 
 **Navigation:**

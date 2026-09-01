@@ -208,7 +208,7 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
   // Deletes only this district's shop rows (registered circles/sectors, the DEO's account, and
   // the audit log are untouched) — for a bad upload like a doubled/repeated file, where the
   // fix is a clean slate rather than a data-correction unlock (that path resets status but
-  // never deletes rows). Superadmin-only, type-to-confirm + a required reason, both written to
+  // never deletes rows). Open to any admin, type-to-confirm + a required reason, both written to
   // the audit log as district_data_cleared.
   const [clearing, setClearing] = useState(false);
   async function clearDistrictData() {
@@ -314,12 +314,10 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
               <li><strong>Rows per page</strong> — 10 / 25 / 50 / 100 / All. Your preference is remembered across pages.</li>
               <li><strong>Export XLSX</strong> — downloads this district&apos;s shops as an Excel file for viewing/reporting. All columns are correctly formatted — no CSV comma-quoting issues. Do not re-upload this file — its column layout doesn&apos;t match the DEO template and will be rejected.</li>
               <li><strong>Download Re-upload Template</strong> — downloads the same dropdown-intact template a DEO's own "Download Current Data" button produces, pre-filled with this district's current data. Use this if a DEO needs a correct file to re-upload — never Export XLSX.</li>
-              {session?.role === 'superadmin' && (
-                <li><strong>Delete Shop Data</strong> (superadmin-only) — permanently deletes every shop record for this district and resets its status to Pending, for recovering from a bad upload (e.g. a doubled/repeated file). Circles/sectors, the DEO's account, and the audit log are untouched.</li>
-              )}
+              <li><strong>Delete Shop Data</strong> — permanently deletes every shop record for this district and resets its status to Pending, for recovering from a bad upload (e.g. a doubled/repeated file). Circles/sectors, the DEO's account, and the audit log are untouched.</li>
             </ul>
           </HelpPanel>
-          {session?.role === 'superadmin' && detail && detail.vendCount > 0 && (
+          {['admin', 'superadmin'].includes(session?.role ?? '') && detail && detail.vendCount > 0 && (
             <button className="btn btn-sm btn-outline btn-error gap-2" onClick={clearDistrictData} disabled={clearing} title="Permanently delete all shop data for this district">
               {clearing ? <span className="loading loading-spinner loading-xs" /> : (
                 <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 7h16"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-12"/><path d="M9 7V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3"/></svg>

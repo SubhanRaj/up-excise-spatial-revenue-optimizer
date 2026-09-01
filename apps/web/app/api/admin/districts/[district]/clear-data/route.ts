@@ -13,11 +13,13 @@ type Ctx = { params: Promise<{ district: string }> };
 // this recovers from a bad/duplicated upload without re-provisioning the district or losing its
 // history. Resets districts.status to 'pending' so the DEO can re-upload from a clean slate
 // (isLocked() only checks 'submitted'/'verified', so 'pending' never blocks a fresh upload).
-// Superadmin-only, matching District Master and Admin Users — deleting real shop data is at
-// least as consequential as reassigning a DEO, and there is no undo.
+// Open to any admin/superadmin, matching unlock-request approval — not owner-only like District
+// Master or Admin Users, since department admins (not just the owner) need to be able to recover
+// a district from a bad upload without waiting on the superadmin account. The type-to-confirm
+// dialog plus the mandatory reason on the audit log entry are the actual safeguard, not the role.
 async function POST_(req: NextRequest, { params }: Ctx): Promise<NextResponse> {
   const user = await getSession();
-  if (!user || user.role !== 'superadmin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (!user || !['admin', 'superadmin'].includes(user.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const { district } = await params;
   const body = await req.json().catch(() => ({})) as { reason?: string };
