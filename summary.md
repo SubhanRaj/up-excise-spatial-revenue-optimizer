@@ -1784,6 +1784,19 @@ The browser's own print dialog produces the PDF ("Save as PDF" / "Microsoft Prin
 
 ---
 
+### M-93: Superadmin-Only "Delete Shop Data" Button (District Data Reset, Audit-Logged) ✅ Complete
+
+**Objective:** a real DEO (Pilibhit) had their district's file uploaded twice, doubling every shop count — roughly 300 real shops showing as 600. A straight D1 delete would fix the data but leave no record of who cleared it or why, and would need to be run by hand for every future case like it.
+
+**Change:**
+- [x] `POST /api/admin/districts/[district]/clear-data` (superadmin-only) deletes every `phase1_raw_collection` row for that district, resets `districts.status` to `'pending'`, and writes a `district_data_cleared` audit log entry carrying the acting superadmin's identity, the admin's typed reason, and the row count deleted. Registered circles/sectors, the DEO's `auth_users`/CUG identity, and every existing audit log entry are left untouched — the DEO re-uploads into the same district setup instead of being re-provisioned from scratch.
+- [x] A "Delete Shop Data" button on the admin district detail page (superadmin-only, shown only when the district has shop rows) runs two SweetAlert2 confirmations before calling it: a warning naming the exact row count about to be deleted, then a second dialog requiring the admin to type the district name exactly and give a reason, matching the required-note pattern already used for unlock approvals elsewhere in this portal.
+- [x] Verified live against local D1 test data (Agra, 5 rows): confirmed the wrong-district-name confirmation is rejected with a validation message and nothing is deleted; confirmed the correct flow deletes all 5 rows, resets status to Pending, leaves circles/sectors and the DEO's identity in `districts` untouched, and writes the expected `district_data_cleared` audit row with reason and count.
+
+**Exit criterion:** an admin can clear a district's bad shop data through the UI, with the deletion, its reason, and who performed it recorded in the audit log — no direct D1 access needed, and no loss of DEO identity, circle/sector registration, or audit history.
+
+---
+
 ## Backlog / Not Started
 
 - [x] ~~Verify `exciseup.in` in Resend and switch `RESEND_FROM_EMAIL`~~ — Done. `mail.exciseup.in` verified; `RESEND_FROM_EMAIL` set to `noreply@mail.exciseup.in` on this project's Worker, and the same address set as `FROM_EMAIL` on the sibling `excise-revenue-recovery-portal` project's Worker (different env var name there, same Resend account/domain). Magic-link email is now the Admin/HQ login channel only (DEOs use CUG login as of M-17).

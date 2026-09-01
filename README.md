@@ -175,6 +175,7 @@ Upload and Verify are not rendered — not merely disabled — until circles/sec
 - Rows per page: 10 / 25 / 50 / 100 / All — preference persisted to `localStorage`
 - Per-district XLSX export (ExcelJS — CSV is never used anywhere in this app, see "Data Rules"); this is a read-only report, not the DEO upload template — re-uploading it fails, since its column layout doesn't match
 - "Download Re-upload Template" — the actual dropdown-intact DEO template (same builder as `/upload`'s own download), pre-filled with this district's current data, for an admin to hand a DEO directly or recover a device stuck showing 0 local shops
+- "Delete Shop Data" (superadmin-only, shown only when the district has shop rows) — deletes only this district's shop records and resets its status to Pending, for recovering from a bad upload (e.g. a duplicated file doubling every count); circles/sectors, the DEO's account, and the audit log are untouched, and the deletion itself is audit-logged with the admin's typed reason. Two SweetAlert2 confirmations first, the second requiring the district name typed exactly
 - "Unlock Requested" button — only rendered when that district actually has a pending self-service unlock request on file; there is no admin-initiated unlock without one
 
 **Navigation:**
@@ -291,7 +292,7 @@ See [DEPLOY.md](DEPLOY.md) for secrets, CI/CD, and account management. See [docs
 | M-9: SPA Navigation Parity & Polish | **Completed** |
 | M-10: District Master & Migration Consolidation | **Completed** |
 | M-11 – M-41 | **Completed** — see CLAUDE.md's milestone table for full per-milestone detail (auth/audit hardening, DEO Excel template overhaul, prod go-live cleanup + custom domain, self-service unlock requests, SEO metadata, admin users management, circle/sector stats & export rework, DEO-routes-deo-only, and UX/bugfix polish) |
-| M-42 – M-91 | **Completed** — see CLAUDE.md's milestone table for full per-milestone detail (CUG login rate limiting, post-submission data-correction unlock, state-wide final verification round, data-quality tooling for the pre-campaign review, a series of admin D1-read-reduction and cache-correctness fixes, the admin district status PDF export, and a set of data-correction re-upload fixes found from real DEO reports) |
+| M-42 – M-93 | **Completed** — see CLAUDE.md's milestone table for full per-milestone detail (CUG login rate limiting, post-submission data-correction unlock, state-wide final verification round, data-quality tooling for the pre-campaign review, a series of admin D1-read-reduction and cache-correctness fixes, the admin district status PDF export, a set of data-correction re-upload fixes found from real DEO reports, and a superadmin-only district shop-data reset for bad uploads) |
 
 See [summary.md](summary.md) for full milestone specs, entry/exit criteria, and deliverable checklists — see [roadmap.md](roadmap.md) for the technical and business-logic spec behind them.
 
