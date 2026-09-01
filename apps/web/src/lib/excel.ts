@@ -204,6 +204,22 @@ export async function parseExcelFile(
   const ws = wb.worksheets[0];
   if (!ws) throw new Error('Excel file has no sheets');
 
+  // Parsing below is entirely by column position (TEMPLATE_HEADERS), with no check that the
+  // file is actually shaped like the DEO template — feeding it any other workbook (most
+  // commonly, an admin "Export XLSX" district report downloaded from the admin portal, which
+  // has a completely different column order and no re-upload purpose) silently produced
+  // garbled data instead of a clear error: e.g. Shop ID landing in the circle_sector_name
+  // slot, which then fails the registered-unit check on every single row. The hidden
+  // "Reference Data" sheet only exists on a real DEO template (generateTemplate() always adds
+  // it) — its absence is a reliable, cheap signal that this isn't the right file.
+  if (!wb.worksheets.some((s) => s.name === 'Reference Data')) {
+    throw new Error(
+      'This file doesn\'t look like a DEO upload template. If you downloaded this from the ' +
+      'admin portal\'s "Export XLSX," that\'s a read-only report, not something to re-upload — ' +
+      'use "Download Current Data" or "Download District Template" on this page instead.',
+    );
+  }
+
   // Our generated template has a merged title ("District: ...") on row 1 and the
   // (bilingual, human-friendly) header row on row 2; a plain file with no title row
   // has headers directly on row 1. Detected by title text, not header text, because

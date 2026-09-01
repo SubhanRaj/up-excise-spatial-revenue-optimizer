@@ -547,7 +547,7 @@ export default function VerifyPage() {
     });
     if (!confirm?.isConfirmed) return;
 
-    await stagingDb.clearAll();
+    await stagingDb.clearAll(district);
     setRows([]);
     setViewMode('uploaded');
     const notyf = (window as unknown as { notyf?: { success: (m: string) => void } }).notyf;

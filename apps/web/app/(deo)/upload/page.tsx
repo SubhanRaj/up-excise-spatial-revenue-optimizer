@@ -16,6 +16,7 @@ export default function UploadPage() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [progress, setProgress] = useState(0);
   const [status, setStatus] = useState<'idle' | 'parsing' | 'done' | 'error'>('idle');
+  const [parseError, setParseError] = useState('');
   const [rowCount, setRowCount] = useState(0);
   const [dragOver, setDragOver] = useState(false);
   const [units, setUnits] = useState<{ id: number; name: string; type: string }[]>([]);
@@ -174,6 +175,7 @@ export default function UploadPage() {
       return;
     }
     setStatus('parsing');
+    setParseError('');
     setProgress(0);
 
     try {
@@ -188,6 +190,7 @@ export default function UploadPage() {
       notyf?.success(`Parsed ${rows.length} rows and saved to local storage.`);
     } catch (err) {
       setStatus('error');
+      setParseError(err instanceof Error ? err.message : 'Please check the file and try again.');
       console.error(err);
     }
   }
@@ -245,7 +248,7 @@ export default function UploadPage() {
           <div className="alert alert-error mt-4" role="alert" aria-live="assertive">
             {/* tabler:circle-x */}
             <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><path d="m10 10 4 4m0-4-4 4"/></svg>
-            Failed to parse file. Check the format and try again.
+            {parseError || 'Failed to parse file. Check the format and try again.'}
           </div>
         )}
       </>

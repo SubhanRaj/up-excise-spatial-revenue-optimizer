@@ -74,6 +74,13 @@ export const stagingDb = {
   // one shop queued every shop in the district as 'pending', and Submit District would then
   // re-send and re-write all of them (idempotent at the D1 row level via onConflictDoUpdate,
   // but still every row's worth of network + D1 write cost for a one-shop fix).
+  //
+  // A row that DID change still needs its stale 'uploaded' copy deleted, not just skipped —
+  // the skip logic above only prevents re-staging *identical* rows; a changed shop was being
+  // kept in `rows` (correctly) but its old 'uploaded' copy was never removed (only rows with
+  // status !== 'uploaded' get deleted above), so both the old and the corrected new row ended
+  // up in local staging at once. This is what made a 200-shop correction display as 400 shops
+  // after a data-correction unlock + re-upload — every corrected shop, doubled.
   putRows: async (rows: StagedRow[]) => {
     if (rows.length > 0) {
       const district = rows[0]!.districtName;
@@ -83,10 +90,17 @@ export const stagingDb = {
           .map((r) => getDb().table<StagedRow>('phase1_staging').delete(r.id!))
       );
       const uploadedByShopId = new Map(existing.filter((r) => r.status === 'uploaded').map((r) => [r.shopId, r]));
+      const staleUploadedIds: number[] = [];
       rows = rows.filter((r) => {
         const prev = uploadedByShopId.get(r.shopId);
-        return !prev || !rowContentEqual(r, prev);
+        if (!prev) return true;
+        if (rowContentEqual(r, prev)) return false; // unchanged — keep the existing uploaded row as-is
+        if (prev.id != null) staleUploadedIds.push(prev.id);
+        return true; // changed — stage the new version, and drop the stale one below
       });
+      if (staleUploadedIds.length > 0) {
+        await Promise.all(staleUploadedIds.map((id) => getDb().table<StagedRow>('phase1_staging').delete(id)));
+      }
     }
     return getDb().table<StagedRow>('phase1_staging').bulkPut(rows);
   },
@@ -114,11 +128,27 @@ export const stagingDb = {
 
   // Wipes both staged rows and any queued-for-sync upload chunks — used by the DEO
   // "Clear Staged Data" button to recover from a wrong file staged locally (never touches D1).
-  clearAll: async () => {
+  //
+  // Also clears this district's `verify-synced-{district}` flag (pass `district` when known).
+  // Without this, ensureDistrictSynced() — called by /upload's "Download Current Data" button —
+  // sees the flag still 'true' from before the clear, trusts the (now-empty) local cache as
+  // already-current, and hands back a template with zero pre-filled rows instead of re-syncing
+  // from D1. A DEO who clears staged data and then downloads "current data" got a blank template
+  // that looked like a real one, which — if an Inspector then typed circle_sector_name by hand
+  // instead of using the dropdown — reproduced the exact "Unregistered / Mismatched" mismatch
+  // this app already has a warning for, just from an unexpectedly-blank starting file instead of
+  // a stale one. The other callers of clearAll() (ensureDistrictSynced()'s own resync, /verify's
+  // post-submit reseed) already re-fetch and re-set this flag immediately after clearing, so
+  // they don't need to pass `district` — only a standalone clear with no follow-up fetch (the
+  // Clear Staged Data button) needs it.
+  clearAll: async (district?: string) => {
     await Promise.all([
       getDb().table<StagedRow>('phase1_staging').clear(),
       getDb().table<QueuedChunk>('upload_queue').clear(),
     ]);
+    if (district) {
+      try { localStorage.removeItem(`verify-synced-${district}`); } catch { /* ignore */ }
+    }
   },
 };
 
