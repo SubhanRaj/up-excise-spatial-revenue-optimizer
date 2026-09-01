@@ -102,6 +102,7 @@ Set via `wrangler secret put` — never committed to files. All confirmed set on
 | `RESEND_API_KEY` | Resend email delivery for magic links |
 | `RESEND_FROM_EMAIL` | Sender address — `noreply@mail.exciseup.in` (verified custom domain) |
 | `SUPERADMIN_EMAIL_HASH` | SHA-256 hash of the superadmin email for emergency/testing access |
+| `CARTO_API_KEY` | CARTO basemap tile key (carto.com/basemaps/apikey) — free, domain-restricted, required since CARTO stopped serving `basemaps.cartocdn.com` tiles anonymously |
 
 To rotate a secret:
 ```bash

@@ -105,6 +105,7 @@ RESEND_API_KEY=local-dev-only-not-real
 RESEND_FROM_EMAIL=noreply@example.local
 SUPERADMIN_EMAIL_HASH=<sha256 of your test email>
 DEMO_CUG=0000000000
+CARTO_API_KEY=<your own free key from carto.com/basemaps/apikey, or omit — the admin overview map just shows a "API key required" watermark without one>
 EOF
 
 # 3. Run the preview server (real D1 + secret bindings, unlike `next dev`)

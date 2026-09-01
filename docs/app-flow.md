@@ -139,17 +139,18 @@ flowchart TD
     CacheCheck -->|fresh| UseCache[Serve from Dexie cache\nno D1 query]
     CacheCheck -->|stale/missing| Fetch[Fetch from API]
 
-    Fetch --> Districts[GET /api/admin/districts\n75 aggregate rows]
-    Fetch --> MapData[GET /api/admin/map-data]
+    Fetch --> Districts[GET /api/admin/districts\n75 aggregate rows - the choropleth\nderives its data from this same\nresponse, no separate map endpoint]
     Districts --> StoreCache[(Store in excise-admin IndexedDB)]
-    MapData --> StoreCache
     StoreCache --> Render
 
-    UseCache --> Render[Render: choropleth map,\ntop-10 revenue table, divisions grid, charts]
+    UseCache --> SelfHeal{"changed-districts?since=cache's\nfetchedAt: anything changed\nsince this entry was written?"}
+    SelfHeal -->|no| Render[Render: choropleth map,\ntop-10 revenue table, divisions grid, charts]
+    SelfHeal -->|yes, background upgrade| Fetch
 
-    Render --> DrillDistricts["/admin/districts: full 75-row table\n(same cached endpoint, client-side filter/sort)"]
+    Render --> DrillDistricts["/admin/districts: full 75-row table\n(same cached endpoint, client-side filter/sort;\nstatus filter persisted across a detail-page visit)"]
     Render --> DrillDivisions["/admin/divisions/[division]: filtered\nclient-side from same cached data"]
     Render --> ClickPolygon[Click district on map]
+    DrillDistricts --> ExportPdf["Export PDF button: refetches districts,\nthen builds an A4-landscape status report\nclient-side (jsPDF + autoTable) - labeled\nchoropleth cover page, one division-grouped\npage per status"]
 
     ClickPolygon --> DistrictDetail["/admin/districts/[district]"]
     DrillDistricts --> DistrictDetail
@@ -160,13 +161,13 @@ flowchart TD
     Provision --> PatchEP[PATCH /api/admin/districts/district\ndb.transaction: update districts + sync auth_users]
     Provision --> BulkEP[POST /api/admin/bulk-provision\ndb.transaction per row: districts + auth_users]
 
-    Render --> SettingsCard["Admin overview: Final Verification\nRound card - GET/POST /api/admin/settings\nany admin/superadmin toggles, M-66"]
+    Render --> SettingsCard["Admin overview: Final Verification\nRound card - GET/POST /api/admin/settings\nany admin/superadmin toggles, M-66;\nsubmittedCount gets the same background\nchanged-districts self-heal as the map"]
 
     SyncAll["Navbar Sync All button\ninvalidateAllAdminCaches()"] -->|clears| StoreCache
     SyncAll -->|also actively re-fetches, M-62| ExportEP[GET /api/admin/export/all]
     ExportEP --> ExportCache[(export_cache in\nexcise-admin IndexedDB\nall shop rows + all units, state-wide)]
 
-    Render --> ExportPage["/admin/export: full-state 76-sheet XLSX\nbuilt in-browser from ExportCache"]
+    Render --> ExportPage["/admin/export: full-state 80-sheet XLSX\nbuilt in-browser from ExportCache"]
     ExportPage -.->|cache empty, no Sync All yet| ExportEP
 
     ExportCache -.->|reused, no new D1 query| ShopTypeCard["Admin overview: Statewide Shop-Type\nBreakdown card + Circles/Sectors stat\n- card just doesn't render until\nExportCache has data, no prompt/button"]

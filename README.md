@@ -65,10 +65,11 @@ up-excise-spatial-revenue-optimizer/
 | UI Components | DaisyUI 5.6.3 | CDN. Requires Tailwind v4. |
 | CSS | Tailwind v4 (`@tailwindcss/browser`) | CDN. No PostCSS build step. |
 | Excel I/O | ExcelJS 4.4.0 | CDN. 100% in-browser — reads uploads, generates templates, and exports, all with native print/freeze/validation support. Never bundled. |
+| PDF I/O | jsPDF 2.5.1 + jspdf-autotable 3.8.2 | CDN. 100% in-browser — the admin district status report (map, per-status pages, division-grouped tables). Never bundled. |
 | Local Cache | Dexie.js 4.0.10 (IndexedDB) | CDN. Offline-first staging for all DEO data. |
 | PWA / Offline | Service Worker + Background Sync | Full offline capability after first load. |
 | Charts | Chart.js 4.4.7 | CDN. Admin route group only. |
-| Maps | Leaflet.js 1.9.4 + CartoDB tiles | CDN. UP district choropleth. No API key. |
+| Maps | Leaflet.js 1.9.4 + CartoDB tiles | CDN. UP district choropleth. Requires a free CARTO basemap API key (`CARTO_API_KEY` Worker secret) — CARTO stopped serving tiles anonymously. |
 | Modal Alerts | SweetAlert2 11.14.5 | CDN. Replaces native `alert()`/`confirm()`. |
 | Toasts | Notyf 3.10.0 | CDN. |
 | Testing | Vitest + Playwright | Unit tests for business logic. |
@@ -142,9 +143,10 @@ Upload and Verify are not rendered — not merely disabled — until circles/sec
 - Manual Sync button for live data pull; map click on district polygon → district detail page
 
 **Districts page (`/admin/districts`):**
-- Full 75-district sortable table with search, division filter, and status filter
+- Full 75-district sortable table with search, division filter, and status filter (persisted across a district-detail visit and back)
 - Summary chips (shown count, submitted, total vends, total revenue)
 - Read-only — district/DEO master data editing lives on the District Master page
+- Export PDF — refreshes from the server, then downloads an A4-landscape status report: a choropleth cover page with every district labeled by name and status, followed by one division-grouped page per status (or just the one status picked from the dropdown)
 
 **Divisions (`/admin/divisions` and `/admin/divisions/[division]`):**
 - 18 division cards with progress bars; each card opens a division detail page
@@ -288,6 +290,7 @@ See [DEPLOY.md](DEPLOY.md) for secrets, CI/CD, and account management. See [docs
 | M-9: SPA Navigation Parity & Polish | **Completed** |
 | M-10: District Master & Migration Consolidation | **Completed** |
 | M-11 – M-41 | **Completed** — see CLAUDE.md's milestone table for full per-milestone detail (auth/audit hardening, DEO Excel template overhaul, prod go-live cleanup + custom domain, self-service unlock requests, SEO metadata, admin users management, circle/sector stats & export rework, DEO-routes-deo-only, and UX/bugfix polish) |
+| M-42 – M-88 | **Completed** — see CLAUDE.md's milestone table for full per-milestone detail (CUG login rate limiting, post-submission data-correction unlock, state-wide final verification round, data-quality tooling for the pre-campaign review, a series of admin D1-read-reduction and cache-correctness fixes, and the admin district status PDF export) |
 
 See [summary.md](summary.md) for full milestone specs, entry/exit criteria, and deliverable checklists — see [roadmap.md](roadmap.md) for the technical and business-logic spec behind them.
 

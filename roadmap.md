@@ -380,8 +380,8 @@ Security is applied at every layer. No single control is treated as sufficient.
 - Worker responses never expose stack traces or internal state. Only structured error objects are returned: `{ error: string, rejectedRows?: [...] }`.
 
 **Secret & Credential Management:**
-- No API keys, secrets, or service credentials are embedded in the frontend bundle, committed to source, or returned in API responses.
-- All secrets (`SESSION_SECRET`, `API_SECRET`, `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `SUPERADMIN_EMAIL_HASH`) are Cloudflare Worker Secrets, set via `wrangler secret put` — never in `wrangler.jsonc`, `.env`, or source.
+- No API keys, secrets, or service credentials are embedded in the frontend bundle or committed to source. One exception: `CARTO_API_KEY`, a free, domain-restricted map-tile key with no security function (CARTO's own model has the browser send it on every tile request) — `GET /api/admin/settings` returns it to the one authenticated admin page that needs it, but the value itself still lives only as a Worker secret, never hardcoded.
+- All secrets (`SESSION_SECRET`, `API_SECRET`, `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `SUPERADMIN_EMAIL_HASH`, `CARTO_API_KEY`) are Cloudflare Worker Secrets, set via `wrangler secret put` — never in `wrangler.jsonc`, `.env`, or source.
 - D1 is accessed exclusively via the Workers binding. It has no public connection string and is not reachable from the internet directly.
 
 **Content Security Policy (CSP):**
@@ -480,8 +480,9 @@ All CDN assets are declared once, unconditionally, in root `layout.tsx` — ever
 | SweetAlert2 | `cdn.jsdelivr.net/npm/sweetalert2@11.14.5/dist/sweetalert2.all.min.js` | All modal alerts, confirmations, and prompts on both portals. Replaces native `alert()`/`confirm()` entirely. |
 | Notyf | `cdn.jsdelivr.net/npm/notyf@3.10.0/notyf.min.js` + `.css` | Side flash toast notifications (success/error/warning) |
 | ExcelJS | `cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js` | The single spreadsheet library — reads uploaded files, generates templates, and exports data. No CSV anywhere in this app. |
+| jsPDF + jspdf-autotable | `cdn.jsdelivr.net/npm/jspdf@2.5.1/...` + `jspdf-autotable@3.8.2/...` | The admin district status PDF report (`/admin/districts` → Export PDF) — built entirely in-browser |
 | Chart.js | `cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js` | Admin dashboard charts |
-| Leaflet.js | `cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js` + `.css` | UP district choropleth map, CartoDB tiles, no API key required |
+| Leaflet.js | `cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js` + `.css` | UP district choropleth map, CartoDB tiles (requires the free `CARTO_API_KEY` Worker secret — see "Secret & Credential Management" above) |
 
 **Why CDN instead of bundling:** keeping these out of the Next.js bundle means the deployed Worker's JS payload is app logic only, and library updates are a one-line version-string change in `layout.tsx` with no rebuild-the-bundle step. The tradeoff is a runtime dependency on jsDelivr's availability, accepted given jsDelivr's own reliability track record and this project's non-real-time usage pattern (a DEO uploading once, an admin browsing periodically).
 
@@ -682,17 +683,18 @@ A live choropleth map of all 75 UP districts. The primary at-a-glance view for H
 - **Feature property:** `district` — must match `districts.name` in D1 exactly (case-sensitive). No name-map file needed.
 
 **Map configuration (as built):**
-- Tiles: CartoDB (light/dark variants, switches with `data-theme` MutationObserver); no API key required.
+- Tiles: CartoDB (light/dark variants, switches with `data-theme` MutationObserver); every tile request carries `?key=<CARTO_API_KEY>` — CARTO stopped serving these tiles anonymously.
 - Layout: full-width card (660px tall on the overview page so the full state fits vertically without excessive zoom-out), charts rendered below in a 2-column grid.
 - District borders: `weight: 1.5`, `color: '#334155'` (slate-700). Status fill colours: pending `#94a3b8`, in_progress `#f59e0b`, submitted `#16a34a`. Fill opacity `0.65`.
 - Permanent district name labels via `bindTooltip(name, { permanent: true, direction: 'center', className: 'district-map-label' })`. CSS selector in `layout.tsx` global style block must be `.leaflet-tooltip.district-map-label` (not the bare class) to beat Leaflet's own `.leaflet-tooltip` specificity.
 - Map locked to UP bounds: `minZoom: 6`, `maxZoom: 10`, `maxBounds: [[22.5, 76.0], [31.5, 85.5]]`, `fitBounds` to `[[23.8, 77.1], [30.4, 84.6]]`.
 - Click navigates to `/admin/districts/[name]`.
 
-**Original spec tile URL:** CartoDB Positron — no API key required, neutral background:
+**Original spec tile URL:** CartoDB Positron, neutral background:
 ```
-https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png
+https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=<CARTO_API_KEY>
 ```
+The `?key=` parameter was added after the original spec was written — CARTO now requires it on every raster tile request.
 
 **Choropleth colour scheme:**
 | District Status | Fill | Meaning |
@@ -716,6 +718,7 @@ https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png
 - District drill-down (`/admin/districts/[district]`): full district shop table (all rows in one call, cached in admin IndexedDB; all filtering/sorting/grouping/pagination client-side).
 - Cross-district D1 search, paginated, results cached per query hash.
 - Per-district XLSX export and full-state XLSX export (`/admin/export` → chunked download, ExcelJS, never rendered as a UI table — and never CSV).
+- District status PDF report (`/admin/districts` → Export PDF, jsPDF/autoTable in-browser) — A4 landscape, a labeled choropleth cover page, one division-grouped page per status (or one status, from a dropdown).
 - Audit log viewer — last 45 days, always live (no cache).
 - Self-service unlock-request review (`/admin/unlock-requests`) — approve or deny a DEO's request to re-open a locked circle/sector list.
 - Bulk DEO provisioning via Excel upload (ExcelJS in-browser → preview → submit).
@@ -1222,13 +1225,14 @@ See summary.md's "Backlog / Not Started" section for planned future work (SMS OT
 | UI Components | DaisyUI 5.6.3 | Requires Tailwind v4. Semantic component classes, zero JS runtime, loaded from jsDelivr CDN. |
 | CSS Utilities | Tailwind v4 Browser CDN | `@tailwindcss/browser@4` — runtime utility generation; loaded from CDN, no PostCSS build step. |
 | Excel I/O | ExcelJS 4.4.0 | Loaded from jsDelivr CDN, never bundled. The single spreadsheet library for the whole app — reads uploads, generates templates, and exports data. No CSV anywhere in this app (comma-containing fields like adjacent Thanas break naive CSV columns). |
+| PDF I/O | jsPDF 2.5.1 + jspdf-autotable 3.8.2 | Loaded from jsDelivr CDN, never bundled. The admin district status PDF report — A4 landscape, a labeled choropleth cover page, one division-grouped page per status. |
 | Local Persistence | Dexie.js 4.0.10 (IndexedDB) | Loaded from jsDelivr CDN; offline-first staging layer for all DEO-entered data |
 | Offline / PWA | Service Worker + Background Sync | App shell cache, CDN asset cache, transparent upload retry on reconnect |
 | Scheduled Tasks | Deferred | Cron purge (45-day audit log) deferred — @opennextjs/cloudflare v1 does not expose `scheduled` export hook. |
 | Modal Alerts | SweetAlert2 11.14.5 | Loaded from jsDelivr CDN. All modal alerts, confirmation dialogs, and prompts. |
 | Toast Notifications | Notyf 3.10.0 | Loaded from jsDelivr CDN (~3KB). Side flash notifications. |
 | Charts | Chart.js 4.4.7 | Admin route group only. Loaded from jsDelivr CDN. |
-| Maps | Leaflet.js + CartoDB tiles | Admin/HQ route group only. Loaded from jsDelivr CDN (~39KB JS + 5KB CSS). Interactive UP district choropleth. No API key required. |
+| Maps | Leaflet.js + CartoDB tiles | Admin/HQ route group only. Loaded from jsDelivr CDN (~39KB JS + 5KB CSS). Interactive UP district choropleth. Requires the free `CARTO_API_KEY` Worker secret. |
 | Coordinate Conversion | Custom utility | DMS-to-DD is a 3-line formula; no library needed |
 | Testing | Vitest + Playwright | Unit tests for business logic; E2E for full upload and auth flows |
 
