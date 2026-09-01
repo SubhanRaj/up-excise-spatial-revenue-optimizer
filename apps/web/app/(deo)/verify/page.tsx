@@ -676,6 +676,19 @@ export default function VerifyPage() {
     return <div className="text-sm text-base-content/60 p-6">Checking your circles and sectors…</div>;
   }
 
+  // The nav bar drops the /upload link once a district reaches finalScreenMode (see the
+  // DEO Workflow note on state-wide final verification), so this screen is otherwise the
+  // only place left where the DEO could get their own real, re-uploadable data back —
+  // matching the admin's "Download Re-upload Template" button on the district detail page.
+  async function downloadFinalTemplate() {
+    const { generateTemplate } = await import('@/lib/excel');
+    const blob = await generateTemplate(district, unitsFull.map((u) => u.name), finalRows);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `${district}-template.xlsx`; a.click();
+    URL.revokeObjectURL(url);
+  }
+
   if (finalScreenMode) {
     return (
       <div className="space-y-5">
@@ -685,6 +698,11 @@ export default function VerifyPage() {
             <p className="text-xs text-base-content/60">अंतिम सत्यापन — कृपया अपना डेटा एक बार फिर जांचें</p>
           </div>
           <span className={`badge ${verified ? 'badge-info' : 'badge-success'}`}>{verified ? 'Verified' : 'Submitted'}</span>
+          <button className="btn btn-outline btn-sm ml-auto" onClick={downloadFinalTemplate} aria-label="Download district Excel template">
+            {/* tabler:download */}
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/><polyline points="7 11 12 16 17 11"/><line x1="12" y1="4" x2="12" y2="16"/></svg>
+            Download Current Data (.xlsx)
+          </button>
         </div>
 
         {/* Stat cards */}

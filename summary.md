@@ -1773,6 +1773,17 @@ The browser's own print dialog produces the PDF ("Save as PDF" / "Microsoft Prin
 
 ---
 
+### M-92: "Download Current Data" Added to the DEO Final-Verification Screen ✅ Complete
+
+**Objective:** once the state-wide final verification round opens for a submitted/verified district, the DEO nav bar drops the `/upload` link entirely (see M-60's "State-wide final verification round") — that page was the only place a DEO could download their own re-uploadable data, so a DEO in that state had no way to get a correct, dropdown-intact copy of their own district's data back at all.
+
+**Change:**
+- [x] The final-verification screen (`/verify`, `finalScreenMode`) gained the same "Download Current Data (.xlsx)" button already on `/upload`, next to the Submitted/Verified badge. Calls the same `generateTemplate()` builder with `finalRows` — the district's real data, already held in local IndexedDB per M-60's minimal-D1-reads design — and the registered unit list. No extra D1 read.
+
+**Exit criterion:** a DEO whose district is in final verification can download a correct, re-uploadable copy of their own data without leaving `/verify`.
+
+---
+
 ## Backlog / Not Started
 
 - [x] ~~Verify `exciseup.in` in Resend and switch `RESEND_FROM_EMAIL`~~ — Done. `mail.exciseup.in` verified; `RESEND_FROM_EMAIL` set to `noreply@mail.exciseup.in` on this project's Worker, and the same address set as `FROM_EMAIL` on the sibling `excise-revenue-recovery-portal` project's Worker (different env var name there, same Resend account/domain). Magic-link email is now the Admin/HQ login channel only (DEOs use CUG login as of M-17).
