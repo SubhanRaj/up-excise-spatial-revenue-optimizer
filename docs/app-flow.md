@@ -65,7 +65,7 @@ flowchart TD
     HomeCheck -->|yes| FullNav["/home shows Upload + Verify cards\n+ nav links appear"]
     Locked --> FullNav
 
-    FullNav --> Download[Download district Excel template\nGET /api/districts/district/template]
+    FullNav --> Download["/upload: Download Current Data /\nDownload District Template - built\nclient-side via generateTemplate(),\nno dedicated API route (the old\nGET .../template only ever returned\ndata already available client-side\nand was removed)"]
     Download --> FillExcel[DEO/Inspectors fill workbook\noffline, per circle/sector]
     FillExcel --> UploadPage["/upload: select consolidated .xlsx"]
     UploadPage --> ParseBrowser[Parse in-browser with ExcelJS\nDMS-to-DD, revenue calc, UP bbox validation]
@@ -98,7 +98,10 @@ flowchart TD
     PostUnlock2 --> Resolve2{Admin: approve or deny?\n/admin/unlock-requests or district detail}
     Resolve2 -->|approve, note required| ResetStatus[status reset to in_progress\nNO rows deleted - phase1_raw_collection\nand district_circles_sectors untouched]
     Resolve2 -->|deny, note required| DenyBanner2["/upload shows denied banner\n+ admin's note"]
-    ResetStatus --> UploadPage
+    ResetStatus --> ForceSync["Download Current Data always\nforce-refetches from D1 (M-91) -\nnever trusts a possibly-stale\nlocal sync flag for this button"]
+    ForceSync --> UploadPage
+    UploadPage -.->|re-uploading a file NOT shaped\nlike the DEO template, e.g. the\nadmin's Export XLSX report| WrongFileGuard["parseExcelFile() rejects it -\nmissing the hidden Reference Data\nsheet every real template has -\nwith a specific error naming the\ncorrect download buttons (M-90)"]
+    UploadPage -.->|admin can also generate the\ncorrect file directly| AdminTemplate["Admin district detail page:\nDownload Re-upload Template\nbutton, same generateTemplate()\nbuilder, pre-filled from D1 (M-91)"]
 
     Done -.->|Admin opens the state-wide\nfinal verification round\nM-60, /admin overview toggle| VerifyRoundCheck{"GET .../status: verificationPhaseOpen=true\nAND districtStatus=submitted?"}
     VerifyRoundCheck -->|yes| FinalNav["DEO nav collapses to\nDashboard + Verify only"]
@@ -126,6 +129,8 @@ flowchart TD
     style DenyBanner fill:#f59e0b,color:#000
     style DenyBanner2 fill:#f59e0b,color:#000
     style LocalRead fill:#16a34a,color:#fff
+    style WrongFileGuard fill:#f59e0b,color:#000
+    style AdminTemplate fill:#16a34a,color:#fff
 ```
 
 **Note:** `ChunkLocked` (upload rejected) and `ReqCorrection`/`ReqCorrection3`'s branch condition both use the shared `isLocked(status)` helper (`apps/web/src/lib/status.ts`) — a `'verified'` district is rejected/routed identically to a `'submitted'` one everywhere in this diagram, not just at the points drawn explicitly.
