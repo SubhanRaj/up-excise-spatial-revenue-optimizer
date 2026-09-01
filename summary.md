@@ -1712,6 +1712,21 @@ The browser's own print dialog produces the PDF ("Save as PDF" / "Microsoft Prin
 
 ---
 
+### M-88: PDF Map District Labels, Bigger Map, Fixed-Width Table Columns ✅ Complete
+
+**Objective:** two follow-ups on M-87's rework — the cover-page map had no per-district labels (just colored shapes) despite the room for them, and the status-page tables had a real alignment problem: `autoTable`'s default content-driven column sizing left the numeric columns bunched together rather than spread across the landscape page.
+
+**Change:**
+- [x] `polygonCentroid()` — the standard shoelace-formula area-weighted centroid, added to `pdf.ts`, used to place each district's label. A plain average of a ring's vertices can land outside an irregularly-shaped (river-bordered) district; the proper centroid doesn't.
+- [x] Each district polygon on the map now carries its own label, `"<name> (<status>)"`, drawn with a white halo stroke behind the text fill so it stays legible against any of the four status colors — the canvas equivalent of the live Leaflet map's own white/slate label text-shadow.
+- [x] The map's canvas resolution was bumped (it now also needs to render small legible text, not just flat fills) and its embedded size in the PDF is computed from the actual room available on the A4-landscape cover page (page height minus the title block and a bottom margin), not a fixed guess — it now fills the vertical space the page has instead of leaving it blank below a smaller image.
+- [x] Each status page's table now gets five explicit `cellWidth`s summing to the full 269mm usable landscape width, instead of `autoTable`'s default sizing (which shrinks each column to its widest cell's content and leaves the rest of the page blank, reading as "everything drifted left/uneven"). `margin: { left: 14, right: 14 }` keeps the table's own left edge aligned with the page title above it.
+- [x] Verified live: downloaded and visually inspected the rendered map (labels present, legible, correctly positioned) and a status table page (columns now span the full page width, right-aligned numbers line up cleanly under their headers) before pushing.
+
+**Exit criterion:** the cover map shows a readable name+status label on every district; the status-page tables fill the landscape width evenly with properly aligned columns.
+
+---
+
 ## Backlog / Not Started
 
 - [x] ~~Verify `exciseup.in` in Resend and switch `RESEND_FROM_EMAIL`~~ — Done. `mail.exciseup.in` verified; `RESEND_FROM_EMAIL` set to `noreply@mail.exciseup.in` on this project's Worker, and the same address set as `FROM_EMAIL` on the sibling `excise-revenue-recovery-portal` project's Worker (different env var name there, same Resend account/domain). Magic-link email is now the Admin/HQ login channel only (DEOs use CUG login as of M-17).

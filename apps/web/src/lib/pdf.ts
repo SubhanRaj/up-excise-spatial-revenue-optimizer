@@ -20,6 +20,7 @@ interface AutoTableOptions {
   styles?: { fontSize?: number; cellPadding?: number };
   headStyles?: { fillColor?: [number, number, number]; textColor?: [number, number, number] };
   columnStyles?: Record<number, { cellWidth?: number; halign?: 'left' | 'right' | 'center' }>;
+  margin?: { left?: number; right?: number };
   didParseCell?: (data: AutoTableCellHookData) => void;
 }
 interface JsPDFInstance {
@@ -83,6 +84,28 @@ const STATUS_ORDER = Object.keys(STATUS_LABEL);
 
 interface GeoFeature { properties?: { district?: string }; geometry: { type: string; coordinates: unknown } }
 
+// Area-weighted polygon centroid (shoelace-formula based) — used to place each district's
+// name label. A plain average of the ring's vertices can land outside an irregularly-shaped
+// (e.g. river-bordered) district; this is the standard correct way to find a point that's
+// actually representative of the shape's interior.
+function polygonCentroid(ring: [number, number][]): [number, number] {
+  let area = 0, cx = 0, cy = 0;
+  for (let i = 0; i < ring.length - 1; i++) {
+    const p0 = ring[i], p1 = ring[i + 1];
+    if (!p0 || !p1) continue;
+    const cross = p0[0] * p1[1] - p1[0] * p0[1];
+    area += cross;
+    cx += (p0[0] + p1[0]) * cross;
+    cy += (p0[1] + p1[1]) * cross;
+  }
+  area *= 0.5;
+  if (Math.abs(area) < 1e-6 || ring.length === 0) {
+    const n = ring.length || 1;
+    return [ring.reduce((s, p) => s + p[0], 0) / n, ring.reduce((s, p) => s + p[1], 0) / n];
+  }
+  return [cx / (6 * area), cy / (6 * area)];
+}
+
 // Renders the same choropleth the admin overview map shows, as a flat PNG — not a screenshot
 // of the live Leaflet map (CORS-tainted canvas risk from the CartoDB tile images, and it would
 // only be available from the /admin page, not this one) but redrawn from the same GeoJSON file
@@ -98,7 +121,9 @@ async function buildStatusMapImage(rows: DistrictPdfRow[]): Promise<string | nul
     // Same UP crop the live Leaflet map fits to (CLAUDE.md's "Map configuration" — fitBounds
     // [[23.8, 77.1], [30.4, 84.6]]), with a little padding so border districts aren't clipped.
     const minLon = 76.6, maxLon = 85.1, minLat = 23.3, maxLat = 31.0;
-    const W = 1000, H = Math.round(W * (maxLat - minLat) / (maxLon - minLon));
+    // Higher resolution than the plain fill needs, since this canvas now also carries small
+    // per-district text labels that need to stay crisp once embedded and printed.
+    const W = 1600, H = Math.round(W * (maxLat - minLat) / (maxLon - minLon));
     const canvas = document.createElement('canvas');
     canvas.width = W; canvas.height = H;
     const ctx = canvas.getContext('2d');
@@ -108,30 +133,58 @@ async function buildStatusMapImage(rows: DistrictPdfRow[]): Promise<string | nul
 
     const px = (lon: number) => ((lon - minLon) / (maxLon - minLon)) * W;
     const py = (lat: number) => H - ((lat - minLat) / (maxLat - minLat)) * H;
-    const drawRing = (ring: number[][]) => {
+    const project = (ring: number[][]): [number, number][] =>
+      ring.map(([lon, lat]) => [px(lon ?? 0), py(lat ?? 0)]);
+    const drawRing = (ring: [number, number][]) => {
       ctx.beginPath();
-      ring.forEach(([lon, lat], i) => {
-        const x = px(lon ?? 0), y = py(lat ?? 0);
-        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-      });
+      ring.forEach(([x, y], i) => { if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); });
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
     };
 
-    ctx.lineWidth = 1.2;
+    ctx.lineWidth = 1.6;
     ctx.strokeStyle = '#334155';
+    const labels: { x: number; y: number; text: string }[] = [];
     for (const f of geo.features) {
       const name = f.properties?.district ?? '';
       const status = statusByName[name] ?? 'pending';
       ctx.fillStyle = STATUS_COLOR[status] ?? '#94a3b8';
       const geom = f.geometry;
+      // Only the outer ring of the largest part is labeled — a district with a small detached
+      // exclave still gets colored (every ring is drawn) but doesn't need a second label.
+      let outerRings: number[][][] = [];
       if (geom.type === 'Polygon') {
-        drawRing((geom.coordinates as number[][][])[0] ?? []);
+        outerRings = [(geom.coordinates as number[][][])[0] ?? []];
       } else if (geom.type === 'MultiPolygon') {
-        for (const poly of geom.coordinates as number[][][][]) drawRing(poly[0] ?? []);
+        outerRings = (geom.coordinates as number[][][][]).map((poly) => poly[0] ?? []);
+      }
+      let largest: [number, number][] = [];
+      for (const ring of outerRings) {
+        const projected = project(ring);
+        drawRing(projected);
+        if (projected.length > largest.length) largest = projected;
+      }
+      if (name && largest.length > 0) {
+        const [cx, cy] = polygonCentroid(largest);
+        labels.push({ x: cx, y: cy, text: `${name} (${STATUS_LABEL[status] ?? status})` });
       }
     }
+
+    // Text halo (stroke behind fill) so a label stays legible against any status color, same
+    // idea as the live Leaflet map's own white/slate text-shadow convention on its labels.
+    ctx.font = 'bold 12px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.lineJoin = 'round';
+    for (const { x, y, text } of labels) {
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+      ctx.strokeText(text, x, y);
+      ctx.fillStyle = '#1e293b';
+      ctx.fillText(text, x, y);
+    }
+
     return canvas.toDataURL('image/png');
   } catch {
     return null;
@@ -191,8 +244,13 @@ export async function exportDistrictsPdf(rows: DistrictPdfRow[], statusFilter: s
   // stays a useful state-wide reference regardless of which status was picked for export.
   const mapImg = await buildStatusMapImage(rows);
   if (mapImg) {
-    const mapW = 170, mapH = 170 * (31.0 - 23.3) / (85.1 - 76.6);
-    doc.addImage(mapImg, 'PNG', 14, 34, mapW, mapH);
+    // Sized to the actual vertical room on an A4-landscape cover page (210mm tall, minus the
+    // title block above and a bottom margin) rather than an arbitrary fixed width — this is
+    // the real ceiling on how big the map can get without a second page.
+    const mapStartY = 30;
+    const mapH = doc.internal.pageSize.getHeight() - mapStartY - 10;
+    const mapW = mapH * (85.1 - 76.6) / (31.0 - 23.3);
+    doc.addImage(mapImg, 'PNG', 14, mapStartY, mapW, mapH);
 
     const legendX = 14 + mapW + 14;
     let legendY = 40;
@@ -228,16 +286,23 @@ export async function exportDistrictsPdf(rows: DistrictPdfRow[], statusFilter: s
     doc.setFontSize(9);
     doc.text(`Generated ${displayPart}`, 14, 21);
 
+    // Explicit widths summing to the full usable landscape width (297mm page − 14mm margins
+    // each side = 269mm) — autoTable's default content-driven sizing left the numeric columns
+    // bunched together on the left of a narrower-than-expected table instead of spread evenly
+    // across the page.
     doc.autoTable({
       startY: 26,
       head: [['District', 'DEO', 'Circles/Sectors', 'Vends', 'Revenue']],
       body: buildStatusPageBody(districtsForStatus),
-      styles: { fontSize: 8, cellPadding: 2 },
+      styles: { fontSize: 9, cellPadding: 3 },
       headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255] },
+      margin: { left: 14, right: 14 },
       columnStyles: {
-        2: { halign: 'right' },
-        3: { halign: 'right' },
-        4: { halign: 'right' },
+        0: { cellWidth: 65 },
+        1: { cellWidth: 65 },
+        2: { cellWidth: 45, halign: 'right' },
+        3: { cellWidth: 45, halign: 'right' },
+        4: { cellWidth: 49, halign: 'right' },
       },
     });
   }
