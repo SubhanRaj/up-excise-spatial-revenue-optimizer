@@ -175,6 +175,36 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
     setLoading(false);
   }
 
+  // Gives an admin the exact same re-uploadable file a DEO's own "Download Current Data"
+  // produces — the dropdown-intact DEO template pre-filled with this district's current D1
+  // data (M-91). Exists because "Export XLSX" (the button above, from ShopExplorer) is a
+  // read-only report with a completely different column layout; re-uploading it fails or
+  // silently corrupts data (see the parseExcelFile guard in lib/excel.ts). Useful for an admin
+  // walking a DEO through a correction directly, or recovering a device whose local staging is
+  // empty/stuck — this always reads fresh from what the page already has loaded, no separate
+  // D1 call. Same builder (generateTemplate()) as /upload — no template drift between portals.
+  const [downloadingTemplate, setDownloadingTemplate] = useState(false);
+  async function downloadReuploadTemplate() {
+    if (!detail) return;
+    setDownloadingTemplate(true);
+    try {
+      const { generateTemplate } = await import('@/lib/excel');
+      // latitudeDms/longitudeDms aren't part of ShopExplorerRow (only the decimal fields are) —
+      // null placeholders are fine, generateTemplate()'s pre-fill only reads latitudeDecimal/
+      // longitudeDecimal for these rows.
+      const existingRows = allShops.map((s) => ({
+        ...s, districtName: name, status: 'uploaded' as const, latitudeDms: null, longitudeDms: null,
+      }));
+      const blob = await generateTemplate(name, detail.units.map((u) => u.name), existingRows);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `${name}-current-data.xlsx`; a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setDownloadingTemplate(false);
+    }
+  }
+
   const { typeCounts } = useShopAggregates(allShops, detail?.units ?? []);
 
   // ── Render ───────────────────────────────────────────────────────────────────
@@ -201,6 +231,16 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
           </span>
         )}
         <div className="ml-auto flex gap-2 items-center">
+          {detail && detail.units.length > 0 && (
+            <button
+              className="btn btn-sm btn-outline gap-2"
+              onClick={downloadReuploadTemplate}
+              disabled={downloadingTemplate}
+              title="Downloads the same dropdown-intact file a DEO's own &quot;Download Current Data&quot; produces — for re-upload, not for Export XLSX's read-only report format"
+            >
+              {downloadingTemplate ? <span className="loading loading-spinner loading-xs" /> : 'Download Re-upload Template'}
+            </button>
+          )}
           <HelpPanel pageKey="admin_district_detail" title="District Detail — How to use this page">
             <ul className="list-disc list-inside space-y-1">
               <li><strong>All fields</strong> — every Phase 1 data field is shown: shop ID, name, circle/sector, thana, adjacent thanas, type, coordinates, and revenue.</li>
@@ -211,7 +251,8 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
               <li><strong>Type filter</strong> — use the dropdown or click a type card in the breakdown bar above to filter by shop type.</li>
               <li><strong>Group by type</strong> — toggle to cluster rows under shop type headings with per-group subtotals.</li>
               <li><strong>Rows per page</strong> — 10 / 25 / 50 / 100 / All. Your preference is remembered across pages.</li>
-              <li><strong>Export XLSX</strong> — downloads this district&apos;s shops as an Excel file. All columns are correctly formatted — no CSV comma-quoting issues.</li>
+              <li><strong>Export XLSX</strong> — downloads this district&apos;s shops as an Excel file for viewing/reporting. All columns are correctly formatted — no CSV comma-quoting issues. Do not re-upload this file — its column layout doesn&apos;t match the DEO template and will be rejected.</li>
+              <li><strong>Download Re-upload Template</strong> — downloads the same dropdown-intact template a DEO's own "Download Current Data" button produces, pre-filled with this district's current data. Use this if a DEO needs a correct file to re-upload — never Export XLSX.</li>
             </ul>
           </HelpPanel>
           {detail && detail.units.length > 0 && pendingUnlockRequest && (

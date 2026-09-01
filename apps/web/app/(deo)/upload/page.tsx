@@ -154,11 +154,13 @@ export default function UploadPage() {
   // Pre-fills the downloaded template with the district's current D1 data — a data-correction
   // unlock resets districts.status but never touches phase1_raw_collection, so on the
   // re-download after an unlock the DEO is editing the real existing rows in place rather than
-  // retyping the whole district from memory. ensureDistrictSynced() only hits D1 once per
-  // sync cycle (shared with the final-verification screen's own sync flag); a first-ever
-  // upload with no D1 rows yet naturally comes back empty and the sheet is blank as before.
+  // retyping the whole district from memory. force:true always hits D1 fresh (M-91) rather than
+  // trusting the shared sync flag — this button is rarely clicked, so correctness matters far
+  // more than saving one D1 read, and it's the button a DEO relies on to know their download is
+  // actually current. A first-ever upload with no D1 rows yet naturally comes back empty and
+  // the sheet is blank as before.
   async function downloadTemplate() {
-    const existingRows = district ? await ensureDistrictSynced(district) : [];
+    const existingRows = district ? await ensureDistrictSynced(district, true) : [];
     const { generateTemplate } = await import('@/lib/excel');
     const blob = await generateTemplate(district, units.map((u) => u.name), existingRows);
     const url = URL.createObjectURL(blob);

@@ -157,12 +157,20 @@ export const stagingDb = {
  * sync (apps/web/app/(deo)/verify/page.tsx). A data-correction unlock never touches any
  * phase1_raw_collection row — it only flips districts.status — so a cache already synced from
  * an earlier visit (including the final-verification screen's own sync, or a prior call to
- * this same function) is still accurate and this is a no-op D1-wise. Used by /upload's
- * "Download District Data" so the downloaded file can be pre-filled with current data
- * without a redundant D1 read every time it's clicked. */
-export async function ensureDistrictSynced(district: string): Promise<StagedRow[]> {
+ * this same function) is still accurate and this is a no-op D1-wise.
+ *
+ * `force: true` skips the flag entirely and always re-fetches (M-91) — used by /upload's
+ * "Download Current Data" button, an explicit, rarely-clicked action where correctness matters
+ * far more than saving one D1 read. Trusting the flag here was the exact mechanism behind a
+ * DEO downloading a "current data" file that was actually blank (M-90 fixed clearAll() leaving
+ * the flag stuck true after Clear Staged Data) — this removes that whole class of bug for this
+ * button instead of only the one known trigger, and self-heals any device where the flag is
+ * already stuck from before that fix shipped. The final-verification screen (a page-load path,
+ * visited far more often) keeps using the flag-trusting default — its whole point is avoiding
+ * a D1 hit on every revisit once this device is known-synced. */
+export async function ensureDistrictSynced(district: string, force = false): Promise<StagedRow[]> {
   const key = `verify-synced-${district}`;
-  if (localStorage.getItem(key) !== 'true') {
+  if (force || localStorage.getItem(key) !== 'true') {
     await stagingDb.clearAll();
     try {
       const res = await fetch(`/api/districts/${encodeURIComponent(district)}/shops`);

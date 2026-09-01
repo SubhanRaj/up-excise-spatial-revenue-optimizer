@@ -1760,6 +1760,19 @@ The browser's own print dialog produces the PDF ("Save as PDF" / "Microsoft Prin
 
 ---
 
+### M-91: Force-Refresh "Download Current Data"; Admin "Download Re-upload Template" Button ✅ Complete
+
+**Objective:** a real DEO (Bhadohi) hit exactly the bugs M-90 diagnosed — local staging showed 0 shops on their device, and re-uploading the admin's Export XLSX (which they'd been told to use, since it looked pre-filled and ready) failed. M-90 fixed the root causes going forward; this milestone fixes Bhadohi's already-broken device and removes the temptation to reach for the wrong export in the first place.
+
+**Change:**
+- [x] `ensureDistrictSynced()` gained a `force` parameter that skips the `verify-synced-{district}` flag entirely and always re-fetches from D1. `/upload`'s "Download Current Data" button now always passes `force: true` — a rarely-clicked, correctness-critical action where the one extra D1 read is trivial. This self-heals any device where the flag was already stuck `true` with an empty cache from before M-90 shipped (Bhadohi's exact situation) — the very next click just works, no manual data-fixing needed. The final-verification screen's own sync (a page-load path, visited far more often) keeps trusting the flag by default — that's a legitimate, different use case for it.
+- [x] **"Download Re-upload Template"** — a new button on the admin district detail page, next to Export XLSX. Calls the same `generateTemplate()` builder `/upload` uses, pre-filled with the district's already-loaded shops and registered units (no extra D1 call) — the exact dropdown-intact file a DEO's own portal would produce. Lets an admin hand a DEO a correct file directly, or recover a stuck device, without depending on the DEO's own browser state. The Help panel and Export XLSX's own description were updated to say plainly it must never be re-uploaded.
+- [x] Verified live end to end against a real district with real D1 data: downloaded the new admin template and confirmed (via direct ExcelJS inspection) it carries the real shop rows, the dropdown validations, and the hidden Reference Data sheet; re-uploaded that exact file through the DEO `/upload` flow and confirmed it's accepted with neither the generic parse failure nor the new "wrong file" guard firing; separately, seeded a device with the exact stuck-flag-plus-empty-cache state and confirmed "Download Current Data" still produced the real 5-row file instead of a blank one.
+
+**Exit criterion:** a device in Bhadohi's exact broken state recovers on the next "Download Current Data" click with no manual fix needed; an admin can generate a correct, re-uploadable file for any district directly from its detail page.
+
+---
+
 ## Backlog / Not Started
 
 - [x] ~~Verify `exciseup.in` in Resend and switch `RESEND_FROM_EMAIL`~~ — Done. `mail.exciseup.in` verified; `RESEND_FROM_EMAIL` set to `noreply@mail.exciseup.in` on this project's Worker, and the same address set as `FROM_EMAIL` on the sibling `excise-revenue-recovery-portal` project's Worker (different env var name there, same Resend account/domain). Magic-link email is now the Admin/HQ login channel only (DEOs use CUG login as of M-17).
