@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { adminDistrictsCache } from '@/lib/db';
+import { adminDistrictsCache, changedDistrictsSince } from '@/lib/db';
 
 export interface AdminDistrictRow {
   name: string; division: string | null; deoName: string | null; deoEmail: string | null;
@@ -48,8 +48,24 @@ export function useAdminDistricts() {
         setDistricts(data.districts ?? []);
         setStateTotals(data.stateTotals ?? { totalVendCount: 0, totalRevenue: 0 });
         setLoading(false);
-        // Revalidate in background — if TTL was already OK the cache.get() returns it, so
-        // we only reach here if it was fresh; no background fetch needed.
+        // Cache was within its 5-min TTL, so it was served as-is — but "within TTL" isn't the
+        // same as "still current": a district submitted/verified/unlocked seconds after this
+        // entry was written stays invisible for however much of the TTL window remains. Ask
+        // cheaply whether anything actually changed since this entry was written and, if so,
+        // upgrade to a real refetch — same check the district detail page already does (M-74),
+        // now applied to the aggregate every page on this hook shares (overview map,
+        // districts list, divisions, division detail).
+        adminDistrictsCache.getFetchedAt().then((fetchedAt) => {
+          if (fetchedAt == null) return;
+          changedDistrictsSince(fetchedAt).then((changed) => {
+            if (changed.length === 0) return;
+            adminDistrictsCache.invalidate();
+            fetchDistricts().then((fresh) => {
+              setDistricts(fresh.districts);
+              setStateTotals(fresh.stateTotals);
+            });
+          });
+        });
       } else {
         fetchDistricts().then((data) => {
           setDistricts(data.districts);

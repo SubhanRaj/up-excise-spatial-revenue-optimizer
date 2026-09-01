@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import HelpPanel from '@/app/_components/HelpPanel';
@@ -24,7 +24,15 @@ export default function DistrictsPage() {
   const router = useRouter();
   const [search, setSearch] = useState('');
   const [divFilter, setDivFilter] = useState('all');
-  const [statusFilter, setStatusFilter] = useState('all');
+  // Persisted so the filter survives a row click → district detail → back navigation, which
+  // unmounts and remounts this page (a plain useState would silently reset to 'all' on that
+  // round trip, which is what was happening before this).
+  const [statusFilter, setStatusFilter] = useState(() => {
+    try { return localStorage.getItem('admin-districts-status-filter') ?? 'all'; } catch { return 'all'; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem('admin-districts-status-filter', statusFilter); } catch { /* ignore */ }
+  }, [statusFilter]);
   const [sortKey, setSortKey] = useState<SortKey>('name');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [exportingPdf, setExportingPdf] = useState(false);

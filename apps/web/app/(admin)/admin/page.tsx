@@ -7,7 +7,7 @@ import { useSession } from '@/hooks/useSession';
 import HelpPanel from '@/app/_components/HelpPanel';
 import { useAdminDistricts } from '@/hooks/useAdminDistricts';
 import { useAdminExportData } from '@/hooks/useAdminExportData';
-import { adminSettingsCache } from '@/lib/db';
+import { adminSettingsCache, changedDistrictsSince } from '@/lib/db';
 import { STATUS_COLOR, statusLabel, statusBadgeClass, isLocked } from '@/lib/status';
 import { SHOP_TYPE_BADGE_CLASS } from '@/lib/shop-type';
 import { SHOP_TYPES, SHOP_TYPE_LABELS } from '@excise/schema';
@@ -99,7 +99,18 @@ export default function AdminPage() {
   async function fetchSettings(force = false) {
     if (!force) {
       const cached = await adminSettingsCache.get();
-      if (cached) { setSettings(cached as SettingsInfo); return; }
+      if (cached) {
+        setSettings(cached as SettingsInfo);
+        // submittedCount here can go stale the same way the districts aggregate can (M-86) —
+        // a district submitted/verified/unlocked after this entry was written stays baked into
+        // the cached count until the 5-min TTL lapses. Same cheap check, silent upgrade.
+        const fetchedAt = await adminSettingsCache.getFetchedAt();
+        if (fetchedAt != null) {
+          const changed = await changedDistrictsSince(fetchedAt);
+          if (changed.length > 0) void fetchSettings(true);
+        }
+        return;
+      }
     }
     const res = await fetch('/api/admin/settings');
     if (!res.ok) return;

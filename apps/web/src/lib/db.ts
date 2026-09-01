@@ -264,12 +264,34 @@ function makeKvCache<T>(table: string, opts: { fixedKey?: string; ttlMs?: number
           if (ttlMs && Date.now() - entry.fetchedAt > ttlMs) return null;
           return entry.data;
         }),
+    // Raw write time, ignoring ttlMs — used to ask "did anything change since I last fetched"
+    // (see changedDistrictsSince below) even while the entry is still within its TTL and would
+    // otherwise be served as-is.
+    getFetchedAt: (key: string = fixedKey!) =>
+      getAdminDb().table<AdminKvCache<T>>(table)
+        .where('key').equals(key).toArray()
+        .then((r) => r[0]?.fetchedAt ?? null),
     set: (keyOrData: string | T, data?: T) => {
       const [key, value] = fixedKey !== undefined ? [fixedKey, keyOrData as T] : [keyOrData as string, data as T];
       return getAdminDb().table<AdminKvCache<T>>(table).put({ key, data: value, fetchedAt: Date.now() });
     },
     invalidate: () => getAdminDb().table<AdminKvCache<T>>(table).clear(),
   };
+}
+
+// Districts-aggregate and app-settings both summarize the same four audit-log event types
+// (district_submitted, district_verified, units_unlocked, data_correction_unlocked) — the
+// district detail page already avoids trusting a flat TTL for this by checking this endpoint
+// (M-74); this is the same check, reusable by any cache keyed off those events.
+export async function changedDistrictsSince(sinceMs: number): Promise<string[]> {
+  try {
+    const res = await fetch(`/api/admin/changed-districts?since=${sinceMs}`);
+    if (!res.ok) return [];
+    const data = await res.json() as { districts?: string[] };
+    return data.districts ?? [];
+  } catch {
+    return [];
+  }
 }
 
 // ── Districts aggregate cache (TTL: 5 min) ──────────────────────────────────

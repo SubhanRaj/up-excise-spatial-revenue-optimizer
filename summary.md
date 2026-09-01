@@ -1676,6 +1676,26 @@ The browser's own print dialog produces the PDF ("Save as PDF" / "Microsoft Prin
 
 ---
 
+### M-86: Admin Aggregate Caches Self-Heal on Remount; Districts Status Filter Persisted ✅ Complete
+
+**Objective:** two reports from the same admin session — Kanpur Dehat showed `In Progress` on the overview map while both the districts list and the district's own detail page correctly showed `Verified`; and the districts list's status filter reset to "All" every time a row was clicked through to a district's detail page and back.
+
+**Root cause (status divergence):** the overview map (M-80) and the districts list read the exact same `GET /api/admin/districts` response through the exact same `adminDistrictsCache` (5-min TTL). A cache entry within its TTL is served as-is regardless of what actually happened after it was written — a district submitted/verified/unlocked seconds later stays invisible until the TTL lapses or an explicit Sync All. Two page mounts at different points in that window can legitimately show two different (both "correctly cached") answers. The district detail page never has this problem because it doesn't use this cache at all — it checks `GET /api/admin/changed-districts` on every visit (M-74).
+
+**Change:**
+- [x] `makeKvCache` (`apps/web/src/lib/db.ts`) gained `getFetchedAt()` — the entry's raw write time, ignoring `ttlMs`.
+- [x] `changedDistrictsSince(ms)` — a small shared wrapper around `GET /api/admin/changed-districts`, the same scan M-74 already trusts, reusable by any cache keyed off the same four audit-log events.
+- [x] `useAdminDistricts()` (shared by the overview map, districts list, divisions, and division detail) and the overview page's own `fetchSettings()` (backing the Final Verification Round card's `submittedCount`, the other thing that could go stale the same way) both check this silently in the background right after serving a cached value, and upgrade to a real refetch if anything changed. The fast cached-first paint is unaffected — this only adds a cheap follow-up check, not a blocking one.
+- [x] Verified live: seeded a status change directly in D1 with a matching audit-log row, reloaded a page holding an already-cached (but now stale) entry, and confirmed it silently corrected itself without a Sync All click.
+
+**Root cause (filter reset):** `/admin/districts`'s status filter was a plain `useState('all')`. Clicking a row navigates to `/admin/districts/[district]`, a different route — Next.js unmounts the districts list page entirely, so returning to it (back button or the breadcrumb) remounts it from scratch and resets every local `useState`, including the filter the admin had just set.
+
+**Change:** the status filter now reads its initial value from `localStorage` (`admin-districts-status-filter`) and writes back on every change — the same "persist across navigation" pattern already used for `ShopExplorer`'s page size and group-by-type (see the localStorage registry). The division filter, search box, and sort column were left as plain `useState`, matching what was actually reported.
+
+**Exit criterion:** a status change in D1 shows up consistently across the overview map and the districts list without requiring Sync All; the districts list's status filter survives a row click → detail page → back round trip.
+
+---
+
 ## Backlog / Not Started
 
 - [x] ~~Verify `exciseup.in` in Resend and switch `RESEND_FROM_EMAIL`~~ — Done. `mail.exciseup.in` verified; `RESEND_FROM_EMAIL` set to `noreply@mail.exciseup.in` on this project's Worker, and the same address set as `FROM_EMAIL` on the sibling `excise-revenue-recovery-portal` project's Worker (different env var name there, same Resend account/domain). Magic-link email is now the Admin/HQ login channel only (DEOs use CUG login as of M-17).
