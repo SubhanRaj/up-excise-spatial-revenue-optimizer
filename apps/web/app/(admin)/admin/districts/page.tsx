@@ -47,7 +47,7 @@ export default function DistrictsPage() {
     setExportingPdf(true);
     try {
       const fresh = await refresh();
-      exportDistrictsPdf(fresh, pdfStatusFilter);
+      await exportDistrictsPdf(fresh, pdfStatusFilter);
     } finally {
       setExportingPdf(false);
     }
@@ -114,7 +114,7 @@ export default function DistrictsPage() {
               <li><strong>Division filter</strong> — narrow to a single division.</li>
               <li><strong>Status filter</strong> — pending, in_progress, or submitted.</li>
               <li><strong>Sort</strong> — click any column header.</li>
-              <li><strong>Export PDF</strong> — pick All or one status from the dropdown, then refreshes from the server and downloads a district status report (sorted by division) for sharing outside the portal.</li>
+              <li><strong>Export PDF</strong> — pick All or one status from the dropdown, then refreshes from the server and downloads an A4-landscape status report (a status map on the cover, one page per status grouped by division) for sharing outside the portal.</li>
             </ul>
           </HelpPanel>
         </div>

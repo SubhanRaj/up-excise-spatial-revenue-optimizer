@@ -1696,6 +1696,22 @@ The browser's own print dialog produces the PDF ("Save as PDF" / "Microsoft Prin
 
 ---
 
+### M-87: PDF Export Rework — A4 Landscape, Per-Status Pages, Division Grouping, Status Map ✅ Complete
+
+**Objective:** the M-84/M-85 export was a single flat portrait table. Reworked into a proper multi-page report: A4 landscape, one page per status grouped by division, and a cover-page choropleth map.
+
+**Change:**
+- [x] `jspdf.jsPDF({ orientation: 'landscape' })` — more room per row for the district/DEO/figures columns than portrait allowed.
+- [x] Exporting "All" now produces a cover page followed by one page per status, in workflow order (Pending → In Progress → Submitted → Verified — the same order `STATUS_LABEL` is declared in), skipping any status with no matching districts. Exporting a single status from the dropdown produces just that one page, same builder either way.
+- [x] Each status page's table is grouped by division instead of a flat sorted list — `buildStatusPageBody()` inserts a full-width bold division-header row (via `jspdf-autotable`'s `colSpan` cell support) before that division's districts, divisions A→Z, districts A→Z within each.
+- [x] `buildStatusMapImage()` — the cover page now carries a choropleth of all 75 districts, colored the same as the live admin overview map. Not a screenshot of the live Leaflet map: CartoDB's raster tiles aren't served with CORS headers permissive enough for a tainted-canvas-free `canvas.toDataURL()`, and the live map only exists on the overview page, not the districts page this export lives on. Instead it redraws the same `/geodata/up-districts.geojson` file the live map already uses onto an offscreen `<canvas>` (equirectangular projection against the same UP bounding box the Leaflet map fits to), colored from the same `STATUS_COLOR` palette, then embeds the result as a PNG via `doc.addImage()`. A legend beside it shows each status with its live count across all 75 districts, not just the exported slice. Returns `null` on any failure (offline, fetch error) and the report still generates without it — the map is a bonus, not a dependency.
+- [x] `exportDistrictsPdf()` is now `async` (the map fetch/draw needs to complete before `doc.save()`); the caller on `/admin/districts` now awaits it.
+- [x] Verified live: downloaded and visually inspected the actual rendered pages (map + legend correct colors and counts, division-grouped table, page count and landscape `/MediaBox` confirmed via a throwaway Playwright test reading the raw PDF bytes) before pushing — this is new canvas/geometry/image-embedding code, exactly the class of bug `tsc` can't catch.
+
+**Exit criterion:** Export PDF (All) downloads a landscape, multi-page report — a status map cover page, then one division-grouped page per status with districts present.
+
+---
+
 ## Backlog / Not Started
 
 - [x] ~~Verify `exciseup.in` in Resend and switch `RESEND_FROM_EMAIL`~~ — Done. `mail.exciseup.in` verified; `RESEND_FROM_EMAIL` set to `noreply@mail.exciseup.in` on this project's Worker, and the same address set as `FROM_EMAIL` on the sibling `excise-revenue-recovery-portal` project's Worker (different env var name there, same Resend account/domain). Magic-link email is now the Admin/HQ login channel only (DEOs use CUG login as of M-17).
