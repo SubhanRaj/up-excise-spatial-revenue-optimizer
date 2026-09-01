@@ -1727,6 +1727,19 @@ The browser's own print dialog produces the PDF ("Save as PDF" / "Microsoft Prin
 
 ---
 
+### M-89: Plain-Language Status Definitions on the PDF Legend ✅ Complete
+
+**Objective:** the PDF is meant to leave the portal — shared in a meeting, attached to a department circular — but its legend only ever showed the four status words and their counts, with nothing explaining what each one actually means to someone without portal access.
+
+**Change:**
+- [x] `STATUS_DESCRIPTION` (`apps/web/src/lib/pdf.ts`) — a one- or two-line plain-language definition per status, reviewed for accuracy against the actual code paths rather than assumed from the status names: **In Progress** covers two distinct paths (a district actively being worked on for the first time, or a previously-submitted district unlocked for correction and being re-uploaded) — the status alone doesn't distinguish which; **Submitted** can persist indefinitely if the DEO hasn't acted during the final verification round, nothing moves it forward on its own; **Verified** is a second, separate confirmation after Submitted, not a second submission, and is never auto-assigned — it always requires that district's own DEO to act.
+- [x] Printed below the color legend on the cover page, each definition colored to match its status, word-wrapped to the legend column's width via `doc.splitTextToSize()`.
+- [x] Verified live: downloaded and visually inspected the rendered cover page (text wraps correctly, no overlap with the map or page edge) before pushing.
+
+**Exit criterion:** the cover page's legend explains what each status means, not just what it's called.
+
+---
+
 ## Backlog / Not Started
 
 - [x] ~~Verify `exciseup.in` in Resend and switch `RESEND_FROM_EMAIL`~~ — Done. `mail.exciseup.in` verified; `RESEND_FROM_EMAIL` set to `noreply@mail.exciseup.in` on this project's Worker, and the same address set as `FROM_EMAIL` on the sibling `excise-revenue-recovery-portal` project's Worker (different env var name there, same Resend account/domain). Magic-link email is now the Admin/HQ login channel only (DEOs use CUG login as of M-17).

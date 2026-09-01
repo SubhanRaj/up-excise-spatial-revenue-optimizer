@@ -29,7 +29,8 @@ interface JsPDFInstance {
   setFillColor: (r: number, g: number, b: number) => JsPDFInstance;
   setDrawColor: (r: number, g: number, b: number) => JsPDFInstance;
   rect: (x: number, y: number, w: number, h: number, style?: string) => JsPDFInstance;
-  text: (text: string, x: number, y: number) => JsPDFInstance;
+  text: (text: string | string[], x: number, y: number) => JsPDFInstance;
+  splitTextToSize: (text: string, maxWidth: number) => string[];
   addImage: (data: string, format: string, x: number, y: number, w: number, h: number) => JsPDFInstance;
   addPage: () => JsPDFInstance;
   autoTable: (opts: AutoTableOptions) => void;
@@ -81,6 +82,15 @@ const STATUS_FILTER_LABEL: Record<string, string> = { all: 'All', ...STATUS_LABE
 // Workflow order (matches STATUS_LABEL's own declaration order in lib/status.ts) — each is its
 // own page when exporting "All", so a reader flips from earliest to latest stage.
 const STATUS_ORDER = Object.keys(STATUS_LABEL);
+
+// Plain-language definitions printed next to the map legend — a reader outside the portal
+// (a meeting, a department circular) has no other way to know what these four words mean.
+const STATUS_DESCRIPTION: Record<string, string> = {
+  pending: 'Circles and sectors not registered yet.',
+  in_progress: 'Circles/sectors registered and data being uploaded, or a submitted district was unlocked for correction and is being re-uploaded.',
+  submitted: 'Data uploaded and formally submitted. Stays here until the DEO confirms it in the final verification round.',
+  verified: 'The DEO has confirmed the submitted data is correct in the final verification round — a second confirmation, not a second submission.',
+};
 
 interface GeoFeature { properties?: { district?: string }; geometry: { type: string; coordinates: unknown } }
 
@@ -253,6 +263,7 @@ export async function exportDistrictsPdf(rows: DistrictPdfRow[], statusFilter: s
     doc.addImage(mapImg, 'PNG', 14, mapStartY, mapW, mapH);
 
     const legendX = 14 + mapW + 14;
+    const legendW = doc.internal.pageSize.getWidth() - legendX - 14;
     let legendY = 40;
     doc.setFontSize(11);
     doc.setTextColor(30, 41, 59);
@@ -268,6 +279,23 @@ export async function exportDistrictsPdf(rows: DistrictPdfRow[], statusFilter: s
       const count = rows.filter((d) => d.status === status).length;
       doc.text(`${STATUS_LABEL[status]} (${count})`, legendX + 7, legendY);
       legendY += 7;
+    }
+
+    // What each status actually means — a reader outside the portal has no other way to know.
+    legendY += 5;
+    doc.setFontSize(10);
+    doc.setTextColor(30, 41, 59);
+    doc.text('What each status means', legendX, legendY);
+    legendY += 6;
+    doc.setFontSize(8);
+    for (const status of STATUS_ORDER) {
+      doc.setTextColor(...hexToRgb(STATUS_COLOR[status] ?? '#94a3b8'));
+      doc.text(STATUS_LABEL[status] ?? status, legendX, legendY);
+      legendY += 4;
+      doc.setTextColor(71, 85, 105);
+      const lines = doc.splitTextToSize(STATUS_DESCRIPTION[status] ?? '', legendW);
+      doc.text(lines, legendX, legendY);
+      legendY += lines.length * 4 + 3;
     }
   }
 
