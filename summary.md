@@ -1809,6 +1809,20 @@ The browser's own print dialog produces the PDF ("Save as PDF" / "Microsoft Prin
 
 ---
 
+### M-95: Fixed Crash on `/verify` for a Shop Row With a Blank `thanaName` ✅ Complete
+
+**Objective:** Mau reported "Application error: a client-side exception has occurred" on `/verify` right after parsing an Excel file, with dashboard/upload working fine. Console showed `Cannot read properties of undefined (reading 'trim')` inside a `useMemo`.
+
+**Root cause:** `useShopAggregates()`'s `circleStats` memo (`apps/web/src/hooks/useShopAggregates.ts`) calls `normalizeThanaName(s.thanaName)` for every shop row with no guard for a missing value, unlike the `thanaVariants` memo two lines below it, which filters falsy values first. A shop row with a blank `thanaName` hit `name.trim()` in `apps/web/src/lib/thana-name.ts` with `name` undefined, throwing inside the memo and taking down the whole page — `ShopExplorer`, used by both the admin district detail page and this DEO final-verification screen, depends on this hook.
+
+**Change:**
+- [x] `normalizeThanaName()` now coerces its input (`name ?? ''`) before trimming, fixing every caller at the shared function rather than adding a guard at each of the three call sites.
+- [x] Service worker `CACHE` bumped (`excise-v43`) so browsers with the buggy bundle already cached pick up the fix on next load.
+
+**Exit criterion:** `/verify` and the admin district detail page render correctly for a district with a shop row missing `thanaName`, instead of crashing.
+
+---
+
 ## Backlog / Not Started
 
 - [x] ~~Verify `exciseup.in` in Resend and switch `RESEND_FROM_EMAIL`~~ — Done. `mail.exciseup.in` verified; `RESEND_FROM_EMAIL` set to `noreply@mail.exciseup.in` on this project's Worker, and the same address set as `FROM_EMAIL` on the sibling `excise-revenue-recovery-portal` project's Worker (different env var name there, same Resend account/domain). Magic-link email is now the Admin/HQ login channel only (DEOs use CUG login as of M-17).

@@ -1,4 +1,4 @@
-const CACHE = 'excise-v42';
+const CACHE = 'excise-v43';
 
 // CDN assets pre-cached on install — app runs fully offline after first load
 const CDN_ASSETS = [

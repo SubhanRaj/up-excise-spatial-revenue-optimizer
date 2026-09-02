@@ -845,6 +845,7 @@ Full per-milestone delivery history (Objective, Deliverables, Exit Criterion, bu
 | M-92: "Download Current Data" Added to the DEO Final-Verification Screen | **Completed** |
 | M-93: Superadmin-Only "Delete Shop Data" Button (District Data Reset, Audit-Logged) | **Completed** |
 | M-94: "Delete Shop Data" Opened to Any Admin | **Completed** |
+| M-95: Fixed Crash on `/verify` for a Shop Row With a Blank `thanaName` | **Completed** |
 
 See [summary.md](summary.md) for full milestone specs, entry/exit criteria, deliverable checklists, the backlog, and pre-campaign-blocker history.
 

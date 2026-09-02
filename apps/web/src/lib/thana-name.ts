@@ -3,7 +3,7 @@
  * values (Circle/Sector Breakdown, the circle-sector export sheet), so a single real Thana
  * entered inconsistently across shop rows doesn't inflate the count. */
 export function normalizeThanaName(name: string): string {
-  return name.trim().replace(/\s+/g, ' ').toLowerCase();
+  return (name ?? '').trim().replace(/\s+/g, ' ').toLowerCase();
 }
 
 /** Levenshtein edit distance — small strings only (Thana names), no need for a dependency. */
