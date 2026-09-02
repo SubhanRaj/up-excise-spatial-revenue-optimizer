@@ -87,12 +87,19 @@ These are real mistakes Claude made in previous sessions on this project. Every 
 
 **The rule (already in this file):** **IndexedDB-first architecture applies to both portals — DEO and admin.** D1 is the source of truth but must never be polled on every render. The pattern is: read IndexedDB cache → if fresh (within TTL), use it → if stale/missing, fetch from API and store in IndexedDB. The `useAdminDistricts` hook (`apps/web/src/hooks/useAdminDistricts.ts`) implements this for districts data (5-min TTL, `excise-admin` Dexie DB). Similar wrapper objects (`adminShopsCache`, `adminAuditCache`) exist in `apps/web/src/lib/db.ts` for other endpoints. Use them. Do not call direct `fetch` from any page component.
 
+### ❌ Mistake 4 — Unguarded `s.thanaName` read crashed `/verify` for a real district (M-95)
+
+**What happened:** Mau's final-verification screen threw `Cannot read properties of undefined (reading 'trim')` and white-screened the page the moment a data-quality stats memo ran. Root cause: `useShopAggregates.ts`'s `circleStats` computation called `normalizeThanaName(s.thanaName)` on every shop row with no null guard, while a second, near-identical computation two lines below it (`thanaVariants`) filtered out blank names first. The gap opened at M-72, when Thana-variant clustering was added and got the filter — the older `circleStats` line, reading the same field the same way, was never revisited. The row that triggered it was legacy data already in D1 from before `thanaName` became a hard-required field on every fresh upload; since uploads upsert only the rows a DEO actually resends, an untouched old row keeps its original content indefinitely.
+
+**The rule:** when two computations in the same file read the same nullable field the same way, a guard added to one and not the other is a bug waiting on real-world data, not a style nit. `normalizeThanaName()` itself now coerces (`name ?? ''`) so this can't recur regardless of which call site forgets to filter first — fix nullable-field bugs at the shared function, not at each caller.
+
 ### How to avoid repeating these
 
 Before writing any code that involves:
 - A CDN `<script>` or `<link>` tag → check the exact URL in the "Frontend CDN Stack" table
 - Any file download or data export → use ExcelJS XLSX, not CSV
 - Any admin page that needs districts or state data → use `useAdminDistricts` hook, not a raw fetch
+- A shared field read from a shop/district row in more than one place → check every read site handles the same null/blank case the same way, especially if one of them was added later than the others
 
 ---
 
