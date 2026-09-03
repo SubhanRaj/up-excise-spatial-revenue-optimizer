@@ -1839,6 +1839,8 @@ The browser's own print dialog produces the PDF ("Save as PDF" / "Microsoft Prin
 
 **Verified locally** against real local D1 (seeded shop rows, a live magic-link login, and both a DEO and a superadmin session) before deploying: a verify call correctly populated both cached columns; `GET /api/admin/districts` served the cached values for that district without re-scanning while still returning a real scan for an unverified one; `POST /api/districts/[district]/request-unlock` returned 409 for the verified district; Delete Shop Data correctly nulled both columns and reverted `status` to `'pending'`, and `changed-districts` picked up the reset. Migration `0009` applied cleanly to production D1 (additive, nullable columns) before the Worker deploy.
 
+**One-time production backfill:** at deploy time, 70 of 75 districts were already `verified` from before this change shipped — the cache only populates going forward, on a fresh verify call, so all 70 needed a one-time backfill or the optimization would have stayed a no-op. Ran a single `UPDATE districts SET cached_vend_count = (...), cached_total_revenue = (...) WHERE status = 'verified'` directly against production D1 (correlated subqueries per district, index-assisted via `p1_district_idx`) — 70 rows updated, 54,485 rows read once. Checked the result against a live join-and-sum over the same 70 districts: identical (27,135 shops, ₹430,984,274,363.92 total revenue both ways). `GET /api/admin/districts` now only scans the 5 `in_progress` districts' shop rows on each call, not all ~30K.
+
 **Exit criterion:** `GET /api/admin/districts` no longer re-scans shop data for districts that can't have changed; a verified DEO has no self-service path to unlock their district.
 
 ---
