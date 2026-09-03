@@ -1825,6 +1825,24 @@ The browser's own print dialog produces the PDF ("Save as PDF" / "Microsoft Prin
 
 ---
 
+### M-96: Cached Aggregate for Verified Districts (D1 Read-Cost Reduction); Unlock Request Refused Once Verified ✅ Complete
+
+**Objective:** The portal was approaching Cloudflare D1's daily read-row cap. `GET /api/admin/districts` — the endpoint behind the overview page, the districts list, the choropleth map, and every derived stat card — computed each district's vend count and revenue with a `GROUP BY district_name` over the entire `phase1_raw_collection` table on every call: every 5-minute client cache expiry, every Sync All click, across every admin session. That scan re-read the same rows regardless of whether the underlying data had changed, and grew with every shop uploaded — the largest single source of D1 read-row usage in the portal.
+
+**Change:**
+- [x] `migrations/0009_add_district_cached_aggregates.sql` adds `districts.cached_vend_count` and `districts.cached_total_revenue` (nullable).
+- [x] `POST /api/districts/[district]/verify` computes this district's vend count and revenue once, at the moment `status` flips to `'verified'`, and writes them to the new columns in the same batch as the status update.
+- [x] `GET /api/admin/districts` reads those two columns for any district that is `verified` and has them set, and restricts its `GROUP BY` scan to a `WHERE district_name IN (...)` over the remaining districts only — skipped entirely once every district in the state is verified and cached.
+- [x] `POST /api/admin/districts/[district]/clear-data` (Delete Shop Data) nulls both columns when it resets a district to `'pending'`, so a re-uploaded district gets a fresh real scan the next time it's verified.
+- [x] Fixed a related bug found while reviewing this path: `district_data_cleared` was missing from `GET /api/admin/changed-districts`'s watched event list, so a district reset via Delete Shop Data never triggered a re-fetch on any other admin's device — that device's cache could keep showing the district's old (deleted) shop data indefinitely. Added it to the list.
+- [x] Self-service unlock requests are now refused once a district is `'verified'` — `POST /api/districts/[district]/request-unlock` returns 409 regardless of client state, matching the product decision that verification is the DEO's final word; the only way back into edit mode is an admin's Delete Shop Data. `/verify`'s final-verification screen already hid this option for verified districts; `/upload`'s locked view didn't, and now shows a message pointing to Admin/HQ instead of the request button.
+
+**Verified locally** against real local D1 (seeded shop rows, a live magic-link login, and both a DEO and a superadmin session) before deploying: a verify call correctly populated both cached columns; `GET /api/admin/districts` served the cached values for that district without re-scanning while still returning a real scan for an unverified one; `POST /api/districts/[district]/request-unlock` returned 409 for the verified district; Delete Shop Data correctly nulled both columns and reverted `status` to `'pending'`, and `changed-districts` picked up the reset. Migration `0009` applied cleanly to production D1 (additive, nullable columns) before the Worker deploy.
+
+**Exit criterion:** `GET /api/admin/districts` no longer re-scans shop data for districts that can't have changed; a verified DEO has no self-service path to unlock their district.
+
+---
+
 ## Backlog / Not Started
 
 - [x] ~~Verify `exciseup.in` in Resend and switch `RESEND_FROM_EMAIL`~~ — Done. `mail.exciseup.in` verified; `RESEND_FROM_EMAIL` set to `noreply@mail.exciseup.in` on this project's Worker, and the same address set as `FROM_EMAIL` on the sibling `excise-revenue-recovery-portal` project's Worker (different env var name there, same Resend account/domain). Magic-link email is now the Admin/HQ login channel only (DEOs use CUG login as of M-17).

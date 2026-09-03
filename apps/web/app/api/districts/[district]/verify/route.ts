@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { drizzle } from 'drizzle-orm/d1';
-import { eq } from 'drizzle-orm';
+import { eq, count, sum } from 'drizzle-orm';
 import { getSession } from '@/lib/auth';
-import { districts, auditLog, appSettings } from '@excise/schema';
+import { districts, auditLog, appSettings, phase1RawCollection } from '@excise/schema';
 import { withErrorHandling } from '@/lib/with-error-handling';
 
 // DEO's final re-confirmation once the state-wide verification round is open (M-60) — moves
@@ -38,9 +38,22 @@ async function POST_(
     return NextResponse.json({ error: `District must be Submitted to verify (currently ${districtRow?.status ?? 'unknown'})` }, { status: 409 });
   }
 
+  // Computed once here, at the moment this district's data becomes immutable, and cached on
+  // the districts row — GET /api/admin/districts reads this instead of re-scanning the whole
+  // ~30K-row phase1_raw_collection table for a district that can no longer change (see that
+  // route's comment).
+  const agg = await db.select({
+    vendCount: count(phase1RawCollection.id),
+    totalRevenue: sum(phase1RawCollection.totalRevenue),
+  }).from(phase1RawCollection).where(eq(phase1RawCollection.districtName, district)).get();
+
   const now = new Date();
   await db.batch([
-    db.update(districts).set({ status: 'verified' }).where(eq(districts.name, district)),
+    db.update(districts).set({
+      status: 'verified',
+      cachedVendCount: agg?.vendCount ?? 0,
+      cachedTotalRevenue: Number(agg?.totalRevenue ?? 0),
+    }).where(eq(districts.name, district)),
     db.insert(auditLog).values({
       eventType: 'district_verified',
       deoId: user.deoId,

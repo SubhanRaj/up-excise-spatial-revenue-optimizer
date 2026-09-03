@@ -13,7 +13,7 @@ import { withErrorHandling } from '@/lib/with-error-handling';
 // unlock_requested/unlock_request_denied — those don't touch phase1_raw_collection or
 // district_circles_sectors, and the cheap unlock_requests_cache already refreshes on every
 // Sync All regardless.
-const CHANGE_EVENTS = ['district_submitted', 'district_verified', 'units_unlocked', 'data_correction_unlocked'] as const;
+const CHANGE_EVENTS = ['district_submitted', 'district_verified', 'units_unlocked', 'data_correction_unlocked', 'district_data_cleared'] as const;
 
 async function GET_(req: NextRequest): Promise<NextResponse> {
   const user = await getSession();

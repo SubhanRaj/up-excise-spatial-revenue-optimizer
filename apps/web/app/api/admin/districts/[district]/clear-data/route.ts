@@ -38,7 +38,7 @@ async function POST_(req: NextRequest, { params }: Ctx): Promise<NextResponse> {
 
   await db.batch([
     db.delete(phase1RawCollection).where(eq(phase1RawCollection.districtName, district)),
-    db.update(districts).set({ status: 'pending' }).where(eq(districts.name, district)),
+    db.update(districts).set({ status: 'pending', cachedVendCount: null, cachedTotalRevenue: null }).where(eq(districts.name, district)),
     db.insert(auditLog).values({
       eventType: 'district_data_cleared',
       deoId: '',

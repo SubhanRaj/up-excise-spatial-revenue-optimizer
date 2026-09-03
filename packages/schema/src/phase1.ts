@@ -69,6 +69,12 @@ export const districts = sqliteTable('districts', {
   status: text('status').default('pending').notNull(),
   submittedAt: integer('submitted_at', { mode: 'timestamp' }),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+
+  // Set once, at the moment a district reaches 'verified' — lets GET /api/admin/districts skip
+  // re-scanning phase1_raw_collection for this district on every subsequent request. Nulled
+  // back out by the Delete Shop Data route when it resets a district to 'pending'.
+  cachedVendCount: integer('cached_vend_count'),
+  cachedTotalRevenue: integer('cached_total_revenue'),
 }, (t) => ({
   nameIdx: index('dist_name_idx').on(t.name),
   emailIdx: index('dist_email_hash_idx').on(t.deoEmailHash),
