@@ -46,6 +46,25 @@ export default function UploadPage() {
 
   useEffect(() => { loadStatus(); }, [loadStatus]);
 
+  // No dismiss-forever flag — a DEO who saves the modal's "don't show again" choice mentally
+  // forgets it exists within days. Firing on every mount (not gated by localStorage) is
+  // deliberate: several districts have already been caught entering current-year figures
+  // instead of last FY's, so the reminder needs to survive being ignored once.
+  useEffect(() => {
+    if (!district) return;
+    const Swal = (window as unknown as { Swal?: { fire: (o: unknown) => void } }).Swal;
+    Swal?.fire({
+      icon: 'warning',
+      title: 'Enter FY 2025-26 data only',
+      html: `<div style="text-align:left">
+        <p>All figures in this district's Excel file must be for <b>FY 2025-26</b> (1 April 2025 – 31 March 2026) — the <b>previous</b> financial year, not the current one.</p>
+        <p style="margin-top:8px">Every revenue field is in <b>rupees (₹)</b>, except <b>MGQ Quantity</b> on Bhang Shop rows — that one is a quantity (units/kg), not rupees. The portal multiplies it by ₹20/unit to get the revenue figure; do not enter a pre-calculated rupee amount there.</p>
+        <p style="margin-top:10px;color:#64748b">सभी आंकड़े <b>FY 2025-26</b> (1 अप्रैल 2025 – 31 मार्च 2026), यानी <b>पिछले</b> वित्तीय वर्ष के होने चाहिए, चालू वर्ष के नहीं। हर राजस्व field <b>रुपये (₹)</b> में है, सिवाय Bhang Shop की <b>MGQ Quantity</b> के — वह एक मात्रा (यूनिट/किलोग्राम) है, रुपये नहीं। पोर्टल इसे ₹20 प्रति यूनिट से गुणा करके राजस्व निकालता है; वहां सीधे रुपये की गणना करके न भरें।</p>
+      </div>`,
+      confirmButtonText: 'Understood',
+    } as unknown);
+  }, [district]);
+
   const hasUnits = units.length > 0;
   const submitted = isLocked(districtStatus);
 
@@ -98,9 +117,21 @@ export default function UploadPage() {
     }
   }
 
+  const fyBanner = (
+    <div className="alert alert-warning text-sm">
+      <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 9v4M12 17h.01"/><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/></svg>
+      <div>
+        <p className="font-semibold">Enter figures for FY 2025-26 (last financial year) only — not the current year.</p>
+        <p className="text-xs opacity-80 mt-1">All revenue fields are in rupees (₹), except Bhang Shop&apos;s MGQ Quantity — that&apos;s a unit/kg count, multiplied by ₹20/unit for revenue.</p>
+        <p className="text-xs opacity-70 mt-1">FY 2025-26 (पिछले वित्तीय वर्ष) के आंकड़े ही भरें। सभी राशि रुपये में हैं, सिवाय Bhang Shop की MGQ Quantity के — वह यूनिट/किलोग्राम में है, ₹20 प्रति यूनिट से गुणा होती है।</p>
+      </div>
+    </div>
+  );
+
   if (submitted) {
     return (
       <div className="card bg-base-100 shadow p-8 space-y-5 max-w-2xl mx-auto">
+        {fyBanner}
         <div className="flex items-center gap-3">
           <span className="flex items-center justify-center w-10 h-10 rounded-full bg-success/15 text-success shrink-0">
             <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><path d="m9 12 2 2 4-4"/></svg>
@@ -259,6 +290,7 @@ export default function UploadPage() {
 
   return (
     <div className="space-y-6">
+      {fyBanner}
       <div className="card bg-base-100 shadow p-6">
         <div className="flex items-start justify-between flex-wrap gap-2 mb-4">
           <div>
