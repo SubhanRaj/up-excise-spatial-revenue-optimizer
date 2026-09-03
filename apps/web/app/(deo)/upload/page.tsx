@@ -117,12 +117,7 @@ export default function UploadPage() {
           Download Current Data (.xlsx)
         </button>
 
-        {districtStatus === 'verified' ? (
-          <div className="alert alert-info text-sm">
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><path d="m9 12 2 2 4-4"/></svg>
-            <p>{district} has been <strong>verified</strong> — self-service unlock is no longer available. If you found wrong data, contact your Admin/HQ directly; they can reset this district's data for a fresh upload.</p>
-          </div>
-        ) : unlockRequest?.status === 'pending' ? (
+        {unlockRequest?.status === 'pending' ? (
           <div className="alert alert-info text-sm">
             <span className="loading loading-spinner loading-sm shrink-0" />
             <div>
@@ -147,15 +142,11 @@ export default function UploadPage() {
           </>
         )}
 
-        {districtStatus !== 'verified' && (
-          <>
-            <div className="divider my-0" />
-            <p className="text-sm text-base-content/80">
-              Already have your corrected file ready? Select it below — it's parsed and saved on this device now. It reaches headquarters once your unlock is approved and you submit again on the Verify page.
-            </p>
-            {renderDropzone()}
-          </>
-        )}
+        <div className="divider my-0" />
+        <p className="text-sm text-base-content/80">
+          Already have your corrected file ready? Select it below — it's parsed and saved on this device now. It reaches headquarters once your unlock is approved and you submit again on the Verify page.
+        </p>
+        {renderDropzone()}
       </div>
     );
   }

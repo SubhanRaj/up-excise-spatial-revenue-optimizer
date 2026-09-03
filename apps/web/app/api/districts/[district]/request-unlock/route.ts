@@ -56,14 +56,6 @@ async function POST_(req: NextRequest, { params }: Ctx): Promise<NextResponse> {
   // shop-level data, not to re-register units, so it skips the "units are locked"
   // precondition below and is flagged for the resolve route to handle differently (reset
   // status, never delete circles/sectors).
-  // A verified district is a harder wall than a merely-submitted one — no self-service path
-  // back. A DEO who finds wrong data after verification contacts HQ directly; an admin resets
-  // the district via Delete Shop Data (full wipe + reset to 'pending', audit-logged) rather
-  // than a partial data-correction unlock, since verification is meant to be the final word.
-  if (districtRow?.status === 'verified') {
-    return NextResponse.json({ error: 'This district has already been verified and cannot request a self-service unlock. Please contact your Admin/HQ directly.' }, { status: 409 });
-  }
-
   const isCorrection = isLocked(districtRow?.status);
 
   if (!isCorrection) {

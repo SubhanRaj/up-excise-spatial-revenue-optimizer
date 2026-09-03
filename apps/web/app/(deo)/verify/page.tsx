@@ -172,7 +172,9 @@ export default function VerifyPage() {
   // Covers both the interactive confirm/unlock screen (still 'submitted') and its read-only
   // successor once this DEO has already confirmed (now 'verified') — same screen, same data
   // sync, only the bottom action area differs.
-  const finalScreenMode = verificationPhaseOpen && (districtStatus === 'submitted' || districtStatus === 'verified');
+  // A verified district keeps this screen regardless of whether the admin later closes the
+  // state-wide round — verification is per-district, not tied to the round staying open.
+  const finalScreenMode = verified || (verificationPhaseOpen && districtStatus === 'submitted');
   const [pendingUnlockRequest, setPendingUnlockRequest] = useState<UnlockRequestInfo | null>(null);
   const [requestingUnlock, setRequestingUnlock] = useState(false);
   const [confirmingVerify, setConfirmingVerify] = useState(false);
@@ -740,13 +742,9 @@ export default function VerifyPage() {
 
         <ShopExplorer shops={finalShopRows} units={unitsFull} districtName={district} loading={finalRows.length === 0} storageKeyPrefix="deo-final" />
 
-        {/* Action area */}
-        {verified ? (
-          <div className="alert alert-info text-sm">
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><path d="m9 12 2 2 4-4"/></svg>
-            <span className="font-semibold">{district} has been verified. No further action is needed.</span>
-          </div>
-        ) : pendingUnlockRequest?.status === 'pending' ? (
+        {/* Action area — Request Unlock stays available even once verified; only the
+            Re-Verify button (nothing left to re-confirm) drops away. */}
+        {pendingUnlockRequest?.status === 'pending' ? (
           <div className="alert alert-warning text-sm">
             <span className="loading loading-spinner loading-sm shrink-0" />
             <div>
@@ -756,9 +754,16 @@ export default function VerifyPage() {
           </div>
         ) : (
           <div className="flex flex-wrap gap-3 items-center">
-            <button className="btn btn-success btn-lg" onClick={confirmVerified} disabled={confirmingVerify || requestingUnlock}>
-              {confirmingVerify ? <span className="loading loading-spinner" /> : 'Re-Verify & Lock the Data You Have Uploaded'}
-            </button>
+            {verified ? (
+              <div className="alert alert-info text-sm w-full sm:w-auto">
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><path d="m9 12 2 2 4-4"/></svg>
+                <span className="font-semibold">{district} has been verified.</span>
+              </div>
+            ) : (
+              <button className="btn btn-success btn-lg" onClick={confirmVerified} disabled={confirmingVerify || requestingUnlock}>
+                {confirmingVerify ? <span className="loading loading-spinner" /> : 'Re-Verify & Lock the Data You Have Uploaded'}
+              </button>
+            )}
             <button className="btn btn-outline btn-error" onClick={requestUnlockFinal} disabled={confirmingVerify || requestingUnlock}>
               {requestingUnlock ? <span className="loading loading-spinner loading-xs" /> : 'Request Unlock — If You Found Wrong Data'}
             </button>

@@ -27,6 +27,7 @@ export default function DeoLayout({ children }: { children: React.ReactNode }) {
   // Defaults closed — Upload/Verify must not flash into view before the units check resolves.
   const [hasUnits, setHasUnits] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [districtStatus, setDistrictStatus] = useState('pending');
   const [finalScreenMode, setFinalScreenMode] = useState(false);
   const [uploadedCount, setUploadedCount] = useState(0);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -41,11 +42,13 @@ export default function DeoLayout({ children }: { children: React.ReactNode }) {
           .then(r => r.ok ? r.json() : { districtStatus: 'pending', verificationPhaseOpen: false })
           .then((s: { districtStatus: string; verificationPhaseOpen: boolean }) => {
             setSubmitted(s.districtStatus === 'submitted' || s.districtStatus === 'verified');
-            // M-60 — once the state-wide final-verification round is open and this district
-            // has reached (or passed) 'submitted', the DEO sees only Dashboard + Verify —
-            // Circles/Upload/plain Verify/Uploaded Data all drop from the nav, since /verify
-            // itself becomes the final-review screen for this district.
-            setFinalScreenMode(s.verificationPhaseOpen && (s.districtStatus === 'submitted' || s.districtStatus === 'verified'));
+            setDistrictStatus(s.districtStatus);
+            // Once verified, the DEO sees only Dashboard + District Data — this holds even if
+            // the admin later closes the state-wide round, since verification is final per
+            // district, not tied to the round staying open. While merely 'submitted', the
+            // reduced nav only applies for the duration of an open round (the interactive
+            // confirm/unlock screen at /verify).
+            setFinalScreenMode(s.districtStatus === 'verified' || (s.verificationPhaseOpen && s.districtStatus === 'submitted'));
           });
       }
     });
@@ -55,7 +58,7 @@ export default function DeoLayout({ children }: { children: React.ReactNode }) {
   const navLinks = finalScreenMode
     ? [
         { href: '/home', label: 'Dashboard' },
-        { href: '/verify', label: 'Verify' },
+        { href: '/verify', label: districtStatus === 'verified' ? 'District Data' : 'Verify' },
       ]
     : [
         { href: '/home', label: 'Dashboard' },
