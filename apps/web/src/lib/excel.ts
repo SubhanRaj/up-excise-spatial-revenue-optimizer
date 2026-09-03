@@ -471,12 +471,12 @@ async function buildShopDataSheet(
   // Excel 2007's older validation-list rendering can silently let a DEO/Inspector type past
   // the dropdown/lock rules this template depends on — this line is the only warning visible
   // to someone who never opens the app, so it must live in the file itself, not just the UI.
-  titleCell.value = `${titleText}\n⚠ Open only in Microsoft Excel 2013 or later (or Excel Online) — Excel 2007/2010 do not reliably show this file's dropdowns and validation rules. / केवल Microsoft Excel 2013 या नए वर्शन में खोलें — पुराने Excel में dropdown और validation सही से काम नहीं करते।`;
+  titleCell.value = `${titleText}\n⚠ Open only in Microsoft Excel 2013 or later (or Excel Online) — Excel 2007/2010 do not reliably show this file's dropdowns and validation rules. / केवल Microsoft Excel 2013 या नए वर्शन में खोलें — पुराने Excel में dropdown और validation सही से काम नहीं करते।\n⚠ Enter figures for FY 2025-26 (1 Apr 2025 – 31 Mar 2026) only, not the current year. / केवल FY 2025-26 (1 अप्रैल 2025 – 31 मार्च 2026) के आंकड़े भरें, चालू वर्ष के नहीं।`;
   titleCell.font = { bold: true, size: 12, color: { argb: 'FFFFFFFF' } };
   titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F2A44' } };
   titleCell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
   titleCell.protection = { locked: true };
-  ws.getRow(1).height = 42;
+  ws.getRow(1).height = 58;
 
   ws.getRow(2).values = TEMPLATE_HEADERS.map((h) => FRIENDLY_LABELS[h]!) as ExcelJSNamespace.CellValue[];
   styleHeaderRow(ws, 2);
@@ -671,6 +671,9 @@ export async function generateTemplate(districtName: string, units: string[], ex
   ], [
     '⚠ For "Shop Type" and "Circle / Sector Name": you MUST click the cell and pick a value from its dropdown arrow — do not type or paste your own text. Excel\'s dropdown check does not run on typed/pasted values, so a value like "Circle 1" or "Composite Shop" (instead of the exact dropdown option) is silently accepted by Excel but rejected or misfiled later, and this cannot be corrected afterward except by re-entering that row correctly.\n' +
     '"Shop Type" और "Circle / Sector Name" के लिए: सेल पर क्लिक करके dropdown arrow से value चुनें — खुद टाइप या paste न करें। Excel की dropdown जांच टाइप/paste की गई value पर काम नहीं करती, इसलिए "Circle 1" या "Composite Shop" जैसी गलत value (सही dropdown option की बजाय) बिना रोक-टोक स्वीकार हो जाती है, और बाद में उसे ठीक करना पड़ता है — इसलिए शुरू से ही dropdown का उपयोग करें।',
+  ], [
+    '⚠ Enter figures for FY 2025-26 (1 Apr 2025 – 31 Mar 2026) only — the previous financial year, not the current one. Every revenue field is in rupees (₹), except MGQ Quantity on Bhang Shop rows, which is a quantity in units/kg — the portal multiplies it by ₹20/unit to get the revenue figure, so do not enter a pre-calculated rupee amount there.\n' +
+    'केवल FY 2025-26 (1 अप्रैल 2025 – 31 मार्च 2026), यानी पिछले वित्तीय वर्ष के आंकड़े भरें, चालू वर्ष के नहीं। हर राजस्व field रुपये (₹) में है, सिवाय Bhang Shop की MGQ Quantity के — वह एक मात्रा (यूनिट/किलोग्राम) है; पोर्टल इसे ₹20 प्रति यूनिट से गुणा करके राजस्व निकालता है, इसलिए वहां सीधे रुपये की गणना करके न भरें।',
   ]);
   wsGuide.mergeCells(1, 1, 1, guideColCount);
   const guideWarnCell = wsGuide.getCell(1, 1);
@@ -684,10 +687,16 @@ export async function generateTemplate(districtName: string, units: string[], ex
   dropdownWarnCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFCDD2' } };
   dropdownWarnCell.alignment = { wrapText: true, vertical: 'middle' };
   wsGuide.getRow(2).height = 90;
-  applyPrintSetup(wsGuide, 3, guideColCount);
-  wsGuide.views = [{ state: 'frozen', ySplit: 3, xSplit: 0 }];
+  wsGuide.mergeCells(3, 1, 3, guideColCount);
+  const fyWarnCell = wsGuide.getCell(3, 1);
+  fyWarnCell.font = { bold: true, color: { argb: 'FF7A0000' } };
+  fyWarnCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF3B0' } };
+  fyWarnCell.alignment = { wrapText: true, vertical: 'middle' };
+  wsGuide.getRow(3).height = 90;
+  applyPrintSetup(wsGuide, 4, guideColCount);
+  wsGuide.views = [{ state: 'frozen', ySplit: 4, xSplit: 0 }];
 
-  const afterUploadTitleRow2 = afterUploadTitleRow + 2; // +2 for the two warning rows spliced in above
+  const afterUploadTitleRow2 = afterUploadTitleRow + 3; // +3 for the three warning rows spliced in above
   wsGuide.mergeCells(afterUploadTitleRow2, 1, afterUploadTitleRow2, guideColCount);
   const afterUploadTitleCell = wsGuide.getCell(afterUploadTitleRow2, 1);
   afterUploadTitleCell.font = { bold: true, size: 12, color: { argb: 'FF0F2A44' } };
