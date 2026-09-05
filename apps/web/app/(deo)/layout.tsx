@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSession } from '@/hooks/useSession';
 import { stagingDb } from '@/lib/db';
 import ProfileMenu from '@/components/ProfileMenu';
@@ -31,6 +31,27 @@ export default function DeoLayout({ children }: { children: React.ReactNode }) {
   const [finalScreenMode, setFinalScreenMode] = useState(false);
   const [uploadedCount, setUploadedCount] = useState(0);
   const [drawerOpen, setDrawerOpen] = useState(false);
+
+  // Fires once per full page load/refresh (this layout stays mounted across client-side nav
+  // between /home, /units, /upload, /verify — only a hard reload or first visit remounts it),
+  // not on every navigation. No dismiss-forever flag — a DEO who dismisses it mentally forgets
+  // it exists within days, so it must survive being ignored once and reappear next reload.
+  const fyReminderShown = useRef(false);
+  useEffect(() => {
+    if (fyReminderShown.current || !session?.districtName) return;
+    fyReminderShown.current = true;
+    const Swal = (window as unknown as { Swal?: { fire: (o: unknown) => void } }).Swal;
+    Swal?.fire({
+      icon: 'warning',
+      title: 'Enter FY 2025-26 data only',
+      html: `<div style="text-align:left">
+        <p>All figures in this district's Excel file must be for <b>FY 2025-26</b> (1 April 2025 – 31 March 2026) — the <b>previous</b> financial year, not the current one.</p>
+        <p style="margin-top:8px">Every revenue field is in <b>rupees (₹)</b>, except <b>MGQ Quantity</b> on Bhang Shop rows — that one is a quantity (units/kg), not rupees. The portal multiplies it by ₹20/unit to get the revenue figure; do not enter a pre-calculated rupee amount there.</p>
+        <p style="margin-top:10px;color:#64748b">सभी आंकड़े <b>FY 2025-26</b> (1 अप्रैल 2025 – 31 मार्च 2026), यानी <b>पिछले</b> वित्तीय वर्ष के होने चाहिए, चालू वर्ष के नहीं। हर राजस्व field <b>रुपये (₹)</b> में है, सिवाय Bhang Shop की <b>MGQ Quantity</b> के — वह एक मात्रा (यूनिट/किलोग्राम) है, रुपये नहीं। पोर्टल इसे ₹20 प्रति यूनिट से गुणा करके राजस्व निकालता है; वहां सीधे रुपये की गणना करके न भरें।</p>
+      </div>`,
+      confirmButtonText: 'Understood',
+    } as unknown);
+  }, [session]);
 
   useEffect(() => {
     fetch('/api/auth/session').then(r => r.ok ? r.json() : {}).then((session: any) => {
