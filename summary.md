@@ -1965,7 +1965,18 @@ The browser's own print dialog produces the PDF ("Save as PDF" / "Microsoft Prin
 
 **Shipped:** `migrations/0011_add_auth_user_division.sql` applied to remote D1 (`auth_users.division` confirmed present); `pnpm seed:deputy-accounts` run against prod — 18 `role='deputy'` rows, one per division, each with a CUG hash; deployed (`sro.exciseup.in`, version `31dddf80-5573-4b1f-9a9d-7b80ef9ff5de`), `/api/healthz` 200 and `/deputy` 307→`/login` for an unauthenticated request.
 
-**Exit criterion:** a Deputy signs in with their CUG number, lands on `/deputy`, sees only their division's districts on the map/table/stats, opens any one district to its full shop-level figures, and records a "reviewed" or "flagged" sign-off that appears in the admin audit log — with no ability to see another division's data or change any figure.
+**Exit criterion:** a Deputy signs in with their CUG number, lands on `/deputy-<division>`, sees only their division's districts on the map/table/stats, opens any one district to its full shop-level figures, and records a "reviewed" or "flagged" sign-off that appears in the admin audit log — with no ability to see another division's data or change any figure.
+
+**Post-build security pass (findings fixed in the same milestone):**
+- **`districtScope` fail-open.** A `deputy` row with a null/blank `division` returned `{ division: null }`, which callers read as "no filter" (every district + state-wide totals). Now returns `null` (403) unless the division is non-empty.
+- **Rewrite path traversal.** `middleware.ts` matched `/deputy-<x>(/.*)?` and set the rewrite target to `'/deputy' + rest`; a `rest` of `/../../admin` would let the URL parser normalise the target onto `/admin` and `NextResponse.rewrite` serve admin content to a deputy (the deputy's own role gate is already satisfied). Now only the three known route shapes are rewritten and the resolved target is asserted to stay under `/deputy`, else redirected to `/deputy`.
+- **Shared-browser cache leak between two deputies.** `deputyShopsCache` was keyed by bare district name; on a shared browser deputy B could get a cache hit for a district in deputy A's division and the detail page rendered it without a division re-check. Every `excise-deputy` cache entry is now also keyed by the division (`<divisionKey>` / `<divisionKey>:<district>`), so a cross-division lookup misses and falls through to the API's 403.
+- **Over-share on `/api/admin/settings`.** A deputy received the state-wide submitted/total counts and the verification-round flag. Now gets only `cartoApiKey`; the rest is zeroed and the three district queries are skipped.
+- **`/api/admin/changed-districts` unscoped for a deputy.** Now filtered to the deputy's own division's district names.
+- **Unbounded review note.** `deputy_district_reviewed`'s `note` is capped at 1000 characters before it goes into `audit_log.metadata`.
+- Confirmed no regression: every DEO `/api/districts/[district]/*` route still 403s a deputy (their `districtName` is null); every mutating admin route (`PATCH`/`POST`/`DELETE`, `clear-data`, `clear-fy-data`) still requires `admin`/`superadmin`; the login-tab role check returns the uniform `401 Invalid CUG number` with no oracle.
+
+**Caching (local-first).** `useDeputyData()` (`apps/web/src/hooks/useDeputyData.ts`) backs both the dashboard and the districts list: serve the `excise-deputy` IndexedDB copy (`deputyDistrictsCache` + `deputyReviewsCache`, division-keyed, 5-min / 60-s TTL) for an instant paint, then `changedDistrictsSince()` (division-scoped) and refetch only on a real change. The CARTO key caches 30 min in `deputySettingsCache`. A review sign-off invalidates `deputyReviewsCache` so the list surfaces update on the next visit. Same pattern and reasoning as `useAdminDistricts()`, in a physically separate Dexie DB.
 
 ---
 

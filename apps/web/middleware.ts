@@ -29,14 +29,28 @@ export default function middleware(req: NextRequest) {
   // are rewritten onto the single /deputy route group so the URL keeps the division without a
   // per-division route tree. Bare /deputy (manual entry / old link) still renders; the page
   // bounces to the division URL.
-  if (pathname.match(/^\/deputy(-|\/|$)/) && role !== 'deputy' && role !== 'superadmin') {
+  if (pathname.match(/^\/deputy(-|\/|$)/i) && role !== 'deputy' && role !== 'superadmin') {
     return NextResponse.redirect(new URL(role === 'deo' ? '/home' : role === 'admin' ? '/admin' : '/login', req.url));
   }
-  const deputyScoped = pathname.match(/^\/deputy-[a-z-]+(\/.*)?$/);
+  // Rewrite only the known deputy route shapes — /deputy-<div>, .../districts, .../districts/<name>.
+  // The destination is asserted to stay under /deputy afterward: a crafted sub-path with
+  // ../ dot-segments would otherwise let the URL setter normalise the rewrite target out of
+  // the deputy tree (e.g. onto /admin) while keeping the deputy's own role gate satisfied.
+  const deputyScoped = pathname.match(/^\/deputy-[a-z]+((?:\/districts(?:\/[^/]+)?)?)\/?$/i);
   if (deputyScoped) {
     const url = req.nextUrl.clone();
-    url.pathname = '/deputy' + (deputyScoped[1] ?? '');
+    url.pathname = '/deputy' + deputyScoped[1];
+    // The tightened pattern above already bars multi-segment / dot-only sub-paths; this is a
+    // final guard that the rewrite target never leaves the /deputy tree.
+    if (url.pathname !== '/deputy' && !url.pathname.startsWith('/deputy/')) {
+      return NextResponse.redirect(new URL('/deputy', req.url));
+    }
     return NextResponse.rewrite(url);
+  }
+  // Any other /deputy-… path (traversal attempt, junk suffix) — never rewrite it; send the
+  // deputy to their own dashboard.
+  if (pathname.match(/^\/deputy-/i)) {
+    return NextResponse.redirect(new URL('/deputy', req.url));
   }
   // DEO routes are deo-only now — an admin/superadmin session landing here (stale bookmark,
   // old tab) is sent to their own dashboard instead of rendering a broken "Unknown District"

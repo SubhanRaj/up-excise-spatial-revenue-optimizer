@@ -363,19 +363,26 @@ export const adminSettingsCache = makeKvCache<unknown>('settings_cache', { fixed
 
 // ── Deputy portal cache (M-102) ──────────────────────────────────────────────
 // Physically separate Dexie DB from `excise-admin` so a browser shared between an admin and
-// a Deputy Excise Commissioner can never cross-serve one's cached districts/shops to the
-// other (an admin's 75-district payload leaking into a deputy session would breach the
-// division scoping). Only the heavy per-district shop payload is cached here — the deputy
-// dashboard's district list is a plain fetch, small enough not to need it.
+// a Deputy Excise Commissioner can never cross-serve one's cached data to the other (an
+// admin's 75-district payload in a deputy session would breach the division scoping).
+// Every entry here is ALSO keyed by the division (`<divisionKey>` or `<divisionKey>:<district>`),
+// so a browser shared between two deputies of different divisions can't cross-serve either —
+// deputy B never has a cache hit for deputy A's division and falls through to the
+// division-scoped API, which 403s anything outside B's own division.
 let _deputyDb: DexieInstance | null = null;
 function getDeputyDb(): DexieInstance {
   if (!_deputyDb) {
     _deputyDb = makeDexie('excise-deputy');
     _deputyDb.version(1).stores({ shops_cache: 'key' });
+    _deputyDb.version(2).stores({ shops_cache: 'key', districts_cache: 'key', reviews_cache: 'key', settings_cache: 'key' });
   }
   return _deputyDb;
 }
+// shops_cache key: `<divisionKey>:<districtName>`. districts_cache / reviews_cache key: `<divisionKey>`.
 export const deputyShopsCache = makeKvCache<unknown>('shops_cache', { getDb: getDeputyDb });
+export const deputyDistrictsCache = makeKvCache<unknown>('districts_cache', { ttlMs: CACHE_TTL_MS, getDb: getDeputyDb });
+export const deputyReviewsCache = makeKvCache<unknown>('reviews_cache', { ttlMs: 60 * 1000, getDb: getDeputyDb });
+export const deputySettingsCache = makeKvCache<unknown>('settings_cache', { fixedKey: 'carto', ttlMs: 30 * 60 * 1000, getDb: getDeputyDb });
 
 // ── Global sync ──────────────────────────────────────────────────────────────
 // One button (in the admin navbar) refreshes every admin cache table at once, instead of

@@ -5,15 +5,10 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import HelpPanel from '@/app/_components/HelpPanel';
 import { useSession } from '@/hooks/useSession';
+import { useDeputyData } from '@/hooks/useDeputyData';
 import { deputyBasePath } from '@/lib/deputy';
+import { deputySettingsCache } from '@/lib/db';
 import { STATUS_COLOR, statusLabel, statusBadgeClass, isLocked } from '@/lib/status';
-
-interface DistrictRow {
-  name: string; division: string | null; deoName: string | null; status: string;
-  vendCount: number; totalRevenue: number; unitCount: number;
-  bboxMinLat: number | null; bboxMaxLat: number | null; bboxMinLon: number | null; bboxMaxLon: number | null;
-}
-interface ReviewRow { verdict: string; note: string; at: number; actorName: string | null }
 
 const TILE_URLS = {
   light: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
@@ -49,10 +44,8 @@ export default function DeputyDashboard() {
   const routerRef = useRef(router);
   useEffect(() => { routerRef.current = router; }, [router]);
 
-  const [districts, setDistricts] = useState<DistrictRow[]>([]);
-  const [reviews, setReviews] = useState<Record<string, ReviewRow>>({});
+  const { districts, reviews, loading } = useDeputyData();
   const [cartoKey, setCartoKey] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
 
   const mapRef = useRef<HTMLDivElement>(null);
@@ -60,28 +53,17 @@ export default function DeputyDashboard() {
   const baseLayer = useRef<LLayer | null>(null);
   const geoLayer = useRef<LLayer | null>(null);
 
+  // CARTO key — cached 30 min in the excise-deputy DB (it effectively never changes).
   useEffect(() => {
     let alive = true;
     (async () => {
-      const [dRes, sRes, rRes] = await Promise.all([
-        fetch('/api/admin/districts'),          // server-scoped to this deputy's division
-        fetch('/api/admin/settings'),
-        fetch('/api/deputy/reviews'),
-      ]);
-      if (!alive) return;
-      if (dRes.ok) {
-        const d = await dRes.json() as { districts: DistrictRow[] };
-        setDistricts(d.districts ?? []);
-      }
-      if (sRes.ok) {
-        const s = await sRes.json() as { cartoApiKey: string | null };
-        setCartoKey(s.cartoApiKey ?? null);
-      }
-      if (rRes.ok) {
-        const r = await rRes.json() as { reviews: Record<string, ReviewRow> };
-        setReviews(r.reviews ?? {});
-      }
-      setLoading(false);
+      const cached = await deputySettingsCache.get() as string | null;
+      if (cached != null) { if (alive) setCartoKey(cached); return; }
+      const res = await fetch('/api/admin/settings');
+      if (!res.ok || !alive) return;
+      const s = await res.json() as { cartoApiKey: string | null };
+      if (s.cartoApiKey) void deputySettingsCache.set(s.cartoApiKey);
+      setCartoKey(s.cartoApiKey ?? null);
     })();
     return () => { alive = false; };
   }, []);

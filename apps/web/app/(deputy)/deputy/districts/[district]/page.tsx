@@ -5,8 +5,8 @@ import Link from 'next/link';
 import HelpPanel from '@/app/_components/HelpPanel';
 import { ShopExplorer, type ShopExplorerRow } from '@/components/ShopExplorer';
 import { useSession } from '@/hooks/useSession';
-import { deputyBasePath } from '@/lib/deputy';
-import { deputyShopsCache } from '@/lib/db';
+import { deputyBasePath, deputyDivisionKey } from '@/lib/deputy';
+import { deputyShopsCache, deputyReviewsCache } from '@/lib/db';
 import { statusLabel, statusBadgeClass } from '@/lib/status';
 
 interface DistrictDetail {
@@ -28,6 +28,10 @@ export default function DeputyDistrictPage({ params }: { params: Promise<{ distr
   const name = decodeURIComponent(district);
   const { session } = useSession();
   const base = deputyBasePath(session?.division);
+  // excise-deputy shop cache is keyed by division too, so a browser shared by two deputies of
+  // different divisions never serves one's cached shop rows to the other.
+  const divKey = deputyDivisionKey(session?.division);
+  const shopKey = divKey ? `${divKey}:${name}` : null;
 
   const [detail, setDetail] = useState<DistrictDetail | null>(null);
   const [shops, setShops] = useState<ShopExplorerRow[]>([]);
@@ -44,10 +48,12 @@ export default function DeputyDistrictPage({ params }: { params: Promise<{ distr
   }
 
   useEffect(() => {
+    if (session && !shopKey) { setForbidden(true); setLoading(false); return; }
+    if (!shopKey) return; // session not resolved yet
     let alive = true;
     (async () => {
       setLoading(true);
-      const cached = await deputyShopsCache.get(name) as { d: DistrictDetail; rows: ShopExplorerRow[]; fetchedAt: number } | null;
+      const cached = await deputyShopsCache.get(shopKey) as { d: DistrictDetail; rows: ShopExplorerRow[]; fetchedAt: number } | null;
       if (cached) {
         const changed = await fetch(`/api/admin/changed-districts?since=${cached.fetchedAt}`)
           .then((r) => (r.ok ? r.json() as Promise<{ districts: string[] }> : { districts: [name] }))
@@ -67,12 +73,12 @@ export default function DeputyDistrictPage({ params }: { params: Promise<{ distr
       if (dRes.status === 403 || sRes.status === 403) { setForbidden(true); setLoading(false); return; }
       const d = await dRes.json() as DistrictDetail;
       const s = await sRes.json() as { rows: ShopExplorerRow[] };
-      deputyShopsCache.set(name, { d, rows: s.rows, fetchedAt: Date.now() });
+      void deputyShopsCache.set(shopKey, { d, rows: s.rows, fetchedAt: Date.now() });
       setDetail(d); setShops(s.rows); setLoading(false);
       void loadReview();
     })();
     return () => { alive = false; };
-  }, [name]);
+  }, [name, shopKey, session]);
 
   async function submitReview(verdict: 'ok' | 'flagged') {
     const Swal = (window as unknown as { Swal?: SwalG }).Swal;
@@ -104,6 +110,7 @@ export default function DeputyDistrictPage({ params }: { params: Promise<{ distr
         await Swal?.fire({ icon: 'error', title: 'Could not save', text: e.error ?? 'Please try again.' });
         return;
       }
+      void deputyReviewsCache.invalidate(); // dashboard / list re-fetch review state on next visit
       await loadReview();
       void Swal?.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Review recorded.', showConfirmButton: false, timer: 2500, timerProgressBar: true });
     } finally {

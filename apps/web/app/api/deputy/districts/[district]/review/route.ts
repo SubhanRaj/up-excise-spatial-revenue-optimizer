@@ -17,7 +17,8 @@ async function POST_(req: NextRequest, { params }: Ctx): Promise<NextResponse> {
   const { district } = await params;
   const body = await req.json().catch(() => ({})) as { verdict?: unknown; note?: unknown };
   const verdict = body.verdict === 'ok' || body.verdict === 'flagged' ? body.verdict : null;
-  const note = typeof body.note === 'string' ? body.note.trim() : '';
+  // Capped — this lands verbatim in an audit_log.metadata JSON string that /admin/audit renders.
+  const note = typeof body.note === 'string' ? body.note.trim().slice(0, 1000) : '';
   if (!verdict) return NextResponse.json({ error: "verdict must be 'ok' or 'flagged'" }, { status: 400 });
   if (verdict === 'flagged' && !note) return NextResponse.json({ error: 'A note is required when flagging an issue' }, { status: 400 });
 

@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { drizzle } from 'drizzle-orm/d1';
-import { and, gt, inArray } from 'drizzle-orm';
+import { and, gt, inArray, eq } from 'drizzle-orm';
 import { getSession } from '@/lib/auth';
-import { auditLog } from '@excise/schema';
+import { auditLog, districts as districtsTable } from '@excise/schema';
 import { withErrorHandling } from '@/lib/with-error-handling';
 
 // Single indexed audit_log scan (al_created_at_idx) — tells Sync All exactly which
@@ -17,20 +17,33 @@ const CHANGE_EVENTS = ['district_submitted', 'district_verified', 'units_unlocke
 
 async function GET_(req: NextRequest): Promise<NextResponse> {
   const user = await getSession();
-  // deputy allowed (M-102) — this is a cache-freshness hint, not district data.
+  // deputy allowed (M-102) — this is a cache-freshness hint, but a deputy only ever gets the
+  // names for their own division (see the filter below), never the state-wide list.
   if (!user || !['admin', 'superadmin', 'deputy'].includes(user.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (user.role === 'deputy' && (!user.division || user.division.trim() === '')) {
+    return NextResponse.json({ districts: [], at: Date.now() });
+  }
 
   const since = new Date(Math.max(0, Number(req.nextUrl.searchParams.get('since') ?? 0) || 0));
 
   const { env } = await getCloudflareContext({ async: true }) as { env: CloudflareEnv };
   const db = drizzle(env.DB);
 
-  const rows = await db.select({ districtName: auditLog.districtName, createdAt: auditLog.createdAt })
-    .from(auditLog)
-    .where(and(inArray(auditLog.eventType, CHANGE_EVENTS), gt(auditLog.createdAt, since)))
-    .all();
+  const [rows, divisionDistricts] = await Promise.all([
+    db.select({ districtName: auditLog.districtName, createdAt: auditLog.createdAt })
+      .from(auditLog)
+      .where(and(inArray(auditLog.eventType, CHANGE_EVENTS), gt(auditLog.createdAt, since)))
+      .all(),
+    user.role === 'deputy'
+      ? db.select({ name: districtsTable.name }).from(districtsTable).where(eq(districtsTable.division, user.division!)).all()
+      : Promise.resolve(null),
+  ]);
 
-  const districts = [...new Set(rows.map((r) => r.districtName))];
+  let districts = [...new Set(rows.map((r) => r.districtName))];
+  if (divisionDistricts) {
+    const mine = new Set(divisionDistricts.map((d) => d.name));
+    districts = districts.filter((n): n is string => n != null && mine.has(n));
+  }
   const at = rows.length > 0 ? Math.max(...rows.map((r) => r.createdAt.getTime())) : since.getTime();
 
   return NextResponse.json({ districts, at });

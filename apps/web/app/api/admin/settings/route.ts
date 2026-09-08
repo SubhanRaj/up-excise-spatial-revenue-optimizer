@@ -11,13 +11,22 @@ const SETTINGS_ID = 1;
 
 async function GET_(): Promise<NextResponse> {
   const user = await getSession();
-  // deputy allowed on GET (M-102) — its map needs cartoApiKey; the state-wide submitted
-  // count is not sensitive. POST stays admin/superadmin-only.
   if (!user || !['admin', 'superadmin', 'deputy'].includes(user.role)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
   const { env } = await getCloudflareContext({ async: true }) as { env: CloudflareEnv };
+
+  // A deputy only needs the CARTO key for its division map. It gets nothing else from here —
+  // the state-wide submitted/total counts and the verification-round flag are HQ context, so
+  // they're zeroed rather than shared, and the three district queries below are skipped.
+  if (user.role === 'deputy') {
+    return NextResponse.json({
+      verificationPhaseOpen: false, everToggled: false, submittedCount: 0, totalDistricts: 0,
+      cartoApiKey: env.CARTO_API_KEY ?? null,
+    });
+  }
+
   const db = drizzle(env.DB);
 
   const [settingsRow, allStatuses, totalRows] = await Promise.all([

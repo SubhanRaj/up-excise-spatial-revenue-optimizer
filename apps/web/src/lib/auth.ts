@@ -30,10 +30,13 @@ export type SessionUser = {
 // Admin/superadmin see every district; a deputy sees only their division's; anyone else
 // gets no district data at all. Used by every /api/admin/* read the deputy portal is
 // allowed to call — see CLAUDE.md's "/deputy routes are deputy-only" note.
-export function districtScope(user: SessionUser | null): { division: string | null } | null {
+// `{ division: null }` means "no district filter" (admin) — so a deputy MUST have a non-empty
+// division here, or the fall-through returns null (403). A deputy row with a null/blank
+// division is a seeding error, not a licence to read every district.
+export function districtScope(user: SessionUser | null): { division: string } | { division: null } | null {
   if (!user) return null;
   if (user.role === 'admin' || user.role === 'superadmin') return { division: null };
-  if (user.role === 'deputy') return { division: user.division };
+  if (user.role === 'deputy' && user.division && user.division.trim() !== '') return { division: user.division };
   return null;
 }
 

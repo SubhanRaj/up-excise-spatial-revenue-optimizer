@@ -1,17 +1,12 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import HelpPanel from '@/app/_components/HelpPanel';
 import { useSession } from '@/hooks/useSession';
+import { useDeputyData } from '@/hooks/useDeputyData';
 import { deputyBasePath } from '@/lib/deputy';
 import { STATUS_LABEL, statusLabel, statusBadgeClass, isLocked } from '@/lib/status';
-
-interface DistrictRow {
-  name: string; division: string | null; deoName: string | null; status: string;
-  vendCount: number; totalRevenue: number; unitCount: number;
-}
-interface ReviewRow { verdict: string; note: string; at: number; actorName: string | null }
 
 const fmtInr = (n: number) =>
   n >= 1e7 ? `₹${(n / 1e7).toFixed(2)} Cr` : n >= 1e5 ? `₹${(n / 1e5).toFixed(2)} L` : `₹${n.toLocaleString('en-IN')}`;
@@ -26,34 +21,11 @@ function SortIcon({ active, dir }: { active: boolean; dir: 'asc' | 'desc' }) {
 export default function DeputyDistrictsPage() {
   const { session } = useSession();
   const base = deputyBasePath(session?.division);
-  const [districts, setDistricts] = useState<DistrictRow[]>([]);
-  const [reviews, setReviews] = useState<Record<string, ReviewRow>>({});
-  const [loading, setLoading] = useState(true);
+  const { districts, reviews, loading } = useDeputyData();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [sortKey, setSortKey] = useState<SortKey>('name');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
-
-  useEffect(() => {
-    let alive = true;
-    (async () => {
-      const [dRes, rRes] = await Promise.all([
-        fetch('/api/admin/districts'),      // server-scoped to this deputy's division
-        fetch('/api/deputy/reviews'),
-      ]);
-      if (!alive) return;
-      if (dRes.ok) {
-        const d = await dRes.json() as { districts: DistrictRow[] };
-        setDistricts(d.districts ?? []);
-      }
-      if (rRes.ok) {
-        const r = await rRes.json() as { reviews: Record<string, ReviewRow> };
-        setReviews(r.reviews ?? {});
-      }
-      setLoading(false);
-    })();
-    return () => { alive = false; };
-  }, []);
 
   function toggleSort(k: SortKey) {
     if (sortKey === k) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
