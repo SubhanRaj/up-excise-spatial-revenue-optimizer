@@ -171,11 +171,11 @@ export default function DeputyDashboard() {
           <p className="text-base-content/70 mt-1">Review the figures your district officers have submitted</p>
         </div>
         <HelpPanel pageKey="deputy_dashboard" title="Division Dashboard">
-          <p>This is your division only — every district, map polygon, and figure here belongs to a district you supervise. It is read-only: you cannot change any data.</p>
+          <p>Every district, map polygon, and figure here belongs to your division. All figures are read-only.</p>
           <ul className="list-disc list-inside space-y-1 mt-1">
-            <li>Click a district on the map or in the table to open its full shop-level figures.</li>
-            <li>On a district page you can record <b>Looks correct</b> or <b>Flag an issue</b> — this is logged for headquarters and changes nothing in the data.</li>
-            <li>Grey = pending, amber = in progress, green = submitted, blue = verified.</li>
+            <li><strong>Map</strong> — grey is pending, amber is in progress, green is submitted, blue is verified. Click a district to open its figures.</li>
+            <li><strong>District table</strong> — the same list as the map. Click a row for the shop-level detail.</li>
+            <li><strong>Review</strong> — on a district page, record &ldquo;looks correct&rdquo; or &ldquo;flag an issue&rdquo;. Headquarters sees it in the audit log; it changes no data.</li>
           </ul>
         </HelpPanel>
       </div>

@@ -126,8 +126,12 @@ export default function DeputyDistrictPage({ params }: { params: Promise<{ distr
           </p>
         </div>
         <HelpPanel pageKey="deputy_district" title="District Figures">
-          <p>Everything the DEO uploaded for this district, exactly as headquarters sees it. Use the filters, sort, and per-circle breakdown to check the figures. Read-only.</p>
-          <p className="mt-1">When you are done, record <b>Looks correct</b> or <b>Flag an issue</b> below the table — it is logged for headquarters with your name and note, and changes no data.</p>
+          <p>Every shop the DEO uploaded for this district, the same data headquarters sees. Use the type breakdown, circle/sector breakdown, filters, and sort to check the figures. All read-only.</p>
+          <ul className="list-disc list-inside space-y-1 mt-1">
+            <li><strong>Looks correct</strong> — records that you checked the figures and they are right.</li>
+            <li><strong>Flag an issue</strong> — records a problem; a note is required.</li>
+          </ul>
+          <p className="mt-1">Either action writes one line to the audit log with your name. No figure changes.</p>
         </HelpPanel>
       </div>
 
