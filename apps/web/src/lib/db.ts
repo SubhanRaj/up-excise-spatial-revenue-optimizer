@@ -290,11 +290,11 @@ const CACHE_TTL_MS = 5 * 60 * 1000;
 // string the caller passes (`.get(k)`/`.set(k, data)`), used by shops (per-district) and audit
 // (per-page). export_cache stays separate — it's a different shape ({rows, units}, ~25K rows,
 // patched incrementally rather than replaced wholesale) so a shared KV factory doesn't fit it.
-function makeKvCache<T>(table: string, opts: { fixedKey?: string; ttlMs?: number } = {}) {
-  const { fixedKey, ttlMs } = opts;
+function makeKvCache<T>(table: string, opts: { fixedKey?: string; ttlMs?: number; getDb?: () => DexieInstance } = {}) {
+  const { fixedKey, ttlMs, getDb = getAdminDb } = opts;
   return {
     get: (key: string = fixedKey!) =>
-      getAdminDb().table<AdminKvCache<T>>(table)
+      getDb().table<AdminKvCache<T>>(table)
         .where('key').equals(key).toArray()
         .then((r) => {
           const entry = r[0];
@@ -306,14 +306,14 @@ function makeKvCache<T>(table: string, opts: { fixedKey?: string; ttlMs?: number
     // (see changedDistrictsSince below) even while the entry is still within its TTL and would
     // otherwise be served as-is.
     getFetchedAt: (key: string = fixedKey!) =>
-      getAdminDb().table<AdminKvCache<T>>(table)
+      getDb().table<AdminKvCache<T>>(table)
         .where('key').equals(key).toArray()
         .then((r) => r[0]?.fetchedAt ?? null),
     set: (keyOrData: string | T, data?: T) => {
       const [key, value] = fixedKey !== undefined ? [fixedKey, keyOrData as T] : [keyOrData as string, data as T];
-      return getAdminDb().table<AdminKvCache<T>>(table).put({ key, data: value, fetchedAt: Date.now() });
+      return getDb().table<AdminKvCache<T>>(table).put({ key, data: value, fetchedAt: Date.now() });
     },
-    invalidate: () => getAdminDb().table<AdminKvCache<T>>(table).clear(),
+    invalidate: () => getDb().table<AdminKvCache<T>>(table).clear(),
   };
 }
 
@@ -360,6 +360,22 @@ export const adminUnlockRequestsCache = makeKvCache<unknown>('unlock_requests_ca
 // entry here could show "verification not open" to one admin/device while it's actually
 // open — worse than most staleness since admins relay this state to DEOs verbally.
 export const adminSettingsCache = makeKvCache<unknown>('settings_cache', { fixedKey: 'app_settings', ttlMs: CACHE_TTL_MS });
+
+// ── Deputy portal cache (M-102) ──────────────────────────────────────────────
+// Physically separate Dexie DB from `excise-admin` so a browser shared between an admin and
+// a Deputy Excise Commissioner can never cross-serve one's cached districts/shops to the
+// other (an admin's 75-district payload leaking into a deputy session would breach the
+// division scoping). Only the heavy per-district shop payload is cached here — the deputy
+// dashboard's district list is a plain fetch, small enough not to need it.
+let _deputyDb: DexieInstance | null = null;
+function getDeputyDb(): DexieInstance {
+  if (!_deputyDb) {
+    _deputyDb = makeDexie('excise-deputy');
+    _deputyDb.version(1).stores({ shops_cache: 'key' });
+  }
+  return _deputyDb;
+}
+export const deputyShopsCache = makeKvCache<unknown>('shops_cache', { getDb: getDeputyDb });
 
 // ── Global sync ──────────────────────────────────────────────────────────────
 // One button (in the admin navbar) refreshes every admin cache table at once, instead of

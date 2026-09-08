@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { drizzle } from 'drizzle-orm/d1';
 import { eq, count, sum } from 'drizzle-orm';
-import { getSession, sha256hex } from '@/lib/auth';
+import { getSession, sha256hex, districtScope } from '@/lib/auth';
 import { districts, districtCirclesSectors, phase1RawCollection, authUsers, auditLog } from '@excise/schema';
 import { withErrorHandling } from '@/lib/with-error-handling';
 
@@ -10,7 +10,8 @@ type Ctx = { params: Promise<{ district: string }> };
 
 async function GET_(_req: NextRequest, { params }: Ctx): Promise<NextResponse> {
   const user = await getSession();
-  if (!user || !['admin', 'superadmin'].includes(user.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const scope = districtScope(user);
+  if (!scope) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const { district } = await params;
   const { env } = await getCloudflareContext({ async: true }) as { env: CloudflareEnv };
@@ -24,6 +25,7 @@ async function GET_(_req: NextRequest, { params }: Ctx): Promise<NextResponse> {
   ]);
 
   if (!meta) return NextResponse.json({ error: 'District not found' }, { status: 404 });
+  if (scope.division && meta.division !== scope.division) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   return NextResponse.json({ ...meta, units, vendCount: agg?.vendCount ?? 0, totalRevenue: Number(agg?.totalRevenue ?? 0) });
 }
 

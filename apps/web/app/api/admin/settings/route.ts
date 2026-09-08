@@ -11,7 +11,9 @@ const SETTINGS_ID = 1;
 
 async function GET_(): Promise<NextResponse> {
   const user = await getSession();
-  if (!user || !['admin', 'superadmin'].includes(user.role)) {
+  // deputy allowed on GET (M-102) — its map needs cartoApiKey; the state-wide submitted
+  // count is not sensitive. POST stays admin/superadmin-only.
+  if (!user || !['admin', 'superadmin', 'deputy'].includes(user.role)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 

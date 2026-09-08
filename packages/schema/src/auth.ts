@@ -5,9 +5,13 @@ export const authUsers = sqliteTable('auth_users', {
   id:           integer('id').primaryKey({ autoIncrement: true }),
   emailHash:    text('email_hash').unique().notNull(),
   name:         text('name').notNull(),
-  role:         text('role').notNull().default('deo'),  // 'deo' | 'admin'
+  role:         text('role').notNull().default('deo'),  // 'deo' | 'admin' | 'deputy'
   deoId:        text('deo_id'),
   districtName: text('district_name'),
+  // Set only on role='deputy' rows (M-102, migration 0011) — one of the 18 UP divisions.
+  // Scopes the Deputy Excise Commissioner portal and every admin read a deputy is allowed
+  // to make to that division. Null for 'deo'/'admin'.
+  division:     text('division'),
   // SHA-256 of the DEO's 10-digit CUG mobile number, hashed in-browser — never the raw
   // number. Alternate credential to magic-link email, for when RESEND_FROM_EMAIL's domain
   // isn't verified yet and email delivery can't be relied on.

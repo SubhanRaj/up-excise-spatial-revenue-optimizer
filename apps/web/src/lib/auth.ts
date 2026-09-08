@@ -20,11 +20,22 @@ export type SessionUser = {
   id: number;
   emailHash: string;
   name: string;
-  role: 'deo' | 'admin' | 'superadmin';
+  role: 'deo' | 'admin' | 'superadmin' | 'deputy';
   deoId: string;
   districtName: string | null;
   designation: string | null;
+  division: string | null; // set only for role: 'deputy' (M-102)
 };
+
+// Admin/superadmin see every district; a deputy sees only their division's; anyone else
+// gets no district data at all. Used by every /api/admin/* read the deputy portal is
+// allowed to call — see CLAUDE.md's "/deputy routes are deputy-only" note.
+export function districtScope(user: SessionUser | null): { division: string | null } | null {
+  if (!user) return null;
+  if (user.role === 'admin' || user.role === 'superadmin') return { division: null };
+  if (user.role === 'deputy') return { division: user.division };
+  return null;
+}
 
 // ── Crypto ────────────────────────────────────────────────────────────────────
 
@@ -96,6 +107,7 @@ export async function getSession(): Promise<SessionUser | null> {
       deoId:        authUsers.deoId,
       districtName: authUsers.districtName,
       designation:  authUsers.designation,
+      division:     authUsers.division,
     })
     .from(authSessions)
     .innerJoin(authUsers, eq(authUsers.id, authSessions.userId))
@@ -120,6 +132,7 @@ export async function getSession(): Promise<SessionUser | null> {
       deoId:        row.deoId ?? '',
       districtName: row.districtName ?? null,
       designation:  row.designation ?? null,
+      division:     row.division ?? null,
     };
   }
 
@@ -127,26 +140,37 @@ export async function getSession(): Promise<SessionUser | null> {
     id:           row.userId,
     emailHash:    row.emailHash,
     name:         row.name,
-    role:         row.role as 'deo' | 'admin',
+    role:         row.role as 'deo' | 'admin' | 'deputy',
     deoId:        row.deoId ?? '',
     districtName: row.districtName ?? null,
     designation:  row.designation ?? null,
+    division:     row.division ?? null,
   };
 }
 
-export async function requireAuth(minRole: 'deo' | 'admin' = 'deo'): Promise<SessionUser> {
+export async function requireAuth(minRole: 'deo' | 'admin' | 'deputy' = 'deo'): Promise<SessionUser> {
   const session = await getSession();
   if (!session) redirect('/login');
 
+  if (minRole === 'deputy') {
+    // superadmin passes through for debugging; everything else goes to its own home.
+    if (session.role !== 'deputy' && session.role !== 'superadmin') {
+      redirect(session.role === 'deo' ? '/home' : '/admin');
+    }
+    return session;
+  }
+
   if (minRole === 'admin') {
-    if (session.role !== 'admin' && session.role !== 'superadmin') redirect('/home');
+    if (session.role !== 'admin' && session.role !== 'superadmin') {
+      redirect(session.role === 'deputy' ? '/deputy' : '/home');
+    }
     return session;
   }
 
   // minRole === 'deo' — no admin/superadmin bypass. An elevated session landing on a
   // DEO-only server page is sent to its own dashboard instead of rendering a DEO page with
   // no district attached (matches middleware.ts's redirect for the same route group).
-  if (session.role !== 'deo') redirect('/admin');
+  if (session.role !== 'deo') redirect(session.role === 'deputy' ? '/deputy' : '/admin');
   return session;
 }
 

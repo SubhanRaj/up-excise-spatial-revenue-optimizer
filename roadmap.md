@@ -460,7 +460,7 @@ Middleware only checks cookie presence and the role cookie — no crypto, no D1.
 Application-level events (upload chunk, district submission, circle/sector registration, login) are written to `audit_log` directly by route handlers on every successful operation. 45-day rolling retention (cron purge deferred — see CLAUDE.md note).
 
 **Auth tables in D1** (`packages/schema/src/auth.ts`):
-- `auth_users` — email hash, name, role ('deo'|'admin'), deoId, districtName, deoCugHash (SHA-256 of CUG mobile number, unique nullable, added in migration `0002_add_deo_cug_hash.sql` — alternate login credential to magic-link email)
+- `auth_users` — email hash, name, role ('deo'|'admin'|'deputy'), deoId, districtName, deoCugHash (SHA-256 of CUG mobile number, unique nullable, added in migration `0002_add_deo_cug_hash.sql` — alternate login credential to magic-link email, and the only credential for deputies), division (nullable, `0011_add_auth_user_division.sql`, M-102 — set on `role='deputy'` rows to scope the Deputy Excise Commissioner portal to one of the 18 divisions)
 - `auth_magic_links` — tokenHash (sha256), expiresAt, used flag, createdAt (for rate-limit window)
 - `auth_sessions` — id=sha256(rawId), userId FK, expiresAt
 
@@ -1102,7 +1102,9 @@ export const auditLog = sqliteTable('audit_log', {
 
   // 'login' | 'logout' | 'login_cug' | 'upload_chunk' | 'district_submitted' | 'unit_registered'
   // | 'units_unlocked' | 'district_master_updated' | 'bulk_provision' | 'unlock_requested'
-  // | 'unlock_request_denied'
+  // | 'unlock_request_denied' | 'deputy_district_reviewed' (M-102 — Deputy Excise Commissioner
+  // per-district sign-off, metadata { verdict: 'ok'|'flagged', note }, no data mutation)
+  // ...see CLAUDE.md's "Drizzle Schema Location" for the full current list.
   eventType: text('event_type').notNull(),
 
   deoId: text('deo_id').notNull(),

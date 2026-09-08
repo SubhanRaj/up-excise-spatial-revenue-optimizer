@@ -17,7 +17,8 @@ const CHANGE_EVENTS = ['district_submitted', 'district_verified', 'units_unlocke
 
 async function GET_(req: NextRequest): Promise<NextResponse> {
   const user = await getSession();
-  if (!user || !['admin', 'superadmin'].includes(user.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  // deputy allowed (M-102) — this is a cache-freshness hint, not district data.
+  if (!user || !['admin', 'superadmin', 'deputy'].includes(user.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const since = new Date(Math.max(0, Number(req.nextUrl.searchParams.get('since') ?? 0) || 0));
 

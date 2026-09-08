@@ -22,7 +22,11 @@ export default function middleware(req: NextRequest) {
   // Route group enforcement based on role cookie (security enforced in server layouts via requireAuth)
   const role = req.cookies.get('excise-role')?.value;
   if (pathname.match(/^\/admin/) && role !== 'admin' && role !== 'superadmin') {
-    return NextResponse.redirect(new URL('/login', req.url));
+    return NextResponse.redirect(new URL(role === 'deputy' ? '/deputy' : '/login', req.url));
+  }
+  // Deputy Excise Commissioner portal (M-102) — deputy-only, superadmin allowed for debugging.
+  if (pathname.match(/^\/deputy/) && role !== 'deputy' && role !== 'superadmin') {
+    return NextResponse.redirect(new URL(role === 'deo' ? '/home' : role === 'admin' ? '/admin' : '/login', req.url));
   }
   // DEO routes are deo-only now — an admin/superadmin session landing here (stale bookmark,
   // old tab) is sent to their own dashboard instead of rendering a broken "Unknown District"
@@ -31,6 +35,9 @@ export default function middleware(req: NextRequest) {
   if (pathname.match(/^\/(home|upload|verify|units)/)) {
     if (role === 'admin' || role === 'superadmin') {
       return NextResponse.redirect(new URL('/admin', req.url));
+    }
+    if (role === 'deputy') {
+      return NextResponse.redirect(new URL('/deputy', req.url));
     }
     if (role !== 'deo') {
       return NextResponse.redirect(new URL('/login', req.url));

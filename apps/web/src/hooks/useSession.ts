@@ -7,6 +7,7 @@ export interface SessionInfo {
   name: string;
   role: string;
   districtName: string | null;
+  division: string | null; // set only for role: 'deputy' (M-102)
   // Admin-only in practice (e.g. "Excise Commissioner") — null for DEOs. No plaintext email
   // field exists here by design — only email_hash is ever stored (Zero-Knowledge PII, see
   // CLAUDE.md), so there's nothing readable to expose to the client.

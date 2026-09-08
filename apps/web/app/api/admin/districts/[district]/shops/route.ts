@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { drizzle } from 'drizzle-orm/d1';
 import { eq, count } from 'drizzle-orm';
-import { getSession } from '@/lib/auth';
-import { phase1RawCollection } from '@excise/schema';
+import { getSession, districtScope } from '@/lib/auth';
+import { phase1RawCollection, districts } from '@excise/schema';
 import { withErrorHandling } from '@/lib/with-error-handling';
 
 
@@ -14,7 +14,8 @@ async function GET_(
   { params }: { params: Promise<{ district: string }> },
 ): Promise<NextResponse> {
   const user = await getSession();
-  if (!user || !['admin', 'superadmin'].includes(user.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const scope = districtScope(user);
+  if (!scope) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const { district } = await params;
   const sp = new URL(req.url).searchParams;
@@ -24,6 +25,11 @@ async function GET_(
 
   const { env } = await getCloudflareContext({ async: true }) as { env: CloudflareEnv };
   const db = drizzle(env.DB);
+
+  if (scope.division) {
+    const d = await db.select({ division: districts.division }).from(districts).where(eq(districts.name, district)).get();
+    if (!d || d.division !== scope.division) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
 
   const [rows, total] = await Promise.all([
     db.select().from(phase1RawCollection).where(eq(phase1RawCollection.districtName, district))

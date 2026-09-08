@@ -15,6 +15,7 @@ async function GET_(): Promise<NextResponse> {
     role:         session.role,
     districtName: session.districtName,
     designation:  session.designation,
+    division:     session.division,
   });
 }
 

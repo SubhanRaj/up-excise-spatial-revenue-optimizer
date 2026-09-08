@@ -1926,6 +1926,44 @@ The browser's own print dialog produces the PDF ("Save as PDF" / "Microsoft Prin
 
 ---
 
+### M-102: Deputy Excise Commissioner Portal — Division-Scoped Read-Only Review ✅ Complete
+
+**Objective:** Give each of the 18 Deputy Excise Commissioners (one per division) a login and a portal to review the figures their subordinate DEOs have entered — a division-scoped, read-only cut of the admin portal, plus a per-district "reviewed / flag" sign-off that only writes to the audit log.
+
+**Role & auth (reuses the DEO CUG flow):**
+- New `role: 'deputy'` on `auth_users`, and a new nullable `auth_users.division` column (`migrations/0011_add_auth_user_division.sql`, schema in `packages/schema/src/auth.ts`).
+- Login is the existing CUG path — `POST /api/auth/verify-cug` now redirects a `deputy` account to `/deputy` (DEOs → `/home`, admins → `/admin`). No new login UI, no magic-link email for deputies (CUG-only, like DEOs).
+- `SessionUser`/`SessionInfo` carry `division`; `getSession()` selects it; `/api/auth/session` returns it. `requireAuth('deputy')` added (superadmin passes through for debugging); `middleware.ts` gates `/deputy` to `role === 'deputy'` (or superadmin) and bounces a deputy landing on `/admin` or a DEO route to `/deputy`.
+- Deputy sessions are 24h (same as DEO — `createSession` only gives the 7-day sliding window to `admin`/`superadmin`).
+- `scripts/seed-deputy-accounts.ts` (`pnpm seed:deputy-accounts [-- --local]`) reads `scripts/data/deputy-cug.csv` (`division,cug` — gitignored raw PII, sourced from `~/Sites/UP-excise-mailer/database/seeders/data/divisions.json`'s `dc_cug`), hashes the CUG in-process, and upserts one `auth_users` row per division: `role='deputy'`, `division`, `deo_id='DEC-<DIVISION>'`, `name='Deputy Excise Commissioner, <Division> Charge'`, `designation='Deputy Excise Commissioner, <Division>'`, `deo_cug_hash=sha256(cug)`, `email_hash=sha256('deputy-<division>')` (synthetic — `email_hash` is `NOT NULL UNIQUE` and two divisions share a real Gmail; deputies never use email login so a stable synthetic hash is fine). Idempotent on `email_hash`.
+
+**API — division scoping added to existing admin routes (no new data-fetch routes):**
+- `districtScope(user)` in `apps/web/src/lib/auth.ts` — pure helper: `admin`/`superadmin` → unrestricted, `deputy` → their division, anything else → `null` (403).
+- `GET /api/admin/districts` — a deputy gets only their division's district rows (`WHERE division = <session division>`); `stateTotals` is then that division's totals. The M-96 cached-aggregate logic is untouched and shared.
+- `GET /api/admin/districts/[district]` and `.../shops` — for a deputy, a one-row `districts.division` lookup gates access; a district outside their division returns 403.
+- `GET /api/admin/changed-districts` and `GET /api/admin/settings` — now allow `deputy` (the first is a cache-freshness hint, the second carries the CARTO key the map needs).
+
+**API — new deputy-only sign-off (audit log only, zero data mutation):**
+- `POST /api/deputy/districts/[district]/review` — body `{ verdict: 'ok' | 'flagged', note? }`; 403 unless the district is in the deputy's division; writes one `deputy_district_reviewed` audit-log row (`metadata: { verdict, note }`, `actorName`/`actorDesignation` = the deputy). `note` required when `verdict === 'flagged'`.
+- `GET /api/deputy/reviews` — the latest `deputy_district_reviewed` per district in the deputy's division (`{ [district]: { verdict, note, at, actorName } }`), for showing "already reviewed" state on the dashboard. Falls out of the 45-day audit window like any other event — acceptable, this is a soft status not a hard guard.
+- `deputy_district_reviewed` added to `EVENT_LABELS` and `verdict` to `METADATA_KEY_LABELS` on `/admin/audit`.
+
+**Portal (`/deputy` route group):**
+- `app/(deputy)/layout.tsx` — slim client layout (brand, single "Dashboard" link, sign-out, breadcrumb), no search bar, no Sync All.
+- `app/(deputy)/deputy/page.tsx` — division dashboard: stat cards (districts, submitted, vends, revenue for the division), a Leaflet + CARTO choropleth of just that division's districts (same tile/style/label code as the admin overview map, `fitBounds` to the division's own bbox), a division-status doughnut, and a district table linking to each district. District list is a plain `fetch('/api/admin/districts')` held in React state (≤5 rows — no IndexedDB, and deliberately not `useAdminDistricts()`/`adminDistrictsCache`, so a shared browser can never serve an admin's 75-district cache to a deputy or vice-versa).
+- `app/(deputy)/deputy/districts/[district]/page.tsx` — the figures: stat cards + the shared `ShopExplorer` (type breakdown, circle/sector breakdown, filter/sort/group/paginate, per-circle XLSX export — identical to what admins and the DEO final-verification screen see) + `ThanaVariantsCard` (via ShopExplorer). Below it, the review panel: "Looks correct" / "Flag an issue" (SweetAlert2, note required for a flag) → `POST /api/deputy/districts/[district]/review`, showing the last recorded verdict. Read-only otherwise — no edit drawer, no unlock, no delete, no template downloads.
+- `ShopExplorer` `storageKeyPrefix="deputy"` (new namespace in the localStorage registry). Shop rows cache in a **separate `excise-deputy` Dexie DB** (`deputyShopsCache`, `makeKvCache` gained an optional `getDb` param) with the same `changed-districts` staleness check the admin district page uses — isolated from `excise-admin` for the same shared-browser reason as above.
+
+**What was reused unchanged:** `ShopExplorer` + `useShopAggregates` + `RevenueCell` + `ThanaVariantsCard`; the admin districts aggregate route and its M-96 cache; the CARTO tile URLs / GeoJSON file / choropleth style; `STATUS_COLOR`/`statusLabel`/`statusBadgeClass`/`isLocked` from `lib/status.ts`.
+
+**Verified:** `pnpm typecheck` clean (both packages); `pnpm --filter web test` (OOXML limits — no Excel change here) clean; `@opennextjs/cloudflare build` clean (all four deputy routes registered).
+
+**Shipped:** `migrations/0011_add_auth_user_division.sql` applied to remote D1 (`auth_users.division` confirmed present); `pnpm seed:deputy-accounts` run against prod — 18 `role='deputy'` rows, one per division, each with a CUG hash; deployed (`sro.exciseup.in`, version `31dddf80-5573-4b1f-9a9d-7b80ef9ff5de`), `/api/healthz` 200 and `/deputy` 307→`/login` for an unauthenticated request.
+
+**Exit criterion:** a Deputy signs in with their CUG number, lands on `/deputy`, sees only their division's districts on the map/table/stats, opens any one district to its full shop-level figures, and records a "reviewed" or "flagged" sign-off that appears in the admin audit log — with no ability to see another division's data or change any figure.
+
+---
+
 ## Backlog / Not Started
 
 - [x] ~~Verify `exciseup.in` in Resend and switch `RESEND_FROM_EMAIL`~~ — Done. `mail.exciseup.in` verified; `RESEND_FROM_EMAIL` set to `noreply@mail.exciseup.in` on this project's Worker, and the same address set as `FROM_EMAIL` on the sibling `excise-revenue-recovery-portal` project's Worker (different env var name there, same Resend account/domain). Magic-link email is now the Admin/HQ login channel only (DEOs use CUG login as of M-17).

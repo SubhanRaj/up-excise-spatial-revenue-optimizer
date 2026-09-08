@@ -1,15 +1,16 @@
 import { NextResponse } from 'next/server';
 import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { drizzle } from 'drizzle-orm/d1';
-import { asc, count, sum, inArray } from 'drizzle-orm';
-import { getSession } from '@/lib/auth';
+import { asc, count, sum, inArray, eq } from 'drizzle-orm';
+import { getSession, districtScope } from '@/lib/auth';
 import { districts, phase1RawCollection, districtCirclesSectors } from '@excise/schema';
 import { withErrorHandling } from '@/lib/with-error-handling';
 
 
 async function GET_(): Promise<NextResponse> {
   const user = await getSession();
-  if (!user || !['admin', 'superadmin'].includes(user.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const scope = districtScope(user);
+  if (!scope) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const { env } = await getCloudflareContext({ async: true }) as { env: CloudflareEnv };
   const db = drizzle(env.DB);
@@ -23,7 +24,9 @@ async function GET_(): Promise<NextResponse> {
       bboxMinLon: districts.bboxMinLon, bboxMaxLon: districts.bboxMaxLon,
       cachedVendCount: districts.cachedVendCount, cachedTotalRevenue: districts.cachedTotalRevenue,
       fyDataClearedAt: districts.fyDataClearedAt,
-    }).from(districts).orderBy(asc(districts.name)).all(),
+    }).from(districts)
+      .where(scope.division ? eq(districts.division, scope.division) : undefined)
+      .orderBy(asc(districts.name)).all(),
     db.select({
       districtName: districtCirclesSectors.districtName,
       unitCount: count(districtCirclesSectors.id),

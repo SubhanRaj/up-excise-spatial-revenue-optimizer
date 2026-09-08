@@ -93,6 +93,8 @@ drizzle/meta/
 # ─── Raw DEO PII (never committed — see scripts/seed-deo-accounts.ts) ─────────
 scripts/data/deo-contact.csv
 scripts/data/deo-emails.csv
+# ─── Raw Deputy Commissioner CUG numbers (see scripts/seed-deputy-accounts.ts, M-102) ─
+scripts/data/deputy-cug.csv
 analysis-export/
 
 # ─── Raw revenue source data (never committed — see docs/local-analysis-db.md) ─

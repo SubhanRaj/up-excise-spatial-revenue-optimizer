@@ -52,7 +52,10 @@ async function POST_(req: NextRequest): Promise<NextResponse> {
     createdAt: new Date(),
   });
 
-  return NextResponse.json({ redirect: effectiveRole === 'superadmin' || user.role === 'admin' ? '/admin' : '/home' });
+  const redirect = user.role === 'deputy' ? '/deputy'
+    : (effectiveRole === 'superadmin' || user.role === 'admin') ? '/admin'
+    : '/home';
+  return NextResponse.json({ redirect });
 }
 
 export const POST = withErrorHandling('auth/verify-cug:POST', POST_);
