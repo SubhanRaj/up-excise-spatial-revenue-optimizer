@@ -154,6 +154,7 @@ export default function DeoLayout({ children }: { children: React.ReactNode }) {
           {navLinks.map((l) => (
             <Link key={l.href} href={l.href} className={`btn btn-ghost btn-sm ${pathname === l.href ? 'btn-active' : ''}`}>{l.label}</Link>
           ))}
+          <a href={DEO_MANUAL_URL} target="_blank" rel="noopener noreferrer" className="btn btn-ghost btn-sm">Manual</a>
           {session && <ProfileMenu session={session} />}
         </div>
         <div className="flex md:hidden flex-none">
@@ -179,6 +180,7 @@ export default function DeoLayout({ children }: { children: React.ReactNode }) {
                   <Link href={l.href} onClick={() => setDrawerOpen(false)} className={pathname === l.href ? 'active' : ''}>{l.label}</Link>
                 </li>
               ))}
+              <li><a href={DEO_MANUAL_URL} target="_blank" rel="noopener noreferrer" onClick={() => setDrawerOpen(false)}>Manual (PDF)</a></li>
             </ul>
           </div>
         </>

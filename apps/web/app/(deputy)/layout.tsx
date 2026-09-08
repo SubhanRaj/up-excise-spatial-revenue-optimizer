@@ -6,6 +6,8 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useSession } from '@/hooks/useSession';
 import { deputyBasePath } from '@/lib/deputy';
 
+const DEPUTY_MANUAL_URL = 'https://raw.githubusercontent.com/SubhanRaj/up-excise-spatial-revenue-optimizer/main/docs/manual/Deputy-User-Manual.pdf';
+
 async function signOut() {
   await fetch('/api/auth/logout', { method: 'POST' });
   window.location.href = '/login';
@@ -75,6 +77,7 @@ export default function DeputyLayout({ children }: { children: React.ReactNode }
           {navLinks.map((l) => (
             <Link key={l.label} href={l.href} className={`btn btn-ghost btn-sm ${l.active ? 'btn-active' : ''}`}>{l.label}</Link>
           ))}
+          <a href={DEPUTY_MANUAL_URL} target="_blank" rel="noopener noreferrer" className="btn btn-ghost btn-sm">Manual</a>
           {session && (
             <span className="text-xs font-semibold bg-primary/10 text-primary rounded-full px-3 py-1.5 whitespace-nowrap">
               {session.name}
@@ -114,6 +117,7 @@ export default function DeputyLayout({ children }: { children: React.ReactNode }
                   <Link href={l.href} onClick={() => setDrawerOpen(false)} className={l.active ? 'active' : ''}>{l.label}</Link>
                 </li>
               ))}
+              <li><a href={DEPUTY_MANUAL_URL} target="_blank" rel="noopener noreferrer" onClick={() => setDrawerOpen(false)}>Manual (PDF)</a></li>
             </ul>
           </div>
         </>
