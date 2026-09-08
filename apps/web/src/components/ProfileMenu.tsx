@@ -28,7 +28,9 @@ export default function ProfileMenu({ session }: { session: SessionInfo }) {
   const isDeo = session.role === 'deo';
   const roleLabel = isDeo
     ? 'District Excise Officer'
-    : (session.designation ?? (session.role === 'superadmin' ? 'Superadmin' : 'Admin'));
+    : session.role === 'deputy'
+      ? (session.designation ?? 'Deputy Excise Commissioner')
+      : (session.designation ?? (session.role === 'superadmin' ? 'Superadmin' : 'Admin'));
   const pillLabel = isDeo
     ? (session.districtName ? `DEO ${session.districtName}` : 'DEO')
     : roleLabel;

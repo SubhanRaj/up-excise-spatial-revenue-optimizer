@@ -91,6 +91,7 @@ test.describe('Deputy Manual — screenshot walkthrough', () => {
     // Districts list — searchable / sortable / status-filtered table
     await page.goto(`/deputy-${DIVISION.toLowerCase()}/districts`);
     await expect(page.locator('h1').filter({ hasText: 'Districts' })).toBeVisible();
+    await expect(page.locator('td', { hasText: DISTRICT }).first()).toBeVisible({ timeout: 15000 });
     await shot(page, 'deputy-districts-list');
 
     // One district's shop-level figures + the review panel

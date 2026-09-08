@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useSession } from '@/hooks/useSession';
 import { deputyBasePath } from '@/lib/deputy';
+import ProfileMenu from '@/components/ProfileMenu';
 
 const DEPUTY_MANUAL_URL = 'https://raw.githubusercontent.com/SubhanRaj/up-excise-spatial-revenue-optimizer/main/docs/manual/Deputy-User-Manual.pdf';
 
@@ -78,14 +79,7 @@ export default function DeputyLayout({ children }: { children: React.ReactNode }
             <Link key={l.label} href={l.href} className={`btn btn-ghost btn-sm ${l.active ? 'btn-active' : ''}`}>{l.label}</Link>
           ))}
           <a href={DEPUTY_MANUAL_URL} target="_blank" rel="noopener noreferrer" className="btn btn-ghost btn-sm">Manual</a>
-          {session && (
-            <span className="text-xs font-semibold bg-primary/10 text-primary rounded-full px-3 py-1.5 whitespace-nowrap">
-              {session.name}
-            </span>
-          )}
-          <button className="btn btn-ghost btn-sm btn-square" onClick={signOut} aria-label="Sign out">
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
-          </button>
+          {session && <ProfileMenu session={session} />}
         </div>
 
         <div className="flex md:hidden flex-none items-center gap-1">
