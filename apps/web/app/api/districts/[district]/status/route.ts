@@ -26,7 +26,7 @@ async function GET_(
     db.select({ circleSectorName: phase1RawCollection.circleSectorName, rowCount: count(phase1RawCollection.id) })
       .from(phase1RawCollection).where(eq(phase1RawCollection.districtName, district))
       .groupBy(phase1RawCollection.circleSectorName).all(),
-    db.select({ status: districts.status, deoName: districts.deoName }).from(districts).where(eq(districts.name, district)).get(),
+    db.select({ status: districts.status, deoName: districts.deoName, fyDataClearedAt: districts.fyDataClearedAt }).from(districts).where(eq(districts.name, district)).get(),
     db.select({ verificationPhaseOpen: appSettings.verificationPhaseOpen }).from(appSettings).where(eq(appSettings.id, 1)).get(),
   ]);
 
@@ -42,6 +42,10 @@ async function GET_(
     // English placeholder an admin set at provisioning (e.g. "Lucknow DEO"), which is not
     // useful to show as "the DEO" on a DEO-facing screen.
     deoName: districtRow?.deoName ?? null,
+    // Non-null once an admin has run the one-time FY 2026-27 cleanup for this district (M-101).
+    // The DEO layout shows a re-entry banner while this is set and the district is not yet
+    // re-submitted, so a DEO who cleared their browser cache still sees why their data is gone.
+    fyDataClearedAt: districtRow?.fyDataClearedAt ? districtRow.fyDataClearedAt.getTime() : null,
   });
 }
 

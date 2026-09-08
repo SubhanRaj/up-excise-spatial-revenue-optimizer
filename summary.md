@@ -1901,6 +1901,31 @@ The browser's own print dialog produces the PDF ("Save as PDF" / "Microsoft Prin
 
 ---
 
+### M-101: One-Time FY 2026-27 Data Cleanup — Admin View, Guarded Route, DEO Re-Entry Banner ✅ Complete
+
+**Objective:** Despite the M-98–M-100 reminders, several districts uploaded shop and revenue data for FY 2026-27 (the current year) rather than the FY 2025-26 figures Phase 1 collects. That data has to go, but not by a manual D1 delete — it needs an audited, admin-run action. It also has to be irreversible in one direction: once a DEO re-enters correct FY 2025-26 data, no one should be able to clear that district again by mistake.
+
+**Why a separate route from `clear-data` (M-93/94):** `clear-data` does the same DB work (delete only `phase1_raw_collection`, keep circles/sectors + DEO/CUG identity + audit log, reset status to `pending`, null the cached aggregates) but is deliberately repeatable — it exists for ordinary bad-upload recovery, which can legitimately happen more than once for a district. The FY cleanup is a one-shot campaign correction with the opposite requirement, so it is its own route with a guard, not a mode flag on `clear-data`.
+
+**Change:**
+- [x] `migrations/0010_add_fy_data_cleared_at.sql` — `districts.fy_data_cleared_at` (nullable INTEGER timestamp). Schema added to `packages/schema/src/phase1.ts` (`fyDataClearedAt`) and roadmap.md §5.3. An audit-log-derived guard was rejected because `audit_log` is purged after 45 days, which would silently lift the one-time lock.
+- [x] `POST /api/admin/districts/[district]/clear-fy-data` (new) — the `clear-data` delete batch plus: 409 if `fyDataClearedAt` is already set; sets it in the same `db.batch`; audit-logs `fy_data_cleared` (new event type) with the reason, deleted count, and the acting admin's name/designation. Any `admin`/`superadmin`. Returns `{ ok, deletedCount, clearedAt }`.
+- [x] `/admin/fy-cleanup` (new page) — 75-row table from `useAdminDistricts()` (IndexedDB-first, no raw fetch): District, DEO, Division, Shops, Status, Action. Action is a per-district one-time "Clear FY 2026-27 Data" button (two-step type-to-confirm + mandatory reason SweetAlert2, same pattern as Delete Shop Data) when the district still holds data, a greyed "Cleared &lt;date&gt;" badge once `fyDataClearedAt` is set, or "No data" when there is nothing to clear. Summary strip: districts cleared / still holding data / total. Linked in the admin navbar and breadcrumb map after Data Quality.
+- [x] `GET /api/admin/districts` returns `fyDataClearedAt` (rides through `...rest`); added to `AdminDistrictRow` in `useAdminDistricts.ts`.
+- [x] `GET /api/admin/changed-districts` — added `fy_data_cleared` to `CHANGE_EVENTS` so a cleared district triggers an `export_cache` / district-detail re-fetch on every other admin's device, same reasoning as M-96 adding `district_data_cleared` there.
+- [x] `GET /api/districts/[district]/status` returns `fyDataClearedAt` (epoch ms). The DEO layout (`apps/web/app/(deo)/layout.tsx`) shows a bilingual re-entry banner while it is set and the district is still `pending`/`in_progress` — tells the DEO to download a fresh template on Upload, enter FY 2025-26 figures, and use Clear Staged Data on Verify if old local rows still show. Clears itself once they re-submit.
+- [x] Excel template wording (`apps/web/src/lib/excel.ts`) — the Data Entry title cell and the Instructions sheet FY warning now name FY 2026-27 explicitly as the wrong year and state that a district which uploaded current-year data will have it cleared and must re-enter FY 2025-26. Bilingual. No `dataValidation` / merged-cell-structure / sheet-name change, so no OOXML-limit risk; `pnpm --filter web test` re-run anyway and clean.
+
+**What already existed and was reused unchanged:** the validated re-entry template with circle/sector dropdown and all validation (`generateTemplate()`, reachable from `/upload`'s "Download District Template", blank when D1 is empty); the `/verify` thana-name mismatch red pills + `ThanaVariantsCard` self-consistency check.
+
+**Verified:** `pnpm typecheck` clean (both packages); `pnpm --filter web test` (OOXML limits) clean.
+
+**Not done (per "do till this step"):** no bulk "clear all remaining" action; no change to the M-100 blocking modal. Migration 0010 still needs applying to remote D1 (`wrangler d1 execute up-excise-spatial-revenue-optimizer-prod --remote --file=../../migrations/0010_add_fy_data_cleared_at.sql` from `apps/web`) before the feature works in prod.
+
+**Exit criterion:** an admin can clear a district's FY 2026-27 data once from `/admin/fy-cleanup`; a second attempt on the same district is refused (409, button greyed); every clear is in the audit log with actor + reason; the affected DEO sees a re-entry banner and a fresh validated template; circles/sectors, DEO identity, and district/DEO name survive the clear.
+
+---
+
 ## Backlog / Not Started
 
 - [x] ~~Verify `exciseup.in` in Resend and switch `RESEND_FROM_EMAIL`~~ — Done. `mail.exciseup.in` verified; `RESEND_FROM_EMAIL` set to `noreply@mail.exciseup.in` on this project's Worker, and the same address set as `FROM_EMAIL` on the sibling `excise-revenue-recovery-portal` project's Worker (different env var name there, same Resend account/domain). Magic-link email is now the Admin/HQ login channel only (DEOs use CUG login as of M-17).

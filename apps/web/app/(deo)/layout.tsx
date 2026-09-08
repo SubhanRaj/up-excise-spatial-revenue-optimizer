@@ -29,6 +29,7 @@ export default function DeoLayout({ children }: { children: React.ReactNode }) {
   const [submitted, setSubmitted] = useState(false);
   const [districtStatus, setDistrictStatus] = useState('pending');
   const [finalScreenMode, setFinalScreenMode] = useState(false);
+  const [fyDataReset, setFyDataReset] = useState(false);
   const [uploadedCount, setUploadedCount] = useState(0);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
@@ -80,9 +81,12 @@ export default function DeoLayout({ children }: { children: React.ReactNode }) {
           .then(units => setHasUnits(units.length > 0));
         fetch(`/api/districts/${encodeURIComponent(session.districtName)}/status`)
           .then(r => r.ok ? r.json() : { districtStatus: 'pending', verificationPhaseOpen: false })
-          .then((s: { districtStatus: string; verificationPhaseOpen: boolean }) => {
+          .then((s: { districtStatus: string; verificationPhaseOpen: boolean; fyDataClearedAt: number | null }) => {
             setSubmitted(s.districtStatus === 'submitted' || s.districtStatus === 'verified');
             setDistrictStatus(s.districtStatus);
+            // Cleared for FY-year re-entry and not yet re-submitted — show the re-entry banner.
+            // Clears itself once the DEO re-uploads and resubmits (status back to submitted/verified).
+            setFyDataReset(s.fyDataClearedAt != null && (s.districtStatus === 'pending' || s.districtStatus === 'in_progress'));
             // Once verified, the DEO sees only Dashboard + District Data — this holds even if
             // the admin later closes the state-wide round, since verification is final per
             // district, not tied to the round staying open. While merely 'submitted', the
@@ -181,6 +185,21 @@ export default function DeoLayout({ children }: { children: React.ReactNode }) {
             <span>›</span>
             <span className="text-base-content font-medium">{crumb}</span>
           </div>
+        </div>
+      )}
+
+      {fyDataReset && (
+        <div className="bg-warning/15 border-b border-warning/40 px-3 sm:px-6 py-2.5">
+          <p className="text-sm text-base-content/90 max-w-4xl">
+            <b>Your district&apos;s shop data was reset for re-entry.</b> Go to <b>Upload</b>, click
+            &ldquo;Download District Template&rdquo; for a fresh validated file, and enter <b>FY 2025-26</b> figures.
+            If old rows still show on the Verify page, use <b>Clear Staged Data</b> there first.
+            <span className="block text-base-content/70 mt-1">
+              आपके जिले का दुकान डेटा दोबारा भरने के लिए हटा दिया गया है। <b>Upload</b> पर जाकर &ldquo;Download District
+              Template&rdquo; से नई फ़ाइल लें और <b>FY 2025-26</b> के आंकड़े भरें। अगर Verify पेज पर पुरानी पंक्तियाँ दिखें तो
+              पहले वहाँ <b>Clear Staged Data</b> दबाएँ।
+            </span>
+          </p>
         </div>
       )}
 

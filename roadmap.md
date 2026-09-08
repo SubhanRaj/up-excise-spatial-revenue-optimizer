@@ -1039,8 +1039,12 @@ export const districts = sqliteTable('districts', {
   bboxMaxLon: real('bbox_max_lon'),
 
   // Submission lifecycle
-  status: text('status').default('pending').notNull(), // 'pending' | 'in_progress' | 'submitted'
+  status: text('status').default('pending').notNull(), // 'pending' | 'in_progress' | 'submitted' | 'verified'
   submittedAt: integer('submitted_at', { mode: 'timestamp' }),
+
+  cachedVendCount: integer('cached_vend_count'),      // M-96 — set at verify time, read instead of a GROUP BY scan
+  cachedTotalRevenue: integer('cached_total_revenue'),
+  fyDataClearedAt: integer('fy_data_cleared_at', { mode: 'timestamp' }), // M-101 — one-time FY 2026-27 cleanup guard
 
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
 

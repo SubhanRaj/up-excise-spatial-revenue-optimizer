@@ -11,6 +11,7 @@ export interface AdminDistrictRow {
   bboxMinLat: number | null; bboxMaxLat: number | null;
   bboxMinLon: number | null; bboxMaxLon: number | null;
   submittedAt: string | null; // ISO string — Drizzle's `mode: 'timestamp'` columns serialize to this over JSON, not raw epoch seconds
+  fyDataClearedAt: string | null; // ISO string; non-null once an admin has run the one-time FY 2026-27 cleanup for this district (M-101)
 }
 
 interface ApiResponse {

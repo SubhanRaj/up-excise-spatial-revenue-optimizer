@@ -22,6 +22,7 @@ async function GET_(): Promise<NextResponse> {
       bboxMinLat: districts.bboxMinLat, bboxMaxLat: districts.bboxMaxLat,
       bboxMinLon: districts.bboxMinLon, bboxMaxLon: districts.bboxMaxLon,
       cachedVendCount: districts.cachedVendCount, cachedTotalRevenue: districts.cachedTotalRevenue,
+      fyDataClearedAt: districts.fyDataClearedAt,
     }).from(districts).orderBy(asc(districts.name)).all(),
     db.select({
       districtName: districtCirclesSectors.districtName,

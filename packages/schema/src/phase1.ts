@@ -75,6 +75,12 @@ export const districts = sqliteTable('districts', {
   // back out by the Delete Shop Data route when it resets a district to 'pending'.
   cachedVendCount: integer('cached_vend_count'),
   cachedTotalRevenue: integer('cached_total_revenue'),
+
+  // Set once when an admin clears this district's wrongly-entered FY 2026-27 shop data
+  // (M-101, POST /api/admin/districts/[district]/clear-fy-data, surfaced on /admin/fy-cleanup).
+  // Non-null = already cleared once; that action is one-time per district so a re-entered
+  // FY 2025-26 dataset can't be wiped again by mistake.
+  fyDataClearedAt: integer('fy_data_cleared_at', { mode: 'timestamp' }),
 }, (t) => ({
   nameIdx: index('dist_name_idx').on(t.name),
   emailIdx: index('dist_email_hash_idx').on(t.deoEmailHash),
@@ -115,7 +121,7 @@ export const auditLog = sqliteTable('audit_log', {
   // 'login' | 'logout' | 'login_cug' | 'upload_chunk' | 'district_submitted' | 'unit_registered'
   // | 'units_unlocked' | 'data_correction_unlocked' | 'district_master_updated' | 'bulk_provision'
   // | 'unlock_requested' | 'unlock_request_denied' | 'district_verified' | 'verification_phase_toggled'
-  // | 'fy_reminder_acknowledged'
+  // | 'fy_reminder_acknowledged' | 'district_data_cleared' | 'fy_data_cleared'
   eventType: text('event_type').notNull(),
   deoId: text('deo_id').notNull(),
   districtName: text('district_name'),
