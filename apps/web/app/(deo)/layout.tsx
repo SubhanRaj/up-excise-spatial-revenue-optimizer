@@ -69,7 +69,7 @@ export default function DeoLayout({ children }: { children: React.ReactNode }) {
             <p style="margin-top:6px">Model Shop के लिए, स्थिर <b>₹3,00,000 On Premises Consumption Fee</b> पोर्टल द्वारा उस दुकान के Total Revenue में अपने-आप जोड़ दिया जाता है — यह कोई ऐसा field नहीं है जिसे आपको भरना है। इसे Excel फ़ाइल में कहीं भी खुद दर्ज न करें।</p>
           </div>
         </div>
-        <p style="margin-top:10px"><a href="${DEO_MANUAL_URL}" target="_blank" rel="noopener noreferrer" style="color:#2563eb;text-decoration:underline">Open the DEO User Manual (PDF)</a> for the full explanation, with every revenue formula.</p>
+        <p style="margin-top:14px;text-align:center;font-size:1rem"><a href="${DEO_MANUAL_URL}" target="_blank" rel="noopener noreferrer" style="color:#2563eb;text-decoration:underline;font-weight:600">Open the DEO User Manual (PDF)</a> for the full explanation, with every revenue formula.</p>
       </div>`,
       confirmButtonText: 'I understand',
       allowOutsideClick: false,
