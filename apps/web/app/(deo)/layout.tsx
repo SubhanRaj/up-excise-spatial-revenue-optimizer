@@ -56,13 +56,19 @@ export default function DeoLayout({ children }: { children: React.ReactNode }) {
     Swal?.fire({
       icon: 'warning',
       title: 'Enter FY 2025-26 data only',
-      width: '48rem',
-      html: `<div style="text-align:left">
-        <p>All figures in this district's Excel file must be for <b>FY 2025-26</b> (1 April 2025 – 31 March 2026) — the <b>previous</b> financial year, not the current one.</p>
-        <p style="margin-top:8px">Every revenue field is in <b>rupees (₹)</b>, except <b>MGQ Quantity</b> on Bhang Shop rows — that one is a quantity (units/kg), not rupees. The portal multiplies it by ₹20/unit to get the revenue figure; do not enter a pre-calculated rupee amount there.</p>
-        <p style="margin-top:8px">For a Model Shop, the fixed <b>₹3,00,000 On Premises Consumption Fee</b> is added automatically by the portal to that shop's Total Revenue — it is not a field you fill in. Do not enter it yourself anywhere in the Excel file.</p>
-        <p style="margin-top:10px;color:#64748b">सभी आंकड़े <b>FY 2025-26</b> (1 अप्रैल 2025 – 31 मार्च 2026), यानी <b>पिछले</b> वित्तीय वर्ष के होने चाहिए, चालू वर्ष के नहीं। हर राजस्व field <b>रुपये (₹)</b> में है, सिवाय Bhang Shop की <b>MGQ Quantity</b> के — वह एक मात्रा (यूनिट/किलोग्राम) है, रुपये नहीं। पोर्टल इसे ₹20 प्रति यूनिट से गुणा करके राजस्व निकालता है; वहां सीधे रुपये की गणना करके न भरें।</p>
-        <p style="margin-top:6px;color:#64748b">Model Shop के लिए, स्थिर <b>₹3,00,000 On Premises Consumption Fee</b> पोर्टल द्वारा उस दुकान के Total Revenue में अपने-आप जोड़ दिया जाता है — यह कोई ऐसा field नहीं है जिसे आपको भरना है। इसे Excel फ़ाइल में कहीं भी खुद दर्ज न करें।</p>
+      width: '64rem',
+      html: `<div style="text-align:left;font-size:0.92rem;line-height:1.4">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:4px 28px">
+          <div>
+            <p>All figures in this district's Excel file must be for <b>FY 2025-26</b> (1 April 2025 – 31 March 2026) — the <b>previous</b> financial year, not the current one.</p>
+            <p style="margin-top:6px">Every revenue field is in <b>rupees (₹)</b>, except <b>MGQ Quantity</b> on Bhang Shop rows — that one is a quantity (units/kg), not rupees. The portal multiplies it by ₹20/unit to get the revenue figure; do not enter a pre-calculated rupee amount there.</p>
+            <p style="margin-top:6px">For a Model Shop, the fixed <b>₹3,00,000 On Premises Consumption Fee</b> is added automatically by the portal to that shop's Total Revenue — it is not a field you fill in. Do not enter it yourself anywhere in the Excel file.</p>
+          </div>
+          <div style="color:#64748b">
+            <p>सभी आंकड़े <b>FY 2025-26</b> (1 अप्रैल 2025 – 31 मार्च 2026), यानी <b>पिछले</b> वित्तीय वर्ष के होने चाहिए, चालू वर्ष के नहीं। हर राजस्व field <b>रुपये (₹)</b> में है, सिवाय Bhang Shop की <b>MGQ Quantity</b> के — वह एक मात्रा (यूनिट/किलोग्राम) है, रुपये नहीं। पोर्टल इसे ₹20 प्रति यूनिट से गुणा करके राजस्व निकालता है; वहां सीधे रुपये की गणना करके न भरें।</p>
+            <p style="margin-top:6px">Model Shop के लिए, स्थिर <b>₹3,00,000 On Premises Consumption Fee</b> पोर्टल द्वारा उस दुकान के Total Revenue में अपने-आप जोड़ दिया जाता है — यह कोई ऐसा field नहीं है जिसे आपको भरना है। इसे Excel फ़ाइल में कहीं भी खुद दर्ज न करें।</p>
+          </div>
+        </div>
         <p style="margin-top:10px"><a href="${DEO_MANUAL_URL}" target="_blank" rel="noopener noreferrer" style="color:#2563eb;text-decoration:underline">Open the DEO User Manual (PDF)</a> for the full explanation, with every revenue formula.</p>
       </div>`,
       confirmButtonText: 'I understand',

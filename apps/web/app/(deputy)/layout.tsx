@@ -65,7 +65,7 @@ export default function DeputyLayout({ children }: { children: React.ReactNode }
             <div className="hidden sm:block">
               <div className="font-bold text-sm leading-tight group-hover:text-primary transition-colors">UP Excise SRO</div>
               <div className="text-xs text-base-content/70 leading-tight">
-                Deputy Commissioner{session?.division ? ` · ${session.division} Division` : ''}
+                Deputy Excise Commissioner{session?.division ? ` · ${session.division} Division` : ''}
               </div>
             </div>
           </Link>
@@ -105,7 +105,7 @@ export default function DeputyLayout({ children }: { children: React.ReactNode }
             {session && (
               <div className="leading-tight border-t border-base-200 pt-3">
                 <p className="text-sm font-semibold text-base-content">{session.name}</p>
-                <p className="text-xs text-base-content/60">{session.division ? `${session.division} Division` : 'Deputy Commissioner'}</p>
+                <p className="text-xs text-base-content/60">{session.division ? `${session.division} Division` : 'Deputy Excise Commissioner'}</p>
               </div>
             )}
             <ul className="menu menu-sm p-0 gap-1 border-t border-base-200 pt-3">
