@@ -41,8 +41,8 @@ const SECTIONS: Section[] = [
     file: '01-login-page.png',
     titleEn: '1. Signing In',
     titleHi: '१. साइन इन करें',
-    textEn: 'Open the portal in your browser. DEOs sign in with their department CUG mobile number — tap the "CUG Mobile (DEO)" tab (selected by default), enter your 10-digit CUG number, and tap "Sign in". Your number is kept fully secure and private. You do not need a password.',
-    textHi: 'अपने ब्राउज़र में पोर्टल खोलें। DEO अपने विभागीय CUG मोबाइल नंबर से साइन इन करते हैं — "CUG Mobile (DEO)" टैब चुनें (यह डिफ़ॉल्ट रूप से चयनित है), अपना 10-अंकीय CUG नंबर दर्ज करें, और "Sign in" पर टैप करें। आपका नंबर पूरी तरह सुरक्षित और निजी रखा जाता है। आपको किसी पासवर्ड की आवश्यकता नहीं है।',
+    textEn: 'Open the portal in your browser. The sign-in box has three tabs — "DEO (CUG)", "Deputy (CUG)", and "Admin (Email)". DEOs use "DEO (CUG)", which is selected by default: enter your 10-digit department CUG mobile number and tap "Sign in". Make sure you are on the "DEO (CUG)" tab, not "Deputy (CUG)" — a DEO number entered under the Deputy tab is refused. Your number is kept fully secure and private. You do not need a password.',
+    textHi: 'अपने ब्राउज़र में पोर्टल खोलें। साइन-इन बॉक्स में तीन टैब हैं — "DEO (CUG)", "Deputy (CUG)", और "Admin (Email)"। DEO "DEO (CUG)" टैब का उपयोग करते हैं, जो डिफ़ॉल्ट रूप से चयनित रहता है: अपना 10-अंकीय विभागीय CUG मोबाइल नंबर दर्ज करें और "Sign in" पर टैप करें। सुनिश्चित करें कि आप "DEO (CUG)" टैब पर हैं, "Deputy (CUG)" पर नहीं — Deputy टैब के नीचे डाला गया DEO नंबर अस्वीकार कर दिया जाता है। आपका नंबर पूरी तरह सुरक्षित और निजी रखा जाता है। आपको किसी पासवर्ड की आवश्यकता नहीं है।',
   },
   {
     titleEn: '2. FY 2025-26 Data Reminder',

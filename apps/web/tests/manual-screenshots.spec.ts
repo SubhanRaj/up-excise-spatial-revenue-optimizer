@@ -19,6 +19,10 @@ let shotIndex = 0;
 async function shot(page: import('@playwright/test').Page, name: string) {
   shotIndex += 1;
   const file = path.join(SHOTS_DIR, `${String(shotIndex).padStart(2, '0')}-${name}.png`);
+  // Drop dev-only overlays (Notyf toasts, the Next.js dev issues indicator) before capture.
+  await page.evaluate(() =>
+    document.querySelectorAll('.notyf, nextjs-portal, [data-nextjs-toast]').forEach((n) => n.remove()),
+  );
   await page.screenshot({ path: file, fullPage: true });
 }
 
@@ -43,7 +47,14 @@ test.describe('DEO Manual — screenshot walkthrough', () => {
   });
 
   test('walk the full DEO flow and capture screenshots', async ({ page }) => {
-    test.setTimeout(90000);
+    test.setTimeout(180000);
+
+    // The FY 2025-26 reminder (M-100) is a blocking SweetAlert2 modal that re-fires on every
+    // DEO page load. Auto-dismiss it wherever it appears so the walkthrough can drive the UI.
+    await page.addLocatorHandler(
+      page.locator('button.swal2-confirm', { hasText: 'I understand' }),
+      async (el) => { await el.click(); },
+    );
 
     // Login page — captured as-is, unauthenticated, so the manual shows the real CUG/Email UI.
     await page.goto('/login');
@@ -51,17 +62,30 @@ test.describe('DEO Manual — screenshot walkthrough', () => {
     await shot(page, 'login-page');
 
     // Two identities are needed now that DEO routes are deo-only (see loginAs above): a real
-    // role: 'deo' account for the DEO-flow shots, and the superadmin/owner account (from
-    // SUPERADMIN_TEST_EMAIL, still used for the admin-view shots later) for the admin-portal
-    // shots. Local D1 only — never run against remote.
-    const OWNER_EMAIL = process.env.SUPERADMIN_TEST_EMAIL;
-    if (!OWNER_EMAIL) throw new Error('SUPERADMIN_TEST_EMAIL env var is required to run this test');
-    const ownerEmailHash = crypto.createHash('sha256').update(OWNER_EMAIL.trim().toLowerCase()).digest('hex');
+    // role: 'deo' account for the DEO-flow shots, and an admin account for the admin-view shots
+    // later. Both are seeded here into local D1 — the admin-view shots (district detail, unlock
+    // requests) only need role: 'admin', not the superadmin bypass. Local D1 only — never remote.
+    const ADMIN_TEST_EMAIL = 'admin-manual-walkthrough@example.local';
+    const ownerEmailHash = crypto.createHash('sha256').update(ADMIN_TEST_EMAIL).digest('hex');
+    execSync(
+      `pnpm --filter web exec wrangler d1 execute up-excise-spatial-revenue-optimizer-prod --local --command="INSERT INTO auth_users (email_hash, name, role, deo_id, designation) VALUES ('${ownerEmailHash}', 'HQ Reviewer', 'admin', 'ADMIN-MANUAL', 'Excise Commissioner') ON CONFLICT(email_hash) DO UPDATE SET role='admin', designation='Excise Commissioner';"`,
+    );
 
     const DEO_TEST_EMAIL = 'deo-manual-walkthrough@example.local';
     const deoEmailHash = crypto.createHash('sha256').update(DEO_TEST_EMAIL).digest('hex');
     execSync(
       `pnpm --filter web exec wrangler d1 execute up-excise-spatial-revenue-optimizer-prod --local --command="INSERT INTO auth_users (email_hash, name, role, deo_id, district_name) VALUES ('${deoEmailHash}', 'Agra DEO', 'deo', 'DEO-AGRA', '${DISTRICT}') ON CONFLICT(email_hash) DO UPDATE SET role='deo', deo_id='DEO-AGRA', district_name='${DISTRICT}';"`,
+    );
+
+    // Reset the demo district so the walkthrough always starts from Step 1 (this spec locks
+    // units, uploads shops, and files an unlock request — none of that is idempotent).
+    execSync(
+      `pnpm --filter web exec wrangler d1 execute up-excise-spatial-revenue-optimizer-prod --local --command="` +
+      `DELETE FROM district_circles_sectors WHERE district_name='${DISTRICT}';` +
+      `DELETE FROM phase1_raw_collection WHERE district_name='${DISTRICT}';` +
+      `DELETE FROM district_unlock_requests WHERE district_name='${DISTRICT}';` +
+      `UPDATE districts SET status='pending', cached_vend_count=NULL, cached_total_revenue=NULL, fy_data_cleared_at=NULL WHERE name='${DISTRICT}';` +
+      `UPDATE app_settings SET verification_phase_open=0 WHERE id=1;"`,
     );
     await loginAs(page, deoEmailHash);
 
@@ -123,15 +147,9 @@ test.describe('DEO Manual — screenshot walkthrough', () => {
     // Build a small valid Excel matching the district template layout
     const tmpDir = os.tmpdir();
     const excelPath = path.join(tmpDir, 'manual-demo-upload.xlsx');
-    const TEMPLATE_HEADERS = [
-      'circle_sector_name', 'thana_name', 'adjacent_thanas_raw',
-      'shop_id', 'shop_name', 'shop_type', 'has_cl5cc',
-      'latitude', 'longitude',
-      'license_fee_lf', 'basic_license_fee_blf',
-      'mgr_amount', 'composite_lf_fl', 'composite_lf_beer',
-      'composite_mgr_fl', 'composite_mgr_beer', 'mgq_quantity',
-      'consideration_fee', 'special_beer_lf', 'special_beer_mgr',
-    ];
+    // Column order matches the template's "Data Entry" sheet (TEMPLATE_HEADERS in
+    // src/lib/excel.ts): circle_sector_name, thana_name, adjacent_thanas_raw, shop_id,
+    // shop_name, shop_type, has_cl5cc, latitude, longitude, then the financial fields.
     const rows = [
       // adjacent_thanas_raw is mandatory (as of 2026-08-04) — every demo row below fills it in,
       // matching what the portal now actually requires before a row can be submitted.
@@ -146,9 +164,12 @@ test.describe('DEO Manual — screenshot walkthrough', () => {
       // same two columns as COUNTRY_LIQUOR, different formula.
       ['Sector - 2', 'Sadar Bazar', 'Hariparvat', 'AG0005', 'Agra Fort Hotel Bar', 'HBR', 0, 27.18, 78.02, 250000, 0, 0, 0, 0, 0, 0, 0, 400000, 0, 0],
     ];
+    // Fill the demo rows into the REAL downloaded template (title on row 1, header on row 2,
+    // hidden "Reference Data" sheet). parseExcelFile() rejects any workbook missing that sheet
+    // (M-90), so a hand-built bare workbook no longer parses — start from the real file.
     const wb = new ExcelJS.Workbook();
-    const ws = wb.addWorksheet('Data Entry');
-    ws.addRow(TEMPLATE_HEADERS);
+    await wb.xlsx.readFile(templateSamplePath);
+    const ws = wb.getWorksheet('Data Entry')!;
     for (const r of rows) ws.addRow(r);
     await wb.xlsx.writeFile(excelPath);
 

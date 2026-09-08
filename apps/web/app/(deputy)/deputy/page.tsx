@@ -165,6 +165,10 @@ export default function DeputyDashboard() {
             <li><strong>District table</strong> — the same list as the map. Click a row for the shop-level detail.</li>
             <li><strong>Review</strong> — on a district page, record &ldquo;looks correct&rdquo; or &ldquo;flag an issue&rdquo;. Headquarters sees it in the audit log; it changes no data.</li>
           </ul>
+          <p className="mt-2 pt-2 border-t border-base-200">
+            Full step-by-step guide (English &amp; Hindi):{' '}
+            <a href="https://raw.githubusercontent.com/SubhanRaj/up-excise-spatial-revenue-optimizer/main/docs/manual/Deputy-User-Manual.pdf" target="_blank" rel="noopener noreferrer" className="link link-primary font-medium">Deputy User Manual (PDF)</a>
+          </p>
         </HelpPanel>
       </div>
 
