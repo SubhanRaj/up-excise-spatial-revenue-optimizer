@@ -64,25 +64,37 @@ export default function ProfileMenu({ session }: { session: SessionInfo }) {
             <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 shrink-0 text-base-content/50" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>
             <span className="truncate">{session.name}</span>
           </div>
-          {session.role === 'superadmin' && (
-            <>
+          {(session.role === 'admin' || session.role === 'superadmin') && (
+            <div className="border-t border-base-200 pt-2 space-y-2">
               <Link
-                href="/admin/provision"
-                onClick={() => setOpen(false)}
-                className="flex items-center gap-1.5 rounded-md border-t border-base-200 pt-2 text-base-content/80 hover:text-base-content"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 shrink-0 text-base-content/50" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18"/><path d="M9 8h1"/><path d="M9 12h1"/><path d="M9 16h1"/><path d="M14 8h1"/><path d="M14 12h1"/><path d="M14 16h1"/><path d="M5 21V6l7-3 7 3v15"/></svg>
-                District Master
-              </Link>
-              <Link
-                href="/admin/users"
+                href="/admin/fy-cleanup"
                 onClick={() => setOpen(false)}
                 className="flex items-center gap-1.5 text-base-content/80 hover:text-base-content"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 shrink-0 text-base-content/50" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                Admin Users
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 shrink-0 text-base-content/50" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+                FY Cleanup
               </Link>
-            </>
+              {session.role === 'superadmin' && (
+                <>
+                  <Link
+                    href="/admin/provision"
+                    onClick={() => setOpen(false)}
+                    className="flex items-center gap-1.5 text-base-content/80 hover:text-base-content"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 shrink-0 text-base-content/50" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18"/><path d="M9 8h1"/><path d="M9 12h1"/><path d="M9 16h1"/><path d="M14 8h1"/><path d="M14 12h1"/><path d="M14 16h1"/><path d="M5 21V6l7-3 7 3v15"/></svg>
+                    District Master
+                  </Link>
+                  <Link
+                    href="/admin/users"
+                    onClick={() => setOpen(false)}
+                    className="flex items-center gap-1.5 text-base-content/80 hover:text-base-content"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 shrink-0 text-base-content/50" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                    Admin Users
+                  </Link>
+                </>
+              )}
+            </div>
           )}
           <button
             type="button"

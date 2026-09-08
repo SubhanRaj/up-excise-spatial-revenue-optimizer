@@ -186,7 +186,6 @@ function getBreadcrumbs(pathname: string): { label: string; href: string | null 
     '/admin/unlock-requests': [{ label: 'Overview', href: '/admin' }, { label: 'Unlock Requests', href: null }],
     '/admin/audit': [{ label: 'Overview', href: '/admin' }, { label: 'Audit Log', href: null }],
     '/admin/export': [{ label: 'Overview', href: '/admin' }, { label: 'Export', href: null }],
-    '/admin/data-quality': [{ label: 'Overview', href: '/admin' }, { label: 'Data Quality', href: null }],
     '/admin/fy-cleanup': [{ label: 'Overview', href: '/admin' }, { label: 'FY Cleanup', href: null }],
   };
   return MAP[pathname] ?? [];
@@ -234,8 +233,6 @@ const NAV_LINKS = (session: ReturnType<typeof useSession>['session']) => [
   { href: '/admin/unlock-requests', label: 'Unlock Requests', active: (p: string) => p === '/admin/unlock-requests' },
   { href: '/admin/audit', label: 'Audit', active: (p: string) => p === '/admin/audit' },
   { href: '/admin/export', label: 'Export', active: (p: string) => p === '/admin/export' },
-  { href: '/admin/data-quality', label: 'Data Quality', active: (p: string) => p === '/admin/data-quality' },
-  { href: '/admin/fy-cleanup', label: 'FY Cleanup', active: (p: string) => p === '/admin/fy-cleanup' },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -315,6 +312,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <Link href={l.href} onClick={() => setDrawerOpen(false)} className={l.active(pathname) ? 'active' : ''}>{l.label}</Link>
                 </li>
               ))}
+              <li><Link href="/admin/fy-cleanup" onClick={() => setDrawerOpen(false)} className={pathname === '/admin/fy-cleanup' ? 'active' : ''}>FY Cleanup</Link></li>
               {session?.role === 'superadmin' && (
                 <>
                   <li><Link href="/admin/provision" onClick={() => setDrawerOpen(false)} className={pathname === '/admin/provision' ? 'active' : ''}>District Master</Link></li>
