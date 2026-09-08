@@ -59,12 +59,6 @@ export default function LoginForm() {
         window.location.href = data.redirect;
         return;
       }
-      // Right number, wrong tab — show which tab to use, don't count it toward the
-      // brute-force cooldown (the number itself is valid).
-      if (res.status === 403) {
-        setError(data.error ?? 'This number belongs to a different role — check the tab.');
-        return;
-      }
       const nextFailures = failedAttempts + 1;
       setFailedAttempts(nextFailures);
       if (res.status === 429) {

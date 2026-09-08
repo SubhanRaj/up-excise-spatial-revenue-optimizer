@@ -34,22 +34,18 @@ async function POST_(req: NextRequest): Promise<NextResponse> {
   }
 
   const user = await db.select().from(authUsers).where(eq(authUsers.deoCugHash, cugHash)).limit(1).then((r) => r[0] ?? null);
-  if (!user) return NextResponse.json({ error: 'Invalid CUG number' }, { status: 401 });
 
-  // The login page's DEO / Deputy tabs both post here; the tab is passed as `expect` so a
-  // number entered under the wrong tab is refused rather than silently signing the person in
-  // as whatever role the number actually holds.
-  if (expectRole && user.role !== expectRole) {
-    const tab = user.role === 'deputy' ? 'Deputy (CUG)'
-      : user.role === 'deo' ? 'DEO (CUG)'
-      : 'Admin (Email)';
-    const who = user.role === 'deputy' ? 'a Deputy Excise Commissioner'
-      : user.role === 'deo' ? 'a District Excise Officer'
-      : 'an administrator';
-    return NextResponse.json({ error: `This number belongs to ${who}. Use the "${tab}" tab.` }, { status: 403 });
-  }
-
+  // A number entered under the wrong login tab (`expect` from LoginForm) must not create a
+  // session for whatever role the number actually holds. The response is byte-for-byte the
+  // same as an unrecognised number — same body, same status, same rate-limit accounting — so
+  // the check leaks nothing about whether the number is registered or what role it has. Only
+  // a `superadmin` (derived below from the email hash, not the row's role) is let past a
+  // 'deo' expectation, since that account signs in through the DEO tab.
   const superadminHash = env.SUPERADMIN_EMAIL_HASH || '3d7c1aa91263a2c5b1ed9bc4233205aa2907cdacbb3afcc4eaf09d666bd42610';
+  const roleMismatch = user != null && expectRole != null && user.role !== expectRole
+    && !(expectRole === 'deo' && user.emailHash === superadminHash);
+  if (!user || roleMismatch) return NextResponse.json({ error: 'Invalid CUG number' }, { status: 401 });
+
   const isSuper = superadminHash && user.emailHash === superadminHash;
   const effectiveRole = isSuper ? 'superadmin' : user.role;
   const effectiveDistrict = user.districtName ?? null;
