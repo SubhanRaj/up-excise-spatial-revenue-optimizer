@@ -16,10 +16,11 @@ const MAX_ATTEMPTS_PER_WINDOW = 10;
 // Alternate to the magic-link flow in /api/auth/verify, for while RESEND_FROM_EMAIL's domain
 // isn't verified and email delivery can't be relied on for login.
 async function POST_(req: NextRequest): Promise<NextResponse> {
-  const { cugHash } = await req.json() as { cugHash?: unknown };
+  const { cugHash, expect } = await req.json() as { cugHash?: unknown; expect?: unknown };
   if (typeof cugHash !== 'string' || !CUG_HASH_RE.test(cugHash)) {
     return NextResponse.json({ error: 'Invalid CUG number' }, { status: 400 });
   }
+  const expectRole = expect === 'deo' || expect === 'deputy' ? expect : null;
 
   const { env } = await getCloudflareContext({ async: true }) as { env: CloudflareEnv };
   const db = drizzle(env.DB);
@@ -34,6 +35,19 @@ async function POST_(req: NextRequest): Promise<NextResponse> {
 
   const user = await db.select().from(authUsers).where(eq(authUsers.deoCugHash, cugHash)).limit(1).then((r) => r[0] ?? null);
   if (!user) return NextResponse.json({ error: 'Invalid CUG number' }, { status: 401 });
+
+  // The login page's DEO / Deputy tabs both post here; the tab is passed as `expect` so a
+  // number entered under the wrong tab is refused rather than silently signing the person in
+  // as whatever role the number actually holds.
+  if (expectRole && user.role !== expectRole) {
+    const tab = user.role === 'deputy' ? 'Deputy (CUG)'
+      : user.role === 'deo' ? 'DEO (CUG)'
+      : 'Admin (Email)';
+    const who = user.role === 'deputy' ? 'a Deputy Excise Commissioner'
+      : user.role === 'deo' ? 'a District Excise Officer'
+      : 'an administrator';
+    return NextResponse.json({ error: `This number belongs to ${who}. Use the "${tab}" tab.` }, { status: 403 });
+  }
 
   const superadminHash = env.SUPERADMIN_EMAIL_HASH || '3d7c1aa91263a2c5b1ed9bc4233205aa2907cdacbb3afcc4eaf09d666bd42610';
   const isSuper = superadminHash && user.emailHash === superadminHash;

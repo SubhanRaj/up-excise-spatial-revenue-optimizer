@@ -51,12 +51,18 @@ export default function LoginForm() {
       const res = await fetch('/api/auth/verify-cug', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cugHash }),
+        body: JSON.stringify({ cugHash, expect: mode === 'deputy' ? 'deputy' : 'deo' }),
       });
       const data = await res.json() as { redirect?: string; error?: string };
       if (data.redirect) {
         setFailedAttempts(0);
         window.location.href = data.redirect;
+        return;
+      }
+      // Right number, wrong tab — show which tab to use, don't count it toward the
+      // brute-force cooldown (the number itself is valid).
+      if (res.status === 403) {
+        setError(data.error ?? 'This number belongs to a different role — check the tab.');
         return;
       }
       const nextFailures = failedAttempts + 1;
