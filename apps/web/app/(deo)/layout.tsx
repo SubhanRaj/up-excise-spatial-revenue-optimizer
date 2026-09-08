@@ -32,25 +32,44 @@ export default function DeoLayout({ children }: { children: React.ReactNode }) {
   const [uploadedCount, setUploadedCount] = useState(0);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
+  // Same manual URL as (deo)/home/page.tsx's DEO_MANUAL_URL — not shared into a constants
+  // file for one string; keep both in sync if the manual ever moves.
+  const DEO_MANUAL_URL = 'https://raw.githubusercontent.com/SubhanRaj/up-excise-spatial-revenue-optimizer/main/docs/manual/DEO-User-Manual.pdf';
+
   // Fires once per full page load/refresh (this layout stays mounted across client-side nav
   // between /home, /units, /upload, /verify — only a hard reload or first visit remounts it),
   // not on every navigation. No dismiss-forever flag — a DEO who dismisses it mentally forgets
   // it exists within days, so it must survive being ignored once and reappear next reload.
+  // Blocking (allowOutsideClick/allowEscapeKey: false) so a DEO can't click past it without
+  // reading it — the only way through is the "I understand" button, which also logs an
+  // acknowledgment to D1 (audit_log, event fy_reminder_acknowledged) for accountability. The
+  // POST is fire-and-forget: a DEO offline or mid-connectivity-drop still gets to proceed
+  // (see CLAUDE.md's "PWA & Offline" — a network hiccup must never block portal use), it just
+  // won't have a logged row for this particular showing.
   const fyReminderShown = useRef(false);
   useEffect(() => {
     if (fyReminderShown.current || !session?.districtName) return;
     fyReminderShown.current = true;
-    const Swal = (window as unknown as { Swal?: { fire: (o: unknown) => void } }).Swal;
+    const districtName = session.districtName;
+    const Swal = (window as unknown as { Swal?: { fire: (o: unknown) => Promise<unknown> } }).Swal;
     Swal?.fire({
       icon: 'warning',
       title: 'Enter FY 2025-26 data only',
+      width: '48rem',
       html: `<div style="text-align:left">
         <p>All figures in this district's Excel file must be for <b>FY 2025-26</b> (1 April 2025 – 31 March 2026) — the <b>previous</b> financial year, not the current one.</p>
         <p style="margin-top:8px">Every revenue field is in <b>rupees (₹)</b>, except <b>MGQ Quantity</b> on Bhang Shop rows — that one is a quantity (units/kg), not rupees. The portal multiplies it by ₹20/unit to get the revenue figure; do not enter a pre-calculated rupee amount there.</p>
+        <p style="margin-top:8px">For a Model Shop, the fixed <b>₹3,00,000 On Premises Consumption Fee</b> is added automatically by the portal to that shop's Total Revenue — it is not a field you fill in. Do not enter it yourself anywhere in the Excel file.</p>
         <p style="margin-top:10px;color:#64748b">सभी आंकड़े <b>FY 2025-26</b> (1 अप्रैल 2025 – 31 मार्च 2026), यानी <b>पिछले</b> वित्तीय वर्ष के होने चाहिए, चालू वर्ष के नहीं। हर राजस्व field <b>रुपये (₹)</b> में है, सिवाय Bhang Shop की <b>MGQ Quantity</b> के — वह एक मात्रा (यूनिट/किलोग्राम) है, रुपये नहीं। पोर्टल इसे ₹20 प्रति यूनिट से गुणा करके राजस्व निकालता है; वहां सीधे रुपये की गणना करके न भरें।</p>
+        <p style="margin-top:6px;color:#64748b">Model Shop के लिए, स्थिर <b>₹3,00,000 On Premises Consumption Fee</b> पोर्टल द्वारा उस दुकान के Total Revenue में अपने-आप जोड़ दिया जाता है — यह कोई ऐसा field नहीं है जिसे आपको भरना है। इसे Excel फ़ाइल में कहीं भी खुद दर्ज न करें।</p>
+        <p style="margin-top:10px"><a href="${DEO_MANUAL_URL}" target="_blank" rel="noopener noreferrer" style="color:#2563eb;text-decoration:underline">Open the DEO User Manual (PDF)</a> for the full explanation, with every revenue formula.</p>
       </div>`,
-      confirmButtonText: 'Understood',
-    } as unknown);
+      confirmButtonText: 'I understand',
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+    } as unknown).then(() => {
+      fetch(`/api/districts/${encodeURIComponent(districtName)}/ack-fy-reminder`, { method: 'POST' }).catch(() => {});
+    });
   }, [session]);
 
   useEffect(() => {

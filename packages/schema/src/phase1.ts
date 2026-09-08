@@ -115,6 +115,7 @@ export const auditLog = sqliteTable('audit_log', {
   // 'login' | 'logout' | 'login_cug' | 'upload_chunk' | 'district_submitted' | 'unit_registered'
   // | 'units_unlocked' | 'data_correction_unlocked' | 'district_master_updated' | 'bulk_provision'
   // | 'unlock_requested' | 'unlock_request_denied' | 'district_verified' | 'verification_phase_toggled'
+  // | 'fy_reminder_acknowledged'
   eventType: text('event_type').notNull(),
   deoId: text('deo_id').notNull(),
   districtName: text('district_name'),

@@ -202,6 +202,7 @@ All API routes are Next.js Route Handlers inside the single `up-excise-spatial-r
 | `GET` | `/api/districts/[district]/request-unlock` | `api/districts/[district]/request-unlock/route.ts` — the signed-in DEO's own latest unlock request (or `null`), for the `/units` locked-view pending banner |
 | `POST` | `/api/districts/[district]/request-unlock` | `api/districts/[district]/request-unlock/route.ts` — self-service unlock request (409 if not locked yet, or if a pending request already exists); audit-logged as `unlock_requested`. Works the same for `submitted` and `verified` districts — `isLocked()` treats both as locked, and a `verified` district can still request a correction unlock (M-96 briefly blocked this, reverted the same day in M-97) |
 | `POST` | `/api/districts/[district]/verify` | `api/districts/[district]/verify/route.ts` — M-60 final-verification confirm: `{ submittedByName }`, 409 unless the state-wide verification round is open **and** the district is `'submitted'`; flips `districts.status` to `'verified'` and audit-logs `district_verified`. Also computes this district's vend count/total revenue once and writes them to `districts.cachedVendCount`/`cachedTotalRevenue` (M-96) |
+| `POST` | `/api/districts/[district]/ack-fy-reminder` | `api/districts/[district]/ack-fy-reminder/route.ts` — logs that the signed-in DEO clicked "I understand" on the FY 2025-26 data reminder modal (`(deo)/layout.tsx`); audit-logs `fy_reminder_acknowledged`. Fired every time the modal is shown (every full page load, by design), not once ever — see the modal's own comment |
 
 **Admin (`role: admin`):**
 
@@ -689,7 +690,7 @@ The canonical schema is split across two files in `packages/schema/src/`:
 - `phase1_raw_collection` — all shop records (Section 5.2)
 - `districts` — district registry with DEO metadata (Section 5.3). `cachedVendCount`/`cachedTotalRevenue` (`migrations/0009_add_district_cached_aggregates.sql`, M-96) are set once at verification time and read by `GET /api/admin/districts` in place of a fresh `GROUP BY` scan for that district — see the M-96 note under "Admin Data Loading" below
 - `district_circles_sectors` — circles/sectors per district (Section 5.4)
-- `audit_log` — 45-day rolling event log (Section 5.5). Events actually written: `login`, `login_cug`, `logout`, `upload_chunk`, `district_submitted`, `unit_registered`, `units_unlocked`, `district_master_updated`, `bulk_provision`, `admin_user_created`, `admin_user_updated`, `admin_user_deleted`, `district_verified`, `verification_phase_toggled`, `district_data_cleared`. `actorName`/`actorDesignation` (added `migrations/0004_add_audit_actor_identity.sql`) capture the admin/superadmin actor's identity at write time for admin-initiated events (login, logout, unlock, District Master edits, bulk-provision) — null for DEO-actor events, where `deoId` already identifies the actor. `/admin/audit`'s `describeActor()` prefers `actorName`(+`actorDesignation`), falling back to `deoId`.
+- `audit_log` — 45-day rolling event log (Section 5.5). Events actually written: `login`, `login_cug`, `logout`, `upload_chunk`, `district_submitted`, `unit_registered`, `units_unlocked`, `district_master_updated`, `bulk_provision`, `admin_user_created`, `admin_user_updated`, `admin_user_deleted`, `district_verified`, `verification_phase_toggled`, `district_data_cleared`, `fy_reminder_acknowledged`. `actorName`/`actorDesignation` (added `migrations/0004_add_audit_actor_identity.sql`) capture the admin/superadmin actor's identity at write time for admin-initiated events (login, logout, unlock, District Master edits, bulk-provision) — null for DEO-actor events, where `deoId` already identifies the actor. `/admin/audit`'s `describeActor()` prefers `actorName`(+`actorDesignation`), falling back to `deoId`.
 
 **`auth.ts`** — auth tables (all 7 tables live in `migrations/0001_initial.sql`; `deoCugHash` was added afterward in `migrations/0002_add_deo_cug_hash.sql`):
 - `auth_users` — email hash, name, role ('deo'|'admin'), deoId, districtName, deoCugHash (SHA-256 of CUG mobile number, nullable — alternate login credential)
@@ -866,6 +867,9 @@ Full per-milestone delivery history (Objective, Deliverables, Exit Criterion, bu
 | M-95: Fixed Crash on `/verify` for a Shop Row With a Blank `thanaName` | **Completed** |
 | M-96: Cached Aggregate for Verified Districts (D1 Read-Cost Reduction); Unlock Request Refused Once Verified | **Completed** |
 | M-97: Verified-District Nav Collapses Independent of the Round Staying Open; Unlock Request Restored | **Completed** |
+| M-98: FY 2025-26 Reminder Banner and Excel Template Warning | **Completed** |
+| M-99: FY 2025-26 Reminder Moves to the DEO Layout (Site-Wide, Once Per Reload) | **Completed** |
+| M-100: FY Reminder Modal Made Blocking, D1-Logged, and Linked to the Manual | **Completed** |
 
 See [summary.md](summary.md) for full milestone specs, entry/exit criteria, deliverable checklists, the backlog, and pre-campaign-blocker history.
 

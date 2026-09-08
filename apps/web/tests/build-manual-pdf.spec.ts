@@ -45,133 +45,141 @@ const SECTIONS: Section[] = [
     textHi: 'अपने ब्राउज़र में पोर्टल खोलें। DEO अपने विभागीय CUG मोबाइल नंबर से साइन इन करते हैं — "CUG Mobile (DEO)" टैब चुनें (यह डिफ़ॉल्ट रूप से चयनित है), अपना 10-अंकीय CUG नंबर दर्ज करें, और "Sign in" पर टैप करें। आपका नंबर पूरी तरह सुरक्षित और निजी रखा जाता है। आपको किसी पासवर्ड की आवश्यकता नहीं है।',
   },
   {
+    titleEn: '2. FY 2025-26 Data Reminder',
+    titleHi: '२. FY 2025-26 डेटा अनुस्मारक',
+    customHtml: `
+      <p class="en">Every time you sign in, a message appears reminding you that every figure in the district's Excel file must be for <strong>FY 2025-26</strong> (1 April 2025 – 31 March 2026) — the previous financial year, not the current one — and that a Model Shop's fixed <strong>₹3,00,000 On Premises Consumption Fee</strong> is added by the portal automatically (see Section 13) and should never be typed in yourself. This message blocks the rest of the page — clicking outside it or pressing Escape does nothing — until you read it and tap <strong>"I understand"</strong>. Each time you tap it, the portal records that you saw and confirmed the reminder.</p>
+      <p class="hi">हर बार साइन इन करने पर एक संदेश दिखता है जो याद दिलाता है कि जिले की Excel फ़ाइल का हर आंकड़ा <strong>FY 2025-26</strong> (1 अप्रैल 2025 – 31 मार्च 2026) — यानी पिछले वित्तीय वर्ष का होना चाहिए, चालू वर्ष का नहीं — और यह कि Model Shop का स्थिर <strong>₹3,00,000 On Premises Consumption Fee</strong> पोर्टल द्वारा अपने-आप जोड़ा जाता है (देखें खंड १३) और इसे कभी खुद टाइप न करें। यह संदेश तब तक पूरे पेज को रोके रखता है — बाहर क्लिक करने या Escape दबाने से कुछ नहीं होता — जब तक आप इसे पढ़कर <strong>"I understand"</strong> पर टैप नहीं करते। हर बार टैप करने पर पोर्टल यह दर्ज करता है कि आपने अनुस्मारक देखा और उसकी पुष्टि की।</p>
+    `,
+  },
+  {
     file: '02-home-step1-gate.png',
-    titleEn: '2. Your Dashboard — Step 1 Only',
-    titleHi: '२. आपका डैशबोर्ड — केवल चरण १',
+    titleEn: '3. Your Dashboard — Step 1 Only',
+    titleHi: '३. आपका डैशबोर्ड — केवल चरण १',
     textEn: 'After signing in you land on your Dashboard. Until you register your district\'s Circles & Sectors, only "Step 1 — Create Circles & Sectors" is shown. Upload and Verify are intentionally hidden — they will appear automatically once Step 1 is complete. This ensures every district follows the same, correct order.',
     textHi: 'साइन इन करने के बाद आप अपने डैशबोर्ड पर पहुँचते हैं। जब तक आप अपने जिले के Circles & Sectors पंजीकृत नहीं करते, तब तक केवल "चरण 1 — Circles & Sectors बनाएं" दिखाया जाता है। Upload और Verify जानबूझकर छिपाए गए हैं — चरण 1 पूरा होते ही ये अपने-आप दिखाई देंगे। इससे हर जिला सही और एक जैसे क्रम का पालन करता है।',
   },
   {
     file: '03-units-step1-type.png',
-    titleEn: '3. Circles & Sectors — Choose Your Type',
-    titleHi: '३. Circles & Sectors — अपना प्रकार चुनें',
+    titleEn: '4. Circles & Sectors — Choose Your Type',
+    titleHi: '४. Circles & Sectors — अपना प्रकार चुनें',
     textEn: 'Before entering any counts, first tell the system your district\'s layout: does it have "Only Sectors" (fully urban), "Only Circles" (fully rural), or "Both Circles & Sectors"? Tap the option that matches your district. This choice decides which count field(s) you will see on the next screen.',
     textHi: 'कोई भी संख्या दर्ज करने से पहले, सबसे पहले सिस्टम को अपने जिले की बनावट बताएं: क्या इसमें "Only Sectors" (पूरी तरह शहरी) हैं, "Only Circles" (पूरी तरह ग्रामीण) हैं, या "Both Circles & Sectors" (दोनों)? अपने जिले से मेल खाने वाला विकल्प चुनें। यह चयन तय करता है कि अगली स्क्रीन पर आपको कौन-सा/से संख्या field दिखेंगे।',
   },
   {
     file: '04-units-step2-counts.png',
-    titleEn: '4. Circles & Sectors — How Many?',
-    titleHi: '४. Circles & Sectors — कितने हैं?',
+    titleEn: '5. Circles & Sectors — How Many?',
+    titleHi: '५. Circles & Sectors — कितने हैं?',
     textEn: 'Next, tell the system how many Sectors (urban area) and/or how many Circles (rural area) your district has, based on your Step 3 choice. Enter each count and tap "Continue →". You do not need to know the names yet — just the counts.',
     textHi: 'अब सिस्टम को बताएं कि आपके चरण 3 के चुनाव के अनुसार आपके जिले में कितने Sectors (शहरी क्षेत्र) और/या कितने Circles (ग्रामीण क्षेत्र) हैं। प्रत्येक संख्या दर्ज करें और "Continue →" पर टैप करें। अभी आपको नाम जानने की आवश्यकता नहीं है — केवल संख्या।',
   },
   {
     file: '05-units-step3-names-empty.png',
-    titleEn: '5. Enter Each Name',
-    titleHi: '५. प्रत्येक नाम दर्ज करें',
+    titleEn: '6. Enter Each Name',
+    titleHi: '६. प्रत्येक नाम दर्ज करें',
     textEn: 'The system generates one labelled box per Sector and Circle. Sectors carry no name you type — they are numbered automatically ("Sector - 1", "Sector - 2", ...); just review the list. Circles keep a fixed "Circle N -" label next to a free-text area-name box you fill in (e.g. "Circle 2 - Fatehabad"). Note the numbering rule: if your district has any Sectors, Circle numbering starts at 2 — Circle 1 is reserved for the sector-covered urban area. Every Circle box is required.',
     textHi: 'सिस्टम प्रत्येक Sector और Circle के लिए एक लेबल वाला बॉक्स बनाता है। Sectors के लिए आपको कोई नाम नहीं टाइप करना है — ये अपने-आप क्रमांकित होते हैं ("Sector - 1", "Sector - 2", ...); बस सूची की समीक्षा करें। Circles में एक स्थिर "Circle N -" लेबल के साथ एक खाली area-name बॉक्स होता है जिसे आप भरते हैं (जैसे "Circle 2 - Fatehabad")। नंबरिंग नियम ध्यान दें: यदि आपके जिले में कोई Sector है, तो Circle नंबरिंग 2 से शुरू होती है — Circle 1 शहरी क्षेत्र के लिए आरक्षित है। हर Circle बॉक्स भरना अनिवार्य है।',
   },
   {
     file: '06-units-step3-names-filled.png',
-    titleEn: '6. Double-Check Before Submitting',
-    titleHi: '६. सबमिट करने से पहले दोबारा जांचें',
+    titleEn: '7. Double-Check Before Submitting',
+    titleHi: '७. सबमिट करने से पहले दोबारा जांचें',
     textEn: 'Fill in every Circle box carefully. Check spelling twice — once submitted, this list is locked and cannot be edited by you. Typing the word "circle" inside the area-name box shows a warning, since the "Circle N -" label is already fixed. If needed, tap back to adjust the counts.',
     textHi: 'हर Circle बॉक्स को ध्यान से भरें। वर्तनी दो बार जांचें — एक बार सबमिट करने के बाद यह सूची लॉक हो जाती है और इसे आपके द्वारा edit नहीं किया जा सकता। area-name बॉक्स में "circle" शब्द टाइप करने पर एक चेतावनी दिखती है, क्योंकि "Circle N -" लेबल पहले से ही तय है। यदि आवश्यक हो, तो संख्याएं बदलने के लिए पीछे जाएं।',
   },
   {
     file: '07-units-confirm-lock.png',
-    titleEn: '7. Final Confirmation',
-    titleHi: '७. अंतिम पुष्टि',
+    titleEn: '8. Final Confirmation',
+    titleHi: '८. अंतिम पुष्टि',
     textEn: 'A confirmation dialog warns you this action cannot be undone. Read the count of sectors and circles shown, then tap "Yes, Lock & Submit" only when you are certain every name is correct.',
     textHi: 'एक पुष्टिकरण संवाद आपको चेतावनी देता है कि यह क्रिया पूर्ववत नहीं की जा सकती। दिखाए गए sectors और circles की संख्या पढ़ें, फिर "Yes, Lock & Submit" पर तभी टैप करें जब आप सुनिश्चित हों कि हर नाम सही है।',
   },
   {
     file: '08-units-locked.png',
-    titleEn: '8. Locked — Made a Mistake?',
-    titleHi: '८. लॉक हो गया — कोई गलती हुई?',
-    textEn: 'Once locked, your Sectors and Circles are shown read-only. If you spot an error, tap "Request Unlock" and explain the reason — an Admin at Headquarters will review your request and can unlock the list so you can re-register (see Section 21).',
-    textHi: 'लॉक होने के बाद, आपके Sectors और Circles केवल पढ़ने के लिए दिखाए जाते हैं। यदि आपको कोई त्रुटि दिखे, तो "Request Unlock" पर टैप करें और कारण बताएं — मुख्यालय का एक Admin आपके अनुरोध की समीक्षा करेगा और सूची को अनलॉक कर सकता है ताकि आप दोबारा पंजीकरण कर सकें (देखें खंड २१)।',
+    titleEn: '9. Locked — Made a Mistake?',
+    titleHi: '९. लॉक हो गया — कोई गलती हुई?',
+    textEn: 'Once locked, your Sectors and Circles are shown read-only. If you spot an error, tap "Request Unlock" and explain the reason — an Admin at Headquarters will review your request and can unlock the list so you can re-register (see Section 22).',
+    textHi: 'लॉक होने के बाद, आपके Sectors और Circles केवल पढ़ने के लिए दिखाए जाते हैं। यदि आपको कोई त्रुटि दिखे, तो "Request Unlock" पर टैप करें और कारण बताएं — मुख्यालय का एक Admin आपके अनुरोध की समीक्षा करेगा और सूची को अनलॉक कर सकता है ताकि आप दोबारा पंजीकरण कर सकें (देखें खंड २२)।',
   },
   {
     file: '09-home-all-steps-unlocked.png',
-    titleEn: '9. Dashboard — All Steps Unlocked',
-    titleHi: '९. डैशबोर्ड — सभी चरण अनलॉक',
+    titleEn: '10. Dashboard — All Steps Unlocked',
+    titleHi: '१०. डैशबोर्ड — सभी चरण अनलॉक',
     textEn: 'Return to your Dashboard. Now that Circles & Sectors are locked, the Upload and Verify cards appear automatically. Proceed to Step 2 — Upload District File.',
     textHi: 'अपने डैशबोर्ड पर वापस जाएं। अब जब Circles & Sectors लॉक हो चुके हैं, Upload और Verify कार्ड अपने-आप दिखाई देते हैं। चरण 2 — Upload District File पर आगे बढ़ें।',
   },
   {
     file: '10-upload-empty.png',
-    titleEn: '10. Download the Template & Upload District File',
-    titleHi: '१०. टेम्पलेट डाउनलोड करें और जिला फ़ाइल अपलोड करें',
-    textEn: 'First tap "Download District Data" — this generates a bilingual Excel workbook pre-filled with your registered Circle/Sector names (see Section 11 for what\'s inside). Give copies to your Inspectors to fill, then collect the filled sections, consolidate them into one district Excel file, and select it here. Every shop must reference a Circle/Sector name exactly as registered in Step 1.',
-    textHi: 'सबसे पहले "Download District Data" पर टैप करें — यह आपके पंजीकृत Circle/Sector नामों से पहले से भरा हुआ एक द्विभाषी Excel workbook बनाता है (अंदर क्या है, यह जानने के लिए खंड ११ देखें)। भरने के लिए इसकी प्रतियां अपने Inspectors को दें, फिर भरे गए हिस्से इकट्ठा करें, उन्हें एक जिला Excel फ़ाइल में मिलाएं, और उसे यहां चुनें। प्रत्येक दुकान को ठीक उसी Circle/Sector नाम का संदर्भ देना चाहिए जो चरण 1 में पंजीकृत किया गया था।',
+    titleEn: '11. Download the Template & Upload District File',
+    titleHi: '११. टेम्पलेट डाउनलोड करें और जिला फ़ाइल अपलोड करें',
+    textEn: 'First tap "Download District Data" — this generates a bilingual Excel workbook pre-filled with your registered Circle/Sector names (see Section 12 for what\'s inside). Give copies to your Inspectors to fill, then collect the filled sections, consolidate them into one district Excel file, and select it here. Every shop must reference a Circle/Sector name exactly as registered in Step 1.',
+    textHi: 'सबसे पहले "Download District Data" पर टैप करें — यह आपके पंजीकृत Circle/Sector नामों से पहले से भरा हुआ एक द्विभाषी Excel workbook बनाता है (अंदर क्या है, यह जानने के लिए खंड १२ देखें)। भरने के लिए इसकी प्रतियां अपने Inspectors को दें, फिर भरे गए हिस्से इकट्ठा करें, उन्हें एक जिला Excel फ़ाइल में मिलाएं, और उसे यहां चुनें। प्रत्येक दुकान को ठीक उसी Circle/Sector नाम का संदर्भ देना चाहिए जो चरण 1 में पंजीकृत किया गया था।',
   },
   // Sections 11 & 12 (template columns table + revenue formulas) are inserted programmatically
   // below, right after this array, since their content is read from the real downloaded
   // template / derived from shared constants rather than hand-written prose.
   {
     file: '11-upload-parsed.png',
-    titleEn: '13. File Parsed Locally',
-    titleHi: '१३. फ़ाइल स्थानीय रूप से पढ़ी गई',
+    titleEn: '14. File Parsed Locally',
+    titleHi: '१४. फ़ाइल स्थानीय रूप से पढ़ी गई',
     textEn: 'The Excel file is read entirely in your browser and saved to your device automatically — nothing is uploaded to the server yet. This means your data is safe even if your internet connection drops. Tap "Go to Verify →" to review every row before final submission.',
     textHi: 'Excel फ़ाइल पूरी तरह से आपके ब्राउज़र में पढ़ी जाती है और अपने-आप आपके डिवाइस पर सेव हो जाती है — अभी तक कुछ भी सर्वर पर अपलोड नहीं हुआ है। इसका मतलब है कि आपका डेटा सुरक्षित है भले ही आपका इंटरनेट कनेक्शन टूट जाए। अंतिम सबमिशन से पहले हर row की समीक्षा करने के लिए "Go to Verify →" पर टैप करें।',
   },
   {
     file: '12-verify-rows.png',
-    titleEn: '14. Verify & Submit',
-    titleHi: '१४. जाँचें और सबमिट करें',
+    titleEn: '15. Verify & Submit',
+    titleHi: '१५. जाँचें और सबमिट करें',
     textEn: 'Review every row, grouped by Circle/Sector. Any adjacent-Thana entry shown in red is a possible typo — it does not block submission but is worth double-checking. Use the search box to find a specific shop by name or ID. A ⚠ next to a shop\'s revenue amount and the "Possible Duplicate Thana Names" card (if it appears) are both worth checking before you submit — see #7 and #8 on the "Read This First" page.',
     textHi: 'Circle/Sector के अनुसार समूहीकृत हर row की समीक्षा करें। लाल रंग में दिखाई देने वाली कोई भी adjacent-Thana प्रविष्टि एक संभावित टाइपो है — यह सबमिशन को नहीं रोकती लेकिन इसे दोबारा जांचना उचित है। किसी विशेष दुकान को नाम या ID से खोजने के लिए search box का उपयोग करें। दुकान की revenue राशि के पास ⚠ और "Possible Duplicate Thana Names" कार्ड (अगर दिखे) दोनों सबमिट करने से पहले जांचने योग्य हैं — देखें "Read This First" पेज पर #7 और #8।',
   },
   {
     file: '13-verify-confirm-submit.png',
-    titleEn: '15. Confirm Submission',
-    titleHi: '१५. सबमिशन की पुष्टि करें',
+    titleEn: '16. Confirm Submission',
+    titleHi: '१६. सबमिशन की पुष्टि करें',
     textEn: 'When every row looks correct, tap "Submit District". A confirmation dialog shows the row count and warns this sends your data to Headquarters. Tap "Yes, Submit" only when ready.',
     textHi: 'जब हर row सही लगे, तो "Submit District" पर टैप करें। एक पुष्टिकरण संवाद row की संख्या दिखाता है और चेतावनी देता है कि यह आपका डेटा मुख्यालय को भेज देगा। तैयार होने पर ही "Yes, Submit" पर टैप करें।',
   },
   {
     file: '14-verify-lock-name-prompt.png',
-    titleEn: '16. Confirm Your Name & Lock the Submission',
-    titleHi: '१६. अपना नाम पुष्टि करें और सबमिशन लॉक करें',
+    titleEn: '17. Confirm Your Name & Lock the Submission',
+    titleHi: '१७. अपना नाम पुष्टि करें और सबमिशन लॉक करें',
     textEn: 'A second, final prompt asks for the full name of the District Excise Officer confirming this submission. This step exists because locking the submission is a personal confirmation that the data is accurate — any incorrect data or error is the submitting DEO\'s individual responsibility. Type your full name in English letters only (no digits — do not paste your CUG number here, and do not type your designation such as "DEO" instead of your actual name), then tap "Lock Submission".',
     textHi: 'एक दूसरा, अंतिम प्रॉम्प्ट जिला आबकारी अधिकारी का पूरा नाम मांगता है जो इस सबमिशन की पुष्टि कर रहा है। यह चरण इसलिए है क्योंकि सबमिशन लॉक करना एक व्यक्तिगत पुष्टि है कि डेटा सही है — किसी भी गलत डेटा या त्रुटि की जिम्मेदारी व्यक्तिगत रूप से संबंधित DEO की होगी। अपना पूरा नाम केवल अंग्रेज़ी अक्षरों में टाइप करें (अंक नहीं — यहां अपना CUG नंबर न लिखें, और "DEO" जैसा पद न लिखें, अपना असली नाम लिखें), फिर "Lock Submission" पर टैप करें।',
   },
   {
     file: '15-verify-submitted.png',
-    titleEn: '17. Submitted Successfully',
-    titleHi: '१७. सफलतापूर्वक सबमिट हुआ',
-    textEn: 'A success message confirms your district has been submitted to Headquarters. Your work for this district\'s data collection is now complete. The Verify page now switches to a read-only "Uploaded Data" view — new uploads are locked until an Admin approves a data-correction unlock if a shop\'s data ever needs fixing (see Section 22).',
-    textHi: 'एक सफलता संदेश पुष्टि करता है कि आपका जिला मुख्यालय को सबमिट कर दिया गया है। इस जिले के डेटा संग्रहण के लिए आपका काम अब पूर्ण हो चुका है। Verify पेज अब एक read-only "Uploaded Data" व्यू में बदल जाता है — नए अपलोड तब तक लॉक रहते हैं जब तक कोई Admin data-correction unlock को स्वीकार न करे, अगर किसी दुकान का डेटा ठीक करना हो (देखें खंड २२)।',
+    titleEn: '18. Submitted Successfully',
+    titleHi: '१८. सफलतापूर्वक सबमिट हुआ',
+    textEn: 'A success message confirms your district has been submitted to Headquarters. Your work for this district\'s data collection is now complete. The Verify page now switches to a read-only "Uploaded Data" view — new uploads are locked until an Admin approves a data-correction unlock if a shop\'s data ever needs fixing (see Section 23).',
+    textHi: 'एक सफलता संदेश पुष्टि करता है कि आपका जिला मुख्यालय को सबमिट कर दिया गया है। इस जिले के डेटा संग्रहण के लिए आपका काम अब पूर्ण हो चुका है। Verify पेज अब एक read-only "Uploaded Data" व्यू में बदल जाता है — नए अपलोड तब तक लॉक रहते हैं जब तक कोई Admin data-correction unlock को स्वीकार न करे, अगर किसी दुकान का डेटा ठीक करना हो (देखें खंड २३)।',
   },
   {
     file: '16-admin-district-detail.png',
-    titleEn: '18. What Headquarters Sees',
-    titleHi: '१८. मुख्यालय क्या देखता है',
+    titleEn: '19. What Headquarters Sees',
+    titleHi: '१९. मुख्यालय क्या देखता है',
     textEn: 'For your awareness only — you do not have access to this Admin view yourself. Once you submit, your district\'s data appears on the Admin/HQ portal like this: every shop you uploaded, grouped by Circle/Sector, with the same details you entered. This is shown here so you understand what happens to your data after submission.',
     textHi: 'केवल आपकी जानकारी के लिए — यह Admin व्यू आपके पास स्वयं उपलब्ध नहीं है। सबमिट करने के बाद, आपके जिले का डेटा Admin/HQ पोर्टल पर कुछ इस तरह दिखता है: आपके द्वारा अपलोड की गई हर दुकान, Circle/Sector के अनुसार समूहीकृत, वही विवरण जो आपने दर्ज किया था। यह यहां इसलिए दिखाया गया है ताकि आप समझ सकें कि सबमिशन के बाद आपके डेटा का क्या होता है।',
   },
   {
     file: '17-units-request-unlock-dialog.png',
-    titleEn: '19. Requesting a Circles/Sectors Unlock',
-    titleHi: '१९. Circles/Sectors अनलॉक अनुरोध करना',
+    titleEn: '20. Requesting a Circles/Sectors Unlock',
+    titleHi: '२०. Circles/Sectors अनलॉक अनुरोध करना',
     textEn: 'If you find a mistake in your Circles/Sectors list after it is locked, go back to the Circles & Sectors page and tap "Request Unlock". Type a clear reason (this is required) and tap "Submit Request".',
     textHi: 'यदि आपको लॉक होने के बाद अपनी Circles/Sectors सूची में कोई गलती दिखे, तो Circles & Sectors पेज पर वापस जाएं और "Request Unlock" पर टैप करें। एक स्पष्ट कारण लिखें (यह आवश्यक है) और "Submit Request" पर टैप करें।',
   },
   {
     file: '18-units-unlock-pending.png',
-    titleEn: '20. Waiting for Admin Review',
-    titleHi: '२०. Admin समीक्षा की प्रतीक्षा',
+    titleEn: '21. Waiting for Admin Review',
+    titleHi: '२१. Admin समीक्षा की प्रतीक्षा',
     textEn: 'Once submitted, your request shows as "pending Admin review" along with the reason you gave. An Admin at Headquarters will either approve it (unlocking your list so you can re-register from scratch) or deny it with a note explaining why.',
     textHi: 'सबमिट होने के बाद, आपका अनुरोध आपके द्वारा दिए गए कारण के साथ "Admin समीक्षा के लिए लंबित" के रूप में दिखता है। मुख्यालय का एक Admin इसे या तो स्वीकार करेगा (आपकी सूची को अनलॉक करके ताकि आप दोबारा से पंजीकरण कर सकें) या एक नोट के साथ अस्वीकार करेगा जिसमें कारण बताया जाएगा।',
   },
   {
     file: '19-admin-unlock-requests-list.png',
-    titleEn: '21. How Admin Resolves It',
-    titleHi: '२१. Admin इसे कैसे सुलझाता है',
-    textEn: 'This is what your unlock request looks like to the Admin reviewing it — your district, your reason, and a decision of Approve or Deny with a note explaining that decision. You will see the outcome the next time you open the Circles & Sectors page (Section 20 above).',
-    textHi: 'आपका unlock request समीक्षा करने वाले Admin को कुछ इस तरह दिखता है — आपका जिला, आपका कारण, और उस निर्णय को समझाते हुए एक नोट के साथ Approve या Deny का निर्णय। जब आप अगली बार Circles & Sectors पेज खोलेंगे (ऊपर खंड २०), तो आपको परिणाम दिख जाएगा।',
+    titleEn: '22. How Admin Resolves It',
+    titleHi: '२२. Admin इसे कैसे सुलझाता है',
+    textEn: 'This is what your unlock request looks like to the Admin reviewing it — your district, your reason, and a decision of Approve or Deny with a note explaining that decision. You will see the outcome the next time you open the Circles & Sectors page (Section 21 above).',
+    textHi: 'आपका unlock request समीक्षा करने वाले Admin को कुछ इस तरह दिखता है — आपका जिला, आपका कारण, और उस निर्णय को समझाते हुए एक नोट के साथ Approve या Deny का निर्णय। जब आप अगली बार Circles & Sectors पेज खोलेंगे (ऊपर खंड २१), तो आपको परिणाम दिख जाएगा।',
   },
 ];
 
@@ -179,11 +187,11 @@ const SECTIONS: Section[] = [
 // unlock request above, just on /upload instead of /units) explaining how a DEO fixes a
 // shop's data after the district is already submitted, without a full re-do.
 const DATA_CORRECTION_SECTION: Section = {
-  titleEn: '22. Fixing a Mistake After Submission — Data-Correction Unlock',
-  titleHi: '२२. सबमिशन के बाद गलती ठीक करना — Data-Correction Unlock',
+  titleEn: '23. Fixing a Mistake After Submission — Data-Correction Unlock',
+  titleHi: '२३. सबमिशन के बाद गलती ठीक करना — Data-Correction Unlock',
   customHtml: `
-    <p class="en">Found wrong data for one or more shops <strong>after</strong> your district was already submitted? Go to the <strong>Upload</strong> page — it now shows a locked screen instead of the upload box. Tap "Request Data-Correction Unlock" and explain which shop(s) need fixing, the same way you would request a Circles/Sectors unlock (Section 19).</p>
-    <p class="hi"><strong>सबमिट होने के बाद</strong> किसी दुकान का डेटा गलत मिला? <strong>Upload</strong> पेज पर जाएं — अब वहां अपलोड बॉक्स की जगह एक लॉक स्क्रीन दिखेगी। "Request Data-Correction Unlock" पर टैप करें और बताएं कि किस दुकान/दुकानों को ठीक करना है, ठीक वैसे ही जैसे Circles/Sectors unlock का अनुरोध करते हैं (खंड १९)।</p>
+    <p class="en">Found wrong data for one or more shops <strong>after</strong> your district was already submitted? Go to the <strong>Upload</strong> page — it now shows a locked screen instead of the upload box. Tap "Request Data-Correction Unlock" and explain which shop(s) need fixing, the same way you would request a Circles/Sectors unlock (Section 20).</p>
+    <p class="hi"><strong>सबमिट होने के बाद</strong> किसी दुकान का डेटा गलत मिला? <strong>Upload</strong> पेज पर जाएं — अब वहां अपलोड बॉक्स की जगह एक लॉक स्क्रीन दिखेगी। "Request Data-Correction Unlock" पर टैप करें और बताएं कि किस दुकान/दुकानों को ठीक करना है, ठीक वैसे ही जैसे Circles/Sectors unlock का अनुरोध करते हैं (खंड २०)।</p>
     <div class="callout">
       <p class="en"><strong>Nothing you already submitted is ever deleted.</strong> Once an Admin approves your request, re-upload a corrected Excel file with just the shop(s) that need fixing (or the full file again — either works). The portal automatically updates only the shop(s) whose data changed; every other shop's data is untouched. Then go to Verify and tap Submit District again to re-lock the district.</p>
       <p class="hi"><strong>आपका पहले से सबमिट किया गया कोई भी डेटा कभी नहीं हटाया जाता।</strong> एक बार Admin आपके अनुरोध को स्वीकार कर ले, तो एक सुधारी हुई Excel फ़ाइल दोबारा अपलोड करें जिसमें बस उन्हीं दुकान(दुकानों) को ठीक किया गया हो जिन्हें ठीक करना था (या पूरी फ़ाइल दोबारा — दोनों तरीके काम करते हैं)। पोर्टल अपने-आप केवल उन्हीं दुकानों का डेटा अपडेट करता है जिनका डेटा बदला था; बाकी हर दुकान का डेटा वैसा ही रहता है। इसके बाद Verify पर जाकर फिर से "Submit District" पर टैप करें ताकि जिला फिर से लॉक हो जाए।</p>
@@ -237,8 +245,8 @@ async function buildTemplateColumnsSection(): Promise<Section> {
   `;
 
   return {
-    titleEn: '11. Understanding the Template — Columns & Validation',
-    titleHi: '११. टेम्पलेट को समझना — Columns और Validation',
+    titleEn: '12. Understanding the Template — Columns & Validation',
+    titleHi: '१२. टेम्पलेट को समझना — Columns और Validation',
     customHtml,
     allowPageBreak: true,
   };
@@ -272,8 +280,8 @@ function buildRevenueFormulasSection(): Section {
   `;
 
   return {
-    titleEn: '12. Revenue & Fee Formulas',
-    titleHi: '१२. राजस्व और शुल्क सूत्र',
+    titleEn: '13. Revenue & Fee Formulas',
+    titleHi: '१३. राजस्व और शुल्क सूत्र',
     customHtml,
     allowPageBreak: true,
   };
@@ -423,8 +431,8 @@ test('build bilingual DEO User Manual PDF from captured screenshots', async ({ p
 
   <div class="warn-item">
     <p><span class="num">7</span><strong class="head">A ⚠ next to a shop's revenue amount means part of it was not counted.</strong></p>
-    <p class="en">Each shop type calculates Total Revenue from a fixed set of fields — see Section 12. If a fee is entered into a field that shop type does not use, the portal accepts the entry but leaves it out of Total Revenue, and marks the amount with a ⚠. Tap the amount to open the Revenue Breakdown, find the field listed under "Entered but not counted," and move that value into the correct field for the shop's type.</p>
-    <p class="hi">हर दुकान प्रकार अपना Total Revenue कुछ निश्चित fields से निकालता है — देखें खंड १२। अगर कोई शुल्क ऐसे field में भरा गया है जो उस दुकान प्रकार में उपयोग नहीं होता, तो पोर्टल उसे स्वीकार तो कर लेता है, लेकिन उसे Total Revenue में नहीं गिनता और राशि पर ⚠ दिखाता है। राशि पर टैप करके Revenue Breakdown खोलें, "Entered but not counted" के नीचे दिख रहे field को देखें, और उस value को दुकान के सही field में ले जाएं।</p>
+    <p class="en">Each shop type calculates Total Revenue from a fixed set of fields — see Section 13. If a fee is entered into a field that shop type does not use, the portal accepts the entry but leaves it out of Total Revenue, and marks the amount with a ⚠. Tap the amount to open the Revenue Breakdown, find the field listed under "Entered but not counted," and move that value into the correct field for the shop's type.</p>
+    <p class="hi">हर दुकान प्रकार अपना Total Revenue कुछ निश्चित fields से निकालता है — देखें खंड १३। अगर कोई शुल्क ऐसे field में भरा गया है जो उस दुकान प्रकार में उपयोग नहीं होता, तो पोर्टल उसे स्वीकार तो कर लेता है, लेकिन उसे Total Revenue में नहीं गिनता और राशि पर ⚠ दिखाता है। राशि पर टैप करके Revenue Breakdown खोलें, "Entered but not counted" के नीचे दिख रहे field को देखें, और उस value को दुकान के सही field में ले जाएं।</p>
   </div>
 
   <div class="warn-item">

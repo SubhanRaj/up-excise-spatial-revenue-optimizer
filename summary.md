@@ -1861,6 +1861,44 @@ The browser's own print dialog produces the PDF ("Save as PDF" / "Microsoft Prin
 
 **Exit criterion:** a verified DEO can still request an unlock from either `/upload` or `/verify`; the DEO nav bar and `/verify` screen stay in their collapsed, verified state regardless of the state-wide round's open/closed status.
 
+### M-98: FY 2025-26 Reminder Banner and Excel Template Warning ✅ Complete
+
+**Objective:** DEOs were entering current-year (FY 2026-27) figures into the portal, but the department needed FY 2025-26 (the previous, already-closed financial year) for this collection round. A code-level reminder was needed at the point of entry, not just a verbal instruction.
+
+**Change:**
+- [x] `/upload` shows a persistent banner plus a one-time SweetAlert2 dialog on page load, both stating the figures must be for FY 2025-26 (1 April 2025 – 31 March 2026), in English and Hindi.
+- [x] The DEO Excel template's title cell and Instructions sheet (`generateTemplate()`, `apps/web/src/lib/excel.ts`) carry the same reminder, so it travels with the file even after it leaves the portal (an Inspector filling the file offline never sees the web UI at all).
+- [x] `apps/web/public/sw.js`'s `CACHE` constant bumped both times, per the Service Worker policy in CLAUDE.md, so a browser tab with an already-cached bundle picks up the reminder on next load.
+
+**Exit criterion:** the FY reminder is visible on `/upload` (banner + dialog) and inside the downloaded Excel template, in both languages.
+
+### M-99: FY 2025-26 Reminder Moves to the DEO Layout (Site-Wide, Once Per Reload) ✅ Complete
+
+**Objective:** M-98's reminder only fired on `/upload`, but a DEO could work through `/units` and `/verify` without ever visiting that page in a session. The reminder needed to fire on sign-in / reload regardless of which DEO page loads first.
+
+**Change:**
+- [x] The SweetAlert2 dialog moved from `/upload`'s page component to `apps/web/app/(deo)/layout.tsx`, which stays mounted across client-side navigation between all four DEO routes — a `useRef` guard fires it once per full page load/refresh, not once per navigation.
+- [x] `/upload`'s own banner and dialog code were removed in favor of the shared layout version; the persistent on-page banner text stayed on `/upload` itself.
+- [x] Deliberately no "dismiss forever" flag — a DEO who dismisses it once forgets it exists within days, so it reappears every reload rather than being suppressed permanently.
+
+**Exit criterion:** signing in or reloading on any DEO route (not just `/upload`) shows the FY 2025-26 reminder exactly once per load.
+
+### M-100: FY Reminder Modal Made Blocking, D1-Logged, and Linked to the Manual ✅ Complete
+
+**Objective:** The M-99 reminder could be dismissed by clicking outside it or pressing Escape, with no record that a DEO had actually seen it — no accountability trail existed for a claim of "I wasn't told." Separately, DEOs kept entering the fixed ₹3,00,000 On Premises Consumption Fee (Model Shop) into the Excel file themselves, even though the portal adds it automatically (see the Revenue Formulas table) — the reminder was the natural place to head that off, since it already covers the other most common data-entry mistake (wrong fiscal year).
+
+**Change:**
+- [x] The modal (`apps/web/app/(deo)/layout.tsx`) now sets `allowOutsideClick: false` and `allowEscapeKey: false` — the only way through is the "I understand" button. SweetAlert2's own backdrop already blocks all page interaction while it's open, so this was a two-flag change, not new blocking machinery.
+- [x] Clicking "I understand" fires a fire-and-forget `POST /api/districts/[district]/ack-fy-reminder` (new route), which writes a `fy_reminder_acknowledged` row to the existing `audit_log` table — no new table or migration needed. The write is fire-and-forget specifically so a DEO with no connection isn't blocked from proceeding, per the "PWA & Offline" rule that a connectivity drop must never block portal use; it just means that particular showing has no logged row.
+- [x] Added a paragraph (English and Hindi) stating the ₹3,00,000 On Premises Consumption Fee is added by the portal automatically and should never be entered in the Excel file.
+- [x] Added a link to the DEO User Manual PDF, reusing the same GitHub raw URL already used on `/home` (`DEO_MANUAL_URL`, duplicated rather than extracted to a shared constants file for one string).
+- [x] Widened the dialog from SweetAlert2's default (~32em) to `48rem` — the added paragraphs made the narrower width cramped.
+- [x] `apps/web/tests/build-manual-pdf.spec.ts` gained a new no-screenshot Section 2 ("FY 2025-26 Data Reminder") describing the modal's blocking behavior and D1 logging, with every subsequent section number and cross-reference (`Section N` / `खंड N`) renumbered accordingly (2→3 through 22→23, 21 total renumbered strings). The PDF binary itself was not rebuilt in this milestone — regenerating it needs `manual-screenshots.spec.ts` (real dev server, local D1, `SUPERADMIN_TEST_EMAIL`) run first, and its tmp sample template file didn't survive an unrelated host reboot.
+
+**Verified:** `pnpm typecheck` clean across the repo (both workspace packages).
+
+**Exit criterion:** the FY reminder modal cannot be dismissed without clicking "I understand"; each click writes an audit-log row; the Model Shop fee note and manual link are visible in the dialog; the manual's section numbering is internally consistent end to end.
+
 ---
 
 ## Backlog / Not Started
