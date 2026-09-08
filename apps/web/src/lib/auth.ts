@@ -40,6 +40,16 @@ export function districtScope(user: SessionUser | null): { division: string } | 
   return null;
 }
 
+// The division-level counterpart of the DEO routes' `user.districtName === district` guard:
+// every per-district route a deputy can reach must call this against the target district's
+// own `division` and 403 on false. `{ division: null }` (admin/superadmin) always passes.
+export function isDistrictInScope(
+  scope: { division: string } | { division: null },
+  districtDivision: string | null,
+): boolean {
+  return scope.division === null || scope.division === districtDivision;
+}
+
 // ── Crypto ────────────────────────────────────────────────────────────────────
 
 export async function sha256hex(data: string): Promise<string> {

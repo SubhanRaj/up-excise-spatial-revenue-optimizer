@@ -35,38 +35,38 @@ async function POST_(req: NextRequest): Promise<NextResponse> {
 
   const user = await db.select().from(authUsers).where(eq(authUsers.deoCugHash, cugHash)).limit(1).then((r) => r[0] ?? null);
 
-  // A number entered under the wrong login tab (`expect` from LoginForm) must not create a
-  // session for whatever role the number actually holds. The response is byte-for-byte the
-  // same as an unrecognised number — same body, same status, same rate-limit accounting — so
-  // the check leaks nothing about whether the number is registered or what role it has. Only
-  // a `superadmin` (derived below from the email hash, not the row's role) is let past a
-  // 'deo' expectation, since that account signs in through the DEO tab.
   const superadminHash = env.SUPERADMIN_EMAIL_HASH || '3d7c1aa91263a2c5b1ed9bc4233205aa2907cdacbb3afcc4eaf09d666bd42610';
-  const roleMismatch = user != null && expectRole != null && user.role !== expectRole
-    && !(expectRole === 'deo' && user.emailHash === superadminHash);
-  if (!user || roleMismatch) return NextResponse.json({ error: 'Invalid CUG number' }, { status: 401 });
 
-  const isSuper = superadminHash && user.emailHash === superadminHash;
-  const effectiveRole = isSuper ? 'superadmin' : user.role;
-  const effectiveDistrict = user.districtName ?? null;
+  // CUG login mints only field-role sessions (deo, deputy). Every reject below returns the
+  // exact same 401 as an unrecognised number — identical body, status, and rate-limit
+  // accounting — so nothing is confirmed about whether a number is registered or what it holds.
+  //   - admin / superadmin: /admin and every /api/admin/* route stay email-authenticated
+  //     only, regardless of what credential a row carries. Such an account signs in through
+  //     the magic-link flow (/api/auth/verify), never here.
+  //   - wrong login tab: `expect` from LoginForm must match the row's role.
+  if (!user
+    || user.role === 'admin'
+    || user.role === 'superadmin'
+    || user.emailHash === superadminHash
+    || (expectRole != null && user.role !== expectRole)
+  ) {
+    return NextResponse.json({ error: 'Invalid CUG number' }, { status: 401 });
+  }
 
-  await createSession(user.id, effectiveRole, effectiveDistrict);
+  await createSession(user.id, user.role, user.districtName ?? null);
   await db.insert(auditLog).values({
     eventType: 'login_cug',
     deoId: user.deoId ?? '',
-    districtName: effectiveDistrict,
+    districtName: user.districtName ?? null,
     ipAddress: req.headers.get('CF-Connecting-IP') ?? null,
     userAgent: req.headers.get('User-Agent') ?? null,
     metadata: null,
-    actorName: effectiveRole === 'deo' ? null : user.name,
-    actorDesignation: effectiveRole === 'deo' ? null : user.designation,
+    actorName: user.role === 'deo' ? null : user.name,
+    actorDesignation: user.role === 'deo' ? null : user.designation,
     createdAt: new Date(),
   });
 
-  const redirect = user.role === 'deputy' ? deputyBasePath(user.division)
-    : (effectiveRole === 'superadmin' || user.role === 'admin') ? '/admin'
-    : '/home';
-  return NextResponse.json({ redirect });
+  return NextResponse.json({ redirect: user.role === 'deputy' ? deputyBasePath(user.division) : '/home' });
 }
 
 export const POST = withErrorHandling('auth/verify-cug:POST', POST_);

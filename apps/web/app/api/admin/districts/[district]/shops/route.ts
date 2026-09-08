@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { drizzle } from 'drizzle-orm/d1';
 import { eq, count } from 'drizzle-orm';
-import { getSession, districtScope } from '@/lib/auth';
+import { getSession, districtScope, isDistrictInScope } from '@/lib/auth';
 import { phase1RawCollection, districts } from '@excise/schema';
 import { withErrorHandling } from '@/lib/with-error-handling';
 
@@ -28,7 +28,7 @@ async function GET_(
 
   if (scope.division) {
     const d = await db.select({ division: districts.division }).from(districts).where(eq(districts.name, district)).get();
-    if (!d || d.division !== scope.division) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    if (!d || !isDistrictInScope(scope, d.division)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
   const [rows, total] = await Promise.all([
