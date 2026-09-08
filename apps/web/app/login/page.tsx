@@ -1,5 +1,6 @@
 import { getSession } from '@/lib/auth';
 import { redirect } from 'next/navigation';
+import { deputyBasePath } from '@/lib/deputy';
 import LoginForm from './_components/LoginForm';
 
 export default async function LoginPage() {
@@ -7,7 +8,7 @@ export default async function LoginPage() {
   if (session) {
     redirect(
       session.role === 'admin' || session.role === 'superadmin' ? '/admin'
-      : session.role === 'deputy' ? '/deputy'
+      : session.role === 'deputy' ? deputyBasePath(session.division)
       : '/home',
     );
   }

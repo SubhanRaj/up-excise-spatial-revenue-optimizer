@@ -4,6 +4,7 @@ import { drizzle } from 'drizzle-orm/d1';
 import { eq } from 'drizzle-orm';
 import { authUsers, auditLog } from '@excise/schema';
 import { createSession } from '@/lib/auth';
+import { deputyBasePath } from '@/lib/deputy';
 import { checkIpRateLimit } from '@/lib/rate-limit';
 import { withErrorHandling } from '@/lib/with-error-handling';
 
@@ -52,7 +53,7 @@ async function POST_(req: NextRequest): Promise<NextResponse> {
     createdAt: new Date(),
   });
 
-  const redirect = user.role === 'deputy' ? '/deputy'
+  const redirect = user.role === 'deputy' ? deputyBasePath(user.division)
     : (effectiveRole === 'superadmin' || user.role === 'admin') ? '/admin'
     : '/home';
   return NextResponse.json({ redirect });

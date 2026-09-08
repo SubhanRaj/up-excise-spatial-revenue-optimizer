@@ -4,6 +4,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import HelpPanel from '@/app/_components/HelpPanel';
+import { useSession } from '@/hooks/useSession';
+import { deputyBasePath } from '@/lib/deputy';
 import { STATUS_COLOR, statusLabel, statusBadgeClass, isLocked } from '@/lib/status';
 
 interface DistrictRow {
@@ -40,6 +42,10 @@ type LNS = {
 
 export default function DeputyDashboard() {
   const router = useRouter();
+  const { session } = useSession();
+  const base = deputyBasePath(session?.division);
+  const baseRef = useRef(base);
+  useEffect(() => { baseRef.current = base; }, [base]);
   const routerRef = useRef(router);
   useEffect(() => { routerRef.current = router; }, [router]);
 
@@ -139,7 +145,7 @@ export default function DeputyDashboard() {
             const name = f?.properties?.district ?? '';
             if (!inDivision.has(name)) return;
             layer.bindTooltip(name, { permanent: true, direction: 'center', className: 'district-map-label' });
-            layer.on('click', () => routerRef.current.push(`/deputy/districts/${encodeURIComponent(name)}`));
+            layer.on('click', () => routerRef.current.push(`${baseRef.current}/districts/${encodeURIComponent(name)}`));
           },
         }).addTo(mapInstance.current!);
         if (bounds) mapInstance.current!.fitBounds(bounds, { padding: [24, 24], animate: false });
@@ -224,7 +230,7 @@ export default function DeputyDashboard() {
                         ? <span className={`badge badge-sm ${rev.verdict === 'flagged' ? 'badge-error' : 'badge-success'}`}>{rev.verdict === 'flagged' ? 'Flagged' : 'Reviewed'}</span>
                         : <span className="text-base-content/40 text-xs">—</span>}
                     </td>
-                    <td><Link href={`/deputy/districts/${encodeURIComponent(d.name)}`} className="btn btn-ghost btn-xs">View →</Link></td>
+                    <td><Link href={`${base}/districts/${encodeURIComponent(d.name)}`} className="btn btn-ghost btn-xs">View →</Link></td>
                   </tr>
                 );
               })}

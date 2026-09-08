@@ -1,39 +1,50 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useSession } from '@/hooks/useSession';
+import { deputyBasePath } from '@/lib/deputy';
 
 async function signOut() {
   await fetch('/api/auth/logout', { method: 'POST' });
   window.location.href = '/login';
 }
 
-const NAV_LINKS = [
-  { href: '/deputy', label: 'Dashboard', active: (p: string) => p === '/deputy' },
-  { href: '/deputy/districts', label: 'Districts', active: (p: string) => p.startsWith('/deputy/districts') },
-];
-
-function getBreadcrumbs(pathname: string): { label: string; href: string | null }[] {
-  const districtMatch = pathname.match(/^\/deputy\/districts\/(.+)$/);
-  if (districtMatch) return [
-    { label: 'Dashboard', href: '/deputy' },
-    { label: 'Districts', href: '/deputy/districts' },
-    { label: decodeURIComponent(districtMatch[1]!), href: null },
-  ];
-  const MAP: Record<string, { label: string; href: string | null }[]> = {
-    '/deputy': [{ label: 'Dashboard', href: null }],
-    '/deputy/districts': [{ label: 'Dashboard', href: '/deputy' }, { label: 'Districts', href: null }],
-  };
-  return MAP[pathname] ?? [];
-}
-
 export default function DeputyLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const { session } = useSession();
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const crumbs = getBreadcrumbs(pathname);
+
+  const base = session?.role === 'deputy' || session?.role === 'superadmin'
+    ? deputyBasePath(session.division)
+    : '/deputy';
+
+  // The URL should carry the division (/deputy-lucknow). A bare /deputy… or a wrong
+  // /deputy-<other> (manual entry, old bookmark) is corrected to this deputy's own base.
+  // usePathname() returns the browser URL, which middleware's rewrite leaves untouched, so a
+  // correct visit already starts with `base` and skips this.
+  useEffect(() => {
+    if (!session || session.role !== 'deputy' || base === '/deputy') return;
+    if (pathname === base || pathname.startsWith(`${base}/`)) return;
+    if (!pathname.startsWith('/deputy')) return;
+    const rest = pathname.replace(/^\/deputy(-[a-z-]+)?/, '');
+    router.replace(base + rest);
+  }, [session, pathname, base, router]);
+
+  const onDistricts = pathname.startsWith(`${base}/districts`) || pathname.startsWith('/deputy/districts');
+  const navLinks = [
+    { href: base, label: 'Dashboard', active: !onDistricts },
+    { href: `${base}/districts`, label: 'Districts', active: onDistricts },
+  ];
+
+  const districtMatch = pathname.match(/\/districts\/([^/]+)$/);
+  const crumbs: { label: string; href: string | null }[] = districtMatch
+    ? [{ label: 'Dashboard', href: base }, { label: 'Districts', href: `${base}/districts` }, { label: decodeURIComponent(districtMatch[1]!), href: null }]
+    : onDistricts
+      ? [{ label: 'Dashboard', href: base }, { label: 'Districts', href: null }]
+      : [{ label: 'Dashboard', href: null }];
 
   return (
     <div className="min-h-screen bg-base-200">
@@ -49,7 +60,7 @@ export default function DeputyLayout({ children }: { children: React.ReactNode }
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
           </button>
-          <Link href="/deputy" className="flex items-center gap-3 group">
+          <Link href={base} className="flex items-center gap-3 group">
             <svg xmlns="http://www.w3.org/2000/svg" className="w-9 h-9 sm:w-10 sm:h-10 text-primary shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18"/><path d="M9 8h1"/><path d="M9 12h1"/><path d="M9 16h1"/><path d="M14 8h1"/><path d="M14 12h1"/><path d="M14 16h1"/><path d="M5 21V6l7-3 7 3v15"/></svg>
             <div className="hidden sm:block">
               <div className="font-bold text-sm leading-tight group-hover:text-primary transition-colors">UP Excise SRO</div>
@@ -61,8 +72,8 @@ export default function DeputyLayout({ children }: { children: React.ReactNode }
         </div>
 
         <div className="hidden md:flex flex-none items-center gap-1">
-          {NAV_LINKS.map((l) => (
-            <Link key={l.href} href={l.href} className={`btn btn-ghost btn-sm ${l.active(pathname) ? 'btn-active' : ''}`}>{l.label}</Link>
+          {navLinks.map((l) => (
+            <Link key={l.label} href={l.href} className={`btn btn-ghost btn-sm ${l.active ? 'btn-active' : ''}`}>{l.label}</Link>
           ))}
           {session && (
             <span className="text-xs font-semibold bg-primary/10 text-primary rounded-full px-3 py-1.5 whitespace-nowrap">
@@ -98,9 +109,9 @@ export default function DeputyLayout({ children }: { children: React.ReactNode }
               </div>
             )}
             <ul className="menu menu-sm p-0 gap-1 border-t border-base-200 pt-3">
-              {NAV_LINKS.map((l) => (
-                <li key={l.href}>
-                  <Link href={l.href} onClick={() => setDrawerOpen(false)} className={l.active(pathname) ? 'active' : ''}>{l.label}</Link>
+              {navLinks.map((l) => (
+                <li key={l.label}>
+                  <Link href={l.href} onClick={() => setDrawerOpen(false)} className={l.active ? 'active' : ''}>{l.label}</Link>
                 </li>
               ))}
             </ul>

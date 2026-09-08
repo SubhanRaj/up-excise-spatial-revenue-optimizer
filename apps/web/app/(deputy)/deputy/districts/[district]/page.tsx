@@ -4,6 +4,8 @@ import { use, useEffect, useState } from 'react';
 import Link from 'next/link';
 import HelpPanel from '@/app/_components/HelpPanel';
 import { ShopExplorer, type ShopExplorerRow } from '@/components/ShopExplorer';
+import { useSession } from '@/hooks/useSession';
+import { deputyBasePath } from '@/lib/deputy';
 import { deputyShopsCache } from '@/lib/db';
 import { statusLabel, statusBadgeClass } from '@/lib/status';
 
@@ -24,6 +26,8 @@ type SwalG = { fire: (o: Record<string, unknown>) => Promise<{ isConfirmed: bool
 export default function DeputyDistrictPage({ params }: { params: Promise<{ district: string }> }) {
   const { district } = use(params);
   const name = decodeURIComponent(district);
+  const { session } = useSession();
+  const base = deputyBasePath(session?.division);
 
   const [detail, setDetail] = useState<DistrictDetail | null>(null);
   const [shops, setShops] = useState<ShopExplorerRow[]>([]);
@@ -111,7 +115,7 @@ export default function DeputyDistrictPage({ params }: { params: Promise<{ distr
     return (
       <div className="alert alert-error">
         <span>This district is not in your division.</span>
-        <Link href="/deputy" className="btn btn-sm btn-ghost">Back to dashboard</Link>
+        <Link href={base} className="btn btn-sm btn-ghost">Back to dashboard</Link>
       </div>
     );
   }

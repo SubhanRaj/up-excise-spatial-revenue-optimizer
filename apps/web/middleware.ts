@@ -25,8 +25,18 @@ export default function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL(role === 'deputy' ? '/deputy' : '/login', req.url));
   }
   // Deputy Excise Commissioner portal (M-102) — deputy-only, superadmin allowed for debugging.
-  if (pathname.match(/^\/deputy/) && role !== 'deputy' && role !== 'superadmin') {
+  // The browser URL carries the division: /deputy-lucknow, /deputy-lucknow/districts. Those
+  // are rewritten onto the single /deputy route group so the URL keeps the division without a
+  // per-division route tree. Bare /deputy (manual entry / old link) still renders; the page
+  // bounces to the division URL.
+  if (pathname.match(/^\/deputy(-|\/|$)/) && role !== 'deputy' && role !== 'superadmin') {
     return NextResponse.redirect(new URL(role === 'deo' ? '/home' : role === 'admin' ? '/admin' : '/login', req.url));
+  }
+  const deputyScoped = pathname.match(/^\/deputy-[a-z-]+(\/.*)?$/);
+  if (deputyScoped) {
+    const url = req.nextUrl.clone();
+    url.pathname = '/deputy' + (deputyScoped[1] ?? '');
+    return NextResponse.rewrite(url);
   }
   // DEO routes are deo-only now — an admin/superadmin session landing here (stale bookmark,
   // old tab) is sent to their own dashboard instead of rendering a broken "Unknown District"

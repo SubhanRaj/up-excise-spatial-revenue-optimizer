@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import HelpPanel from '@/app/_components/HelpPanel';
+import { useSession } from '@/hooks/useSession';
+import { deputyBasePath } from '@/lib/deputy';
 import { STATUS_LABEL, statusLabel, statusBadgeClass, isLocked } from '@/lib/status';
 
 interface DistrictRow {
@@ -22,6 +24,8 @@ function SortIcon({ active, dir }: { active: boolean; dir: 'asc' | 'desc' }) {
 }
 
 export default function DeputyDistrictsPage() {
+  const { session } = useSession();
+  const base = deputyBasePath(session?.division);
   const [districts, setDistricts] = useState<DistrictRow[]>([]);
   const [reviews, setReviews] = useState<Record<string, ReviewRow>>({});
   const [loading, setLoading] = useState(true);
@@ -157,7 +161,7 @@ export default function DeputyDistrictsPage() {
                       ? <span className={`badge badge-sm ${rev.verdict === 'flagged' ? 'badge-error' : 'badge-success'}`}>{rev.verdict === 'flagged' ? 'Flagged' : 'Reviewed'}</span>
                       : <span className="text-base-content/40 text-xs">—</span>}
                   </td>
-                  <td><Link href={`/deputy/districts/${encodeURIComponent(d.name)}`} className="btn btn-ghost btn-xs">View →</Link></td>
+                  <td><Link href={`${base}/districts/${encodeURIComponent(d.name)}`} className="btn btn-ghost btn-xs">View →</Link></td>
                 </tr>
               );
             })}
