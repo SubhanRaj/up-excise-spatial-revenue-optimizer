@@ -13,7 +13,10 @@ const COOLDOWN_AFTER_FAILURES = 3;
 const COOLDOWN_SECONDS = 30;
 
 export default function LoginForm() {
-  const [mode, setMode]         = useState<'email' | 'cug'>('cug');
+  // 'cug' (DEO) and 'deputy' (Deputy Excise Commissioner) hit the exact same endpoint and flow
+  // — POST /api/auth/verify-cug looks up the hash and redirects by role. The split is UI only:
+  // it tells each officer which credential to use and where they'll land.
+  const [mode, setMode]         = useState<'email' | 'cug' | 'deputy'>('cug');
   const [email, setEmail]       = useState('');
   const [cug, setCug]           = useState('');
   const [sent, setSent]         = useState(false);
@@ -81,12 +84,15 @@ export default function LoginForm() {
         </div>
 
         {!sent && (
-          <div className="tabs tabs-boxed">
-            <button type="button" className={`tab flex-1 ${mode === 'cug' ? 'tab-active' : ''}`} onClick={() => { setMode('cug'); setError(null); }}>
-              CUG Mobile (DEO)
+          <div className="tabs tabs-boxed text-xs sm:text-sm">
+            <button type="button" className={`tab flex-1 px-1 ${mode === 'cug' ? 'tab-active' : ''}`} onClick={() => { setMode('cug'); setError(null); }}>
+              DEO (CUG)
             </button>
-            <button type="button" className={`tab flex-1 ${mode === 'email' ? 'tab-active' : ''}`} onClick={() => { setMode('email'); setError(null); }}>
-              Email (Admin)
+            <button type="button" className={`tab flex-1 px-1 ${mode === 'deputy' ? 'tab-active' : ''}`} onClick={() => { setMode('deputy'); setError(null); }}>
+              Deputy (CUG)
+            </button>
+            <button type="button" className={`tab flex-1 px-1 ${mode === 'email' ? 'tab-active' : ''}`} onClick={() => { setMode('email'); setError(null); }}>
+              Admin (Email)
             </button>
           </div>
         )}
@@ -132,7 +138,9 @@ export default function LoginForm() {
           <form onSubmit={submitCug} className="space-y-4">
             <div className="form-control">
               <label className="label" htmlFor="cug">
-                <span className="label-text font-medium">CUG mobile number</span>
+                <span className="label-text font-medium">
+                  {mode === 'deputy' ? 'Deputy Excise Commissioner — CUG mobile number' : 'District Excise Officer — CUG mobile number'}
+                </span>
               </label>
               <input
                 id="cug"
@@ -147,6 +155,11 @@ export default function LoginForm() {
                 required
                 autoComplete="off"
               />
+              <p className="text-xs text-base-content/60 mt-1">
+                {mode === 'deputy'
+                  ? 'Sign in with your division CUG number to review your districts.'
+                  : 'Sign in with your department CUG number to upload and verify your district data.'}
+              </p>
             </div>
 
             {error && (
