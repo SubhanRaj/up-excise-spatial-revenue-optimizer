@@ -39,51 +39,58 @@ const SECTIONS: Section[] = [
     `,
   },
   {
+    file: '00-deputy-acknowledgment.png',
+    titleEn: '3. The Review Reminder',
+    titleHi: '३. समीक्षा अनुस्मारक',
+    textEn: 'Each time you open the portal, a short reminder appears explaining your part in this round: the figures are for FY 2025-26, entered and verified by your DEOs; you check each district and record "Looks correct" or "Flag an issue"; and once every district is done you lock the division. Read it and tap "I understand". Your acknowledgement is recorded at headquarters with your name and the time.',
+    textHi: 'हर बार पोर्टल खोलने पर एक संक्षिप्त अनुस्मारक दिखता है जो इस दौर में आपकी भूमिका बताता है: आंकड़े FY 2025-26 के हैं, आपके DEO द्वारा दर्ज और verify किए गए; आप हर जिला जांचकर "Looks correct" या "Flag an issue" दर्ज करते हैं; और हर जिला पूरा होने पर आप मंडल lock करते हैं। इसे पढ़ें और "I understand" पर टैप करें। आपकी स्वीकृति आपके नाम और समय के साथ मुख्यालय में दर्ज होती है।',
+  },
+  {
     file: '01-deputy-dashboard.png',
-    titleEn: '3. Division Dashboard',
-    titleHi: '३. मंडल डैशबोर्ड',
+    titleEn: '4. Division Dashboard',
+    titleHi: '४. मंडल डैशबोर्ड',
     textEn: 'After signing in you land on your division dashboard. The stat cards show the division totals — number of districts, how many have been submitted, total vends uploaded, and total annual revenue. The map colours each district by status: grey is pending, amber is in progress, green is submitted, blue is verified. Click any district on the map, or any row in the "Districts" table below it, to open that district\'s figures.',
     textHi: 'साइन इन करने के बाद आप अपने मंडल डैशबोर्ड पर पहुँचते हैं। स्टेट कार्ड मंडल के कुल आंकड़े दिखाते हैं — जिलों की संख्या, कितने सबमिट हुए, कुल अपलोड किए गए vends, और कुल वार्षिक राजस्व। नक्शा हर जिले को स्थिति के अनुसार रंग देता है: ग्रे — pending, अम्बर — in progress, हरा — submitted, नीला — verified। नक्शे पर किसी भी जिले पर, या नीचे "Districts" तालिका की किसी भी पंक्ति पर क्लिक करके उस जिले के आंकड़े खोलें।',
   },
   {
     file: '02-deputy-districts-list.png',
-    titleEn: '4. Districts List',
-    titleHi: '४. जिलों की सूची',
+    titleEn: '5. Districts List',
+    titleHi: '५. जिलों की सूची',
     textEn: 'The Districts tab in the navbar opens the same list as a full table, with a search box (match a district or DEO name), a status filter, and sortable columns. The "Review" column shows whether you have already recorded a sign-off for that district — "Looks correct", "Flagged", or blank if not yet reviewed. Click a row to open the district.',
     textHi: 'navbar में Districts टैब वही सूची एक पूर्ण तालिका के रूप में खोलता है, जिसमें एक search box (जिला या DEO नाम मिलाएं), एक status filter, और sortable columns हैं। "Review" column दिखाता है कि आपने उस जिले के लिए पहले से कोई हस्ताक्षर दर्ज किया है या नहीं — "Looks correct", "Flagged", या खाली अगर अभी समीक्षा नहीं हुई। जिला खोलने के लिए पंक्ति पर क्लिक करें।',
   },
   {
     file: '03-deputy-district-figures.png',
-    titleEn: '5. A District\'s Figures',
-    titleHi: '५. किसी जिले के आंकड़े',
+    titleEn: '6. A District\'s Figures',
+    titleHi: '६. किसी जिले के आंकड़े',
     textEn: 'This is every shop the DEO uploaded for the district, the same view headquarters uses. The stat cards at the top show status, shop count, circle/sector count, and total revenue. Below them, use the shop-type breakdown bar, the circle/sector breakdown table, and the filter / sort / group-by-type / search controls on the shop table to check the figures. A ⚠ next to a revenue amount, or a "Possible Duplicate Thana Names" card, is worth opening. Everything on this screen is read-only.',
     textHi: 'यह वह हर दुकान है जो DEO ने जिले के लिए अपलोड की, वही दृश्य जो मुख्यालय उपयोग करता है। ऊपर के स्टेट कार्ड स्थिति, दुकान संख्या, circle/sector संख्या, और कुल राजस्व दिखाते हैं। उनके नीचे, आंकड़े जांचने के लिए shop-type breakdown बार, circle/sector breakdown तालिका, और शॉप तालिका पर filter / sort / group-by-type / search नियंत्रण उपयोग करें। किसी राजस्व राशि के पास ⚠, या "Possible Duplicate Thana Names" कार्ड, खोलने योग्य है। इस स्क्रीन पर सब कुछ केवल-पढ़ने के लिए है।',
   },
   {
     file: '04-deputy-review-dialog.png',
-    titleEn: '6. Recording Your Review',
-    titleHi: '६. अपनी समीक्षा दर्ज करना',
+    titleEn: '7. Recording Your Review',
+    titleHi: '७. अपनी समीक्षा दर्ज करना',
     textEn: 'How the verification builds up: the DEO enters their district\'s figures, submits them, then confirms and verifies the district in the final round — so a district reaches you as "Verified". You then check it. At the bottom of the district page is the "Your review" panel. Tap "Looks correct" once the figures are right — a dialog opens for an optional note, then confirm. To raise a problem instead, tap "Flag an issue"; a note describing it is required, and headquarters can then open a correction so the DEO fixes the shop(s) and re-verifies. Either way, one line is recorded at headquarters with your name, the district, your verdict, and your note. No figure changes.',
     textHi: 'सत्यापन इस तरह बनता है: DEO अपने जिले के आंकड़े दर्ज करता है, सबमिट करता है, फिर अंतिम दौर में जिले को verify करता है — तो जिला आप तक "Verified" के रूप में पहुँचता है। फिर आप उसे जांचते हैं। जिले के पेज के नीचे "Your review" पैनल है। आंकड़े सही होने पर "Looks correct" पर टैप करें — एक वैकल्पिक नोट के लिए संवाद खुलता है, फिर पुष्टि करें। समस्या उठाने के लिए "Flag an issue" पर टैप करें; उसका वर्णन करने वाला नोट अनिवार्य है, और फिर मुख्यालय सुधार खोल सकता है ताकि DEO दुकानें ठीक करके दोबारा verify करे। दोनों स्थितियों में, आपके नाम, जिले, निर्णय और नोट के साथ मुख्यालय में एक पंक्ति दर्ज होती है। कोई आंकड़ा नहीं बदलता।',
   },
   {
     file: '05-deputy-review-recorded.png',
-    titleEn: '7. After a Review Is Recorded',
-    titleHi: '७. समीक्षा दर्ज होने के बाद',
+    titleEn: '8. After a Review Is Recorded',
+    titleHi: '८. समीक्षा दर्ज होने के बाद',
     textEn: 'Once recorded, the panel shows your last verdict, the date and time, and your note. You can record a new sign-off on the same district any time — the most recent one is what shows. The same verdict appears in the "Review" column on the dashboard and the Districts list.',
     textHi: 'दर्ज होने के बाद, पैनल आपका अंतिम निर्णय, दिनांक और समय, और आपका नोट दिखाता है। आप उसी जिले पर कभी भी नया हस्ताक्षर दर्ज कर सकते हैं — सबसे हालिया वाला दिखता है। वही निर्णय डैशबोर्ड और Districts सूची के "Review" column में दिखता है।',
   },
   {
-    titleEn: '8. Locking Your Division',
-    titleHi: '८. अपना मंडल लॉक करना',
+    titleEn: '9. Locking Your Division',
+    titleHi: '९. अपना मंडल लॉक करना',
     customHtml: `
       <p class="en">The dashboard has a "Verify &amp; lock this division" card. It stays disabled until every district in your division is verified by its DEO and you have recorded "Looks correct" on each one — the card lists which districts still need either. Once all are done, tap <strong>"Verify &amp; Lock Division"</strong>, type your full name (this is your sign-off, the same way a DEO signs off their district), and confirm. After locking, your DEOs can no longer request a correction on their own; only state Excise headquarters can reopen the division. When all 18 divisions are locked, the state's data collection is closed.</p>
       <p class="hi">डैशबोर्ड पर एक "Verify &amp; lock this division" कार्ड है। यह तब तक निष्क्रिय रहता है जब तक आपके मंडल का हर जिला उसके DEO द्वारा verify न हो जाए और आपने हर एक पर "Looks correct" दर्ज न कर दिया हो — कार्ड बताता है कि किन जिलों में अभी कौन सा काम बाकी है। सब पूरा होने पर, <strong>"Verify &amp; Lock Division"</strong> पर टैप करें, अपना पूरा नाम टाइप करें (यह आपका हस्ताक्षर है, जैसे DEO अपने जिले पर हस्ताक्षर करता है), और पुष्टि करें। लॉक करने के बाद, आपके DEO खुद सुधार का अनुरोध नहीं कर सकते; केवल राज्य आबकारी मुख्यालय ही मंडल दोबारा खोल सकता है। जब सभी 18 मंडल लॉक हो जाते हैं, राज्य का डेटा संग्रह बंद हो जाता है।</p>
     `,
   },
   {
-    titleEn: '9. What You Cannot Do',
-    titleHi: '९. आप क्या नहीं कर सकते',
+    titleEn: '10. What You Cannot Do',
+    titleHi: '१०. आप क्या नहीं कर सकते',
     customHtml: `
       <p class="en">This portal shows only your own division — you cannot open another division's districts or figures. You cannot edit a shop, unlock a district, delete data, or download templates; those are the DEO's and headquarters' actions. If a district's figures are wrong, use "Flag an issue" with a clear note — headquarters and the DEO act on it from there.</p>
       <p class="hi">यह पोर्टल केवल आपका अपना मंडल दिखाता है — आप किसी अन्य मंडल के जिले या आंकड़े नहीं खोल सकते। आप किसी दुकान को edit नहीं कर सकते, जिला unlock नहीं कर सकते, डेटा delete नहीं कर सकते, या टेम्पलेट download नहीं कर सकते; वे DEO और मुख्यालय के कार्य हैं। यदि किसी जिले के आंकड़े गलत हैं, तो एक स्पष्ट नोट के साथ "Flag an issue" का उपयोग करें — मुख्यालय और DEO उस पर आगे कार्रवाई करते हैं।</p>

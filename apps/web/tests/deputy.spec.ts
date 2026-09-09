@@ -18,6 +18,11 @@ const OUT_OF_DIVISION = 'Lucknow';
 
 const DEPUTY_HASH = sha('deputy-e2e@example.local');
 const DEO_HASH = sha('deo-e2e@example.local');
+const ADMIN_HASH = sha('admin-e2e@example.local');
+
+// Every district in the Agra division — a division locks only when all of these are
+// 'verified' and deputy-reviewed 'ok'.
+const AGRA_DIVISION_DISTRICTS = ['Agra', 'Firozabad', 'Mainpuri', 'Mathura'];
 const DEPUTY_CUG_HASH = sha('deputy-e2e-cug-0000000000');
 const DEO_CUG_HASH = sha('deo-e2e-cug-0000000000');
 
@@ -43,6 +48,11 @@ test.beforeAll(() => {
     `INSERT INTO auth_users (email_hash, name, role, deo_id, district_name, deo_cug_hash) VALUES ` +
     `('${DEO_HASH}', 'DEO E2E', 'deo', 'DEO-AGRA', '${IN_DIVISION_NAME}', '${DEO_CUG_HASH}') ` +
     `ON CONFLICT(email_hash) DO UPDATE SET role='deo', district_name='${IN_DIVISION_NAME}', deo_cug_hash='${DEO_CUG_HASH}';`,
+  );
+  d1(
+    `INSERT INTO auth_users (email_hash, name, role, deo_id, district_name) VALUES ` +
+    `('${ADMIN_HASH}', 'Admin E2E', 'admin', 'ADMIN-E2E', NULL) ` +
+    `ON CONFLICT(email_hash) DO UPDATE SET role='admin';`,
   );
 });
 
@@ -99,6 +109,84 @@ test.describe('deputy division data boundary', () => {
     // out-of-division review is refused
     expect((await page.request.post(`/api/deputy/districts/${OUT_OF_DIVISION}/review`, { data: { verdict: 'ok' } })).status()).toBe(403);
   });
+});
+
+test.describe('division lock hierarchy (M-103)', () => {
+  function setDivisionEligible() {
+    for (const d of AGRA_DIVISION_DISTRICTS) {
+      d1(`UPDATE districts SET status='verified' WHERE name='${d}';`);
+      d1(`DELETE FROM audit_log WHERE district_name='${d}' AND event_type='deputy_district_reviewed';`);
+      d1(`INSERT INTO audit_log (event_type, deo_id, district_name, metadata, actor_name, created_at) VALUES ('deputy_district_reviewed', 'DEC-E2E', '${d}', '{"verdict":"ok","note":""}', 'Deputy E2E', ${Date.now()});`);
+    }
+  }
+  function clearLock() {
+    d1(`DELETE FROM division_locks WHERE division='${IN_DIVISION}';`);
+  }
+
+  test.beforeEach(() => { clearLock(); setDivisionEligible(); });
+  test.afterAll(() => {
+    clearLock();
+    for (const d of AGRA_DIVISION_DISTRICTS) {
+      d1(`DELETE FROM audit_log WHERE district_name='${d}' AND event_type='deputy_district_reviewed';`);
+    }
+  });
+
+  test('deputy locks the division once every district is verified + signed off', async ({ page }) => {
+    await loginAs(page, DEPUTY_HASH);
+
+    // name is required
+    expect((await page.request.post(`/api/deputy/divisions/${IN_DIVISION}/lock`, { data: {} })).status()).toBe(400);
+
+    const lock = await page.request.post(`/api/deputy/divisions/${IN_DIVISION}/lock`, { data: { lockedByName: 'Ramesh Chand' } });
+    expect(lock.status()).toBe(200);
+
+    const reviews = await (await page.request.get('/api/deputy/reviews')).json() as { divisionLock: { lockedBy: string } | null; eligibleToLock: boolean };
+    expect(reviews.divisionLock?.lockedBy).toBe('Ramesh Chand');
+
+    // locking again is refused
+    expect((await page.request.post(`/api/deputy/divisions/${IN_DIVISION}/lock`, { data: { lockedByName: 'Ramesh Chand' } })).status()).toBe(409);
+  });
+
+  test('lock is refused while any district is not verified', async ({ page }) => {
+    d1(`UPDATE districts SET status='submitted' WHERE name='Firozabad';`);
+    await loginAs(page, DEPUTY_HASH);
+    const res = await page.request.post(`/api/deputy/divisions/${IN_DIVISION}/lock`, { data: { lockedByName: 'Ramesh Chand' } });
+    expect(res.status()).toBe(409);
+    const body = await res.json() as { notVerified: string[] };
+    expect(body.notVerified).toContain('Firozabad');
+    d1(`UPDATE districts SET status='verified' WHERE name='Firozabad';`);
+  });
+
+  test('a locked division blocks a DEO self-service unlock request', async ({ page }) => {
+    await loginAs(page, DEPUTY_HASH);
+    await page.request.post(`/api/deputy/divisions/${IN_DIVISION}/lock`, { data: { lockedByName: 'Ramesh Chand' } });
+
+    await loginAs(page, DEO_HASH);
+    const req = await page.request.post(`/api/districts/${IN_DIVISION_NAME}/request-unlock`, { data: { reason: 'fix a shop' } });
+    expect(req.status()).toBe(409);
+    const get = await (await page.request.get(`/api/districts/${IN_DIVISION_NAME}/request-unlock`)).json() as { divisionLocked: boolean };
+    expect(get.divisionLocked).toBe(true);
+  });
+
+  test('only an admin can unlock a division; a deputy cannot', async ({ page }) => {
+    await loginAs(page, DEPUTY_HASH);
+    await page.request.post(`/api/deputy/divisions/${IN_DIVISION}/lock`, { data: { lockedByName: 'Ramesh Chand' } });
+
+    // deputy has no unlock route access
+    expect((await page.request.delete(`/api/admin/divisions/${IN_DIVISION}/lock`, { data: { note: 'x' } })).status()).toBe(403);
+
+    await loginAs(page, ADMIN_HASH);
+    expect((await page.request.delete(`/api/admin/divisions/${IN_DIVISION}/lock`, { data: {} })).status()).toBe(400); // note required
+    expect((await page.request.delete(`/api/admin/divisions/${IN_DIVISION}/lock`, { data: { note: 'reopening for a correction' } })).status()).toBe(200);
+    expect((await page.request.delete(`/api/admin/divisions/${IN_DIVISION}/lock`, { data: { note: 'again' } })).status()).toBe(409); // not locked
+  });
+});
+
+test('deputy acknowledgment route: deputy 200, DEO 403', async ({ page }) => {
+  await loginAs(page, DEPUTY_HASH);
+  expect((await page.request.post('/api/deputy/ack-reminder')).status()).toBe(200);
+  await loginAs(page, DEO_HASH);
+  expect((await page.request.post('/api/deputy/ack-reminder')).status()).toBe(403);
 });
 
 test('a DEO session cannot use the deputy review routes', async ({ page }) => {

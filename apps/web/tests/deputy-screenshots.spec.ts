@@ -82,6 +82,17 @@ test.describe('Deputy Manual — screenshot walkthrough', () => {
 
     await loginAs(page, deputyEmailHash);
 
+    // The review-responsibility acknowledgment modal fires on the first page load — capture it,
+    // then auto-dismiss it on every later load so it doesn't sit over the other screenshots.
+    await page.goto(`/deputy-${DIVISION.toLowerCase()}`);
+    await expect(page.locator('.swal2-popup')).toBeVisible({ timeout: 15000 });
+    await page.screenshot({ path: path.join(SHOTS_DIR, '00-deputy-acknowledgment.png'), fullPage: true });
+    await page.click('button.swal2-confirm');
+    await page.addLocatorHandler(
+      page.locator('button.swal2-confirm', { hasText: 'I understand' }),
+      async (el) => { await el.click(); },
+    );
+
     // Dashboard — division map + stat cards + district table
     await page.goto(`/deputy-${DIVISION.toLowerCase()}`);
     await expect(page.locator('h1').filter({ hasText: `${DIVISION} Division` })).toBeVisible({ timeout: 15000 });
