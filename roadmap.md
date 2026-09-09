@@ -1092,6 +1092,26 @@ export const districtCirclesSectors = sqliteTable('district_circles_sectors', {
 
 The `circle_sector_name` field in `phase1_raw_collection` (Section 5.2) references a value from this table by name (not by FK, consistent with the flexibility rationale in Section 5.1). The Worker validates that the `circleSectorName` on each uploaded chunk matches a registered unit for the DEO's district before inserting.
 
+### 5.4a Derived Thana Master (`district_thanas`)
+
+`district_thanas` (migration `0012_add_district_thanas.sql`) is a **derived, soft** reference — the opposite treatment to circles/sectors above, because Thana names are DEO free-text and carry the spelling-variation problem Section 5.1 describes. It is built once from `phase1_raw_collection` by `scripts/build-district-thanas.ts` (one row per distinct `(district_name, circle_sector_name, thana_name)`, plus a normalised `thana_key` and the `shop_count` behind it), and is not maintained by the app at runtime. Thana is a stable entity — an FY-2026-27 data clear (Section on `/admin/fy-cleanup`) deletes only shop rows, never this — so the list stays valid across a re-entry.
+
+```typescript
+export const districtThanas = sqliteTable('district_thanas', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  districtName: text('district_name').notNull(),
+  circleSectorName: text('circle_sector_name').notNull(),
+  thanaName: text('thana_name').notNull(),
+  thanaKey: text('thana_key').notNull(),        // normalizeThanaName(): trimmed, ws-collapsed, lowercased
+  shopCount: integer('shop_count').notNull().default(0),
+  createdAt: integer('created_at').notNull().default(0),
+}, (table) => ({
+  lookupIdx: index('district_thanas_lookup_idx').on(table.districtName, table.thanaKey),
+}));
+```
+
+`GET /api/districts/[district]/thanas` serves the district's distinct `thana_key` set. The DEO Verify page shows a non-blocking `⚠` on a staged row whose `thana_name` normalises to something not in the set — a spelling-check prompt, never a submission gate. The check is **district-level**, not per circle/sector: ~28% of Thanas legitimately appear in more than one circle within a district, so a per-circle check would false-positive on correct data. `circle_sector_name` is recorded for per-circle rollups, not for the check.
+
 ### 5.5 Audit Log Table
 
 Every significant event in the system — DEO login, session revocation, upload chunk, district submission, circle/sector registration, admin/superadmin actions — is recorded here by the relevant Route Handler on every successful operation. Records older than 45 days are opportunistically deleted on every read of `GET /api/admin/audit-log` (the only consumer of this table), rather than by a separate scheduled job.

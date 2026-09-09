@@ -150,19 +150,22 @@ test.describe('DEO Manual — screenshot walkthrough', () => {
     // Column order matches the template's "Data Entry" sheet (TEMPLATE_HEADERS in
     // src/lib/excel.ts): circle_sector_name, thana_name, adjacent_thanas_raw, shop_id,
     // shop_name, shop_type, has_cl5cc, latitude, longitude, then the financial fields.
+    // Thana names below match Agra's real district_thanas master ("Hari Parwat", "Khera Garh",
+    // "Sadar Bazar", "Fatehabad") so the Verify screenshots don't carry the soft ⚠ that the
+    // master check (migration 0012) would otherwise raise on a made-up name.
     const rows = [
       // adjacent_thanas_raw is mandatory (as of 2026-08-04) — every demo row below fills it in,
       // matching what the portal now actually requires before a row can be submitted.
-      ['Sector - 1', 'Hariparvat', 'Sadar Bazar', 'AG0001', 'Sadar Model Shop', 'MODEL_SHOP', 0, 27.18, 78.02, 150000, 0, 300000, 0, 0, 0, 0, 0, 0, 0, 0],
-      ['Sector - 2', 'Sadar Bazar', 'Hariparvat', 'AG0002', 'Sadar PRV', 'PRV', 0, 27.19, 78.03, 120000, 0, 200000, 0, 0, 0, 0, 0, 0, 0, 0],
-      ['Circle 2 - Fatehabad', 'Fatehabad', 'Hariparvat', 'AG0003', 'Fatehabad Country Liquor', 'COUNTRY_LIQUOR', 1, 27.05, 78.25, 0, 180000, 0, 0, 0, 0, 0, 0, 60000, 120000, 90000],
+      ['Sector - 1', 'Hari Parwat', 'Sadar Bazar', 'AG0001', 'Sadar Model Shop', 'MODEL_SHOP', 0, 27.18, 78.02, 150000, 0, 300000, 0, 0, 0, 0, 0, 0, 0, 0],
+      ['Sector - 2', 'Sadar Bazar', 'Hari Parwat', 'AG0002', 'Sadar PRV', 'PRV', 0, 27.19, 78.03, 120000, 0, 200000, 0, 0, 0, 0, 0, 0, 0, 0],
+      ['Circle 2 - Fatehabad', 'Fatehabad', 'Hari Parwat', 'AG0003', 'Fatehabad Country Liquor', 'COUNTRY_LIQUOR', 1, 27.05, 78.25, 0, 180000, 0, 0, 0, 0, 0, 0, 60000, 120000, 90000],
       // adjacent_thanas_raw demonstrates the comma-separated, multi-name format DEOs must use —
       // each Thana name may itself contain spaces (e.g. "Sadar Bazar"); names are separated by
-      // a comma, optionally followed by a space, e.g. "Fatehabad, Hariparvat, Sadar Bazar".
-      ['Circle 3 - Kheragarh', 'Kheragarh', 'Fatehabad, Hariparvat, Sadar Bazar', 'AG0004', 'Kheragarh Bhang Shop', 'BHANG_SHOP', 0, 26.85, 77.95, 90000, 0, 0, 0, 0, 0, 0, 5000, 0, 0, 0],
+      // a comma, optionally followed by a space, e.g. "Fatehabad, Hari Parwat, Sadar Bazar".
+      ['Circle 3 - Kheragarh', 'Khera Garh', 'Fatehabad, Hari Parwat, Sadar Bazar', 'AG0004', 'Kheragarh Bhang Shop', 'BHANG_SHOP', 0, 26.85, 77.95, 90000, 0, 0, 0, 0, 0, 0, 5000, 0, 0, 0],
       // HBR row — added 2026-07-28. Reuses license_fee_lf + consideration_fee,
       // same two columns as COUNTRY_LIQUOR, different formula.
-      ['Sector - 2', 'Sadar Bazar', 'Hariparvat', 'AG0005', 'Agra Fort Hotel Bar', 'HBR', 0, 27.18, 78.02, 250000, 0, 0, 0, 0, 0, 0, 0, 400000, 0, 0],
+      ['Sector - 2', 'Sadar Bazar', 'Hari Parwat', 'AG0005', 'Agra Fort Hotel Bar', 'HBR', 0, 27.18, 78.02, 250000, 0, 0, 0, 0, 0, 0, 0, 400000, 0, 0],
     ];
     // Fill the demo rows into the REAL downloaded template (title on row 1, header on row 2,
     // hidden "Reference Data" sheet). parseExcelFile() rejects any workbook missing that sheet

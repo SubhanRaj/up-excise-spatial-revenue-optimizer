@@ -17,6 +17,7 @@ import { ShopExplorer, type ShopExplorerRow } from '@/components/ShopExplorer';
 import { ThanaVariantsCard } from '@/components/ThanaVariantsCard';
 import { UnitsModal } from '@/components/UnitsModal';
 import { useShopAggregates } from '@/hooks/useShopAggregates';
+import { normalizeThanaName } from '@/lib/thana-name';
 
 interface UnlockRequestInfo { status: 'pending' | 'approved' | 'denied'; reason: string; adminNote: string | null }
 
@@ -217,6 +218,22 @@ export default function VerifyPage() {
   }, [district]);
 
   useEffect(() => { loadDistrictStatus(); }, [loadDistrictStatus]);
+
+  // Derived Thana master for this district (migrations/0012) — a soft checklist. A staged row
+  // whose thana_name isn't in this set gets a non-blocking "check the spelling" marker below;
+  // it never sets row.status = 'error'. Empty (a district with no historical data) = no check.
+  const [masterThanaKeys, setMasterThanaKeys] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    if (!district) return;
+    fetch(`/api/districts/${encodeURIComponent(district)}/thanas`)
+      .then((res) => (res.ok ? res.json() as Promise<{ thanaKeys: string[] }> : { thanaKeys: [] }))
+      .then((data) => setMasterThanaKeys(new Set(data.thanaKeys)))
+      .catch(() => {});
+  }, [district]);
+  const unknownThana = useCallback(
+    (name: string) => masterThanaKeys.size > 0 && !masterThanaKeys.has(normalizeThanaName(name)),
+    [masterThanaKeys],
+  );
 
   useEffect(() => {
     if (!district) return;
@@ -794,7 +811,8 @@ export default function VerifyPage() {
               <p><strong>Workflow gate</strong> — जब तक कम से कम एक circle या sector मौजूद न हो, district डेटा अपलोड करना लॉक रहता है। पहले units बनाएं, फिर अपलोड करें, फिर verify करें।</p>
               <p><strong>View mode</strong> — <em>Staged Data</em> (आपकी local upload queue) और <em>Uploaded Data</em> (D1 से लोड की गई read-only district rows) के बीच स्विच करें। Dashboard पर "Shops Uploaded" कार्ड पर क्लिक करने पर, या नाव बार में "Uploaded Data" लिंक से, आप सीधे Uploaded Data view में पहुंच सकते हैं।</p>
               <p><strong>Clear Staged Data</strong> — गलत Excel फ़ाइल अपलोड हो जाने पर इस बटन से इस डिवाइस का सारा staged (अभी D1 में नहीं भेजा गया) डेटा मिटाया जा सकता है। यह पहले से D1 में सबमिट किया जा चुका डेटा नहीं हटाता — केवल इस डिवाइस की local staging को साफ करता है। इसके बाद सही फ़ाइल दोबारा अपलोड करें।</p>
-              <p><strong>Adjacent Thana pills</strong> — &quot;Adjacent Thanas&quot; कॉलम में Thana के नाम pills के रूप में दिखाए जाते हैं। <span className="text-error font-semibold">लाल pills</span> का मतलब है कि यह नाम अभी तक इस district के अपने डेटा में कहीं और Thana के रूप में मौजूद नहीं है — आमतौर पर यह टाइपो होता है, लेकिन यह किसी वास्तविक Thana का नाम भी हो सकता है जिसकी कोई दुकान अभी अपलोड नहीं हुई। स्पेलिंग जांच लें; लाल pill होने से सबमिशन नहीं रुकता, और जांचने के लिए कोई राज्य-स्तरीय Thana मास्टर लिस्ट भी मौजूद नहीं है। जैसे ही वह नाम district के डेटा में कहीं आता है, pill अपने आप outlined हो जाती है।</p>
+              <p><strong>Adjacent Thana pills</strong> — &quot;Adjacent Thanas&quot; कॉलम में Thana के नाम pills के रूप में दिखाए जाते हैं। <span className="text-error font-semibold">लाल pills</span> का मतलब है कि यह नाम अभी तक इस district के अपने डेटा में कहीं और Thana के रूप में मौजूद नहीं है — आमतौर पर यह टाइपो होता है, लेकिन यह किसी वास्तविक Thana का नाम भी हो सकता है जिसकी कोई दुकान अभी अपलोड नहीं हुई। स्पेलिंग जांच लें; लाल pill होने से सबमिशन नहीं रुकता। जैसे ही वह नाम district के डेटा में कहीं आता है, pill अपने आप outlined हो जाती है।</p>
+              <p><strong>Thana कॉलम पर <span className="text-warning font-semibold">⚠</span></strong> — इसका मतलब है कि यह Thana नाम इस जिले की पहले से दर्ज Thana सूची में नहीं मिला (यह सूची इसी जिले के पुराने shop डेटा से बनी है)। लगभग हमेशा यह स्पेलिंग का अंतर होता है — जांच लें। यह सबमिशन को नहीं रोकता।</p>
               <p><strong>Coordinates</strong> — <span className="text-warning">⚠ warning icon</span> का मतलब है coordinate UP bounding box के बाहर है। <span className="text-success">✓ icon</span> का मतलब valid है। सबमिट करने से पहले warnings की समीक्षा करें — इन्हें block नहीं किया जाता, लेकिन जांचना चाहिए।</p>
               <p><strong>Revenue column</strong> — financial fields से अपने-आप calculate होता है। अगर कोई value गलत लगे, तो Excel फ़ाइल में वापस जाकर सही version दोबारा अपलोड करें।</p>
               <p><strong>Submit District</strong> — यह बटन तभी सक्रिय होता है जब सभी registered units में बिना किसी error वाली कम से कम एक row हो। इस पर क्लिक करने से सभी pending rows अपलोड हो जाती हैं और district headquarters को सबमिट के रूप में मार्क हो जाता है।</p>
@@ -805,7 +823,8 @@ export default function VerifyPage() {
             <p><strong>Workflow gate</strong> — Uploading district data is locked until at least one circle or sector exists. Create units first, then upload, then verify.</p>
             <p><strong>View mode</strong> — Switch between <em>Staged Data</em> (your local upload queue) and <em>Uploaded Data</em> (read-only district rows loaded from D1). You can jump straight to the Uploaded Data view from the "Shops Uploaded" card on your Dashboard, or the "Uploaded Data" link in the nav bar.</p>
             <p><strong>Clear Staged Data</strong> — If the wrong Excel file was uploaded, this button erases all locally staged data (rows not yet sent to D1) on this device. It does not affect anything already submitted to D1 — only this device's local staging is cleared. Re-upload the correct file afterward.</p>
-            <p><strong>Adjacent Thana pills</strong> — Thana names in the &quot;Adjacent Thanas&quot; column are shown as pills. <span className="text-error font-semibold">Red pills</span> mean that name doesn&apos;t (yet) appear as a Thana elsewhere in this district&apos;s own data — usually a typo, but it could also be a real Thana with no shop uploaded here. Double-check the spelling; a red pill does not block submission, and there is no state-wide Thana master list to check against. Once the name appears somewhere in this district&apos;s data, its pill turns outlined automatically.</p>
+            <p><strong>Adjacent Thana pills</strong> — Thana names in the &quot;Adjacent Thanas&quot; column are shown as pills. <span className="text-error font-semibold">Red pills</span> mean that name doesn&apos;t (yet) appear as a Thana elsewhere in this district&apos;s own data — usually a typo, but it could also be a real Thana with no shop uploaded here. Double-check the spelling; a red pill does not block submission. Once the name appears somewhere in this district&apos;s data, its pill turns outlined automatically.</p>
+            <p><strong><span className="text-warning font-semibold">⚠</span> on the Thana column</strong> — the Thana name isn&apos;t in this district&apos;s known Thana list, built from the district&apos;s earlier shop data. Almost always a spelling difference — check it against the rest of your rows. It does not block submission.</p>
             <p><strong>Coordinates</strong> — A <span className="text-warning">⚠ warning icon</span> means the coordinate is outside the UP bounding box. A <span className="text-success">✓ icon</span> means valid. Review warnings before submitting — they are not blocked, but should be verified.</p>
             <p><strong>Revenue column</strong> — Calculated automatically from the financial fields. If a value looks wrong, go back to the Excel file and re-upload a corrected version.</p>
             <p><strong>Submit District</strong> — The button activates only when all registered units have at least one row with no errors. Clicking it uploads all pending rows and marks the district as submitted to headquarters.</p>
@@ -917,7 +936,15 @@ export default function VerifyPage() {
                         />
                       )}
                     </td>
-                    <td role="gridcell" className="text-xs">{row.thanaName}</td>
+                    <td role="gridcell" className="text-xs">
+                      {row.thanaName}
+                      {unknownThana(row.thanaName) && (
+                        <span
+                          className="ml-1 text-warning font-semibold cursor-help"
+                          title={`"${row.thanaName}" isn't in this district's known Thana list. Usually a spelling difference — check it. This does not block submission.`}
+                        >⚠</span>
+                      )}
+                    </td>
                     <td role="gridcell"><span className="badge badge-sm h-auto py-1 px-2 badge-outline">{row.shopType}</span></td>
                     <td role="gridcell" className="min-w-48">
                       <PillList

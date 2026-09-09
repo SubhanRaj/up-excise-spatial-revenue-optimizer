@@ -97,6 +97,23 @@ export const districtCirclesSectors = sqliteTable('district_circles_sectors', {
   districtIdx: index('dcs_district_idx').on(t.districtName),
 }));
 
+// Derived Thana master — one row per distinct (district, circle/sector, thana) seen in the
+// shop data (migrations/0012, built by scripts/build-district-thanas.ts). A soft checklist:
+// GET /api/districts/[district]/thanas serves the district's distinct thana_key set and the
+// DEO Verify page warns (never blocks) on a staged row whose thana_name isn't in it. Thana
+// survives an FY-data clear, so the list stays valid.
+export const districtThanas = sqliteTable('district_thanas', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  districtName: text('district_name').notNull(),
+  circleSectorName: text('circle_sector_name').notNull(),
+  thanaName: text('thana_name').notNull(),
+  thanaKey: text('thana_key').notNull(), // normalizeThanaName(): trimmed, ws-collapsed, lowercased
+  shopCount: integer('shop_count').notNull().default(0),
+  createdAt: integer('created_at').notNull().default(0),
+}, (t) => ({
+  lookupIdx: index('district_thanas_lookup_idx').on(t.districtName, t.thanaKey),
+}));
+
 export const districtUnlockRequests = sqliteTable('district_unlock_requests', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   districtName: text('district_name').notNull(),

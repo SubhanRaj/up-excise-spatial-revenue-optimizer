@@ -45,8 +45,11 @@ async function POST_(req: NextRequest, { params }: Ctx): Promise<NextResponse> {
   const clearedAt = new Date();
   await db.batch([
     db.delete(phase1RawCollection).where(eq(phase1RawCollection.districtName, district)),
+    // deoName is nulled too — it is a submit-time signature (M-53), re-attested by the DEO
+    // when they resubmit the corrected FY 2025-26 data, so a stale pre-clear name shouldn't
+    // linger on a district that's back to 'pending'.
     db.update(districts)
-      .set({ status: 'pending', cachedVendCount: null, cachedTotalRevenue: null, fyDataClearedAt: clearedAt })
+      .set({ status: 'pending', deoName: null, cachedVendCount: null, cachedTotalRevenue: null, fyDataClearedAt: clearedAt })
       .where(eq(districts.name, district)),
     db.insert(auditLog).values({
       eventType: 'fy_data_cleared',
