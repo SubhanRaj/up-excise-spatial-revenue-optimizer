@@ -87,7 +87,15 @@ export default function DeoLayout({ children }: { children: React.ReactNode }) {
           .then(units => setHasUnits(units.length > 0));
         fetch(`/api/districts/${encodeURIComponent(session.districtName)}/status`)
           .then(r => r.ok ? r.json() : { districtStatus: 'pending', verificationPhaseOpen: false })
-          .then((s: { districtStatus: string; verificationPhaseOpen: boolean; fyDataClearedAt: number | null }) => {
+          .then(async (s: { districtStatus: string; verificationPhaseOpen: boolean; fyDataClearedAt: number | null }) => {
+            // HQ cleared this district's data (FY-year cleanup or a bad-upload reset) while this
+            // device still holds the old rows — a mid-workflow DEO device is never legitimately at
+            // 'pending' with 'uploaded' rows staged (submit -> 'submitted', correction unlock ->
+            // 'in_progress', both keep the rows). Wipe local staging so the DEO re-enters clean.
+            if (s.districtStatus === 'pending') {
+              const stale = await stagingDb.getByStatus('uploaded').catch(() => []);
+              if (stale.length > 0) await stagingDb.clearAll(session.districtName);
+            }
             setSubmitted(s.districtStatus === 'submitted' || s.districtStatus === 'verified');
             setDistrictStatus(s.districtStatus);
             // Cleared for FY-year re-entry and not yet re-submitted — show the re-entry banner.

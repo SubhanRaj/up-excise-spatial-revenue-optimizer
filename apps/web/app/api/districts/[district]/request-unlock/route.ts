@@ -3,13 +3,22 @@ import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { drizzle } from 'drizzle-orm/d1';
 import { eq, and } from 'drizzle-orm';
 import { getSession } from '@/lib/auth';
-import { districtCirclesSectors, districtUnlockRequests, auditLog, districts } from '@excise/schema';
+import { districtCirclesSectors, districtUnlockRequests, auditLog, districts, divisionLocks } from '@excise/schema';
 import { withErrorHandling } from '@/lib/with-error-handling';
 import { isLocked } from '@/lib/status';
 
 const REASON_MAX_LENGTH = 2000;
 
 type Ctx = { params: Promise<{ district: string }> };
+
+// A DEO in a division the Deputy has locked (M-103) can no longer self-request a correction
+// unlock — state HQ has to unlock the division first.
+async function isDivisionLocked(db: ReturnType<typeof drizzle>, district: string): Promise<boolean> {
+  const d = await db.select({ division: districts.division }).from(districts).where(eq(districts.name, district)).get();
+  if (!d?.division) return false;
+  const lock = await db.select({ division: divisionLocks.division }).from(divisionLocks).where(eq(divisionLocks.division, d.division)).get();
+  return !!lock;
+}
 
 // Latest request for the signed-in DEO's own district — lets /units show a pending banner.
 async function GET_(_req: NextRequest, { params }: Ctx): Promise<NextResponse> {
@@ -21,13 +30,16 @@ async function GET_(_req: NextRequest, { params }: Ctx): Promise<NextResponse> {
 
   const { env } = await getCloudflareContext({ async: true }) as { env: CloudflareEnv };
   const db = drizzle(env.DB);
-  const rows = await db.select()
-    .from(districtUnlockRequests)
-    .where(eq(districtUnlockRequests.districtName, district))
-    .orderBy(districtUnlockRequests.id)
-    .all();
+  const [rows, divisionLocked] = await Promise.all([
+    db.select()
+      .from(districtUnlockRequests)
+      .where(eq(districtUnlockRequests.districtName, district))
+      .orderBy(districtUnlockRequests.id)
+      .all(),
+    isDivisionLocked(db, district),
+  ]);
 
-  return NextResponse.json({ request: rows.length > 0 ? rows[rows.length - 1] : null });
+  return NextResponse.json({ request: rows.length > 0 ? rows[rows.length - 1] : null, divisionLocked });
 }
 
 export const GET = withErrorHandling('districts/[district]/request-unlock:GET', GET_);
@@ -48,6 +60,12 @@ async function POST_(req: NextRequest, { params }: Ctx): Promise<NextResponse> {
 
   const { env } = await getCloudflareContext({ async: true }) as { env: CloudflareEnv };
   const db = drizzle(env.DB);
+
+  if (await isDivisionLocked(db, district)) {
+    return NextResponse.json({
+      error: 'Your division has been locked by the Deputy Excise Commissioner. Corrections now go through state Excise headquarters.',
+    }, { status: 409 });
+  }
 
   const districtRow = await db.select({ status: districts.status })
     .from(districts).where(eq(districts.name, district)).get();

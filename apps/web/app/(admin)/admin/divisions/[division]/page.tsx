@@ -14,18 +14,49 @@ export default function DivisionPage({ params }: { params: Promise<{ division: s
   const divName = decodeURIComponent(division);
 
   const router = useRouter();
-  const { districts: allDistricts, loading } = useAdminDistricts();
+  const { districts: allDistricts, divisionLocks, loading, refresh } = useAdminDistricts();
 
   const districts = useMemo(() =>
     allDistricts.filter((d) => d.division === divName).sort((a, b) => b.totalRevenue - a.totalRevenue),
     [allDistricts, divName]);
+
+  const lock = divisionLocks.find((l) => l.division === divName) ?? null;
 
   const totals = useMemo(() => ({
     vends: districts.reduce((s, d) => s + d.vendCount, 0),
     revenue: districts.reduce((s, d) => s + d.totalRevenue, 0),
     submitted: districts.filter((d) => isLocked(d.status)).length,
     inProgress: districts.filter((d) => d.status === 'in_progress').length,
+    verified: districts.filter((d) => d.status === 'verified').length,
+    signedOff: districts.filter((d) => d.deputyReview?.verdict === 'ok').length,
+    flagged: districts.filter((d) => d.deputyReview?.verdict === 'flagged').length,
   }), [districts]);
+
+  async function unlockDivision() {
+    const Swal = (window as unknown as { Swal?: { fire: (o: Record<string, unknown>) => Promise<{ isConfirmed: boolean; value?: string }> } }).Swal;
+    const res = await Swal?.fire({
+      icon: 'warning',
+      title: `Unlock the ${divName} division?`,
+      html: 'The Deputy Excise Commissioner locked this division. Unlocking lets DEOs in it request corrections again. A note is required.',
+      input: 'textarea', inputPlaceholder: 'Reason (required)',
+      inputValidator: (v: string) => (!v || !v.trim() ? 'A note is required' : undefined),
+      showCancelButton: true, confirmButtonText: 'Unlock division', confirmButtonColor: '#dc2626',
+    });
+    if (!res?.isConfirmed) return;
+    const r = await fetch(`/api/admin/divisions/${encodeURIComponent(divName)}/lock`, {
+      method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ note: res.value ?? '' }),
+    });
+    if (!r.ok) {
+      const e = await r.json().catch(() => ({})) as { error?: string };
+      await Swal?.fire({ icon: 'error', title: 'Could not unlock', text: e.error ?? 'Please try again.' });
+      return;
+    }
+    await refresh();
+    void Swal?.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Division unlocked.', showConfirmButton: false, timer: 2500, timerProgressBar: true });
+  }
+
+  const fmtDate = (ms: number) => new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' }).format(new Date(ms));
 
   return (
     <div className="space-y-5">
@@ -68,6 +99,37 @@ export default function DivisionPage({ params }: { params: Promise<{ division: s
         </div>
       )}
 
+      {/* Deputy review / division lock */}
+      {!loading && (
+        <div className={`rounded-xl border p-4 ${lock ? 'bg-info/10 border-info/30' : 'bg-base-100 border-base-200'}`}>
+          {lock ? (
+            <div className="flex items-start justify-between gap-3 flex-wrap">
+              <div>
+                <p className="font-semibold flex items-center gap-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                  Locked by the Deputy Excise Commissioner
+                </p>
+                <p className="text-sm text-base-content/70 mt-1">
+                  {fmtDate(lock.lockedAt)} · {lock.lockedBy}
+                  {lock.note ? <span className="block mt-0.5">Note: {lock.note}</span> : null}
+                </p>
+                <p className="text-xs text-base-content/50 mt-1">DEOs in this division cannot self-request corrections while it is locked.</p>
+              </div>
+              <button className="btn btn-sm btn-outline btn-error" onClick={unlockDivision}>Unlock division</button>
+            </div>
+          ) : (
+            <div>
+              <p className="font-semibold text-sm">Deputy review progress</p>
+              <p className="text-sm text-base-content/70 mt-1">
+                {totals.verified} of {districts.length} DEO-verified · {totals.signedOff} signed off by the Deputy
+                {totals.flagged > 0 && <span className="text-error"> · {totals.flagged} flagged</span>}
+              </p>
+              <p className="text-xs text-base-content/50 mt-1">The Deputy locks this division once every district is verified and signed off.</p>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Districts table */}
       <div className="bg-base-100 rounded-xl border border-base-200 overflow-hidden">
         <div className="px-4 py-3 border-b border-base-200">
@@ -80,6 +142,7 @@ export default function DivisionPage({ params }: { params: Promise<{ division: s
                 <th>District</th>
                 <th>DEO</th>
                 <th>Status</th>
+                <th>Deputy Review</th>
                 <th className="text-right">Vends</th>
                 <th className="text-right">Revenue</th>
                 <th></th>
@@ -93,7 +156,7 @@ export default function DivisionPage({ params }: { params: Promise<{ division: s
                   </tr>
                 ))
               ) : districts.length === 0 ? (
-                <tr><td colSpan={6} className="text-center py-12 text-base-content/60">No districts found for this division.</td></tr>
+                <tr><td colSpan={7} className="text-center py-12 text-base-content/60">No districts found for this division.</td></tr>
               ) : (
                 districts.map((d) => (
                   <tr
@@ -107,6 +170,18 @@ export default function DivisionPage({ params }: { params: Promise<{ division: s
                       <span className={`badge badge-sm ${statusBadgeClass(d.status)}`}>
                         {statusLabel(d.status)}
                       </span>
+                    </td>
+                    <td>
+                      {d.deputyReview ? (
+                        <span
+                          className={`badge badge-sm ${d.deputyReview.verdict === 'flagged' ? 'badge-error' : 'badge-success'}`}
+                          title={d.deputyReview.note || undefined}
+                        >
+                          {d.deputyReview.verdict === 'flagged' ? 'Flagged' : 'Looks correct'}
+                        </span>
+                      ) : (
+                        <span className="text-base-content/40 text-xs">—</span>
+                      )}
                     </td>
                     <td className="text-right tabular-nums">{d.vendCount.toLocaleString()}</td>
                     <td className="text-right font-mono text-xs tabular-nums">{fmt(d.totalRevenue)}</td>

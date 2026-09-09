@@ -17,7 +17,7 @@ interface DistrictRow {
   name: string; division?: string; deoName?: string; expectedVendCount?: number;
   status: string; submittedAt?: string; vendCount: number; totalRevenue: number;
 }
-interface AdminOverview { districts: DistrictRow[]; stateTotals: { totalVendCount: number; totalRevenue: number } }
+interface AdminOverview { districts: DistrictRow[]; stateTotals: { totalVendCount: number; totalRevenue: number; divisionsTotal: number; divisionsLocked: number } }
 
 const STATUS_COLORS = STATUS_COLOR;
 
@@ -454,6 +454,27 @@ export default function AdminPage() {
           ) : (
             <span className="text-xs text-base-content/50">Admin-only toggle</span>
           )}
+        </div>
+      )}
+
+      {/* Division / state lock rollup (M-103) — deputies lock divisions; the state closes when all are locked */}
+      {data && data.stateTotals.divisionsTotal > 0 && (
+        <div className="bg-base-100 rounded-box shadow p-4 flex items-center justify-between flex-wrap gap-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="font-semibold">Division &amp; State Lock</h3>
+              <span className={`badge badge-sm ${data.stateTotals.divisionsLocked === data.stateTotals.divisionsTotal ? 'badge-info' : 'badge-ghost'}`}>
+                {data.stateTotals.divisionsLocked === data.stateTotals.divisionsTotal ? 'State Locked' : 'In Progress'}
+              </span>
+            </div>
+            <p className="text-xs text-base-content/60 mt-0.5">
+              {data.stateTotals.divisionsLocked} of {data.stateTotals.divisionsTotal} divisions locked by their Deputy Excise Commissioner
+              {data.stateTotals.divisionsLocked === data.stateTotals.divisionsTotal
+                ? ' · data collection is closed state-wide'
+                : ' · a division locks once every district in it is verified and signed off'}
+            </p>
+          </div>
+          <span className="text-xs text-base-content/50">Unlock a division from its page</span>
         </div>
       )}
 

@@ -133,12 +133,24 @@ export const districtUnlockRequests = sqliteTable('district_unlock_requests', {
   statusIdx: index('dur_status_idx').on(t.status),
 }));
 
+// M-103 — one row per locked division. Absence = not locked. Written by the deputy
+// (POST /api/deputy/divisions/[division]/lock, gated on every district in the division being
+// 'verified' + deputy-reviewed 'ok'); removed only by an admin
+// (DELETE /api/admin/divisions/[division]/lock). "State locked" = a row for every division.
+export const divisionLocks = sqliteTable('division_locks', {
+  division: text('division').primaryKey(),
+  lockedAt: integer('locked_at', { mode: 'timestamp' }).notNull(),
+  lockedBy: text('locked_by').notNull(),
+  note: text('note'),
+});
+
 export const auditLog = sqliteTable('audit_log', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   // 'login' | 'logout' | 'login_cug' | 'upload_chunk' | 'district_submitted' | 'unit_registered'
   // | 'units_unlocked' | 'data_correction_unlocked' | 'district_master_updated' | 'bulk_provision'
   // | 'unlock_requested' | 'unlock_request_denied' | 'district_verified' | 'verification_phase_toggled'
   // | 'fy_reminder_acknowledged' | 'district_data_cleared' | 'fy_data_cleared'
+  // | 'deputy_district_reviewed' | 'division_locked' | 'division_unlocked'
   eventType: text('event_type').notNull(),
   deoId: text('deo_id').notNull(),
   districtName: text('district_name'),

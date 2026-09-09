@@ -3,7 +3,8 @@ import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { drizzle } from 'drizzle-orm/d1';
 import { asc, count, sum, inArray, eq } from 'drizzle-orm';
 import { getSession, districtScope } from '@/lib/auth';
-import { districts, phase1RawCollection, districtCirclesSectors } from '@excise/schema';
+import { districts, phase1RawCollection, districtCirclesSectors, divisionLocks, UP_DIVISIONS } from '@excise/schema';
+import { latestDeputyReviews } from '@/lib/division-lock';
 import { withErrorHandling } from '@/lib/with-error-handling';
 
 
@@ -15,7 +16,7 @@ async function GET_(): Promise<NextResponse> {
   const { env } = await getCloudflareContext({ async: true }) as { env: CloudflareEnv };
   const db = drizzle(env.DB);
 
-  const [districtRows, unitAggregates] = await Promise.all([
+  const [districtRows, unitAggregates, lockRows, deputyReviews] = await Promise.all([
     db.select({
       name: districts.name, division: districts.division, deoName: districts.deoName, deoEmailHash: districts.deoEmailHash,
       deoId: districts.deoId,
@@ -31,6 +32,8 @@ async function GET_(): Promise<NextResponse> {
       districtName: districtCirclesSectors.districtName,
       unitCount: count(districtCirclesSectors.id),
     }).from(districtCirclesSectors).groupBy(districtCirclesSectors.districtName).all(),
+    db.select().from(divisionLocks).all(),
+    latestDeputyReviews(db),
   ]);
 
   // A 'verified' district's shop data is immutable — the only thing that can change it is
@@ -52,6 +55,7 @@ async function GET_(): Promise<NextResponse> {
     aggregates.map((a) => [a.districtName, { vendCount: a.vendCount, totalRevenue: Number(a.totalRevenue ?? 0) }])
   );
   const unitMap = Object.fromEntries(unitAggregates.map((u) => [u.districtName, u.unitCount]));
+  const lockedDivisions = new Set(lockRows.map((l) => l.division));
   const rows = districtRows.map((d) => {
     const { cachedVendCount, cachedTotalRevenue, ...rest } = d;
     const hasBox = d.bboxMinLat != null && d.bboxMaxLat != null && d.bboxMinLon != null && d.bboxMaxLon != null;
@@ -61,16 +65,26 @@ async function GET_(): Promise<NextResponse> {
       vendCount: useCached ? cachedVendCount! : (aggMap[d.name]?.vendCount ?? 0),
       totalRevenue: useCached ? (cachedTotalRevenue ?? 0) : (aggMap[d.name]?.totalRevenue ?? 0),
       unitCount: unitMap[d.name] ?? 0,
+      deputyReview: deputyReviews[d.name] ?? null,
+      divisionLocked: d.division ? lockedDivisions.has(d.division) : false,
       centerLat: hasBox ? ((d.bboxMinLat! + d.bboxMaxLat!) / 2) : null,
       centerLon: hasBox ? ((d.bboxMinLon! + d.bboxMaxLon!) / 2) : null,
     };
   });
+  // For a deputy the scope is one division, so this rollup is that division's; for an admin
+  // it's all 18. "State locked" = every division that has any district is locked.
+  const divisionsInScope = [...new Set(districtRows.map((d) => d.division).filter(Boolean))] as string[];
   const stateTotals = {
     totalVendCount: rows.reduce((s, r) => s + r.vendCount, 0),
     totalRevenue: rows.reduce((s, r) => s + r.totalRevenue, 0),
+    divisionsTotal: scope.division ? divisionsInScope.length : UP_DIVISIONS.length,
+    divisionsLocked: (scope.division ? divisionsInScope : [...UP_DIVISIONS]).filter((dv) => lockedDivisions.has(dv)).length,
   };
+  const divisionLockList = lockRows.map((l) => ({
+    division: l.division, lockedAt: l.lockedAt.getTime(), lockedBy: l.lockedBy, note: l.note,
+  }));
 
-  return NextResponse.json({ districts: rows, stateTotals });
+  return NextResponse.json({ districts: rows, stateTotals, divisionLocks: divisionLockList });
 }
 
 export const GET = withErrorHandling('admin/districts:GET', GET_);

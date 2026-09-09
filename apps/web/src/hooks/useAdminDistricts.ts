@@ -12,12 +12,19 @@ export interface AdminDistrictRow {
   bboxMinLon: number | null; bboxMaxLon: number | null;
   submittedAt: string | null; // ISO string — Drizzle's `mode: 'timestamp'` columns serialize to this over JSON, not raw epoch seconds
   fyDataClearedAt: string | null; // ISO string; non-null once an admin has run the one-time FY 2026-27 cleanup for this district (M-101)
+  deputyReview: { verdict: string; note: string; at: number; actorName: string | null } | null; // latest Deputy sign-off (M-103)
+  divisionLocked: boolean; // this district's division has been locked by the Deputy (M-103)
 }
+
+export interface DivisionLockInfo { division: string; lockedAt: number; lockedBy: string; note: string | null }
 
 interface ApiResponse {
   districts: AdminDistrictRow[];
-  stateTotals: { totalVendCount: number; totalRevenue: number };
+  stateTotals: { totalVendCount: number; totalRevenue: number; divisionsTotal: number; divisionsLocked: number };
+  divisionLocks: DivisionLockInfo[];
 }
+
+const EMPTY_TOTALS = { totalVendCount: 0, totalRevenue: 0, divisionsTotal: 0, divisionsLocked: 0 };
 
 // Module-level in-flight deduplication — only one fetch at a time per tab.
 let _inflight: Promise<ApiResponse> | null = null;
@@ -26,7 +33,7 @@ async function fetchDistricts(): Promise<ApiResponse> {
   if (_inflight) return _inflight;
   _inflight = fetch('/api/admin/districts')
     .then((r) => {
-      if (!r.ok) return { districts: [], stateTotals: { totalVendCount: 0, totalRevenue: 0 } } as ApiResponse;
+      if (!r.ok) return { districts: [], stateTotals: EMPTY_TOTALS, divisionLocks: [] } as ApiResponse;
       return r.json() as Promise<ApiResponse>;
     })
     .then((data) => {
@@ -39,7 +46,8 @@ async function fetchDistricts(): Promise<ApiResponse> {
 
 export function useAdminDistricts() {
   const [districts, setDistricts] = useState<AdminDistrictRow[]>([]);
-  const [stateTotals, setStateTotals] = useState({ totalVendCount: 0, totalRevenue: 0 });
+  const [stateTotals, setStateTotals] = useState(EMPTY_TOTALS);
+  const [divisionLocks, setDivisionLocks] = useState<DivisionLockInfo[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -47,7 +55,8 @@ export function useAdminDistricts() {
       if (cached) {
         const data = cached as ApiResponse;
         setDistricts(data.districts ?? []);
-        setStateTotals(data.stateTotals ?? { totalVendCount: 0, totalRevenue: 0 });
+        setStateTotals(data.stateTotals ?? EMPTY_TOTALS);
+        setDivisionLocks(data.divisionLocks ?? []);
         setLoading(false);
         // Cache was within its 5-min TTL, so it was served as-is — but "within TTL" isn't the
         // same as "still current": a district submitted/verified/unlocked seconds after this
@@ -64,6 +73,7 @@ export function useAdminDistricts() {
             fetchDistricts().then((fresh) => {
               setDistricts(fresh.districts);
               setStateTotals(fresh.stateTotals);
+              setDivisionLocks(fresh.divisionLocks ?? []);
             });
           });
         });
@@ -71,6 +81,7 @@ export function useAdminDistricts() {
         fetchDistricts().then((data) => {
           setDistricts(data.districts);
           setStateTotals(data.stateTotals);
+          setDivisionLocks(data.divisionLocks ?? []);
           setLoading(false);
         });
       }
@@ -86,9 +97,10 @@ export function useAdminDistricts() {
     const data = await fetchDistricts();
     setDistricts(data.districts);
     setStateTotals(data.stateTotals);
+    setDivisionLocks(data.divisionLocks ?? []);
     setLoading(false);
     return data.districts;
   }
 
-  return { districts, stateTotals, loading, refresh };
+  return { districts, stateTotals, divisionLocks, loading, refresh };
 }

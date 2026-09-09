@@ -24,6 +24,7 @@ export default function UploadPage() {
   const [districtStatus, setDistrictStatus] = useState<string>('pending');
   const [unlockRequest, setUnlockRequest] = useState<{ status: 'pending' | 'approved' | 'denied'; reason: string; adminNote: string | null } | null>(null);
   const [requestingUnlock, setRequestingUnlock] = useState(false);
+  const [divisionLocked, setDivisionLocked] = useState(false);
 
   const loadStatus = useCallback(() => {
     if (!district) return;
@@ -36,11 +37,12 @@ export default function UploadPage() {
       fetch(`/api/districts/${encodeURIComponent(district)}/status`)
         .then((res) => (res.ok ? res.json() as Promise<{ districtStatus: string }> : { districtStatus: 'pending' })),
       fetch(`/api/districts/${encodeURIComponent(district)}/request-unlock`)
-        .then((res) => (res.ok ? res.json() as Promise<{ request: typeof unlockRequest }> : { request: null })),
+        .then((res) => (res.ok ? res.json() as Promise<{ request: typeof unlockRequest; divisionLocked?: boolean }> : { request: null, divisionLocked: false })),
     ]).then(([unitsData, statusData, reqData]) => {
       setUnits(unitsData);
       setDistrictStatus(statusData.districtStatus);
       setUnlockRequest(reqData.request);
+      setDivisionLocked(!!reqData.divisionLocked);
     }).finally(() => setUnitsChecked(true));
   }, [district]);
 
@@ -132,7 +134,15 @@ export default function UploadPage() {
           Download Current Data (.xlsx)
         </button>
 
-        {unlockRequest?.status === 'pending' ? (
+        {divisionLocked ? (
+          <div className="alert alert-warning text-sm">
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            <div>
+              <p className="font-semibold">Your division has been locked by the Deputy Excise Commissioner.</p>
+              <p className="text-xs opacity-80 mt-1">Corrections now go through state Excise headquarters — contact them directly. You cannot request an unlock from here while the division is locked.</p>
+            </div>
+          </div>
+        ) : unlockRequest?.status === 'pending' ? (
           <div className="alert alert-info text-sm">
             <span className="loading loading-spinner loading-sm shrink-0" />
             <div>
@@ -313,10 +323,10 @@ export default function UploadPage() {
         </p>
 
         <div className="flex items-center gap-3 mb-4 flex-wrap">
-          <button className="btn btn-outline btn-sm" onClick={downloadTemplate} aria-label="Download district data Excel file">
+          <button className="btn btn-outline btn-sm" onClick={downloadTemplate} aria-label="Download district Excel file">
             {/* tabler:download */}
             <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/><polyline points="7 11 12 16 17 11"/><line x1="12" y1="4" x2="12" y2="16"/></svg>
-            Download District Data (.xlsx)
+            {districtStatus === 'pending' ? 'Download District Template (.xlsx)' : 'Download District Data (.xlsx)'}
           </button>
           <Link href="/units" className="btn btn-ghost btn-sm">Go to Circles &amp; Sectors</Link>
         </div>

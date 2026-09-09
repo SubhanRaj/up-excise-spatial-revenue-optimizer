@@ -1997,6 +1997,38 @@ The browser's own print dialog produces the PDF ("Save as PDF" / "Microsoft Prin
 - `GET /api/districts/[district]/thanas` (DEO-only, `user.districtName === district` guard) returns the district's distinct `thana_key` set. The Verify page shows a non-blocking `⚠` on a staged row whose `thana_name` normalises to something not in the set — a spelling prompt, never a submission gate (`row.status` untouched). Empty set (district with no history) = no check. Bilingual HelpPanel note added.
 - **District-level, not per circle/sector.** 428 of the 1,514 `(district, thana)` pairs (~28%) legitimately appear in more than one circle within their district, so a per-circle check would false-positive constantly. `circle_sector_name` is still stored, for per-circle rollups.
 
+**Thana master cached client-side + one-click spelling fix (2026-09-09 follow-up).**
+- `GET /api/districts/[district]/thanas` now also returns `thanaNames` — one real-casing display name per *loose* key (`looseThanaName()` in `apps/web/src/lib/thana-name.ts` — the normalised key with every non-alphanumeric char stripped, so `"Hari Parwat"` / `"Hari-Parwat"` / `"HariParwat"` collapse together).
+- The Verify page reads the response through `thanaMasterCache` (`apps/web/src/lib/db.ts`) — a new `thana_master` store on the DEO's `excise-phase1` Dexie DB (`version(2)`), 7-day TTL. One D1 read per district per device per week instead of one per Verify visit; the master only changes on a manual `pnpm build:district-thanas` rebuild, so a stale week is harmless for a soft check.
+- When a staged Thana misses the strict key set but its loose key resolves to exactly one known Thana, Verify shows a `→ <name>` button next to the `⚠` that applies the canonical spelling on click — never silently (same principle as the coordinate bbox flag). Genuine spelling variants (`Kotwali` / `Kotwaali`, `Sec-62` / `Sector 62`) don't resolve to one loose match, so they keep the plain `⚠` for the DEO to judge.
+
+### M-103: Two-Level Lock Hierarchy — Deputy Locks Divisions; Deputy Feedback on the Admin Division Page ✅ Complete
+
+**Objective:** Layer a division lock and a derived state lock on top of the per-district DEO flow, so sign-off escalates: DEO verifies a district → Deputy Excise Commissioner verifies and locks a division → the state closes when all 18 divisions are locked. After a division is locked, corrections in it route through state HQ, not DEO self-service.
+
+**Schema — `division_locks` (`migrations/0013_add_division_locks.sql`, applied local + remote):** `division` PK, `lockedAt`, `lockedBy` (deputy's name), `note`. Absence = not locked. Schema in `packages/schema/src/phase1.ts`. Audit events `division_locked` / `division_unlocked` added.
+
+**The hierarchy:**
+1. **District** — unchanged. DEO uploads → submits → (M-60 round open) verifies → `districts.status = 'verified'`.
+2. **Division** — the deputy's existing M-102 "Looks correct" sign-off (`verdict: 'ok'`) *is* the deputy verification. `POST /api/deputy/divisions/[division]/lock` (deputy-only, own division) refuses (409) until every district in the division is `verified` **and** has a latest deputy review of `ok` — the 409 body carries `notVerified` / `notReviewedOk` name lists. Success writes a `division_locks` row + audit `division_locked`.
+3. **State** — derived, not stored. `GET /api/admin/districts` returns `stateTotals.divisionsTotal` / `divisionsLocked`; equal = state locked, shown on `/admin` as a "Division & State Lock" card.
+
+**Unlock is HQ-only.** `DELETE /api/admin/divisions/[division]/lock` (`admin`/`superadmin`, note required, audit `division_unlocked`) is the only way a locked division reopens — a deputy can't undo their own lock. `POST /api/districts/[district]/request-unlock` now 409s if the district's division is locked; its `GET` returns `divisionLocked` so `/upload`'s locked view shows a "contact state HQ" banner instead of the self-service unlock button.
+
+**Shared helper** `apps/web/src/lib/division-lock.ts` — `latestDeputyReviews(db)` (the `deputy_district_reviewed` scan, lifted out of `/api/deputy/reviews` so `/api/admin/districts` and the lock route reuse it) and `divisionLockBlockers(districts, reviews)`.
+
+**Deputy portal** — the dashboard (`app/(deputy)/deputy/page.tsx`) gains a "Verify & lock this division" card: shows the lock (date, who, note) if locked; a "Verify & Lock Division" button if eligible; or the blocking districts split by cause if not. `useDeputyData()` surfaces `divisionLock` / `eligibleToLock` / `blockers` from the extended `/api/deputy/reviews`.
+
+**Admin division page** (`/admin/divisions/[division]`) — a **Deputy Review** column (Looks correct / Flagged / —, note on hover) and a banner: the lock details + an **Unlock division** button when locked, or "N verified / N signed off / N flagged" progress when not. `useAdminDistricts()` carries the new per-row `deputyReview` / `divisionLocked` and top-level `divisionLocks`.
+
+**DEO local-cache reconcile after a data clear.** When HQ clears a district (FY cleanup or bad-upload reset) its status returns to `pending`. `(deo)/layout.tsx` now detects `status === 'pending'` with stale `uploaded` rows still in local IndexedDB — a state a mid-workflow device is never legitimately in — and calls `stagingDb.clearAll(district)` so the DEO re-enters clean instead of seeing ghost rows.
+
+**Download button label.** `/upload`'s unlocked-view button reads **"Download District Template"** when `districtStatus === 'pending'` (fresh or just-cleared — no data to pre-fill) and **"Download District Data"** otherwise (a correction re-download after an unlock). The locked-view button stays "Download Current Data".
+
+**Deputy manual** — prose de-jargoned (dropped "hashed in your browser" / "you do not need a password" / the over-explained generic-error note from the sign-in section) and a new section 8 "Locking Your Division". PDF rebuilt from the existing screenshots (`build-deputy-manual-pdf.spec.ts`).
+
+**Verified:** `pnpm typecheck` clean; `pnpm --filter web test` (OOXML) clean; `divisionLockBlockers` self-check; migration applied local + remote.
+
 ---
 
 ## Backlog / Not Started

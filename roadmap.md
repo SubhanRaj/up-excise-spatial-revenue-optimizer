@@ -1110,7 +1110,22 @@ export const districtThanas = sqliteTable('district_thanas', {
 }));
 ```
 
-`GET /api/districts/[district]/thanas` serves the district's distinct `thana_key` set. The DEO Verify page shows a non-blocking `⚠` on a staged row whose `thana_name` normalises to something not in the set — a spelling-check prompt, never a submission gate. The check is **district-level**, not per circle/sector: ~28% of Thanas legitimately appear in more than one circle within a district, so a per-circle check would false-positive on correct data. `circle_sector_name` is recorded for per-circle rollups, not for the check.
+`GET /api/districts/[district]/thanas` serves the district's distinct `thana_key` set (plus `thanaNames`, one real-casing name per loose key for the spelling suggestion). The DEO Verify page shows a non-blocking `⚠` on a staged row whose `thana_name` normalises to something not in the set — a spelling-check prompt, never a submission gate — and a one-click `→ <name>` fix when the loose key (separators/punctuation/case removed) resolves to exactly one known Thana. The check is **district-level**, not per circle/sector: ~28% of Thanas legitimately appear in more than one circle within a district, so a per-circle check would false-positive on correct data. `circle_sector_name` is recorded for per-circle rollups, not for the check. The response is cached in the DEO's IndexedDB (7-day TTL) — the master only changes on a manual rebuild.
+
+### 5.4b Division Locks (`division_locks`)
+
+`division_locks` (migration `0013_add_division_locks.sql`, M-103) records which divisions a Deputy Excise Commissioner has locked. One row per locked division; absence means unlocked.
+
+```typescript
+export const divisionLocks = sqliteTable('division_locks', {
+  division: text('division').primaryKey(),
+  lockedAt: integer('locked_at', { mode: 'timestamp' }).notNull(),
+  lockedBy: text('locked_by').notNull(),   // deputy's display name at lock time
+  note: text('note'),
+});
+```
+
+The DEO flow (`pending → in_progress → submitted → verified` on `districts.status`) is the district level. On top of it: the deputy locks a division once every district in it is `verified` and the deputy's latest `deputy_district_reviewed` sign-off on it is `verdict: 'ok'` (`POST /api/deputy/divisions/[division]/lock`); the state is "locked" (derived, not stored) when `division_locks` has a row for every division. A locked division blocks DEO self-service correction unlocks — only `DELETE /api/admin/divisions/[division]/lock` (state HQ) reopens it.
 
 ### 5.5 Audit Log Table
 

@@ -26,16 +26,16 @@ const SECTIONS: Section[] = [
     titleEn: '1. What This Portal Is For',
     titleHi: '१. यह पोर्टल किसलिए है',
     customHtml: `
-      <p class="en">As Deputy Excise Commissioner you supervise every district in your division. This portal is a read-only view of the figures your District Excise Officers have entered — the same shop-level data headquarters sees, limited to your division. You cannot change any figure. What you can do is record a short sign-off per district: <strong>"Looks correct"</strong> or <strong>"Flag an issue"</strong>. Each sign-off is written to the headquarters audit log with your name and the time; nothing in the data moves.</p>
-      <p class="hi">उप आबकारी आयुक्त के रूप में आप अपने मंडल के हर जिले की निगरानी करते हैं। यह पोर्टल आपके जिला आबकारी अधिकारियों द्वारा दर्ज किए गए आंकड़ों का केवल-पढ़ने वाला दृश्य है — वही दुकान-स्तरीय डेटा जो मुख्यालय देखता है, केवल आपके मंडल तक सीमित। आप कोई आंकड़ा नहीं बदल सकते। आप हर जिले के लिए एक संक्षिप्त हस्ताक्षर दर्ज कर सकते हैं: <strong>"Looks correct"</strong> या <strong>"Flag an issue"</strong>। हर हस्ताक्षर आपके नाम और समय के साथ मुख्यालय के audit log में लिखा जाता है; डेटा में कुछ नहीं बदलता।</p>
+      <p class="en">As Deputy Excise Commissioner you supervise every district in your division. This portal shows the figures your District Excise Officers have entered — the same district data headquarters sees, limited to your division. You cannot change any figure. For each district you record a short sign-off: <strong>"Looks correct"</strong> or <strong>"Flag an issue"</strong>. Each sign-off is recorded at headquarters with your name and the time. Once every district in your division is verified you lock the division; once all 18 divisions are locked the state's data collection is closed.</p>
+      <p class="hi">उप आबकारी आयुक्त के रूप में आप अपने मंडल के हर जिले की निगरानी करते हैं। यह पोर्टल आपके जिला आबकारी अधिकारियों द्वारा दर्ज किए गए आंकड़े दिखाता है — वही जिला डेटा जो मुख्यालय देखता है, केवल आपके मंडल तक सीमित। आप कोई आंकड़ा नहीं बदल सकते। हर जिले के लिए आप एक संक्षिप्त हस्ताक्षर दर्ज करते हैं: <strong>"Looks correct"</strong> या <strong>"Flag an issue"</strong>। हर हस्ताक्षर आपके नाम और समय के साथ मुख्यालय में दर्ज होता है। जब आपके मंडल का हर जिला verify हो जाए, आप मंडल lock करते हैं; जब सभी 18 मंडल lock हो जाएं, राज्य का डेटा संग्रह बंद हो जाता है।</p>
     `,
   },
   {
     titleEn: '2. Signing In',
     titleHi: '२. साइन इन करें',
     customHtml: `
-      <p class="en">Open the portal in your browser. The sign-in box has three tabs — "DEO (CUG)", "Deputy (CUG)", and "Admin (Email)". Tap <strong>"Deputy (CUG)"</strong>, enter your 10-digit division CUG mobile number, and tap "Sign in". Use the Deputy tab, not the DEO tab — a Deputy number entered under the DEO tab is refused, and the message is the same generic "Invalid CUG number" either way, so check the tab first. Your number is hashed in your browser before it is sent and is never stored in readable form. You do not need a password.</p>
-      <p class="hi">अपने ब्राउज़र में पोर्टल खोलें। साइन-इन बॉक्स में तीन टैब हैं — "DEO (CUG)", "Deputy (CUG)", और "Admin (Email)"। <strong>"Deputy (CUG)"</strong> पर टैप करें, अपना 10-अंकीय मंडल CUG मोबाइल नंबर दर्ज करें, और "Sign in" पर टैप करें। DEO टैब नहीं, Deputy टैब का उपयोग करें — DEO टैब के नीचे डाला गया Deputy नंबर अस्वीकार कर दिया जाता है, और संदेश दोनों स्थितियों में एक जैसा सामान्य "Invalid CUG number" रहता है, इसलिए पहले टैब जांचें। आपका नंबर भेजे जाने से पहले आपके ब्राउज़र में hash किया जाता है और कभी पढ़ने योग्य रूप में संग्रहीत नहीं होता। आपको किसी पासवर्ड की आवश्यकता नहीं है।</p>
+      <p class="en">Open the portal in your browser. The sign-in box has three tabs: "DEO", "Deputy", and "Admin". Tap <strong>"Deputy"</strong>, enter your 10-digit division mobile number, and tap "Sign in". Use the Deputy tab — your number will not work under the DEO tab, and the error looks the same either way, so check the tab first. There is no password.</p>
+      <p class="hi">अपने ब्राउज़र में पोर्टल खोलें। साइन-इन बॉक्स में तीन टैब हैं: "DEO", "Deputy", और "Admin"। <strong>"Deputy"</strong> पर टैप करें, अपना 10-अंकीय मंडल मोबाइल नंबर दर्ज करें, और "Sign in" पर टैप करें। Deputy टैब का उपयोग करें — DEO टैब के नीचे आपका नंबर काम नहीं करेगा, और दोनों स्थितियों में त्रुटि एक जैसी दिखती है, इसलिए पहले टैब जांचें। कोई पासवर्ड नहीं है।</p>
     `,
   },
   {
@@ -74,8 +74,16 @@ const SECTIONS: Section[] = [
     textHi: 'दर्ज होने के बाद, पैनल आपका अंतिम निर्णय, दिनांक और समय, और आपका नोट दिखाता है। आप उसी जिले पर कभी भी नया हस्ताक्षर दर्ज कर सकते हैं — सबसे हालिया वाला दिखता है। वही निर्णय डैशबोर्ड और Districts सूची के "Review" column में दिखता है।',
   },
   {
-    titleEn: '8. What You Cannot Do',
-    titleHi: '८. आप क्या नहीं कर सकते',
+    titleEn: '8. Locking Your Division',
+    titleHi: '८. अपना मंडल लॉक करना',
+    customHtml: `
+      <p class="en">The dashboard has a "Verify &amp; lock this division" card. It stays disabled until every district in your division is verified by its DEO and you have recorded "Looks correct" on each one — the card lists which districts still need either. Once all are done, tap <strong>"Verify &amp; Lock Division"</strong>, add an optional note, and confirm. After locking, your DEOs can no longer request a correction on their own; only state Excise headquarters can reopen the division. When all 18 divisions are locked, the state's data collection is closed.</p>
+      <p class="hi">डैशबोर्ड पर एक "Verify &amp; lock this division" कार्ड है। यह तब तक निष्क्रिय रहता है जब तक आपके मंडल का हर जिला उसके DEO द्वारा verify न हो जाए और आपने हर एक पर "Looks correct" दर्ज न कर दिया हो — कार्ड बताता है कि किन जिलों में अभी कौन सा काम बाकी है। सब पूरा होने पर, <strong>"Verify &amp; Lock Division"</strong> पर टैप करें, एक वैकल्पिक नोट जोड़ें, और पुष्टि करें। लॉक करने के बाद, आपके DEO खुद सुधार का अनुरोध नहीं कर सकते; केवल राज्य आबकारी मुख्यालय ही मंडल दोबारा खोल सकता है। जब सभी 18 मंडल लॉक हो जाते हैं, राज्य का डेटा संग्रह बंद हो जाता है।</p>
+    `,
+  },
+  {
+    titleEn: '9. What You Cannot Do',
+    titleHi: '९. आप क्या नहीं कर सकते',
     customHtml: `
       <p class="en">This portal shows only your own division — you cannot open another division's districts or figures. You cannot edit a shop, unlock a district, delete data, or download templates; those are the DEO's and headquarters' actions. If a district's figures are wrong, use "Flag an issue" with a clear note — headquarters and the DEO act on it from there.</p>
       <p class="hi">यह पोर्टल केवल आपका अपना मंडल दिखाता है — आप किसी अन्य मंडल के जिले या आंकड़े नहीं खोल सकते। आप किसी दुकान को edit नहीं कर सकते, जिला unlock नहीं कर सकते, डेटा delete नहीं कर सकते, या टेम्पलेट download नहीं कर सकते; वे DEO और मुख्यालय के कार्य हैं। यदि किसी जिले के आंकड़े गलत हैं, तो एक स्पष्ट नोट के साथ "Flag an issue" का उपयोग करें — मुख्यालय और DEO उस पर आगे कार्रवाई करते हैं।</p>
