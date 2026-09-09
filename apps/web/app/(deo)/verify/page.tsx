@@ -18,6 +18,7 @@ import { ThanaVariantsCard } from '@/components/ThanaVariantsCard';
 import { UnitsModal } from '@/components/UnitsModal';
 import { useShopAggregates } from '@/hooks/useShopAggregates';
 import { normalizeThanaName, looseThanaName } from '@/lib/thana-name';
+import { validatePersonName } from '@/lib/person-name';
 
 interface UnlockRequestInfo { status: 'pending' | 'approved' | 'denied'; reason: string; adminNote: string | null }
 
@@ -38,17 +39,7 @@ function formatInr(n: number): string {
 // hyphens/apostrophes for compound names) — deliberately excludes digits so a DEO can't
 // paste their CUG number in here. Mirrors the sibling excise-revenue-recovery-portal
 // project's promptDeoNameAndLock()/validateDeoName() pattern.
-const DEO_NAME_CHARS_RE = /^[A-Za-z][A-Za-z.\-' ]*$/;
-const DEO_DESIGNATION_RE = /\b(deo|adeo|d\.?e\.?o\.?|excise\s*officer|officer|admin)\b/i;
-
-function validateDeoName(value: string): string | undefined {
-  const trimmed = value.trim();
-  if (!trimmed) return 'Please enter your full name. / कृपया अपना पूरा नाम दर्ज करें।';
-  if (/\d/.test(trimmed)) return 'Name must not contain numbers — do not type your CUG number here. / नाम में अंक नहीं होने चाहिए।';
-  if (DEO_DESIGNATION_RE.test(trimmed)) return 'Please enter your actual name, not your designation (e.g. "DEO"). / कृपया अपना पद नहीं, नाम दर्ज करें।';
-  if (!DEO_NAME_CHARS_RE.test(trimmed)) return 'Please enter your name in English letters only (dots/hyphens allowed). / कृपया केवल अंग्रेज़ी अक्षरों में नाम दर्ज करें।';
-  return undefined;
-}
+const validateDeoName = validatePersonName;
 
 type SwalLike = {
   fire: (o: unknown) => Promise<{ isConfirmed: boolean; value?: unknown }>;

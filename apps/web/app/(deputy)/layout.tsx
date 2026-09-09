@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useSession } from '@/hooks/useSession';
@@ -35,6 +35,33 @@ export default function DeputyLayout({ children }: { children: React.ReactNode }
     const rest = pathname.replace(/^\/deputy(-[a-z-]+)?/, '');
     router.replace(base + rest);
   }, [session, pathname, base, router]);
+
+  // Blocking review-responsibility acknowledgment — the deputy counterpart of the DEO's FY
+  // reminder modal. Fires once per full page load (this layout stays mounted across client-side
+  // nav), logs deputy_reminder_acknowledged to the audit log on "I understand". Fire-and-forget
+  // POST: a network hiccup must never block portal use.
+  const ackShown = useRef(false);
+  useEffect(() => {
+    if (ackShown.current || session?.role !== 'deputy') return;
+    ackShown.current = true;
+    const Swal = (window as unknown as { Swal?: { fire: (o: unknown) => Promise<unknown> } }).Swal;
+    Swal?.fire({
+      icon: 'info',
+      title: 'Your role in this review round',
+      width: '46rem',
+      html: `<div style="text-align:left;font-size:0.92rem;line-height:1.45">
+        <p>The figures in your division are for <b>FY 2025-26</b> (the previous financial year), entered and verified by your District Excise Officers.</p>
+        <p style="margin-top:6px">Open <b>each district</b>, check its shop-level figures, and record either <b>&ldquo;Looks correct&rdquo;</b> or <b>&ldquo;Flag an issue&rdquo;</b> (with a note). Once every district is verified and signed off, use <b>&ldquo;Verify &amp; Lock Division&rdquo;</b> on the dashboard — you enter your name, and after that only state headquarters can reopen the division.</p>
+        <p style="margin-top:6px;color:#64748b">आपके मंडल के आंकड़े <b>FY 2025-26</b> के हैं। हर जिला खोलकर उसके आंकड़े जांचें और &ldquo;Looks correct&rdquo; या &ldquo;Flag an issue&rdquo; दर्ज करें। सब पूरा होने पर dashboard से &ldquo;Verify &amp; Lock Division&rdquo; करें।</p>
+        <p style="margin-top:12px;text-align:center"><a href="${DEPUTY_MANUAL_URL}" target="_blank" rel="noopener noreferrer" style="color:#2563eb;text-decoration:underline;font-weight:600">Open the Deputy User Manual (PDF)</a></p>
+      </div>`,
+      confirmButtonText: 'I understand',
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+    }).then(() => {
+      fetch('/api/deputy/ack-reminder', { method: 'POST' }).catch(() => {});
+    });
+  }, [session]);
 
   const onDistricts = pathname.startsWith(`${base}/districts`) || pathname.startsWith('/deputy/districts');
   const navLinks = [

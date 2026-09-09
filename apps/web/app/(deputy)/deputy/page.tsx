@@ -8,6 +8,7 @@ import { useSession } from '@/hooks/useSession';
 import { useDeputyData } from '@/hooks/useDeputyData';
 import { deputyBasePath } from '@/lib/deputy';
 import { deputySettingsCache } from '@/lib/db';
+import { validatePersonName } from '@/lib/person-name';
 import { STATUS_COLOR, statusLabel, statusBadgeClass, isLocked } from '@/lib/status';
 
 const TILE_URLS = {
@@ -156,17 +157,20 @@ export default function DeputyDashboard() {
     const Swal = (window as unknown as { Swal?: { fire: (o: Record<string, unknown>) => Promise<{ isConfirmed: boolean; value?: string }> } }).Swal;
     const res = await Swal?.fire({
       icon: 'warning',
-      title: `Lock the ${division} division?`,
-      html: 'Every district in your division is DEO-verified and signed off by you. After you lock, your DEOs can no longer request a correction themselves — only state headquarters can reopen the division.',
-      input: 'textarea', inputPlaceholder: 'Optional note',
+      title: `Verify & lock the ${division} division`,
+      html: `<p style="text-align:left">Every district in this division is DEO-verified and you have signed off &ldquo;Looks correct&rdquo; on each one. Enter your full name to verify the division. After you lock it, your DEOs can no longer request a correction themselves — only state Excise headquarters can reopen the division.</p>
+             <p style="margin-top:8px;color:#64748b;text-align:left">विभाजन को verify करने के लिए अपना पूरा नाम दर्ज करें। लॉक करने के बाद, केवल राज्य आबकारी मुख्यालय ही मंडल दोबारा खोल सकता है।</p>`,
+      input: 'text', inputPlaceholder: 'Full name (English)',
+      inputValidator: (v: string) => validatePersonName(v ?? ''),
       showCancelButton: true, confirmButtonText: 'Verify & Lock Division', confirmButtonColor: '#1d4ed8',
+      allowOutsideClick: false,
     });
     if (!res?.isConfirmed) return;
     setLocking(true);
     try {
       const r = await fetch(`/api/deputy/divisions/${encodeURIComponent(division)}/lock`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ note: res.value ?? '' }),
+        body: JSON.stringify({ lockedByName: res.value ?? '' }),
       });
       if (!r.ok) {
         const e = await r.json().catch(() => ({})) as { error?: string };

@@ -2027,7 +2027,13 @@ The browser's own print dialog produces the PDF ("Save as PDF" / "Microsoft Prin
 
 **Deputy manual** — prose de-jargoned (dropped "hashed in your browser" / "you do not need a password" / the over-explained generic-error note from the sign-in section) and a new section 8 "Locking Your Division". PDF rebuilt from the existing screenshots (`build-deputy-manual-pdf.spec.ts`).
 
-**Verified:** `pnpm typecheck` clean; `pnpm --filter web test` (OOXML) clean; `divisionLockBlockers` self-check; migration applied local + remote.
+**Follow-ups (same day):**
+- **Deputy types their name to lock a division.** `POST /api/deputy/divisions/[division]/lock` now requires `lockedByName` (400 if blank / has digits); the deputy dashboard prompts for it (`validatePersonName`, extracted from the DEO verify page to `apps/web/src/lib/person-name.ts` and shared). `division_locks.lockedBy` and the audit metadata carry the typed name, not the session name.
+- **Deputy acknowledgment modal.** `(deputy)/layout.tsx` shows a blocking "Your role in this review round" modal once per full page load (the deputy counterpart of the DEO FY reminder); "I understand" fires `POST /api/deputy/ack-reminder` → audit `deputy_reminder_acknowledged`.
+- **Audit log labels.** `/admin/audit`'s `EVENT_LABELS` gained `fy_reminder_acknowledged`, `deputy_reminder_acknowledged`, `district_data_cleared`, `fy_data_cleared`, `division_locked`, `division_unlocked` (were showing the raw `snake_case`); `METADATA_KEY_LABELS` gained `shopCount`, `division`, `lockedByName`.
+- **Both manuals cover the escalation.** DEO manual sections 18–19 rewritten: submit → final verification round → district "Verified" → Deputy review ("Looks correct" / "Flag an issue") → division lock → state closed. Deputy manual section 6 rewritten to describe the same build-up. Both PDFs rebuilt.
+
+**Verified:** `pnpm typecheck` clean; `pnpm --filter web test` (OOXML) clean; `divisionLockBlockers` self-check; migration applied local + remote; both manual PDFs rebuilt.
 
 ---
 

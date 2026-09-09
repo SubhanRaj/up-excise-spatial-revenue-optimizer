@@ -23,8 +23,13 @@ async function POST_(req: NextRequest, { params }: Ctx): Promise<NextResponse> {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  const body = await req.json().catch(() => ({})) as { note?: unknown };
+  const body = await req.json().catch(() => ({})) as { lockedByName?: unknown; note?: unknown };
+  const lockedByName = typeof body.lockedByName === 'string' ? body.lockedByName.trim().slice(0, 120) : '';
   const note = typeof body.note === 'string' ? body.note.trim().slice(0, 1000) : '';
+  // The Deputy types their own name as the sign-off, same as a DEO does on submit/verify.
+  if (!lockedByName || /\d/.test(lockedByName)) {
+    return NextResponse.json({ error: 'Your full name is required to lock the division' }, { status: 400 });
+  }
 
   const { env } = await getCloudflareContext({ async: true }) as { env: CloudflareEnv };
   const db = drizzle(env.DB);
@@ -49,21 +54,21 @@ async function POST_(req: NextRequest, { params }: Ctx): Promise<NextResponse> {
 
   const now = new Date();
   await db.batch([
-    db.insert(divisionLocks).values({ division: user.division, lockedAt: now, lockedBy: user.name, note }),
+    db.insert(divisionLocks).values({ division: user.division, lockedAt: now, lockedBy: lockedByName, note }),
     db.insert(auditLog).values({
       eventType: 'division_locked',
       deoId: user.deoId ?? '',
       districtName: null,
       ipAddress: req.headers.get('CF-Connecting-IP') ?? null,
       userAgent: req.headers.get('User-Agent') ?? null,
-      metadata: JSON.stringify({ division: user.division, note }),
+      metadata: JSON.stringify({ division: user.division, lockedByName, note }),
       actorName: user.name,
       actorDesignation: user.designation,
       createdAt: now,
     }),
   ]);
 
-  return NextResponse.json({ ok: true, lockedAt: now.getTime(), lockedBy: user.name, note });
+  return NextResponse.json({ ok: true, lockedAt: now.getTime(), lockedBy: lockedByName, note });
 }
 
 export const POST = withErrorHandling('deputy/divisions/[division]/lock:POST', POST_);
