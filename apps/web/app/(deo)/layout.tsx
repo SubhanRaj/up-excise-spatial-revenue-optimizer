@@ -69,7 +69,19 @@ export default function DeoLayout({ children }: { children: React.ReactNode }) {
             <p style="margin-top:6px">Model Shop के लिए, स्थिर <b>₹3,00,000 On Premises Consumption Fee</b> पोर्टल द्वारा उस दुकान के Total Revenue में अपने-आप जोड़ दिया जाता है — यह कोई ऐसा field नहीं है जिसे आपको भरना है। इसे Excel फ़ाइल में कहीं भी खुद दर्ज न करें।</p>
           </div>
         </div>
-        <p style="margin-top:14px;text-align:center;font-size:1rem"><a href="${DEO_MANUAL_URL}" target="_blank" rel="noopener noreferrer" style="color:#2563eb;text-decoration:underline;font-weight:600">Open the DEO User Manual (PDF)</a> for the full explanation, with every revenue formula.</p>
+        <div style="margin-top:14px;padding:10px 14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px">
+          <p style="font-weight:600;margin-bottom:4px">The full process for your district:</p>
+          <ol style="margin:0;padding-left:20px">
+            <li>Register your <b>Circles &amp; Sectors</b> (one-time, then locked).</li>
+            <li>Download the district template, get your Inspectors to fill it, consolidate into one file, and <b>Upload</b> it.</li>
+            <li>On <b>Verify</b>, check every row, then <b>Submit District</b> — you type your name to lock the submission (you are personally responsible for the figures).</li>
+            <li>When headquarters opens the <b>Final Verification Round</b>, your Verify page shows your totals once more: re-check them and tap <b>Confirm &amp; Verify</b> (name again). Your district moves to <b>Verified</b>.</li>
+            <li>Your <b>Deputy Excise Commissioner</b> then reviews the district — &ldquo;Looks correct&rdquo;, or &ldquo;Flag an issue&rdquo; which can open a correction so you fix the shop(s) and re-verify.</li>
+            <li>Once every district in the division is verified and signed off, the Deputy <b>locks the division</b>. After that, corrections go through state headquarters.</li>
+          </ol>
+          <p style="margin-top:6px;color:#64748b">प्रक्रिया: Circles/Sectors पंजीकृत करें → template भरकर Upload करें → Verify पर हर row जांचें और नाम दर्ज करके Submit करें → मुख्यालय द्वारा Final Verification Round खुलने पर कुल आंकड़े दोबारा जांचकर Confirm &amp; Verify करें → आपके उप आबकारी आयुक्त जिले की समीक्षा करते हैं (सही, या सुधार के लिए flag) → हर जिला verify होने पर वे मंडल lock कर देते हैं, फिर सुधार राज्य मुख्यालय से होते हैं।</p>
+        </div>
+        <p style="margin-top:12px;text-align:center;font-size:1rem"><a href="${DEO_MANUAL_URL}" target="_blank" rel="noopener noreferrer" style="color:#2563eb;text-decoration:underline;font-weight:600">Open the DEO User Manual (PDF)</a> for the full explanation, with every revenue formula.</p>
       </div>`,
       confirmButtonText: 'I understand',
       allowOutsideClick: false,
