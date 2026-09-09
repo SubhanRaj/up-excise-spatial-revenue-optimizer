@@ -6,6 +6,14 @@ export function normalizeThanaName(name: string): string {
   return (name ?? '').trim().replace(/\s+/g, ' ').toLowerCase();
 }
 
+/** Looser key: the normalized name with every separator/punctuation char removed, so
+ * "Thana Name" / "Thana-Name" / "ThanaName" / "Thana . Name" all collapse to one value.
+ * Used only to suggest a canonical spelling when the strict key misses — never to merge
+ * counts (that stays on normalizeThanaName, which keeps word boundaries). */
+export function looseThanaName(name: string): string {
+  return normalizeThanaName(name).replace(/[^a-z0-9]/g, '');
+}
+
 /** Levenshtein edit distance — small strings only (Thana names), no need for a dependency. */
 function editDistance(a: string, b: string): number {
   const dp: number[][] = Array.from({ length: a.length + 1 }, () => new Array(b.length + 1).fill(0));

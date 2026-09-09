@@ -39,6 +39,11 @@ function getDb(): DexieInstance {
       phase1_staging: '++id, districtName, circleSectorName, shopId, status, thanaName, shopType',
       upload_queue: '++id, chunkIndex, districtName, circleSectorName, status',
     });
+    _db.version(2).stores({
+      phase1_staging: '++id, districtName, circleSectorName, shopId, status, thanaName, shopType',
+      upload_queue: '++id, chunkIndex, districtName, circleSectorName, status',
+      thana_master: 'district',
+    });
   }
   return _db;
 }
@@ -185,6 +190,49 @@ export async function ensureDistrictSynced(district: string, force = false): Pro
   }
   return stagingDb.getByDistrict(district);
 }
+
+interface ThanaMasterEntry {
+  district: string;
+  thanaKeys: string[];
+  thanaNames: string[];
+  at: number;
+}
+
+// The derived Thana master (district_thanas) only changes when someone re-runs
+// `pnpm build:district-thanas` and pushes to remote D1 — never at app runtime — and it
+// only drives a non-blocking spelling ⚠ on Verify. A 7-day TTL means one D1 read per
+// district per device per week instead of one per Verify visit, and a mid-campaign rebuild
+// still reaches every DEO within a week. No invalidation signal needed for a soft check.
+const THANA_MASTER_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+export const thanaMasterCache = {
+  get: async (district: string): Promise<{ thanaKeys: string[]; thanaNames: string[] }> => {
+    const table = getDb().table<ThanaMasterEntry>('thana_master');
+    const hit = (await table.where('district').equals(district).toArray())[0];
+    if (hit && Date.now() - hit.at < THANA_MASTER_TTL_MS) {
+      return { thanaKeys: hit.thanaKeys, thanaNames: hit.thanaNames };
+    }
+    try {
+      const res = await fetch(`/api/districts/${encodeURIComponent(district)}/thanas`);
+      if (res.ok) {
+        const body = await res.json() as { thanaKeys: string[]; thanaNames?: string[] };
+        const entry: ThanaMasterEntry = {
+          district,
+          thanaKeys: body.thanaKeys ?? [],
+          thanaNames: body.thanaNames ?? [],
+          at: Date.now(),
+        };
+        await table.put(entry);
+        return { thanaKeys: entry.thanaKeys, thanaNames: entry.thanaNames };
+      }
+    } catch {
+      // Best-effort — fall through to whatever's cached (even if stale), else empty.
+    }
+    return hit
+      ? { thanaKeys: hit.thanaKeys, thanaNames: hit.thanaNames }
+      : { thanaKeys: [], thanaNames: [] };
+  },
+};
 
 interface QueuedChunk {
   id?: number;

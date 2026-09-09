@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useSession } from '@/hooks/useSession';
-import { stagingDb } from '@/lib/db';
+import { stagingDb, thanaMasterCache } from '@/lib/db';
 
 import type { StagedRow } from '@/lib/types';
 import { computeRevenue } from '@/lib/revenue';
@@ -17,7 +17,7 @@ import { ShopExplorer, type ShopExplorerRow } from '@/components/ShopExplorer';
 import { ThanaVariantsCard } from '@/components/ThanaVariantsCard';
 import { UnitsModal } from '@/components/UnitsModal';
 import { useShopAggregates } from '@/hooks/useShopAggregates';
-import { normalizeThanaName } from '@/lib/thana-name';
+import { normalizeThanaName, looseThanaName } from '@/lib/thana-name';
 
 interface UnlockRequestInfo { status: 'pending' | 'approved' | 'denied'; reason: string; adminNote: string | null }
 
@@ -223,16 +223,24 @@ export default function VerifyPage() {
   // whose thana_name isn't in this set gets a non-blocking "check the spelling" marker below;
   // it never sets row.status = 'error'. Empty (a district with no historical data) = no check.
   const [masterThanaKeys, setMasterThanaKeys] = useState<Set<string>>(new Set());
+  const [masterThanaByLoose, setMasterThanaByLoose] = useState<Map<string, string>>(new Map());
   useEffect(() => {
     if (!district) return;
-    fetch(`/api/districts/${encodeURIComponent(district)}/thanas`)
-      .then((res) => (res.ok ? res.json() as Promise<{ thanaKeys: string[] }> : { thanaKeys: [] }))
-      .then((data) => setMasterThanaKeys(new Set(data.thanaKeys)))
-      .catch(() => {});
+    thanaMasterCache.get(district).then((data) => {
+      setMasterThanaKeys(new Set(data.thanaKeys));
+      setMasterThanaByLoose(new Map(data.thanaNames.map((n) => [looseThanaName(n), n])));
+    });
   }, [district]);
   const unknownThana = useCallback(
     (name: string) => masterThanaKeys.size > 0 && !masterThanaKeys.has(normalizeThanaName(name)),
     [masterThanaKeys],
+  );
+  // When a name misses the strict set but its loose key (separators/case stripped) maps to
+  // exactly one known Thana, that's the intended spelling — offered as a one-click fix, not
+  // applied silently (same principle as the coordinate bbox check: flag, let the DEO confirm).
+  const suggestThana = useCallback(
+    (name: string) => masterThanaByLoose.get(looseThanaName(name)),
+    [masterThanaByLoose],
   );
 
   useEffect(() => {
@@ -938,12 +946,26 @@ export default function VerifyPage() {
                     </td>
                     <td role="gridcell" className="text-xs">
                       {row.thanaName}
-                      {unknownThana(row.thanaName) && (
-                        <span
-                          className="ml-1 text-warning font-semibold cursor-help"
-                          title={`"${row.thanaName}" isn't in this district's known Thana list. Usually a spelling difference — check it. This does not block submission.`}
-                        >⚠</span>
-                      )}
+                      {unknownThana(row.thanaName) && (() => {
+                        const suggestion = suggestThana(row.thanaName);
+                        return (
+                          <>
+                            <span
+                              className="ml-1 text-warning font-semibold cursor-help"
+                              title={`"${row.thanaName}" isn't in this district's known Thana list. Usually a spelling difference — check it. This does not block submission.`}
+                            >⚠</span>
+                            {suggestion && suggestion !== row.thanaName && viewMode !== 'uploaded' && (
+                              <button
+                                type="button"
+                                className="btn btn-ghost btn-xs ml-1 text-primary"
+                                onClick={() => updateRow(row.id, { thanaName: suggestion })}
+                              >
+                                → {suggestion}
+                              </button>
+                            )}
+                          </>
+                        );
+                      })()}
                     </td>
                     <td role="gridcell"><span className="badge badge-sm h-auto py-1 px-2 badge-outline">{row.shopType}</span></td>
                     <td role="gridcell" className="min-w-48">
