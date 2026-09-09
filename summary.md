@@ -2036,6 +2036,23 @@ The browser's own print dialog produces the PDF ("Save as PDF" / "Microsoft Prin
 
 **Verified:** `pnpm typecheck` clean; `pnpm --filter web test` (OOXML) clean; `divisionLockBlockers` self-check; **14/14 `deputy.spec.ts` E2E pass**; migration applied local + remote; both manual PDFs rebuilt from fresh screenshots.
 
+### M-104: Removed the State-Wide Verification-Round Gate ✅ Complete
+
+**Objective:** A DEO confirms & verifies their own district the moment it is `submitted` — no HQ toggle to wait for, no waiting for the other 74 districts. Then the deputy cross-checks each district and locks the division (M-103, unchanged).
+
+**Removed:**
+- `POST /api/districts/[district]/verify` no longer reads `app_settings` — the only precondition is `status === 'submitted'`.
+- `GET /api/districts/[district]/status` and `GET /api/admin/settings` no longer return `verificationPhaseOpen` / `everToggled`. **`POST /api/admin/settings` deleted** (its only job was the round toggle).
+- `/admin` overview: the "Final Verification Round" card + `toggleVerificationPhase` + `togglingSettings` are gone; `SettingsInfo` is now `{ submittedCount, totalDistricts, cartoApiKey }` and `settings` only feeds the CARTO map key.
+- DEO layout / `/verify`: `finalScreenMode` = `status === 'submitted' || status === 'verified'` (was gated on `verificationPhaseOpen`). So a DEO's nav collapses to Dashboard + Verify and the final-verification screen renders the instant they submit.
+- `app_settings.verificationPhaseOpen` column left dormant (SQLite drop is awkward, nothing reads it); `verification_phase_toggled` audit rows are historical only.
+
+**Modals & manuals:** both acknowledgment modals and both manual PDFs updated — "right after submitting … Confirm & Verify, no waiting for headquarters or other districts". `manual-screenshots.spec.ts` dropped its `verification_phase_open` reset line.
+
+**E2E:** new `deputy.spec.ts` test — a DEO `POST`s `/api/districts/[district]/verify` on a freshly-`submitted` district and it goes straight to `verified`; `/status` no longer carries `verificationPhaseOpen`. **15/15 `deputy.spec.ts` pass.**
+
+**Verified:** `pnpm typecheck` clean; `pnpm --filter web test` (OOXML) clean; 15/15 deputy E2E; both manual PDFs rebuilt. No migration.
+
 ---
 
 ## Backlog / Not Started

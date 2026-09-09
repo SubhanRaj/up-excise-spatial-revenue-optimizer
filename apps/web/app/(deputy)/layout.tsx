@@ -48,17 +48,17 @@ export default function DeputyLayout({ children }: { children: React.ReactNode }
     Swal?.fire({
       icon: 'info',
       title: 'Your role in this review round',
-      width: '52rem',
+      width: '66rem',
       html: `<div style="text-align:left;font-size:0.92rem;line-height:1.45">
         <p>The figures in your division are for <b>FY 2025-26</b> (the previous financial year). How the round works, end to end:</p>
-        <ol style="margin:6px 0 0;padding-left:20px">
-          <li>Each <b>DEO</b> registers their Circles &amp; Sectors, uploads the district Excel file, checks it on Verify, and <b>submits</b> it (typing their name).</li>
-          <li>When headquarters opens the <b>Final Verification Round</b>, each DEO re-checks their totals and <b>Confirms &amp; Verifies</b> — the district moves to <b>Verified</b>.</li>
-          <li><b>You</b> open each Verified district, check its shop-level figures, and record <b>&ldquo;Looks correct&rdquo;</b> or <b>&ldquo;Flag an issue&rdquo;</b> (a note is required to flag). A flag can send it back to the DEO for a correction and re-verify.</li>
-          <li>Once <b>every district</b> in your division is Verified and you have signed off &ldquo;Looks correct&rdquo; on each, use <b>&ldquo;Verify &amp; Lock Division&rdquo;</b> on the dashboard and type your name. After that, only state headquarters can reopen the division.</li>
-          <li>When all 18 divisions are locked, the state's data collection is closed.</li>
+        <ol style="margin:6px 0 0;padding-left:20px;column-count:2;column-gap:32px">
+          <li style="break-inside:avoid;margin-bottom:4px">Each <b>DEO</b> registers their Circles &amp; Sectors, uploads the district Excel file, checks it on Verify, and <b>submits</b> it (typing their name).</li>
+          <li style="break-inside:avoid;margin-bottom:4px">Right after submitting, each DEO re-checks their totals and <b>Confirms &amp; Verifies</b> their own district — the district moves to <b>Verified</b>. There is no state-wide round to wait for.</li>
+          <li style="break-inside:avoid;margin-bottom:4px"><b>You</b> open each Verified district, check its shop-level figures, and record <b>&ldquo;Looks correct&rdquo;</b> or <b>&ldquo;Flag an issue&rdquo;</b> (a note is required to flag). A flag can send it back to the DEO for a correction and re-verify.</li>
+          <li style="break-inside:avoid;margin-bottom:4px">Once <b>every district</b> in your division is Verified and you have signed off &ldquo;Looks correct&rdquo; on each, use <b>&ldquo;Verify &amp; Lock Division&rdquo;</b> on the dashboard and type your name. After that, only state headquarters can reopen the division.</li>
+          <li style="break-inside:avoid;margin-bottom:4px">When all 18 divisions are locked, the state's data collection is closed.</li>
         </ol>
-        <p style="margin-top:6px;color:#64748b">आपके मंडल के आंकड़े <b>FY 2025-26</b> के हैं। DEO अपने जिले का डेटा upload कर submit करते हैं → Final Verification Round में हर DEO कुल आंकड़े जांचकर Confirm &amp; Verify करता है → आप हर Verified जिला खोलकर &ldquo;Looks correct&rdquo; या &ldquo;Flag an issue&rdquo; दर्ज करते हैं → जब हर जिला Verified हो और आपने हर एक पर हस्ताक्षर कर दिया हो, dashboard से नाम दर्ज करके &ldquo;Verify &amp; Lock Division&rdquo; करें → इसके बाद केवल राज्य मुख्यालय ही मंडल दोबारा खोल सकता है।</p>
+        <p style="margin-top:6px;color:#64748b">आपके मंडल के आंकड़े <b>FY 2025-26</b> के हैं। DEO अपने जिले का डेटा upload कर submit करते हैं → Submit के तुरंत बाद हर DEO कुल आंकड़े जांचकर अपने जिले को Confirm &amp; Verify करता है (कोई राज्य-स्तरीय दौर नहीं) → आप हर Verified जिला खोलकर &ldquo;Looks correct&rdquo; या &ldquo;Flag an issue&rdquo; दर्ज करते हैं → जब हर जिला Verified हो और आपने हर एक पर हस्ताक्षर कर दिया हो, dashboard से नाम दर्ज करके &ldquo;Verify &amp; Lock Division&rdquo; करें → इसके बाद केवल राज्य मुख्यालय ही मंडल दोबारा खोल सकता है।</p>
         <p style="margin-top:12px;text-align:center"><a href="${DEPUTY_MANUAL_URL}" target="_blank" rel="noopener noreferrer" style="color:#2563eb;text-decoration:underline;font-weight:600">Open the Deputy User Manual (PDF)</a></p>
       </div>`,
       confirmButtonText: 'I understand',

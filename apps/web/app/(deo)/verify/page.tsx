@@ -156,17 +156,12 @@ export default function VerifyPage() {
   const [districtStatus, setDistrictStatus] = useState<string>('pending');
   const submitted = isLocked(districtStatus);
   const verified = districtStatus === 'verified';
-  // M-60 — the state-wide final-verification round. Only meaningful once the district has
-  // actually reached 'submitted': a district already 'verified' has its own read-only screen
-  // below, not the confirm/unlock screen.
-  const [verificationPhaseOpen, setVerificationPhaseOpen] = useState(false);
-  const finalVerificationMode = verificationPhaseOpen && districtStatus === 'submitted';
-  // Covers both the interactive confirm/unlock screen (still 'submitted') and its read-only
-  // successor once this DEO has already confirmed (now 'verified') — same screen, same data
-  // sync, only the bottom action area differs.
-  // A verified district keeps this screen regardless of whether the admin later closes the
-  // state-wide round — verification is per-district, not tied to the round staying open.
-  const finalScreenMode = verified || (verificationPhaseOpen && districtStatus === 'submitted');
+  // M-104 — a DEO verifies their own district the moment it's 'submitted', no state-wide
+  // round gate. 'submitted' → the interactive Confirm & Verify / request-unlock screen;
+  // 'verified' → its read-only successor. Same screen and data sync, only the bottom action
+  // area differs.
+  const finalVerificationMode = districtStatus === 'submitted';
+  const finalScreenMode = verified || districtStatus === 'submitted';
   const [pendingUnlockRequest, setPendingUnlockRequest] = useState<UnlockRequestInfo | null>(null);
   const [requestingUnlock, setRequestingUnlock] = useState(false);
   const [confirmingVerify, setConfirmingVerify] = useState(false);
@@ -200,10 +195,9 @@ export default function VerifyPage() {
   const loadDistrictStatus = useCallback(() => {
     if (!district) return;
     fetch(`/api/districts/${encodeURIComponent(district)}/status`)
-      .then((res) => (res.ok ? res.json() as Promise<{ districtStatus: string; verificationPhaseOpen: boolean; deoName: string | null }> : { districtStatus: 'pending', verificationPhaseOpen: false, deoName: null }))
+      .then((res) => (res.ok ? res.json() as Promise<{ districtStatus: string; deoName: string | null }> : { districtStatus: 'pending', deoName: null }))
       .then((data) => {
         setDistrictStatus(data.districtStatus);
-        setVerificationPhaseOpen(data.verificationPhaseOpen);
         setConfirmedDeoName(data.deoName);
       });
   }, [district]);

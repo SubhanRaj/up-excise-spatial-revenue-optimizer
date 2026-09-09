@@ -3,13 +3,15 @@ import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { drizzle } from 'drizzle-orm/d1';
 import { eq, count, sum } from 'drizzle-orm';
 import { getSession } from '@/lib/auth';
-import { districts, auditLog, appSettings, phase1RawCollection } from '@excise/schema';
+import { districts, auditLog, phase1RawCollection } from '@excise/schema';
 import { withErrorHandling } from '@/lib/with-error-handling';
 
-// DEO's final re-confirmation once the state-wide verification round is open (M-60) — moves
-// an already-submitted district to 'verified'. Distinct from POST .../submit: this never
-// touches shop rows, only the status + a fresh audit trail entry with the DEO's re-confirmed
-// name (same liability-disclaimer pattern as the original submit).
+// DEO's final re-confirmation — moves an already-submitted district to 'verified'. Available
+// the moment the district is 'submitted' (M-104 removed the state-wide "verification round"
+// gate — a DEO no longer waits for HQ to open a round, and doesn't wait for the other 74
+// districts). Distinct from POST .../submit: this never touches shop rows, only the status +
+// a fresh audit trail entry with the DEO's re-confirmed name (same liability-disclaimer
+// pattern as the original submit).
 async function POST_(
   req: NextRequest,
   { params }: { params: Promise<{ district: string }> },
@@ -27,13 +29,7 @@ async function POST_(
   const { env } = await getCloudflareContext({ async: true }) as { env: CloudflareEnv };
   const db = drizzle(env.DB);
 
-  const [settingsRow, districtRow] = await Promise.all([
-    db.select().from(appSettings).where(eq(appSettings.id, 1)).get(),
-    db.select({ status: districts.status }).from(districts).where(eq(districts.name, district)).get(),
-  ]);
-  if (!settingsRow?.verificationPhaseOpen) {
-    return NextResponse.json({ error: 'The final verification round is not open yet' }, { status: 409 });
-  }
+  const districtRow = await db.select({ status: districts.status }).from(districts).where(eq(districts.name, district)).get();
   if (districtRow?.status !== 'submitted') {
     return NextResponse.json({ error: `District must be Submitted to verify (currently ${districtRow?.status ?? 'unknown'})` }, { status: 409 });
   }

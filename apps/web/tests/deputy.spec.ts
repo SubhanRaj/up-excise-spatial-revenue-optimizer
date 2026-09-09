@@ -84,12 +84,10 @@ test.describe('deputy division data boundary', () => {
     expect(body).toHaveProperty('cartoApiKey');
     expect(body.submittedCount).toBe(0);
     expect(body.totalDistricts).toBe(0);
-    expect(body.verificationPhaseOpen).toBe(false);
   });
 
   test('mutating admin routes stay 403 for a deputy', async ({ page }) => {
     expect((await page.request.patch(`/api/admin/districts/${IN_DIVISION_NAME}`, { data: { deoName: 'x' } })).status()).toBe(403);
-    expect((await page.request.post('/api/admin/settings', { data: { verificationPhaseOpen: true } })).status()).toBe(403);
     expect((await page.request.post(`/api/admin/districts/${IN_DIVISION_NAME}/clear-data`, { data: { reason: 'x' } })).status()).toBe(403);
   });
 
@@ -109,6 +107,18 @@ test.describe('deputy division data boundary', () => {
     // out-of-division review is refused
     expect((await page.request.post(`/api/deputy/districts/${OUT_OF_DIVISION}/review`, { data: { verdict: 'ok' } })).status()).toBe(403);
   });
+});
+
+test('M-104: a DEO verifies their own district the moment it is submitted (no round gate)', async ({ page }) => {
+  d1(`UPDATE districts SET status='submitted' WHERE name='${IN_DIVISION_NAME}';`);
+  await loginAs(page, DEO_HASH);
+
+  const res = await page.request.post(`/api/districts/${IN_DIVISION_NAME}/verify`, { data: { submittedByName: 'Sunil Verma' } });
+  expect(res.status()).toBe(200);
+
+  const status = await (await page.request.get(`/api/districts/${IN_DIVISION_NAME}/status`)).json() as { districtStatus: string; verificationPhaseOpen?: unknown };
+  expect(status.districtStatus).toBe('verified');
+  expect(status).not.toHaveProperty('verificationPhaseOpen');
 });
 
 test.describe('division lock hierarchy (M-103)', () => {

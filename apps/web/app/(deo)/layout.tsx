@@ -56,7 +56,7 @@ export default function DeoLayout({ children }: { children: React.ReactNode }) {
     Swal?.fire({
       icon: 'warning',
       title: 'Enter FY 2025-26 data only',
-      width: '64rem',
+      width: '74rem',
       html: `<div style="text-align:left;font-size:0.92rem;line-height:1.4">
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:4px 28px">
           <div>
@@ -71,15 +71,15 @@ export default function DeoLayout({ children }: { children: React.ReactNode }) {
         </div>
         <div style="margin-top:14px;padding:10px 14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px">
           <p style="font-weight:600;margin-bottom:4px">The full process for your district:</p>
-          <ol style="margin:0;padding-left:20px">
-            <li>Register your <b>Circles &amp; Sectors</b> (one-time, then locked).</li>
-            <li>Download the district template, get your Inspectors to fill it, consolidate into one file, and <b>Upload</b> it.</li>
-            <li>On <b>Verify</b>, check every row, then <b>Submit District</b> — you type your name to lock the submission (you are personally responsible for the figures).</li>
-            <li>When headquarters opens the <b>Final Verification Round</b>, your Verify page shows your totals once more: re-check them and tap <b>Confirm &amp; Verify</b> (name again). Your district moves to <b>Verified</b>.</li>
-            <li>Your <b>Deputy Excise Commissioner</b> then reviews the district — &ldquo;Looks correct&rdquo;, or &ldquo;Flag an issue&rdquo; which can open a correction so you fix the shop(s) and re-verify.</li>
-            <li>Once every district in the division is verified and signed off, the Deputy <b>locks the division</b>. After that, corrections go through state headquarters.</li>
+          <ol style="margin:0;padding-left:20px;column-count:2;column-gap:32px">
+            <li style="break-inside:avoid;margin-bottom:4px">Register your <b>Circles &amp; Sectors</b> (one-time, then locked).</li>
+            <li style="break-inside:avoid;margin-bottom:4px">Download the district template, get your Inspectors to fill it, consolidate into one file, and <b>Upload</b> it.</li>
+            <li style="break-inside:avoid;margin-bottom:4px">On <b>Verify</b>, check every row, then <b>Submit District</b> — you type your name to lock the submission (you are personally responsible for the figures).</li>
+            <li style="break-inside:avoid;margin-bottom:4px">Right after submitting, your Verify page shows your district totals once more: re-check them and tap <b>Confirm &amp; Verify</b> (name again). Your district moves to <b>Verified</b> — you do this straight away, no waiting for headquarters or for other districts.</li>
+            <li style="break-inside:avoid;margin-bottom:4px">Your <b>Deputy Excise Commissioner</b> then reviews the district — &ldquo;Looks correct&rdquo;, or &ldquo;Flag an issue&rdquo; which can open a correction so you fix the shop(s) and re-verify.</li>
+            <li style="break-inside:avoid;margin-bottom:4px">Once every district in the division is verified and signed off, the Deputy <b>locks the division</b>. After that, corrections go through state headquarters.</li>
           </ol>
-          <p style="margin-top:6px;color:#64748b">प्रक्रिया: Circles/Sectors पंजीकृत करें → template भरकर Upload करें → Verify पर हर row जांचें और नाम दर्ज करके Submit करें → मुख्यालय द्वारा Final Verification Round खुलने पर कुल आंकड़े दोबारा जांचकर Confirm &amp; Verify करें → आपके उप आबकारी आयुक्त जिले की समीक्षा करते हैं (सही, या सुधार के लिए flag) → हर जिला verify होने पर वे मंडल lock कर देते हैं, फिर सुधार राज्य मुख्यालय से होते हैं।</p>
+          <p style="margin-top:6px;color:#64748b">प्रक्रिया: Circles/Sectors पंजीकृत करें → template भरकर Upload करें → Verify पर हर row जांचें और नाम दर्ज करके Submit करें → Submit के तुरंत बाद कुल आंकड़े दोबारा जांचकर Confirm &amp; Verify करें (मुख्यालय या अन्य जिलों की प्रतीक्षा नहीं) → आपके उप आबकारी आयुक्त जिले की समीक्षा करते हैं (सही, या सुधार के लिए flag) → हर जिला verify होने पर वे मंडल lock कर देते हैं, फिर सुधार राज्य मुख्यालय से होते हैं।</p>
         </div>
         <p style="margin-top:12px;text-align:center;font-size:1rem"><a href="${DEO_MANUAL_URL}" target="_blank" rel="noopener noreferrer" style="color:#2563eb;text-decoration:underline;font-weight:600">Open the DEO User Manual (PDF)</a> for the full explanation, with every revenue formula.</p>
       </div>`,
@@ -98,8 +98,8 @@ export default function DeoLayout({ children }: { children: React.ReactNode }) {
           .then(r => r.ok ? r.json() : [])
           .then(units => setHasUnits(units.length > 0));
         fetch(`/api/districts/${encodeURIComponent(session.districtName)}/status`)
-          .then(r => r.ok ? r.json() : { districtStatus: 'pending', verificationPhaseOpen: false })
-          .then(async (s: { districtStatus: string; verificationPhaseOpen: boolean; fyDataClearedAt: number | null }) => {
+          .then(r => r.ok ? r.json() : { districtStatus: 'pending' })
+          .then(async (s: { districtStatus: string; fyDataClearedAt: number | null }) => {
             // HQ cleared this district's data (FY-year cleanup or a bad-upload reset) while this
             // device still holds the old rows — a mid-workflow DEO device is never legitimately at
             // 'pending' with 'uploaded' rows staged (submit -> 'submitted', correction unlock ->
@@ -113,12 +113,11 @@ export default function DeoLayout({ children }: { children: React.ReactNode }) {
             // Cleared for FY-year re-entry and not yet re-submitted — show the re-entry banner.
             // Clears itself once the DEO re-uploads and resubmits (status back to submitted/verified).
             setFyDataReset(s.fyDataClearedAt != null && (s.districtStatus === 'pending' || s.districtStatus === 'in_progress'));
-            // Once verified, the DEO sees only Dashboard + District Data — this holds even if
-            // the admin later closes the state-wide round, since verification is final per
-            // district, not tied to the round staying open. While merely 'submitted', the
-            // reduced nav only applies for the duration of an open round (the interactive
-            // confirm/unlock screen at /verify).
-            setFinalScreenMode(s.districtStatus === 'verified' || (s.verificationPhaseOpen && s.districtStatus === 'submitted'));
+            // As soon as a district is submitted the DEO's nav collapses to Dashboard + Verify
+            // (the interactive Confirm & Verify / request-unlock screen), and stays collapsed
+            // through 'verified' (where the second link reads "District Data"). M-104 dropped
+            // the old state-wide round gate — no waiting for HQ, no waiting for other districts.
+            setFinalScreenMode(s.districtStatus === 'submitted' || s.districtStatus === 'verified');
           });
       }
     });

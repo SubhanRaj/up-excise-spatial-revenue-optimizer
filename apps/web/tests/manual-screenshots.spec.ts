@@ -84,8 +84,7 @@ test.describe('DEO Manual — screenshot walkthrough', () => {
       `DELETE FROM district_circles_sectors WHERE district_name='${DISTRICT}';` +
       `DELETE FROM phase1_raw_collection WHERE district_name='${DISTRICT}';` +
       `DELETE FROM district_unlock_requests WHERE district_name='${DISTRICT}';` +
-      `UPDATE districts SET status='pending', cached_vend_count=NULL, cached_total_revenue=NULL, fy_data_cleared_at=NULL WHERE name='${DISTRICT}';` +
-      `UPDATE app_settings SET verification_phase_open=0 WHERE id=1;"`,
+      `UPDATE districts SET status='pending', cached_vend_count=NULL, cached_total_revenue=NULL, fy_data_cleared_at=NULL WHERE name='${DISTRICT}';"`,
     );
     await loginAs(page, deoEmailHash);
 

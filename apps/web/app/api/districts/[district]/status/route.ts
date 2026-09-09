@@ -3,7 +3,7 @@ import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { drizzle } from 'drizzle-orm/d1';
 import { eq, count } from 'drizzle-orm';
 import { getSession } from '@/lib/auth';
-import { districtCirclesSectors, phase1RawCollection, districts, appSettings } from '@excise/schema';
+import { districtCirclesSectors, phase1RawCollection, districts } from '@excise/schema';
 import { withErrorHandling } from '@/lib/with-error-handling';
 
 
@@ -20,14 +20,13 @@ async function GET_(
   const { env } = await getCloudflareContext({ async: true }) as { env: CloudflareEnv };
   const db = drizzle(env.DB);
 
-  const [units, uploaded, districtRow, settingsRow] = await Promise.all([
+  const [units, uploaded, districtRow] = await Promise.all([
     db.select({ name: districtCirclesSectors.name }).from(districtCirclesSectors)
       .where(eq(districtCirclesSectors.districtName, district)).all(),
     db.select({ circleSectorName: phase1RawCollection.circleSectorName, rowCount: count(phase1RawCollection.id) })
       .from(phase1RawCollection).where(eq(phase1RawCollection.districtName, district))
       .groupBy(phase1RawCollection.circleSectorName).all(),
     db.select({ status: districts.status, deoName: districts.deoName, fyDataClearedAt: districts.fyDataClearedAt }).from(districts).where(eq(districts.name, district)).get(),
-    db.select({ verificationPhaseOpen: appSettings.verificationPhaseOpen }).from(appSettings).where(eq(appSettings.id, 1)).get(),
   ]);
 
   const uploadedMap = Object.fromEntries(uploaded.map((u) => [u.circleSectorName, u.rowCount]));
@@ -36,7 +35,6 @@ async function GET_(
     units: summary,
     canSubmit: summary.every((s) => s.rowCount > 0),
     districtStatus: districtRow?.status ?? 'pending',
-    verificationPhaseOpen: settingsRow?.verificationPhaseOpen ?? false,
     // Only meaningful once submitted — see districts.deoName's schema comment and M-53's
     // submit-time write (POST /api/districts/[district]/submit). Before that it's whatever
     // English placeholder an admin set at provisioning (e.g. "Lucknow DEO"), which is not

@@ -91,10 +91,9 @@ export default function AdminPage() {
   };
   const chartInstances = useRef<{ destroy: () => void }[]>([]);
 
-  // ── Final-verification round toggle ───────────────────────────────────────
-  interface SettingsInfo { verificationPhaseOpen: boolean; everToggled: boolean; submittedCount: number; totalDistricts: number; cartoApiKey: string | null }
+  // ── Admin settings (CARTO key + headline counts) ──────────────────────────
+  interface SettingsInfo { submittedCount: number; totalDistricts: number; cartoApiKey: string | null }
   const [settings, setSettings] = useState<SettingsInfo | null>(null);
-  const [togglingSettings, setTogglingSettings] = useState(false);
 
   async function fetchSettings(force = false) {
     if (!force) {
@@ -122,42 +121,6 @@ export default function AdminPage() {
   useEffect(() => {
     void fetchSettings();
   }, []);
-
-  async function toggleVerificationPhase() {
-    if (!settings) return;
-    const next = !settings.verificationPhaseOpen;
-    const Swal = (window as unknown as { Swal?: { fire: (o: Record<string, unknown>) => Promise<{ isConfirmed: boolean }> } }).Swal;
-    const confirm = await Swal?.fire({
-      icon: 'warning',
-      title: next ? 'Open final verification for all DEOs?' : 'Close final verification?',
-      html: next
-        ? `<p>Every DEO whose district is <b>Submitted</b> will now see a read-only final-review screen instead of Circles/Upload/Verify, where they confirm their data one more time or request a correction unlock.</p><p style="margin-top:8px">${settings.submittedCount} of ${settings.totalDistricts} districts are currently Submitted.</p>`
-        : `<p>DEOs will stop seeing the final-review screen and return to their normal post-submission locked view.</p>`,
-      showCancelButton: true,
-      confirmButtonText: next ? 'Open Verification' : 'Close Verification',
-      cancelButtonText: 'Cancel',
-      confirmButtonColor: '#1d4ed8',
-    });
-    if (!confirm?.isConfirmed) return;
-
-    setTogglingSettings(true);
-    try {
-      const res = await fetch('/api/admin/settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ verificationPhaseOpen: next }),
-      });
-      if (!res.ok) {
-        await Swal?.fire({ icon: 'error', title: 'Could not update', text: 'Please try again.' });
-        return;
-      }
-      const s = await res.json() as SettingsInfo;
-      adminSettingsCache.set(s);
-      setSettings(s);
-    } finally {
-      setTogglingSettings(false);
-    }
-  }
 
   // One-click lightweight status/progress download — uses whatever export data is already
   // cached (populated by Sync All in normal use); if none exists yet, fetches it once on this
@@ -425,35 +388,6 @@ export default function AdminPage() {
               </div>
             )}
           </div>
-        </div>
-      )}
-
-      {/* Final verification round — superadmin toggles, everyone sees progress */}
-      {settings && (
-        <div className="bg-base-100 rounded-box shadow p-4 flex items-center justify-between flex-wrap gap-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="font-semibold">Final Verification Round</h3>
-              <span className={`badge badge-sm ${settings.verificationPhaseOpen ? 'badge-info' : 'badge-ghost'}`}>
-                {settings.verificationPhaseOpen ? 'Open' : settings.everToggled ? 'Closed' : 'Not Started Yet'}
-              </span>
-            </div>
-            <p className="text-xs text-base-content/60 mt-0.5">
-              {settings.submittedCount} of {settings.totalDistricts} districts Submitted
-              {settings.verificationPhaseOpen && ' · Submitted districts\' DEOs currently see the final-review screen'}
-            </p>
-          </div>
-          {session?.role === 'admin' || session?.role === 'superadmin' ? (
-            <button
-              className={`btn btn-sm ${settings.verificationPhaseOpen ? 'btn-outline btn-error' : 'btn-primary'}`}
-              onClick={toggleVerificationPhase}
-              disabled={togglingSettings}
-            >
-              {togglingSettings ? <span className="loading loading-spinner loading-xs" /> : settings.verificationPhaseOpen ? 'Close Verification' : 'Open Verification'}
-            </button>
-          ) : (
-            <span className="text-xs text-base-content/50">Admin-only toggle</span>
-          )}
         </div>
       )}
 
