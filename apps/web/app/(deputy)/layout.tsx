@@ -50,7 +50,7 @@ export default function DeputyLayout({ children }: { children: React.ReactNode }
       title: 'Your role in this review round',
       width: '66rem',
       html: `<div style="text-align:left;font-size:0.92rem;line-height:1.45">
-        <p>The figures in your division are for <b>FY 2025-26</b> (the previous financial year). How the round works, end to end:</p>
+        <p>The figures in your division are for <b>FY 2025-26</b> (the previous financial year) and must reflect <b>actual lifting (उठान)</b> — what was actually lifted/consumed — not a fixed licence amount or a standard assumed figure. How the round works, end to end:</p>
         <ol style="margin:6px 0 0;padding-left:20px;column-count:2;column-gap:32px">
           <li style="break-inside:avoid;margin-bottom:4px">Each <b>DEO</b> registers their Circles &amp; Sectors, uploads the district Excel file, checks it on Verify, and <b>submits</b> it (typing their name).</li>
           <li style="break-inside:avoid;margin-bottom:4px">Right after submitting, each DEO re-checks their totals and <b>Confirms &amp; Verifies</b> their own district — the district moves to <b>Verified</b>. There is no state-wide round to wait for.</li>
@@ -58,7 +58,7 @@ export default function DeputyLayout({ children }: { children: React.ReactNode }
           <li style="break-inside:avoid;margin-bottom:4px">Once <b>every district</b> in your division is Verified and you have signed off &ldquo;Looks correct&rdquo; on each, use <b>&ldquo;Verify &amp; Lock Division&rdquo;</b> on the dashboard and type your name. After that, only state headquarters can reopen the division.</li>
           <li style="break-inside:avoid;margin-bottom:4px">When all 18 divisions are locked, the state's data collection is closed.</li>
         </ol>
-        <p style="margin-top:6px;color:#64748b">आपके मंडल के आंकड़े <b>FY 2025-26</b> के हैं। DEO अपने जिले का डेटा upload कर submit करते हैं → Submit के तुरंत बाद हर DEO कुल आंकड़े जांचकर अपने जिले को Confirm &amp; Verify करता है (कोई राज्य-स्तरीय दौर नहीं) → आप हर Verified जिला खोलकर &ldquo;Looks correct&rdquo; या &ldquo;Flag an issue&rdquo; दर्ज करते हैं → जब हर जिला Verified हो और आपने हर एक पर हस्ताक्षर कर दिया हो, dashboard से नाम दर्ज करके &ldquo;Verify &amp; Lock Division&rdquo; करें → इसके बाद केवल राज्य मुख्यालय ही मंडल दोबारा खोल सकता है।</p>
+        <p style="margin-top:6px;color:#64748b">आपके मंडल के आंकड़े <b>FY 2025-26</b> की <b>वास्तविक उठान (actual lifting)</b> पर आधारित होने चाहिए, न कि किसी निर्धारित license राशि या मानक अनुमानित आंकड़े पर। DEO अपने जिले का डेटा upload कर submit करते हैं → Submit के तुरंत बाद हर DEO कुल आंकड़े जांचकर अपने जिले को Confirm &amp; Verify करता है (कोई राज्य-स्तरीय दौर नहीं) → आप हर Verified जिला खोलकर &ldquo;Looks correct&rdquo; या &ldquo;Flag an issue&rdquo; दर्ज करते हैं → जब हर जिला Verified हो और आपने हर एक पर हस्ताक्षर कर दिया हो, dashboard से नाम दर्ज करके &ldquo;Verify &amp; Lock Division&rdquo; करें → इसके बाद केवल राज्य मुख्यालय ही मंडल दोबारा खोल सकता है।</p>
         <p style="margin-top:12px;text-align:center"><a href="${DEPUTY_MANUAL_URL}" target="_blank" rel="noopener noreferrer" style="color:#2563eb;text-decoration:underline;font-weight:600">Open the Deputy User Manual (PDF)</a></p>
       </div>`,
       confirmButtonText: 'I understand',

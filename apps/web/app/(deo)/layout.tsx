@@ -63,10 +63,12 @@ export default function DeoLayout({ children }: { children: React.ReactNode }) {
             <p>All figures in this district's Excel file must be for <b>FY 2025-26</b> (1 April 2025 – 31 March 2026) — the <b>previous</b> financial year, not the current one.</p>
             <p style="margin-top:6px">Every revenue field is in <b>rupees (₹)</b>, except <b>MGQ Quantity</b> on Bhang Shop rows — that one is a quantity (units/kg), not rupees. The portal multiplies it by ₹20/unit to get the revenue figure; do not enter a pre-calculated rupee amount there.</p>
             <p style="margin-top:6px">For a Model Shop, the fixed <b>₹3,00,000 On Premises Consumption Fee</b> is added automatically by the portal to that shop's Total Revenue — it is not a field you fill in. Do not enter it yourself anywhere in the Excel file.</p>
+            <p style="margin-top:6px">Every other revenue figure must be the <b>actual lifting (उठान)</b> for FY 2025-26 — what was actually lifted/consumed — not a fixed licence amount or a standard assumed figure.</p>
           </div>
           <div style="color:#64748b">
             <p>सभी आंकड़े <b>FY 2025-26</b> (1 अप्रैल 2025 – 31 मार्च 2026), यानी <b>पिछले</b> वित्तीय वर्ष के होने चाहिए, चालू वर्ष के नहीं। हर राजस्व field <b>रुपये (₹)</b> में है, सिवाय Bhang Shop की <b>MGQ Quantity</b> के — वह एक मात्रा (यूनिट/किलोग्राम) है, रुपये नहीं। पोर्टल इसे ₹20 प्रति यूनिट से गुणा करके राजस्व निकालता है; वहां सीधे रुपये की गणना करके न भरें।</p>
             <p style="margin-top:6px">Model Shop के लिए, स्थिर <b>₹3,00,000 On Premises Consumption Fee</b> पोर्टल द्वारा उस दुकान के Total Revenue में अपने-आप जोड़ दिया जाता है — यह कोई ऐसा field नहीं है जिसे आपको भरना है। इसे Excel फ़ाइल में कहीं भी खुद दर्ज न करें।</p>
+            <p style="margin-top:6px">बाकी सभी राजस्व आंकड़े FY 2025-26 की <b>वास्तविक उठान (actual lifting)</b> पर आधारित होने चाहिए — जो वास्तव में उठाया/खपत हुआ, न कि कोई निर्धारित license राशि या मानक अनुमानित आंकड़ा।</p>
           </div>
         </div>
         <div style="margin-top:14px;padding:10px 14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px">
