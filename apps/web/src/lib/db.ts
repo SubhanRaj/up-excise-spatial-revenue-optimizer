@@ -280,6 +280,7 @@ function getAdminDb(): DexieInstance {
     _adminDb.version(3).stores({ export_cache: 'key', districts_cache: 'key', map_cache: 'key', shops_cache: 'key', audit_cache: 'key' });
     _adminDb.version(4).stores({ export_cache: 'key', districts_cache: 'key', map_cache: 'key', shops_cache: 'key', audit_cache: 'key', unlock_requests_cache: 'key' });
     _adminDb.version(5).stores({ export_cache: 'key', districts_cache: 'key', map_cache: 'key', shops_cache: 'key', audit_cache: 'key', unlock_requests_cache: 'key', settings_cache: 'key' });
+    _adminDb.version(6).stores({ export_cache: 'key', districts_cache: 'key', map_cache: 'key', shops_cache: 'key', audit_cache: 'key', unlock_requests_cache: 'key', settings_cache: 'key', prior_year_cache: 'key' });
   }
   return _adminDb;
 }
@@ -408,6 +409,38 @@ export const adminUnlockRequestsCache = makeKvCache<unknown>('unlock_requests_ca
 // entry here could show "verification not open" to one admin/device while it's actually
 // open — worse than most staleness since admins relay this state to DEOs verbally.
 export const adminSettingsCache = makeKvCache<unknown>('settings_cache', { fixedKey: 'app_settings', ttlMs: CACHE_TTL_MS });
+
+// ── Prior-year (FY 2025-26) snapshot cache — fetch once, never re-fetch ────────
+// phase1_prior_year_snapshot is static: written once by scripts/export-prior-year-snapshot.py,
+// never at app runtime, so there's nothing to go stale. No ttlMs (never expires on its own) and
+// deliberately not wired into invalidateAllAdminCaches()/Sync All — once this device has it,
+// it's done forever; re-fetching it on every Sync All click would just burn D1 reads comparing
+// a district's freshly-uploaded FY 2026-27 rows against a reference that never changes.
+export interface PriorYearShop {
+  districtName: string;
+  shopId: string;
+  shopName: string;
+  shopType: string;
+  circleSectorName: string;
+  thanaName: string;
+  totalRevenue: number;
+}
+
+export const priorYearSnapshotCache = makeKvCache<PriorYearShop[]>('prior_year_cache', { fixedKey: 'prior_year_shops' });
+
+export async function fetchFullPriorYearSnapshot(): Promise<PriorYearShop[]> {
+  const rows: PriorYearShop[] = [];
+  let offset = 0;
+  for (;;) {
+    const res = await fetch(`/api/admin/prior-year-snapshot?offset=${offset}`);
+    if (!res.ok) throw new Error('prior-year snapshot fetch failed');
+    const page = await res.json() as { rows: PriorYearShop[]; hasMore: boolean };
+    rows.push(...page.rows);
+    if (!page.hasMore) break;
+    offset += page.rows.length;
+  }
+  return rows;
+}
 
 // ── Deputy portal cache (M-102) ──────────────────────────────────────────────
 // Physically separate Dexie DB from `excise-admin` so a browser shared between an admin and

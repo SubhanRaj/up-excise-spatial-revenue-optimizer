@@ -104,7 +104,30 @@ export function ShopExplorer({
   loading?: boolean;
   storageKeyPrefix: string;
 }) {
-  const { typeCounts, cl5ccCount, circles, circleStats, thanaVariants } = useShopAggregates(shops, units);
+  // HBR & PRV are the two shop types the e-Lottery/IESCMS external revenue sources don't
+  // cover (see docs/local-analysis-db.md's "External revenue source tables") — this toggle
+  // drops both from every total in this component so an admin can cross-check the remaining
+  // revenue against those external figures. Only shown when the district actually has one of
+  // the two, computed off the raw `shops` prop so the checkbox doesn't vanish once switched on.
+  const hasHbrOrPrv = useMemo(() => shops.some((s) => s.shopType === 'HBR' || s.shopType === 'PRV'), [shops]);
+  const [excludeHbrPrv, setExcludeHbrPrv] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return localStorage.getItem(`${storageKeyPrefix}-exclude-hbr-prv`) === 'true';
+  });
+  function handleExcludeHbrPrv(checked: boolean) {
+    setExcludeHbrPrv(checked);
+    try { localStorage.setItem(`${storageKeyPrefix}-exclude-hbr-prv`, String(checked)); } catch { }
+  }
+  const effectiveShops = useMemo(
+    () => (excludeHbrPrv ? shops.filter((s) => s.shopType !== 'HBR' && s.shopType !== 'PRV') : shops),
+    [shops, excludeHbrPrv],
+  );
+
+  const { typeCounts, cl5ccCount, circles, circleStats, thanaVariants } = useShopAggregates(effectiveShops, units);
+  const excludedTotal = useMemo(
+    () => Object.values(typeCounts).reduce((sum, c) => sum + c.revenue, 0),
+    [typeCounts],
+  );
 
   const [showCircleStats, setShowCircleStats] = useState(true);
   const [search, setSearch] = useState('');
@@ -135,7 +158,7 @@ export function ShopExplorer({
 
   const filteredSorted = useMemo(() => {
     const q = search.toLowerCase();
-    let rows = shops.filter((s) => {
+    let rows = effectiveShops.filter((s) => {
       if (typeFilter !== 'all' && s.shopType !== typeFilter) return false;
       if (q && !s.shopId.toLowerCase().includes(q) && !s.shopName.toLowerCase().includes(q) && !s.thanaName.toLowerCase().includes(q)) return false;
       if (cl5ccFilter && !s.hasCl5cc) return false;
@@ -150,7 +173,7 @@ export function ShopExplorer({
         : String(bv).localeCompare(String(av));
     });
     return rows;
-  }, [shops, search, typeFilter, cl5ccFilter, circleFilter, sortKey, sortDir]);
+  }, [effectiveShops, search, typeFilter, cl5ccFilter, circleFilter, sortKey, sortDir]);
 
   const effectivePageSize = pageSize === 'all' ? filteredSorted.length || 1 : pageSize;
   const totalPages = Math.ceil(filteredSorted.length / effectivePageSize);
@@ -194,7 +217,7 @@ export function ShopExplorer({
 
   async function exportXlsx() {
     const { exportShopsToXlsx } = await import('@/lib/excel');
-    await exportShopsToXlsx(shops, {
+    await exportShopsToXlsx(effectiveShops, {
       title: `District: ${districtName.toUpperCase()}`,
       sheetName: districtName,
       filename: `${districtName}-shops.xlsx`,
@@ -203,7 +226,7 @@ export function ShopExplorer({
 
   async function exportCircleSectorXlsx(circleSectorName: string) {
     const { exportShopsToXlsx } = await import('@/lib/excel');
-    const rows = shops.filter((s) => s.circleSectorName === circleSectorName);
+    const rows = effectiveShops.filter((s) => s.circleSectorName === circleSectorName);
     await exportShopsToXlsx(rows, {
       title: `District: ${districtName.toUpperCase()}  |  ${circleSectorName}`,
       sheetName: circleSectorName,
@@ -265,6 +288,11 @@ export function ShopExplorer({
               );
             })()}
           </div>
+          {excludeHbrPrv && (
+            <p className="mt-3 pt-3 border-t border-base-200 text-xs text-base-content/70">
+              Total shown (excl. HBR &amp; PRV): <strong className="tabular-nums">{fmtCr(excludedTotal)}</strong>
+            </p>
+          )}
         </div>
       )}
 
@@ -385,7 +413,22 @@ export function ShopExplorer({
             Group by type
           </label>
 
-          <button className="btn btn-sm btn-outline gap-2" onClick={exportXlsx} disabled={shops.length === 0}>
+          {hasHbrOrPrv && (
+            <label
+              className="flex items-center gap-2 cursor-pointer select-none text-sm text-base-content/90"
+              title="e-Lottery/IESCMS external revenue figures don't cover HBR or PRV — exclude them here to cross-check the remaining total against those sources"
+            >
+              <input
+                type="checkbox"
+                className="toggle toggle-xs toggle-warning"
+                checked={excludeHbrPrv}
+                onChange={(e) => handleExcludeHbrPrv(e.target.checked)}
+              />
+              Exclude HBR &amp; PRV
+            </label>
+          )}
+
+          <button className="btn btn-sm btn-outline gap-2" onClick={exportXlsx} disabled={effectiveShops.length === 0}>
             <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/><polyline points="7 11 12 16 17 11"/><line x1="12" y1="4" x2="12" y2="16"/></svg>
             Export XLSX
           </button>
