@@ -17,6 +17,7 @@ import { ShopExplorer, type ShopExplorerRow } from '@/components/ShopExplorer';
 import { ThanaVariantsCard } from '@/components/ThanaVariantsCard';
 import { UnitsModal } from '@/components/UnitsModal';
 import { useShopAggregates } from '@/hooks/useShopAggregates';
+import { useExcludeHbrPrv } from '@/hooks/useExcludeHbrPrv';
 import { normalizeThanaName, looseThanaName } from '@/lib/thana-name';
 import { validatePersonName } from '@/lib/person-name';
 
@@ -655,9 +656,10 @@ export default function VerifyPage() {
     () => finalRows.filter((r): r is StagedRow & { id: number } => r.id != null) as ShopExplorerRow[],
     [finalRows],
   );
-  const { typeCounts: finalTypeCounts, cl5ccCount: finalCl5ccCount } = useShopAggregates(finalShopRows, unitsFull);
-  const finalTotalRevenue = useMemo(() => finalRows.reduce((s, r) => s + r.totalRevenue, 0), [finalRows]);
-  const finalCircleCount = useMemo(() => new Set(finalRows.map((r) => r.circleSectorName)).size, [finalRows]);
+  const { hasHbrOrPrv: finalHasHbrOrPrv, excludeHbrPrv: finalExcludeHbrPrv, setExcludeHbrPrv: setFinalExcludeHbrPrv, effectiveShops: effectiveFinalRows } = useExcludeHbrPrv('deo-final', district, finalShopRows);
+  const { typeCounts: finalTypeCounts, cl5ccCount: finalCl5ccCount } = useShopAggregates(effectiveFinalRows, unitsFull);
+  const finalTotalRevenue = useMemo(() => effectiveFinalRows.reduce((s, r) => s + r.totalRevenue, 0), [effectiveFinalRows]);
+  const finalCircleCount = useMemo(() => new Set(effectiveFinalRows.map((r) => r.circleSectorName)).size, [effectiveFinalRows]);
 
   // Seeded from the registered unit list first (falling back to whatever's actually in
   // visibleRows in 'uploaded' view, where `units` isn't the relevant list) so a registered
@@ -721,7 +723,7 @@ export default function VerifyPage() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <div className="bg-base-100 rounded-xl border border-base-200 p-4 space-y-1">
             <p className="text-[11px] uppercase tracking-widest font-medium text-base-content/60">Total Shops</p>
-            <p className="text-xl font-bold tabular-nums">{finalRows.length.toLocaleString()}</p>
+            <p className="text-xl font-bold tabular-nums">{effectiveFinalRows.length.toLocaleString()}</p>
             <p className="text-xs text-base-content/70">
               {SHOP_TYPES.map((t) => finalTypeCounts[t] ? `${SHOP_TYPE_LABELS[t]}: ${finalTypeCounts[t].count}` : null).filter(Boolean).join(' · ')}
             </p>
@@ -750,7 +752,16 @@ export default function VerifyPage() {
           <UnitsModal units={unitsFull} districtName={district} onClose={() => setShowUnitsModal(false)} />
         )}
 
-        <ShopExplorer shops={finalShopRows} units={unitsFull} districtName={district} loading={finalRows.length === 0} storageKeyPrefix="deo-final" />
+        <ShopExplorer
+          shops={effectiveFinalRows}
+          units={unitsFull}
+          districtName={district}
+          loading={finalRows.length === 0}
+          storageKeyPrefix="deo-final"
+          hasHbrOrPrv={finalHasHbrOrPrv}
+          excludeHbrPrv={finalExcludeHbrPrv}
+          onExcludeHbrPrvChange={setFinalExcludeHbrPrv}
+        />
 
         {/* Action area — Request Unlock stays available even once verified; only the
             Re-Verify button (nothing left to re-confirm) drops away. */}

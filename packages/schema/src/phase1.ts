@@ -147,9 +147,10 @@ export const divisionLocks = sqliteTable('division_locks', {
 // Static reference snapshot of the FY 2025-26 shop data cloned locally (docs/local-analysis-db.md)
 // just before the M-101 FY 2026-27 cleanup wiped phase1_raw_collection. Written once by
 // scripts/export-prior-year-snapshot.py + a manual `wrangler d1 execute --remote --file=`; the
-// app never writes to it. Backs GET /api/admin/prior-year-snapshot and /admin/fy-comparison,
-// which flag a district re-entering FY 2026-27 data identical to last year's — a DEO reusing an
-// old prefilled Excel file instead of the year's real lifting figures (see CLAUDE.md's Revenue
+// app never writes to it. Backs GET /api/admin/prior-year-snapshot and the FY Comparison card on
+// each district's detail page, which flags a district re-entering FY 2026-27 data identical to
+// last year's — a DEO reusing an old prefilled Excel file instead of the year's real lifting
+// figures (see CLAUDE.md's Revenue
 // Formulas note on "actual lifting"). Keyed the same way phase1_raw_collection is compared
 // elsewhere (district_name + shop_id) since shop_id repeats across districts.
 export const phase1PriorYearSnapshot = sqliteTable('phase1_prior_year_snapshot', {

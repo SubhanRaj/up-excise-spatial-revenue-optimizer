@@ -9,7 +9,9 @@ import { EditDistrictDrawer } from '@/app/_components/EditDistrictDrawer';
 import { statusLabel, statusBadgeClass } from '@/lib/status';
 import { ShopExplorer, type ShopExplorerRow } from '@/components/ShopExplorer';
 import { UnitsModal } from '@/components/UnitsModal';
+import { FyComparisonCard } from '@/components/FyComparisonCard';
 import { useShopAggregates } from '@/hooks/useShopAggregates';
+import { useExcludeHbrPrv } from '@/hooks/useExcludeHbrPrv';
 import { SHOP_TYPE_LABELS, SHOP_TYPES } from '@excise/schema';
 
 interface UnlockRequestRow {
@@ -266,7 +268,13 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
     }
   }
 
-  const { typeCounts } = useShopAggregates(allShops, detail?.units ?? []);
+  const { hasHbrOrPrv, excludeHbrPrv, setExcludeHbrPrv, effectiveShops } = useExcludeHbrPrv('admin', name, allShops);
+  const { typeCounts } = useShopAggregates(effectiveShops, detail?.units ?? []);
+  // detail.vendCount/totalRevenue come from the server aggregate (cached for verified
+  // districts, see CLAUDE.md's M-96 note) — cheaper than a client sum, so only fall back to
+  // summing effectiveShops when the toggle actually drops rows out of that server total.
+  const displayVendCount = excludeHbrPrv ? effectiveShops.length : (detail?.vendCount ?? 0);
+  const displayTotalRevenue = excludeHbrPrv ? effectiveShops.reduce((s, r) => s + r.totalRevenue, 0) : (detail?.totalRevenue ?? 0);
 
   // ── Render ───────────────────────────────────────────────────────────────────
 
@@ -359,10 +367,10 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
           />
           <StatCard
             label="Total Vends"
-            value={detail.vendCount.toLocaleString()}
+            value={displayVendCount.toLocaleString()}
             sub={SHOP_TYPES.map((t) => typeCounts[t] ? `${SHOP_TYPE_LABELS[t]}: ${typeCounts[t].count}` : null).filter(Boolean).join(' · ')}
           />
-          <StatCard label="Total Revenue" value={fmtCr(detail.totalRevenue)} sub={`across ${detail.vendCount.toLocaleString()} vends`} />
+          <StatCard label="Total Revenue" value={fmtCr(displayTotalRevenue)} sub={`across ${displayVendCount.toLocaleString()} vends`} />
         </div>
       )}
       {showUnitsModal && detail && (
@@ -376,7 +384,20 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
         />
       )}
 
-      <ShopExplorer shops={allShops} units={detail?.units ?? []} districtName={name} loading={loading} storageKeyPrefix="admin" />
+      <ShopExplorer
+        shops={effectiveShops}
+        units={detail?.units ?? []}
+        districtName={name}
+        loading={loading}
+        storageKeyPrefix="admin"
+        hasHbrOrPrv={hasHbrOrPrv}
+        excludeHbrPrv={excludeHbrPrv}
+        onExcludeHbrPrvChange={setExcludeHbrPrv}
+      />
+
+      {!loading && allShops.length > 0 && (
+        <FyComparisonCard districtName={name} currentShops={effectiveShops} excludeHbrPrv={excludeHbrPrv} />
+      )}
     </div>
   );
 }

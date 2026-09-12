@@ -187,7 +187,6 @@ function getBreadcrumbs(pathname: string): { label: string; href: string | null 
     '/admin/audit': [{ label: 'Overview', href: '/admin' }, { label: 'Audit Log', href: null }],
     '/admin/export': [{ label: 'Overview', href: '/admin' }, { label: 'Export', href: null }],
     '/admin/fy-cleanup': [{ label: 'Overview', href: '/admin' }, { label: 'FY Cleanup', href: null }],
-    '/admin/fy-comparison': [{ label: 'Overview', href: '/admin' }, { label: 'FY Comparison', href: null }],
   };
   return MAP[pathname] ?? [];
 }
@@ -314,7 +313,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 </li>
               ))}
               <li><Link href="/admin/fy-cleanup" onClick={() => setDrawerOpen(false)} className={pathname === '/admin/fy-cleanup' ? 'active' : ''}>FY Cleanup</Link></li>
-              <li><Link href="/admin/fy-comparison" onClick={() => setDrawerOpen(false)} className={pathname === '/admin/fy-comparison' ? 'active' : ''}>FY Comparison</Link></li>
               {session?.role === 'superadmin' && (
                 <>
                   <li><Link href="/admin/provision" onClick={() => setDrawerOpen(false)} className={pathname === '/admin/provision' ? 'active' : ''}>District Master</Link></li>

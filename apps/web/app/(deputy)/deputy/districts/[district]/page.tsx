@@ -4,6 +4,7 @@ import { use, useEffect, useState } from 'react';
 import Link from 'next/link';
 import HelpPanel from '@/app/_components/HelpPanel';
 import { ShopExplorer, type ShopExplorerRow } from '@/components/ShopExplorer';
+import { useExcludeHbrPrv } from '@/hooks/useExcludeHbrPrv';
 import { useSession } from '@/hooks/useSession';
 import { deputyBasePath, deputyDivisionKey } from '@/lib/deputy';
 import { deputyShopsCache, deputyReviewsCache } from '@/lib/db';
@@ -118,6 +119,10 @@ export default function DeputyDistrictPage({ params }: { params: Promise<{ distr
     }
   }
 
+  const { hasHbrOrPrv, excludeHbrPrv, setExcludeHbrPrv, effectiveShops } = useExcludeHbrPrv('deputy', name, shops);
+  const displayVendCount = excludeHbrPrv ? effectiveShops.length : (detail?.vendCount ?? 0);
+  const displayTotalRevenue = excludeHbrPrv ? effectiveShops.reduce((s, r) => s + r.totalRevenue, 0) : (detail?.totalRevenue ?? 0);
+
   if (forbidden) {
     return (
       <div className="alert alert-error">
@@ -148,12 +153,21 @@ export default function DeputyDistrictPage({ params }: { params: Promise<{ distr
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="stat bg-base-100 rounded-box shadow"><div className="stat-title">Status</div><div className="stat-value text-lg"><span className={`badge ${statusBadgeClass(detail?.status ?? 'pending')}`}>{statusLabel(detail?.status ?? 'pending')}</span></div></div>
-        <div className="stat bg-base-100 rounded-box shadow"><div className="stat-title">Shops</div><div className="stat-value">{(detail?.vendCount ?? 0).toLocaleString()}</div></div>
+        <div className="stat bg-base-100 rounded-box shadow"><div className="stat-title">Shops</div><div className="stat-value">{displayVendCount.toLocaleString()}</div></div>
         <div className="stat bg-base-100 rounded-box shadow"><div className="stat-title">Circles/Sectors</div><div className="stat-value">{(detail?.units.length ?? 0).toLocaleString()}</div></div>
-        <div className="stat bg-base-100 rounded-box shadow"><div className="stat-title">Revenue</div><div className="stat-value text-primary text-xl">{fmtInr(detail?.totalRevenue ?? 0)}</div></div>
+        <div className="stat bg-base-100 rounded-box shadow"><div className="stat-title">Revenue</div><div className="stat-value text-primary text-xl">{fmtInr(displayTotalRevenue)}</div></div>
       </div>
 
-      <ShopExplorer shops={shops} units={detail?.units ?? []} districtName={name} loading={loading} storageKeyPrefix="deputy" />
+      <ShopExplorer
+        shops={effectiveShops}
+        units={detail?.units ?? []}
+        districtName={name}
+        loading={loading}
+        storageKeyPrefix="deputy"
+        hasHbrOrPrv={hasHbrOrPrv}
+        excludeHbrPrv={excludeHbrPrv}
+        onExcludeHbrPrvChange={setExcludeHbrPrv}
+      />
 
       <div className="card bg-base-100 shadow p-4">
         <h3 className="font-semibold mb-1">Your review</h3>
