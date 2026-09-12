@@ -54,17 +54,24 @@ async function POST_(req: NextRequest): Promise<NextResponse> {
   }
 
   await createSession(user.id, user.role, user.districtName ?? null);
-  await db.insert(auditLog).values({
-    eventType: 'login_cug',
-    deoId: user.deoId ?? '',
-    districtName: user.districtName ?? null,
-    ipAddress: req.headers.get('CF-Connecting-IP') ?? null,
-    userAgent: req.headers.get('User-Agent') ?? null,
-    metadata: null,
-    actorName: user.role === 'deo' ? null : user.name,
-    actorDesignation: user.role === 'deo' ? null : user.designation,
-    createdAt: new Date(),
-  });
+  // Best-effort: the session above is the real login and is already committed. A failure here
+  // (e.g. a D1 write-quota blip) must not turn an actual successful login into a 500 — the
+  // audit trail is supplementary, not the thing being authorized.
+  try {
+    await db.insert(auditLog).values({
+      eventType: 'login_cug',
+      deoId: user.deoId ?? '',
+      districtName: user.districtName ?? null,
+      ipAddress: req.headers.get('CF-Connecting-IP') ?? null,
+      userAgent: req.headers.get('User-Agent') ?? null,
+      metadata: null,
+      actorName: user.role === 'deo' ? null : user.name,
+      actorDesignation: user.role === 'deo' ? null : user.designation,
+      createdAt: new Date(),
+    });
+  } catch (err) {
+    console.error('auth/verify-cug: login audit-log insert failed, session already created', err);
+  }
 
   return NextResponse.json({ redirect: user.role === 'deputy' ? deputyBasePath(user.division) : '/home' });
 }

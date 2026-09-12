@@ -20,9 +20,15 @@ async function GET_(req: NextRequest): Promise<NextResponse> {
   // Opportunistic 45-day retention: prune on read rather than a separate cron trigger — this
   // page is the only consumer of the table, so rows don't need to disappear the instant they
   // turn 45 days old, just before the next time an admin looks. See CLAUDE.md's note on the
-  // deferred cron trigger.
-  const cutoff = new Date(Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000);
-  await db.delete(auditLog).where(lt(auditLog.createdAt, cutoff));
+  // deferred cron trigger. Best-effort: a write-quota blip or any other transient D1 error here
+  // must not stop an admin from reading the log — that's a strictly worse failure than a skipped
+  // purge, which just tries again next read.
+  try {
+    const cutoff = new Date(Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000);
+    await db.delete(auditLog).where(lt(auditLog.createdAt, cutoff));
+  } catch (err) {
+    console.error('admin/audit-log: opportunistic purge failed, continuing to read', err);
+  }
 
   const page = Math.max(1, Number(new URL(req.url).searchParams.get('page') ?? 1));
   const rows = await db.select().from(auditLog)

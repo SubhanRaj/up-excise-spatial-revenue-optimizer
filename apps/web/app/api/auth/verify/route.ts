@@ -31,17 +31,24 @@ async function verifyToken(token: string, req: NextRequest): Promise<{ redirect:
   const effectiveRole = isSuper ? 'superadmin' : user.role;
   const effectiveDistrict = user.districtName ?? null;
   await createSession(user.id, effectiveRole, effectiveDistrict);
-  await db.insert(auditLog).values({
-    eventType: 'login',
-    deoId: user.deoId ?? '',
-    districtName: effectiveDistrict,
-    ipAddress: req.headers.get('CF-Connecting-IP') ?? null,
-    userAgent: req.headers.get('User-Agent') ?? null,
-    metadata: null,
-    actorName: effectiveRole === 'deo' ? null : user.name,
-    actorDesignation: effectiveRole === 'deo' ? null : user.designation,
-    createdAt: new Date(),
-  });
+  // Best-effort: the session above is the real login and is already committed. A failure here
+  // (e.g. a D1 write-quota blip) must not turn an actual successful login into a 500 — the
+  // audit trail is supplementary, not the thing being authorized.
+  try {
+    await db.insert(auditLog).values({
+      eventType: 'login',
+      deoId: user.deoId ?? '',
+      districtName: effectiveDistrict,
+      ipAddress: req.headers.get('CF-Connecting-IP') ?? null,
+      userAgent: req.headers.get('User-Agent') ?? null,
+      metadata: null,
+      actorName: effectiveRole === 'deo' ? null : user.name,
+      actorDesignation: effectiveRole === 'deo' ? null : user.designation,
+      createdAt: new Date(),
+    });
+  } catch (err) {
+    console.error('auth/verify: login audit-log insert failed, session already created', err);
+  }
   return { redirect: effectiveRole === 'superadmin' || user.role === 'admin' ? '/admin' : '/home' };
 }
 
