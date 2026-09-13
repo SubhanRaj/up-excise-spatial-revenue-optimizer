@@ -32,13 +32,14 @@ Single Cloudflare Worker serving both pages and API, on its own custom domain �
 ```
 up-excise-spatial-revenue-optimizer/
 ├── apps/
-│   └── web/          # Next.js — single app, DEO and Admin/HQ as route groups
+│   └── web/          # Next.js — single app, three portals as route groups
 │       └── app/
-│           ├── (deo)/    # DEO portal: /home, /upload, /verify, /units
-│           ├── (admin)/  # HQ dashboard: /admin, /admin/*
-│           ├── login/    # Public: /login
-│           ├── auth/     # Public: /auth/verify (client component)
-│           └── api/      # 25 Next.js Route Handlers (same Worker)
+│           ├── (deo)/      # DEO portal: /home, /upload, /verify, /units
+│           ├── (admin)/    # HQ dashboard: /admin, /admin/*
+│           ├── (deputy)/   # Deputy Excise Commissioner: /deputy-<division>[/...]
+│           ├── login/      # Public: /login
+│           ├── auth/       # Public: /auth/verify (client component)
+│           └── api/        # Next.js Route Handlers (same Worker)
 ├── packages/
 │   └── schema/       # Shared Drizzle ORM schema (D1/SQLite)
 ├── migrations/       # D1 SQL migration files (single consolidated 0001_initial.sql)
@@ -82,16 +83,16 @@ up-excise-spatial-revenue-optimizer/
 **Zero-Knowledge PII: No plaintext emails are stored in the database. Only SHA-256 hashes are persisted.**
 
 **Flow:**
-1. DEO enters their plaintext email on `/login`
+1. Admin/HQ user enters their plaintext email on `/login`'s Admin tab
 2. Server hashes the email on the fly and verifies it against `auth_users.email_hash` in D1
 3. Resend delivers a single-use magic link (15-min expiry) to the in-memory plaintext email, then the server drops the plaintext string.
-4. DEO clicks the link → `/auth/verify` verifies token via `POST /api/auth/verify`
+4. User clicks the link → `/auth/verify` verifies token via `POST /api/auth/verify`
 5. Session cookies set (`excise-session` HttpOnly HMAC, `excise-role` client-readable)
-6. DEO redirected to `/home` (or `/admin` for admin role)
+6. Redirected to `/admin`
 
-**Alternate flow — CUG login:** DEOs can also sign in with their department CUG mobile number instead of email — this remains the default/primary DEO login path even after the domain switch below, since magic-link email is now scoped to Admin/HQ. `/login` has an Email/CUG toggle; the browser SHA-256-hashes the 10-digit number and POSTs it to `POST /api/auth/verify-cug`, which checks it against `auth_users.deo_cug_hash` and issues the same session cookie. The raw number never leaves the browser.
+**CUG login (DEO and Deputy):** `/login` has three tabs — DEO (CUG), Deputy (CUG), Admin (Email). DEOs and Deputy Excise Commissioners sign in with their department CUG mobile number instead of email; this is the default/primary login path for both roles, since magic-link email is scoped to Admin/HQ only. The browser SHA-256-hashes the 10-digit number and POSTs it to `POST /api/auth/verify-cug` along with which tab was used; the server checks the hash against `auth_users.deo_cug_hash` and confirms the row's role matches the tab before issuing a session — a lookup resolving to `admin` or `superadmin` is refused, so `/admin` stays reachable only through the email flow. Every rejection (unknown number, wrong tab, admin/superadmin row) returns the identical `401 Invalid CUG number`, so a failed attempt reveals nothing about whether a number is registered or what role it holds. Rate-limited per IP (10 attempts / 5 minutes). The raw number never leaves the browser. DEOs land on `/home`, Deputies on `/deputy-<division>`.
 
-**Session:** 24 hours clock-based. IndexedDB data preserved through re-login.
+**Session:** 24 hours clock-based for DEO/Deputy sessions; Admin/HQ sessions get a 7-day sliding-renewal window. IndexedDB data preserved through re-login.
 
 **Accounts:** Provisioned by admin via `POST /api/admin/bulk-provision` (Excel upload) or `pnpm seed:deo-accounts` (bulk-seeds real DEO email + CUG hashes from department contact sheets — see DEPLOY.md). No self-registration.
 
@@ -128,7 +129,21 @@ Strictly gated, one step at a time — nothing is shown before its prerequisite 
 
 Upload and Verify are not rendered — not merely disabled — until circles/sectors are locked, on both `/home` and the DEO nav bar. `/home`'s Step 2/3 cards themselves disappear once a district is locked (submitted/verified) — replaced by a single status card — and reappear automatically if an admin approves a data-correction unlock. Page titles and step headings carry a Hindi subtitle; underlying data stays English-only.
 
-**Final Verification Round** — once the state-wide round is open (admin-toggled, see below) and a DEO's district is submitted/verified, `/verify` renders a dedicated read-only review screen instead of the staged-review UI: stat cards (Total Shops with a per-type breakdown, a clickable Circles & Sectors card, Total Revenue, the DEO's own confirmed name), then the exact same `ShopExplorer` component the admin district detail page uses — type breakdown bar, Circle/Sector Breakdown table, sortable/filterable/groupable shop table, per-district and per-circle/sector XLSX export. The DEO confirms ("Re-Verify & Lock the Data You Have Uploaded") or requests a correction unlock.
+**Final verification** — the moment a DEO's district reaches `submitted`, `/verify` renders a dedicated read-only review screen instead of the staged-review UI: stat cards (Total Shops with a per-type breakdown, a clickable Circles & Sectors card, Total Revenue, the DEO's own confirmed name), then the exact same `ShopExplorer` component the admin district detail page uses — type breakdown bar, Circle/Sector Breakdown table, sortable/filterable/groupable shop table, per-district and per-circle/sector XLSX export. The DEO confirms ("Confirm & Verify") or requests a correction unlock — no HQ toggle to wait for, no dependency on the other 74 districts. A district that has already reached `verified` can still request a correction unlock the same way, unless its division has since been locked by the Deputy (see "Deputy Portal & Lock Hierarchy" below), in which case only state HQ can reopen it.
+
+---
+
+## Deputy Portal & Lock Hierarchy
+
+A three-level sign-off sits on top of the DEO flow: **district** (DEO) → **division** (Deputy Excise Commissioner) → **state** (derived).
+
+1. **District** — a DEO uploads, submits, then immediately confirms & verifies their own district (see "Final verification" above). `districts.status` moves `pending → in_progress → submitted → verified`.
+2. **Division** — one Deputy Excise Commissioner per division, signed in via CUG login, gets a division-scoped read-only cut of the admin data (`/deputy-<division>`): stat cards, a CartoDB choropleth of just that division's districts, and a district table with a review column. For each district the Deputy records "Looks correct" or "Flag an issue" (`POST /api/deputy/districts/[district]/review`) — audit-only, no data mutation. Once every district in the division is `verified` and reviewed "ok," the Deputy locks the division from their dashboard's "Verify & Lock Division" card, typing their own name as sign-off.
+3. **State** — derived, not stored: the state is "locked" once every one of the 18 divisions has a lock recorded.
+
+**Once a division is locked, DEOs in it lose self-service correction unlocks** — `POST /api/districts/[district]/request-unlock` returns 409. The only way back in is `DELETE /api/admin/divisions/[division]/lock` (any `admin`/`superadmin`, a note is required) from `/admin/divisions/[division]`; a Deputy cannot undo their own lock.
+
+**Data scoping** mirrors the DEO portal: every deputy route checks the caller's `division` before returning anything, the same way DEO routes check `districtName`. Deputy caches live in their own `excise-deputy` IndexedDB, keyed by division, so a shared browser can never cross-serve one deputy's data to another or to an admin session.
 
 ---
 
@@ -140,6 +155,7 @@ Upload and Verify are not rendered — not merely disabled — until circles/sec
 - Divisions grid: 18 division cards each showing district count, submission progress bar, and total revenue
 - 2 Chart.js charts side by side: submission progress doughnut + top-20 districts bar chart
 - State totals stat cards (submitted districts, total vends, total revenue)
+- Division & State Lock card — `divisionsLocked / divisionsTotal`, "State Locked" once every division is locked (see "Deputy Portal & Lock Hierarchy" above)
 - Manual Sync button for live data pull; map click on district polygon → district detail page
 
 **Districts page (`/admin/districts`):**
@@ -163,8 +179,11 @@ Upload and Verify are not rendered — not merely disabled — until circles/sec
 - The owner/superadmin bypass account is listed read-only with an "Owner" badge — its email can't be changed and the row can't be deleted; a superadmin also can't delete their own account
 - Every create/edit/delete is audit-logged with the acting superadmin's identity
 
+**FY 2026-27 Data Cleanup (`/admin/fy-cleanup`)** — linked from the profile dropdown, open to any admin. One-time bulk cleanup for districts that uploaded FY 2026-27 shop data instead of the FY 2025-26 figures Phase 1 collects: tick districts, type `CLEAR` plus a reason once, and it wipes only `phase1_raw_collection` rows per selected district (circles/sectors, DEO identity, and the audit log are untouched) and resets status to Pending. A cleared district is marked so it can't be cleared a second time by mistake.
+
 **District detail (`/admin/districts/[district]`):**
-- The type breakdown bar, Circle/Sector Breakdown table, and the shop table (toolbar/sort/filters/group-by-type/pagination/export) are the shared `ShopExplorer` component — the same one the DEO Final Verification Round screen (`/verify`) uses, so the two portals' shop-browsing UI can't drift apart from each other.
+- The type breakdown bar, Circle/Sector Breakdown table, and the shop table (toolbar/sort/filters/group-by-type/pagination/export) are the shared `ShopExplorer` component — the same one the DEO final-verification screen (`/verify`) uses, so the two portals' shop-browsing UI can't drift apart from each other.
+- FY Comparison card (collapsed by default) — joins this district's shop rows against a static FY 2025-26 reference snapshot by shop ID, flagging any shop whose revenue is byte-identical across both years (a sign a DEO re-uploaded last year's file instead of entering this year's actual lifting figures), alongside district-wide and per-type revenue totals for both years
 - All `phase1_raw_collection` fields: shop ID, name, circle/sector, thana, adjacent thanas (flex-wrap pills), type + CL5CC sub-badge, coordinates, revenue
 - Collapsible per-row revenue breakdown (`<details>/<summary>` — no modal)
 - Full type labels: "Composite Shop (FL + Beer)", "PRV (Premium Retail Vend)"
@@ -292,7 +311,8 @@ See [DEPLOY.md](DEPLOY.md) for secrets, CI/CD, and account management. See [docs
 | M-9: SPA Navigation Parity & Polish | **Completed** |
 | M-10: District Master & Migration Consolidation | **Completed** |
 | M-11 – M-41 | **Completed** — see CLAUDE.md's milestone table for full per-milestone detail (auth/audit hardening, DEO Excel template overhaul, prod go-live cleanup + custom domain, self-service unlock requests, SEO metadata, admin users management, circle/sector stats & export rework, DEO-routes-deo-only, and UX/bugfix polish) |
-| M-42 – M-93 | **Completed** — see CLAUDE.md's milestone table for full per-milestone detail (CUG login rate limiting, post-submission data-correction unlock, state-wide final verification round, data-quality tooling for the pre-campaign review, a series of admin D1-read-reduction and cache-correctness fixes, the admin district status PDF export, a set of data-correction re-upload fixes found from real DEO reports, and a superadmin-only district shop-data reset for bad uploads) |
+| M-42 – M-93 | **Completed** — see CLAUDE.md's milestone table for full per-milestone detail (CUG login rate limiting, post-submission data-correction unlock, per-district final verification, data-quality tooling for the pre-campaign review, a series of admin D1-read-reduction and cache-correctness fixes, the admin district status PDF export, a set of data-correction re-upload fixes found from real DEO reports, and a superadmin-only district shop-data reset for bad uploads) |
+| M-94 – M-106 | **Completed** — see CLAUDE.md's milestone table for full per-milestone detail (Deputy Excise Commissioner portal and the district/division/state lock hierarchy, removal of the old state-wide verification-round toggle in favor of per-district verification, FY 2025-26 vs. 2026-27 comparison and one-time FY 2026-27 cleanup, and making login/audit-log writes best-effort after a shared-account D1 write-quota outage) |
 
 See [summary.md](summary.md) for full milestone specs, entry/exit criteria, and deliverable checklists — see [roadmap.md](roadmap.md) for the technical and business-logic spec behind them.
 

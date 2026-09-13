@@ -3,37 +3,41 @@
 Mermaid diagrams of how requests move through the portal. See [CLAUDE.md](../CLAUDE.md) and
 [roadmap.md](../roadmap.md) for the full architectural context behind each step.
 
-## 1. Authentication (both login paths)
+## 1. Authentication (three login paths)
 
 ```mermaid
 flowchart TD
-    Start([DEO or Admin visits /login]) --> Choice{Login method}
+    Start(["/login: three tabs -\nDEO (CUG), Deputy (CUG), Admin (Email)"]) --> Choice{Tab}
 
-    Choice -->|Email| EmailInput[Enter email address]
+    Choice -->|Admin - Email| EmailInput[Enter email address]
     EmailInput --> ReqLink[Server Action: requestMagicLink]
     ReqLink --> HashEmail[Hash email SHA-256, check auth_users]
     HashEmail -->|not found| GenericErr[Generic error - do not reveal registration status]
     HashEmail -->|found + under rate limit| SendEmail[Resend sends magic link, 15-min expiry]
-    SendEmail --> ClickLink[DEO clicks link -> /auth/verify?token=...]
+    SendEmail --> ClickLink[User clicks link -> /auth/verify?token=...]
     ClickLink --> VerifyEP[POST /api/auth/verify]
     VerifyEP --> CheckToken{Token valid, unused, unexpired?}
     CheckToken -->|no| LoginErr[Redirect to /login with error]
     CheckToken -->|yes| CreateSession
 
-    Choice -->|CUG number| CugInput[Enter 10-digit CUG number]
-    CugInput --> HashCug[Browser: SHA-256 the CUG number]
-    HashCug --> CugEP[POST /api/auth/verify-cug]
-    CugEP --> CheckCug{deo_cug_hash match in auth_users?}
-    CheckCug -->|no| CugErr[401 Invalid CUG number]
+    Choice -->|DEO or Deputy - CUG number| CugInput["Enter 10-digit CUG number\n(expect: 'deo' or 'deputy' from the tab)"]
+    CugInput --> HashCug[Browser: SHA-256 the CUG number,\nraw number never leaves the browser]
+    HashCug --> IpLimit{"IP under rate limit?\n10 attempts / 5 min, login_attempts table"}
+    IpLimit -->|no| RateErr[429]
+    IpLimit -->|yes| CugEP[POST /api/auth/verify-cug]
+    CugEP --> CheckCug{"deo_cug_hash match?\nAND row's role equals the tab's expect?\nAND role is deo or deputy, never admin/superadmin"}
+    CheckCug -->|no - unknown hash, wrong tab,\nor an admin/superadmin row| CugErr["401 Invalid CUG number\n(identical body/status for every reject -\nno oracle on registration or role)"]
     CheckCug -->|yes| CreateSession
 
     CreateSession[createSession: insert auth_sessions row,\nset excise-session HttpOnly cookie + excise-role cookie] --> RoleCheck{Role}
     RoleCheck -->|deo| HomeDEO[Redirect to /home]
+    RoleCheck -->|deputy| HomeDeputy["Redirect to /deputy-<division>"]
     RoleCheck -->|admin / superadmin| HomeAdmin[Redirect to /admin]
 
     style CreateSession fill:#16a34a,color:#fff
     style GenericErr fill:#f59e0b,color:#000
     style CugErr fill:#f59e0b,color:#000
+    style RateErr fill:#f59e0b,color:#000
     style LoginErr fill:#f59e0b,color:#000
 ```
 
@@ -94,7 +98,9 @@ flowchart TD
     ReseedIDB --> Done(["/home Step 3, nav links, /verify and\n/upload all switch to locked/read-only view\n(districts.status===submitted)"])
 
     Done -.->|DEO finds wrong data\nfor an already-uploaded shop| ReqCorrection["/upload locked view:\nRequest Data-Correction Unlock button"]
-    ReqCorrection --> PostUnlock2[POST .../request-unlock\nrequestType=data_correction\nSweetAlert2 textarea, reason required]
+    ReqCorrection -.-> DivisionLockCheck{Is this district's\ndivision locked? - M-103}
+    DivisionLockCheck -->|yes| DivisionBlocked["409 - self-service unlock refused.\nOnly DELETE /api/admin/divisions/[div]/lock\n(admin, note required) reopens it -\na deputy cannot undo their own lock"]
+    DivisionLockCheck -->|no| PostUnlock2[POST .../request-unlock\nrequestType=data_correction\nSweetAlert2 textarea, reason required]
     PostUnlock2 --> Resolve2{Admin: approve or deny?\n/admin/unlock-requests or district detail}
     Resolve2 -->|approve, note required| ResetStatus[status reset to in_progress\nNO rows deleted - phase1_raw_collection\nand district_circles_sectors untouched]
     Resolve2 -->|deny, note required| DenyBanner2["/upload shows denied banner\n+ admin's note"]
@@ -103,8 +109,7 @@ flowchart TD
     UploadPage -.->|re-uploading a file NOT shaped\nlike the DEO template, e.g. the\nadmin's Export XLSX report| WrongFileGuard["parseExcelFile() rejects it -\nmissing the hidden Reference Data\nsheet every real template has -\nwith a specific error naming the\ncorrect download buttons (M-90)"]
     UploadPage -.->|admin can also generate the\ncorrect file directly| AdminTemplate["Admin district detail page:\nDownload Re-upload Template\nbutton, same generateTemplate()\nbuilder, pre-filled from D1 (M-91)"]
 
-    Done -.->|Admin opens the state-wide\nfinal verification round\nM-60, /admin overview toggle| VerifyRoundCheck{"GET .../status: verificationPhaseOpen=true\nAND districtStatus=submitted?"}
-    VerifyRoundCheck -->|yes| FinalNav["DEO nav collapses to\nDashboard + Verify only"]
+    Done --> FinalNav["The moment status=submitted,\nDEO nav collapses to\nDashboard + Verify only\n(M-104: no HQ toggle, no waiting\nfor the other 74 districts)"]
     FinalNav --> FinalScreen["/verify final-verification screen:\nstat cards (clickable Circles/Sectors),\nShopExplorer - same shared component as\nadmin district detail: filters, sort,\ngroup-by-type, Circle/Sector Breakdown,\nXLSX export, RevenueCell popup - M-67"]
     FinalScreen --> SyncOnce{"localStorage verify-synced-{district}\nalready set?"}
     SyncOnce -->|yes| LocalRead[(Read straight from\nphase1_staging IndexedDB\nzero D1 hits)]
@@ -114,11 +119,19 @@ flowchart TD
     FinalChoice -->|everything correct| ConfirmVerify[SweetAlert2 confirm + typed name\nPOST .../verify]
     ConfirmVerify --> Verified["status=verified\naudit_log district_verified\nread-only, no further action"]
     FinalChoice -->|sees wrong data| ReqCorrection3["Request Unlock button\n- same request-unlock endpoint/flow\nas ReqCorrection above"]
-    ReqCorrection3 -.-> Resolve2
+    ReqCorrection3 -.-> DivisionLockCheck
+
+    Verified --> DeputyReview["Deputy reviews the district on\ntheir division dashboard:\nPOST /api/deputy/districts/[d]/review\n{verdict: ok|flagged}, audit-only,\nno data mutation"]
+    DeputyReview --> AllOkCheck{Every district in the division\nverified AND deputy-reviewed ok?}
+    AllOkCheck -->|yes, deputy locks it| DivisionLocked["POST /api/deputy/divisions/[div]/lock\n(deputy types their own name)\n-> division_locks row + audit division_locked"]
+    DivisionLocked --> StateCheck{division_locks row\nfor all 18 divisions?}
+    StateCheck -->|yes| StateLocked["State locked - derived, not stored\n/admin shows Division & State Lock: locked"]
 
     style Locked fill:#16a34a,color:#fff
     style Done fill:#16a34a,color:#fff
     style Verified fill:#16a34a,color:#fff
+    style DivisionLocked fill:#16a34a,color:#fff
+    style StateLocked fill:#16a34a,color:#fff
     style Rejected fill:#f59e0b,color:#000
     style RowRejected fill:#f59e0b,color:#000
     style SubmitBlocked fill:#f59e0b,color:#000
@@ -131,9 +144,12 @@ flowchart TD
     style LocalRead fill:#16a34a,color:#fff
     style WrongFileGuard fill:#f59e0b,color:#000
     style AdminTemplate fill:#16a34a,color:#fff
+    style DivisionBlocked fill:#f59e0b,color:#000
 ```
 
-**Note:** `ChunkLocked` (upload rejected) and `ReqCorrection`/`ReqCorrection3`'s branch condition both use the shared `isLocked(status)` helper (`apps/web/src/lib/status.ts`) — a `'verified'` district is rejected/routed identically to a `'submitted'` one everywhere in this diagram, not just at the points drawn explicitly.
+**Notes:**
+- `ChunkLocked` (upload rejected) and every `request-unlock` branch condition use the shared `isLocked(status)` helper (`apps/web/src/lib/status.ts`) — a `'verified'` district is rejected/routed identically to a `'submitted'` one everywhere in this diagram, not just at the points drawn explicitly.
+- The district/division/state lock hierarchy (M-103) sits on top of the DEO flow shown here — see diagram 5 below for the deputy side of it in full.
 
 ## 3. Admin / HQ dashboard — data loading (IndexedDB-first)
 
@@ -168,7 +184,7 @@ flowchart TD
     Provision --> PatchEP[PATCH /api/admin/districts/district\ndb.transaction: update districts + sync auth_users]
     Provision --> BulkEP[POST /api/admin/bulk-provision\ndb.transaction per row: districts + auth_users]
 
-    Render --> SettingsCard["Admin overview: Final Verification\nRound card - GET/POST /api/admin/settings\nany admin/superadmin toggles, M-66;\nsubmittedCount gets the same background\nchanged-districts self-heal as the map"]
+    Render --> SettingsCard["Admin overview: Division & State Lock card -\ndivisionsLocked/divisionsTotal from\nGET /api/admin/districts (M-103);\n'State Locked' once every division is locked -\nno admin toggle exists, this is read-only"]
 
     SyncAll["Navbar Sync All button\ninvalidateAllAdminCaches()"] -->|clears| StoreCache
     SyncAll -->|also actively re-fetches, M-62| ExportEP[GET /api/admin/export/all]
@@ -201,6 +217,13 @@ flowchart LR
     Caught --> Logged[console.error routeName + err]
     Caught --> Generic["500 {error: 'Something went wrong...'}"]
 
+    Handler -->|secondary write:\naudit log insert or the\n45-day audit-log purge| BestEffort{"Wrapped in its own\ntry/catch - M-106"}
+    BestEffort -->|fails, e.g. D1 write\nquota exhausted| SwallowLog[Logged, request still\nreturns its real 200/redirect]
+    BestEffort -->|succeeds| OK
+
     style Generic fill:#dc2626,color:#fff
     style OK fill:#16a34a,color:#fff
+    style SwallowLog fill:#f59e0b,color:#000
 ```
+
+**Note (M-106):** login (`POST /api/auth/verify`, `POST /api/auth/verify-cug`) and the audit-log page's opportunistic 45-day purge (`GET /api/admin/audit-log`) each do one write beyond their main job — an audit-log insert, or the purge delete. Both are wrapped in their own try/catch so a write-quota blip there can't turn an otherwise-successful login into a 500, or blank the whole audit-log page. This is narrower than `withErrorHandling` above: it protects one secondary write inside a handler that has already done its real job, not the whole route.

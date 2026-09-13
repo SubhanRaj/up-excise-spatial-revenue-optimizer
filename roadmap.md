@@ -225,25 +225,25 @@ flowchart TB
 
     subgraph Worker["up-excise-spatial-revenue-optimizer-web — single CF Worker (Next.js via @opennextjs/cloudflare)"]
         direction TB
-        Pages["Pages (SSR)\n/login · /auth/verify\n/home · /upload · /verify · /units — DEO portal\n/admin, /admin/* — HQ dashboard"]
-        Routes["API Route Handlers (same worker, same D1 binding)\nPOST /api/auth/verify — token verify, session create\nPOST /api/upload/chunk — 500-row batch insert (db.batch())\nGET/POST /api/districts/[d]/units — unit registration (one-shot, no delete/edit)\nGET/POST /api/districts/[d]/request-unlock — self-service unlock request\nPOST /api/districts/[d]/submit — district submission\nGET /api/admin/* — aggregate queries, export, audit log\nPOST /api/admin/unlock-requests/resolve — approve/deny unlock requests"]
+        Pages["Pages (SSR)\n/login · /auth/verify\n/home · /upload · /verify · /units — DEO portal\n/admin, /admin/* — HQ dashboard\n/deputy-<division>[/...] — Deputy Excise Commissioner portal"]
+        Routes["API Route Handlers (same worker, same D1 binding)\nPOST /api/auth/verify, /api/auth/verify-cug — session create (email or CUG, deo/deputy/admin)\nPOST /api/upload/chunk — 500-row batch insert (db.batch())\nGET/POST /api/districts/[d]/units — unit registration (one-shot, no delete/edit)\nGET/POST /api/districts/[d]/request-unlock — self-service unlock request\nPOST /api/districts/[d]/submit, /verify — submit, then confirm & verify\nPOST /api/deputy/districts/[d]/review — deputy sign-off (audit-only)\nPOST /api/deputy/divisions/[div]/lock, DELETE /api/admin/divisions/[div]/lock — division lock/unlock\nGET /api/admin/* — aggregate queries, export, audit log\nPOST /api/admin/unlock-requests/resolve — approve/deny unlock requests"]
     end
 
     Worker --> D1
 
     subgraph D1["Cloudflare D1 (SQLite)"]
         direction TB
-        T1["phase1_raw_collection"]
-        T2["districts · district_circles_sectors"]
-        T3["district_unlock_requests"]
-        T4["auth_users · auth_magic_links · auth_sessions"]
+        T1["phase1_raw_collection · phase1_prior_year_snapshot"]
+        T2["districts · district_circles_sectors · district_thanas"]
+        T3["district_unlock_requests · division_locks"]
+        T4["auth_users · auth_magic_links · auth_sessions · login_attempts"]
         T5["audit_log"]
         T6["Indexed on district, thana, shop_id"]
     end
 ```
 
 **One Worker, no Pages, no separate API worker:**
-- `up-excise-spatial-revenue-optimizer-web` — Next.js app built with `@opennextjs/cloudflare`. All pages AND all 19 API route handlers live in this single Worker. Same-origin means the session cookie is sent automatically — no Bearer tokens, no CORS, no API secrets between frontend and backend.
+- `up-excise-spatial-revenue-optimizer-web` — Next.js app built with `@opennextjs/cloudflare`. All pages AND all API route handlers live in this single Worker — see CLAUDE.md's Route Map for the full, current list. Same-origin means the session cookie is sent automatically — no Bearer tokens, no CORS, no API secrets between frontend and backend.
 
 **Build & deploy commands (from `apps/web`):**
 ```bash
