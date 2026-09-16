@@ -2085,6 +2085,20 @@ The browser's own print dialog produces the PDF ("Save as PDF" / "Microsoft Prin
 
 ---
 
+### M-107: Duplicate Shop ID in the Same File Silently Collapsed to One Row on Upload ✅ Complete
+
+**What happened:** Kanpur and Lucknow both reported their shop count changing between submit and the final-verification screen — Kanpur's Submit District confirmation showed 849 records uploaded, but the final-verification screen (and the admin district page) showed 848 after a reload.
+
+**Root cause:** `POST /api/upload/chunk` writes every accepted row with `onConflictDoUpdate` keyed on `(shop_id, district_name)` — this is what makes a correction re-upload work (CLAUDE.md's "Data-correction unlock"). If the same shop ID appears twice in one district's Excel file, both rows pass validation and both get an upsert statement in the same `db.batch()`; the second statement just updates the row the first one created, so D1 ends up with one row, not two. The chunk response counted both as `accepted`, so the SWAL success total (and the DEO's own row count from the file) never matched what actually landed in D1. No data was lost — the surviving row holds whichever of the two upserts ran last — but the count was wrong and stayed wrong on every later view, since those all read the real (deduplicated) D1 row count.
+
+**Fix, at the point where the whole file is already in memory:** `parseExcelFile()` (`apps/web/src/lib/excel.ts`) now counts every `shop_id` across the parsed file and flags every row that shares one as `status: 'error'` with the shop ID and repeat count in `errorReason`, before any of them are ever staged as `pending` — the same choke point M-49's circle/sector-mismatch check already uses. `POST /api/upload/chunk` (`apps/web/app/api/upload/chunk/route.ts`) got a matching same-chunk duplicate check as defense-in-depth, for a client running a stale cached bundle that never ran the parse-time check.
+
+**Not touched:** Kanpur's and Lucknow's already-submitted data. This only prevents the mismatch on future uploads and corrections — their existing D1 rows are the correct, deduplicated set; nothing needs re-uploading on their side.
+
+**Verified:** `pnpm typecheck` clean.
+
+---
+
 ## Backlog / Not Started
 
 - [x] ~~Verify `exciseup.in` in Resend and switch `RESEND_FROM_EMAIL`~~ — Done. `mail.exciseup.in` verified; `RESEND_FROM_EMAIL` set to `noreply@mail.exciseup.in` on this project's Worker, and the same address set as `FROM_EMAIL` on the sibling `excise-revenue-recovery-portal` project's Worker (different env var name there, same Resend account/domain). Magic-link email is now the Admin/HQ login channel only (DEOs use CUG login as of M-17).

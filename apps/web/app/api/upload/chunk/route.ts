@@ -70,6 +70,7 @@ async function POST_(req: NextRequest): Promise<NextResponse> {
 
   const rejected: { rowIndex: number; reason: string }[] = [];
   const accepted: typeof phase1RawCollection.$inferInsert[] = [];
+  const seenShopIds = new Set<string>();
   const now = new Date();
 
   for (let i = 0; i < rows.length; i++) {
@@ -80,6 +81,15 @@ async function POST_(req: NextRequest): Promise<NextResponse> {
       rejected.push({ rowIndex: i, reason: errors[0]!.message });
       continue;
     }
+    // Two rows with the same shop_id in one chunk both pass onConflictDoUpdate, but the
+    // second just overwrites the first — one D1 row, two "accepted" counts. parseExcelFile()
+    // already catches this at parse time; this is a defense-in-depth check for a stale
+    // cached client that never ran that check.
+    if (seenShopIds.has(row.shopId)) {
+      rejected.push({ rowIndex: i, reason: `Duplicate shop_id "${row.shopId}" in this upload` });
+      continue;
+    }
+    seenShopIds.add(row.shopId);
     accepted.push({
       districtName: row.districtName,
       circleSectorName: row.circleSectorName,

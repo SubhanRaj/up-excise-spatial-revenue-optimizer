@@ -335,6 +335,24 @@ export async function parseExcelFile(
     results.push(row as StagedRow);
   }
 
+  // A duplicate shop_id within the same file silently collapses to one row on upload — the
+  // Worker's onConflictDoUpdate (shopId, districtName) upserts both writes into a single D1
+  // row, but the chunk response still counts both as "accepted," so the SWAL success count
+  // (and the shop total shown afterward) stop matching (Kanpur/Lucknow, 2026-09-16). Flag
+  // every row sharing a shop_id here, before any of them are ever staged as pending.
+  const shopIdCounts = new Map<string, number>();
+  for (const row of results) {
+    if (row.shopId) shopIdCounts.set(row.shopId, (shopIdCounts.get(row.shopId) ?? 0) + 1);
+  }
+  for (const row of results) {
+    const count = row.shopId ? shopIdCounts.get(row.shopId) ?? 0 : 0;
+    if (count > 1) {
+      const reason = `Duplicate Shop ID "${row.shopId}" — appears ${count} times in this file; each shop must have a unique Shop ID.`;
+      row.status = 'error';
+      row.errorReason = row.errorReason ? `${row.errorReason}; ${reason}` : reason;
+    }
+  }
+
   onProgress?.(100);
   return results;
 }

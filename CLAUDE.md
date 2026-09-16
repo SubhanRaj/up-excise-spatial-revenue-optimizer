@@ -899,6 +899,7 @@ Full per-milestone delivery history (Objective, Deliverables, Exit Criterion, bu
 | M-104: Removed the State-Wide Verification-Round Gate — a DEO Confirms & Verifies Their Own District the Moment It's Submitted (No HQ Toggle, No Waiting for Other Districts) | **Completed** |
 | M-105: FY 2025-26 vs. 2026-27 Comparison (per-district `FyComparisonCard` on `/admin/districts/[district]`); HBR/PRV Exclude Toggle on `ShopExplorer` | **Completed** — migration 0014 applied and all 29,698 rows of the FY 2025-26 snapshot loaded to remote D1 (row count verified against the local clone); deployed |
 | M-106: D1 Account-Wide Write-Quota Outage — Best-Effort Login/Audit-Log Writes, Once-Per-District/Deputy Reminder Acknowledgment | **Completed** — root cause confirmed via live Worker logs and Cloudflare's own D1 dashboard (100.26K/100K rows written that day, shared across all 5 databases on the account); code fixes deployed, the account-wide cap itself is a standing infra decision, not resolved by this milestone |
+| M-107: Duplicate Shop ID in One File No Longer Silently Collapses to One Row (Kanpur/Lucknow Count Mismatch) | **Completed** |
 
 See [summary.md](summary.md) for full milestone specs, entry/exit criteria, deliverable checklists, the backlog, and pre-campaign-blocker history.
 
