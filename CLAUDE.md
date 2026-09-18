@@ -910,6 +910,7 @@ Full per-milestone delivery history (Objective, Deliverables, Exit Criterion, bu
 | M-108: State-Wide All Shops Explorer (`/admin/shops`) | **Completed** |
 | M-109: Division Detail Back-Link Fix, Deputy Progress on the Divisions Grid, All Shops Default Sort | **Completed** |
 | M-110: "All" Rows-Per-Page Froze the Tab on `/admin/shops`, and Kept Freezing on Reload | **Completed** |
+| M-111: Coordinates Column Made Sortable | **Completed** |
 
 See [summary.md](summary.md) for full milestone specs, entry/exit criteria, deliverable checklists, the backlog, and pre-campaign-blocker history.
 

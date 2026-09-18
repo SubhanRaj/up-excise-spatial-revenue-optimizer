@@ -2145,6 +2145,14 @@ The browser's own print dialog produces the PDF ("Save as PDF" / "Microsoft Prin
 
 ---
 
+### M-111: Coordinates Column Made Sortable ✅ Complete
+
+Added for data-quality review: several DEOs have shops on file with `0` (or missing) latitude/longitude, and finding them one row at a time in a ~30K-row state-wide table wasn't practical. The Coordinates header is now clickable like every other sortable column in `ShopExplorer`. Coordinates aren't a single field, so the sort compares latitude first and longitude second, treating a missing value as `-1` — UP's real latitude/longitude range (23.8–30.4N, 77.1–84.6E) is entirely positive, so `-1` never collides with a genuine value and every shop with a `0` or blank coordinate sorts to the top on ascending order.
+
+**Verified:** `pnpm typecheck` and a full `next build` both clean.
+
+---
+
 ## Backlog / Not Started
 
 - [x] ~~Verify `exciseup.in` in Resend and switch `RESEND_FROM_EMAIL`~~ — Done. `mail.exciseup.in` verified; `RESEND_FROM_EMAIL` set to `noreply@mail.exciseup.in` on this project's Worker, and the same address set as `FROM_EMAIL` on the sibling `excise-revenue-recovery-portal` project's Worker (different env var name there, same Resend account/domain). Magic-link email is now the Admin/HQ login channel only (DEOs use CUG login as of M-17).

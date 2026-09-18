@@ -27,7 +27,7 @@ const TYPE_SHORT_LABEL = SHOP_TYPE_SHORT_LABEL;
 
 const fmtCr = (n: number) => `₹${(n / 1e7).toFixed(2)} Cr`;
 
-type SortKey = 'shopId' | 'shopName' | 'thanaName' | 'totalRevenue' | 'shopType' | 'circleSectorName' | 'districtName';
+type SortKey = 'shopId' | 'shopName' | 'thanaName' | 'totalRevenue' | 'shopType' | 'circleSectorName' | 'districtName' | 'coordinates';
 type PageSizeVal = 10 | 25 | 50 | 100 | 500 | 1000 | 2000 | 5000 | 10000 | 'all';
 const PAGE_SIZES: PageSizeVal[] = [10, 25, 50, 100, 500, 1000, 2000, 5000, 10000, 'all'];
 
@@ -231,6 +231,16 @@ export function ShopExplorer({
       return true;
     });
     rows = [...rows].sort((a, b) => {
+      // Coordinates aren't a single field — sort by latitude then longitude, treating a missing
+      // value the same as 0 so a shop with no (or zero) coordinates always sorts first ascending.
+      // UP's real latitude/longitude range is entirely positive (23.8-30.4N, 77.1-84.6E), so a
+      // -1 sentinel for "missing" never collides with a genuine value.
+      if (sortKey === 'coordinates') {
+        const aLat = a.latitudeDecimal ?? -1, bLat = b.latitudeDecimal ?? -1;
+        const aLon = a.longitudeDecimal ?? -1, bLon = b.longitudeDecimal ?? -1;
+        const cmp = aLat - bLat || aLon - bLon;
+        return sortDir === 'asc' ? cmp : -cmp;
+      }
       const av = a[sortKey] ?? '', bv = b[sortKey] ?? '';
       if (typeof av === 'number' && typeof bv === 'number') return sortDir === 'asc' ? av - bv : bv - av;
       return sortDir === 'asc'
@@ -571,7 +581,9 @@ export function ShopExplorer({
                 <th className="cursor-pointer hover:text-base-content" onClick={() => handleSort('shopType')}>
                   Type <SortIcon active={sortKey === 'shopType'} dir={sortDir} />
                 </th>
-                <th>Coordinates</th>
+                <th className="cursor-pointer hover:text-base-content" onClick={() => handleSort('coordinates')}>
+                  Coordinates <SortIcon active={sortKey === 'coordinates'} dir={sortDir} />
+                </th>
                 <th className="cursor-pointer hover:text-base-content text-right" onClick={() => handleSort('totalRevenue')}>
                   Revenue <SortIcon active={sortKey === 'totalRevenue'} dir={sortDir} />
                 </th>
