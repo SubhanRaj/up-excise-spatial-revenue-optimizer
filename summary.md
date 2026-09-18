@@ -2133,6 +2133,18 @@ The browser's own print dialog produces the PDF ("Save as PDF" / "Microsoft Prin
 
 ---
 
+### M-110: "All" Rows-Per-Page Froze the Tab on `/admin/shops`, and Kept Freezing on Reload ✅ Complete
+
+**What happened:** a real admin picked "All" on `/admin/shops` (M-109 had widened the ladder but still offered it). With ~30K unfiltered rows and no virtualization, the table tried to mount that many `<tr>`s at once and the tab locked up. Reloading — even closing and reopening the site — kept hitting the same freeze, because the picked size was itself written to `localStorage` (`admin-shops-page-size`) and read back on every fresh load.
+
+**Root cause, and why the fix in M-109 wasn't enough:** dropping "All" from the *options list* stops a new selection, but does nothing about a value already sitting in a browser's `localStorage` from before that change shipped — the stored string `"all"` still matched on read (`PAGE_SIZES.includes(s as PageSizeVal)`, comparing the raw string against the array), so every load kept re-selecting it regardless of what buttons were or weren't shown. That comparison also had a second, harmless-until-now bug: it compared the stored string directly against `PAGE_SIZES`' numeric entries (`"100" !== 100`), so a numeric page size picked earlier never actually persisted across a reload — only the string `"all"` ever matched, which is exactly the one value that shouldn't have.
+
+**Fix:** `parseStoredPageSize()` now parses the stored string back to its real type (`Number(raw)` for anything but the literal `"all"`) and checks it against `pageSizeOptions` — the *current* allowed list for this `ShopExplorer` instance, not the full `PAGE_SIZES` constant. Since `/admin/shops` excludes `'all'` from `pageSizeOptions`, a stored `"all"` from before this fix no longer matches anything and falls back to the default (100) — so an already-affected browser self-heals the moment it loads the new code, no manual `localStorage` clear needed. `effectivePageSize` also now clamps an `'all'` selection (still offered on a per-district page, where row counts stay in the low thousands) to a new `MAX_SAFE_PAGE_SIZE` (10,000) as a second layer, so neither a stale value nor a future oversized single district can force the same freeze again.
+
+**Verified:** `pnpm typecheck` and a full `next build` both clean.
+
+---
+
 ## Backlog / Not Started
 
 - [x] ~~Verify `exciseup.in` in Resend and switch `RESEND_FROM_EMAIL`~~ — Done. `mail.exciseup.in` verified; `RESEND_FROM_EMAIL` set to `noreply@mail.exciseup.in` on this project's Worker, and the same address set as `FROM_EMAIL` on the sibling `excise-revenue-recovery-portal` project's Worker (different env var name there, same Resend account/domain). Magic-link email is now the Admin/HQ login channel only (DEOs use CUG login as of M-17).

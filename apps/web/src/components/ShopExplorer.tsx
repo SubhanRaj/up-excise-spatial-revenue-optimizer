@@ -31,6 +31,21 @@ type SortKey = 'shopId' | 'shopName' | 'thanaName' | 'totalRevenue' | 'shopType'
 type PageSizeVal = 10 | 25 | 50 | 100 | 500 | 1000 | 2000 | 5000 | 10000 | 'all';
 const PAGE_SIZES: PageSizeVal[] = [10, 25, 50, 100, 500, 1000, 2000, 5000, 10000, 'all'];
 
+// A district's own shop count tops out in the low thousands, so rendering "All" of it as real
+// <tr> rows (no virtualization) is slow but survivable. The state-wide all-shops explorer has
+// ~30K rows — a browser tab trying to mount that many rows at once has frozen and stayed frozen
+// even across a reload, because the picked size was itself the thing saved to localStorage and
+// re-applied on the very next load. "All" is dropped from the picker entirely whenever
+// showDistrictColumn is set, and MAX_SAFE_PAGE_SIZE caps what a stale/tampered stored value (or
+// a future large single district) can force the table to render, no matter what's in storage.
+const MAX_SAFE_PAGE_SIZE = 10000;
+
+function parseStoredPageSize(raw: string | null, allowed: PageSizeVal[]): PageSizeVal | null {
+  if (raw == null) return null;
+  const val = (raw === 'all' ? 'all' : Number(raw)) as PageSizeVal;
+  return allowed.includes(val) ? val : null;
+}
+
 // Column widths (%) for the shop table's <colgroup>, in header order — a separate set per mode
 // so each sums to 100 on its own instead of scaling all ten columns down whenever the District
 // column (state-wide mode) is added. Coordinates and Revenue are wider than the rest since
@@ -198,10 +213,10 @@ export function ShopExplorer({
     return new Set(); // default: all collapsed
   });
   const [groupPages, setGroupPages] = useState<Record<string, number>>({});
+  const pageSizeOptions = showDistrictColumn ? PAGE_SIZES.filter((p) => p !== 'all') : PAGE_SIZES;
   const [pageSize, setPageSize] = useState<PageSizeVal>(() => {
     if (typeof window === 'undefined') return 100;
-    const s = localStorage.getItem(`${storageKeyPrefix}-page-size`);
-    return (PAGE_SIZES as PageSizeVal[]).includes(s as PageSizeVal) ? (s as PageSizeVal) : 100;
+    return parseStoredPageSize(localStorage.getItem(`${storageKeyPrefix}-page-size`), pageSizeOptions) ?? 100;
   });
   const [page, setPage] = useState(1);
 
@@ -225,7 +240,7 @@ export function ShopExplorer({
     return rows;
   }, [shops, search, typeFilter, cl5ccFilter, circleFilter, districtFilter, sortKey, sortDir]);
 
-  const effectivePageSize = pageSize === 'all' ? filteredSorted.length || 1 : pageSize;
+  const effectivePageSize = pageSize === 'all' ? Math.min(filteredSorted.length || 1, MAX_SAFE_PAGE_SIZE) : pageSize;
   const totalPages = Math.ceil(filteredSorted.length / effectivePageSize);
   const displayRows = useMemo(
     () => filteredSorted.slice((page - 1) * effectivePageSize, page * effectivePageSize),
@@ -501,7 +516,7 @@ export function ShopExplorer({
           <div className="flex items-center gap-2 ml-auto">
             <span className="text-xs text-base-content/60 whitespace-nowrap">Rows per page</span>
             <div className="join">
-              {PAGE_SIZES.map((ps) => (
+              {pageSizeOptions.map((ps) => (
                 <button
                   key={ps}
                   className={`join-item btn btn-xs ${pageSize === ps ? 'btn-primary' : 'btn-ghost border border-base-300'}`}

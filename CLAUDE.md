@@ -909,6 +909,7 @@ Full per-milestone delivery history (Objective, Deliverables, Exit Criterion, bu
 | M-107: Duplicate Shop ID in One File No Longer Silently Collapses to One Row (Kanpur/Lucknow Count Mismatch) | **Completed** |
 | M-108: State-Wide All Shops Explorer (`/admin/shops`) | **Completed** |
 | M-109: Division Detail Back-Link Fix, Deputy Progress on the Divisions Grid, All Shops Default Sort | **Completed** |
+| M-110: "All" Rows-Per-Page Froze the Tab on `/admin/shops`, and Kept Freezing on Reload | **Completed** |
 
 See [summary.md](summary.md) for full milestone specs, entry/exit criteria, deliverable checklists, the backlog, and pre-campaign-blocker history.
 
@@ -946,7 +947,7 @@ All `localStorage` keys used by the portal, their owning component, and what the
 | `deo-final-group-by-type` | `ShopExplorer` (`storageKeyPrefix="deo-final"`) | Same shape as `admin-group-by-type`, DEO-portal namespace |
 | `deo-final-group-{districtName}` | `ShopExplorer` (`storageKeyPrefix="deo-final"`) | Same shape as `admin-group-{districtName}`, DEO-portal namespace |
 | `deputy-page-size` / `deputy-group-by-type` / `deputy-group-{districtName}` | `ShopExplorer` (`storageKeyPrefix="deputy"`, M-102 — the deputy district-figures page) | Same shapes as the `admin-*` equivalents, namespaced for the deputy portal so a shared browser never collides |
-| `admin-shops-page-size` / `admin-shops-group-by-type` / `admin-shops-group-All Districts` | `ShopExplorer` (`storageKeyPrefix="admin-shops"`, the state-wide `/admin/shops` page) | Same shapes as the `admin-*` equivalents, namespaced separately so this page's preferences don't collide with a district detail page's |
+| `admin-shops-page-size` / `admin-shops-group-by-type` / `admin-shops-group-All Districts` | `ShopExplorer` (`storageKeyPrefix="admin-shops"`, the state-wide `/admin/shops` page) | Same shapes as the `admin-*` equivalents, namespaced separately so this page's preferences don't collide with a district detail page's — except `admin-shops-page-size` never stores `'all'`: the "All" option is dropped from the picker whenever `showDistrictColumn` is set, since rendering ~30K rows as real `<tr>`s with no virtualization has frozen a tab. A value this page's `ShopExplorer` instance won't recognize (a stale `'all'` from before this fix, or anything else not in its own options list) is ignored on read, not applied — see `parseStoredPageSize()` in `ShopExplorer.tsx` |
 | `admin-shops-exclude-hbr-prv-all` | `useExcludeHbrPrv('admin-shops', 'all', …)` on `/admin/shops` | Same shape as the per-district key below, `districtName` fixed to the literal `'all'` since this page has no single district |
 | `admin-shops-filters` | `ShopExplorer` (`showDistrictColumn` mode only, i.e. `/admin/shops`) | JSON: `{ search, typeFilter, cl5ccFilter, circleFilter, districtFilter, sortKey, sortDir }` — the toolbar's search/filter/sort state, kept across a visit to a district page and back. Not written by a per-district `ShopExplorer` (district page, DEO final-verification screen, deputy page), which still reset these on remount as before |
 | `admin-last-full-sync-at` | `invalidateAllAdminCaches()` (`apps/web/src/lib/db.ts`) | Epoch ms of the last time Sync All actually ran (M-63) — a click within 15 minutes of this timestamp is a silent no-op, zero D1 reads |
