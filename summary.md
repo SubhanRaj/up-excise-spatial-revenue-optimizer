@@ -2186,6 +2186,16 @@ If every district in the division has `verdict === 'ok'` but no `division_locks`
 
 ---
 
+### M-114: Deputy District Page Skips the Staleness Check Entirely for Already-Verified Districts ✅ Complete
+
+**Scope:** the deputy district page (`/deputy-<division>/districts/[district]`) already served its cached shop rows first, but on every single visit it also called `GET /api/admin/changed-districts?since=<lastFetch>` to check whether anything had changed — a cheap, indexed audit-log scan, but still a network round trip and a D1 read on every open, including a district the deputy has already reviewed and that hasn't changed in weeks.
+
+A district's shop data is immutable once `verified` — the only thing that can change it is an unlock (data-correction, FY cleanup, delete), the same reasoning M-96 already applies to the admin's cached vend-count/revenue columns. The deputy's own districts list (`deputyDistrictsCache`, backing the dashboard and `/districts` list) already runs its own `changed-districts` check whenever those pages are visited — normal navigation into a district detail page goes through one of them first. So if that already-fresh local cache still shows the district as `verified`, nothing has changed here either, and the shop-page's own staleness check is redundant. The district page now checks `deputyDistrictsCache` (a local IndexedDB read, no network) before deciding whether to call `changed-districts` at all: cached shop data plus a locally-cached `verified` status skips the network call entirely; any other status runs the same check as before. A district reached by a direct link with no districts-list cache yet falls back to the original per-visit check, so this only removes a redundant read, it never removes a needed one.
+
+**Verified:** `pnpm typecheck`.
+
+---
+
 ## Backlog / Not Started
 
 - [x] ~~Verify `exciseup.in` in Resend and switch `RESEND_FROM_EMAIL`~~ — Done. `mail.exciseup.in` verified; `RESEND_FROM_EMAIL` set to `noreply@mail.exciseup.in` on this project's Worker, and the same address set as `FROM_EMAIL` on the sibling `excise-revenue-recovery-portal` project's Worker (different env var name there, same Resend account/domain). Magic-link email is now the Admin/HQ login channel only (DEOs use CUG login as of M-17).

@@ -7,8 +7,9 @@ import { ShopExplorer, type ShopExplorerRow } from '@/components/ShopExplorer';
 import { useExcludeHbrPrv } from '@/hooks/useExcludeHbrPrv';
 import { useSession } from '@/hooks/useSession';
 import { deputyBasePath, deputyDivisionKey } from '@/lib/deputy';
-import { deputyShopsCache, deputyReviewsCache } from '@/lib/db';
+import { deputyShopsCache, deputyReviewsCache, deputyDistrictsCache } from '@/lib/db';
 import { statusLabel, statusBadgeClass } from '@/lib/status';
+import type { DeputyDistrictRow } from '@/hooks/useDeputyData';
 
 interface DistrictDetail {
   name: string; division: string | null; deoName: string | null; status: string;
@@ -56,6 +57,22 @@ export default function DeputyDistrictPage({ params }: { params: Promise<{ distr
       setLoading(true);
       const cached = await deputyShopsCache.get(shopKey) as { d: DistrictDetail; rows: ShopExplorerRow[]; fetchedAt: number } | null;
       if (cached) {
+        // A verified district's shop data only changes via an unlock (data-correction, FY
+        // cleanup, delete) — same immutability admin's cached aggregates rely on (M-96). The
+        // districts list (deputyDistrictsCache) already tracks that via its own changed-districts
+        // check whenever the dashboard/list page is visited, so if it still shows 'verified' for
+        // this district, nothing changed here either — skip the network round trip entirely
+        // instead of re-running the same check a second time on every district page visit.
+        const listCache = divKey ? await deputyDistrictsCache.get(divKey) as DeputyDistrictRow[] | null : null;
+        const listRow = listCache?.find((r) => r.name === name);
+        const stillVerified = cached.d.status === 'verified' && listRow?.status === 'verified';
+        if (stillVerified) {
+          if (!alive) return;
+          setDetail(cached.d); setShops(cached.rows); setLoading(false);
+          void loadReview();
+          return;
+        }
+
         const changed = await fetch(`/api/admin/changed-districts?since=${cached.fetchedAt}`)
           .then((r) => (r.ok ? r.json() as Promise<{ districts: string[] }> : { districts: [name] }))
           .catch(() => ({ districts: [name] })); // network hiccup — fail toward a real refetch
