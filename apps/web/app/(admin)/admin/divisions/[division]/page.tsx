@@ -124,8 +124,33 @@ export default function DivisionPage({ params }: { params: Promise<{ division: s
                 {totals.verified} of {districts.length} DEO-verified · {totals.signedOff} signed off by the Deputy
                 {totals.flagged > 0 && <span className="text-error"> · {totals.flagged} flagged</span>}
               </p>
-              <p className="text-xs text-base-content/50 mt-1">The Deputy locks this division once every district is verified and signed off.</p>
+              {districts.length > 0 && totals.signedOff === districts.length ? (
+                <p className="text-sm text-info font-medium mt-1">Every district has been signed off by the Deputy — the division has not been locked yet.</p>
+              ) : (
+                <p className="text-xs text-base-content/50 mt-1">The Deputy locks this division once every district is verified and signed off.</p>
+              )}
             </div>
+          )}
+
+          {districts.length > 0 && (
+            <ul className="mt-3 pt-3 border-t border-base-200 divide-y divide-base-200 text-sm">
+              {districts.map((d) => {
+                const r = d.deputyReview;
+                const who = r?.actorName ? ` by Deputy ${r.actorName}` : ' by the Deputy';
+                return (
+                  <li key={d.name} className="py-1.5 flex flex-wrap items-baseline gap-x-1.5">
+                    <span className="font-medium">{d.name}:</span>
+                    {!r ? (
+                      <span className="text-base-content/50">Not yet reviewed by the Deputy</span>
+                    ) : r.verdict === 'flagged' ? (
+                      <span className="text-error">Flagged{who} — {r.note || 'no reason given'}</span>
+                    ) : (
+                      <span className="text-success">Verified{who} as correct</span>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
           )}
         </div>
       )}

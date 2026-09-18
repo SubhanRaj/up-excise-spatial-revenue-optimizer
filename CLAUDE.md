@@ -426,6 +426,7 @@ Do not fetch `/api/auth/session` directly from page components — always go thr
 
 **Division detail page (`/admin/divisions/[division]`):**
 - Fetches `GET /api/admin/districts`, filters client-side by division. Shows districts in that division as a sortable table. The back button and breadcrumb both link to `/admin/divisions` — this page is reached from the divisions grid, so its own back link returns there.
+- **Per-district Deputy review list (M-113):** below the summary card, one line per district — "District: Verified by Deputy &lt;name&gt; as correct", "District: Flagged by Deputy &lt;name&gt; — &lt;reason&gt;", or "District: Not yet reviewed by the Deputy". Sourced from the same `deputyReview` (`verdict`, `note`, `actorName`) already on each `GET /api/admin/districts` row — previously the flagged reason only surfaced in the audit log or as a hover tooltip on the table's badge, easy to miss. When every district has `verdict === 'ok'` but the division has no `division_locks` row yet, the card also shows "Every district has been signed off by the Deputy — the division has not been locked yet."
 
 **District Master page (`/admin/provision`, nav label "District Master"):**
 - **Owner/superadmin-only.** This page reassigns any district's DEO identity and bulk-provisions DEO accounts (sending real magic-link emails), so — unlike every other admin page — it is restricted to the `superadmin` role, not open to all `admin` accounts. Its link lives in the profile dropdown (`ProfileMenu`, `apps/web/src/components/ProfileMenu.tsx`), not the main navbar — owner-only settings pages don't belong in the top-level nav that every admin sees, matching the sibling `excise-revenue-recovery-portal` project's "DEO Provisioning" link placement in its own `ProfileMenu.tsx`. The dropdown link (and the equivalent mobile-drawer entry) render only for `role: 'superadmin'`; direct navigation to `/admin/provision` renders a restricted message instead of the page content; and the two underlying routes (`PATCH /api/admin/districts/[district]`, `POST /api/admin/bulk-provision`) independently 403 for anything but `role: 'superadmin'` — the client-side hide is UX only, the server check is the actual boundary. Every edit and every bulk-provision run is audit-logged (`district_master_updated`, `bulk_provision` — see "Audit Log" below) with the acting superadmin's name/designation.
@@ -912,6 +913,7 @@ Full per-milestone delivery history (Objective, Deliverables, Exit Criterion, bu
 | M-110: "All" Rows-Per-Page Froze the Tab on `/admin/shops`, and Kept Freezing on Reload | **Completed** |
 | M-111: Coordinates Column Made Sortable | **Completed** |
 | M-112: Data Tables Made Easier to Use on Phone Width, Without Reshaping Them | **Completed** |
+| M-113: Per-District Deputy Review List on the Division Detail Page | **Completed** |
 
 See [summary.md](summary.md) for full milestone specs, entry/exit criteria, deliverable checklists, the backlog, and pre-campaign-blocker history.
 

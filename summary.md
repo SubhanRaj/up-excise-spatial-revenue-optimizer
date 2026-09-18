@@ -2170,6 +2170,22 @@ Because every one of these tables already shares the same DaisyUI `.table` class
 
 ---
 
+### M-113: Per-District Deputy Review List on the Division Detail Page ✅ Complete
+
+**Scope:** the division detail page (`/admin/divisions/[division]`) already carried a per-district Deputy Review badge in its table, but a flagged district's reason was only visible via the badge's hover tooltip, or by opening `/admin/audit` and finding the `deputy_district_reviewed` row. Neither is something an admin scanning a division would naturally find. The page now lists every district's Deputy status as a plain line under the existing "Deputy review progress" card:
+
+- `District: Verified by Deputy <name> as correct`
+- `District: Flagged by Deputy <name> — <reason>`
+- `District: Not yet reviewed by the Deputy` (no review on file yet)
+
+Each line also names the deputy (`deputyReview.actorName`), the same way the districts table already names the DEO per row (`deoName`) — both come from `GET /api/admin/districts`, which already returned `deputyReview: { verdict, note, at, actorName }` per district (`latestDeputyReviews()` in `apps/web/src/lib/division-lock.ts`); no new query or route was needed.
+
+If every district in the division has `verdict === 'ok'` but no `division_locks` row exists yet, the card also shows "Every district has been signed off by the Deputy — the division has not been locked yet." — previously an admin had to compare the signed-off count against the district count by hand to notice a division was ready for the Deputy to lock.
+
+**Verified:** `pnpm typecheck`.
+
+---
+
 ## Backlog / Not Started
 
 - [x] ~~Verify `exciseup.in` in Resend and switch `RESEND_FROM_EMAIL`~~ — Done. `mail.exciseup.in` verified; `RESEND_FROM_EMAIL` set to `noreply@mail.exciseup.in` on this project's Worker, and the same address set as `FROM_EMAIL` on the sibling `excise-revenue-recovery-portal` project's Worker (different env var name there, same Resend account/domain). Magic-link email is now the Admin/HQ login channel only (DEOs use CUG login as of M-17).
