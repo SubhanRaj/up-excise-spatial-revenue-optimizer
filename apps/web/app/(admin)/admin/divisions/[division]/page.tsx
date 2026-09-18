@@ -133,12 +133,12 @@ export default function DivisionPage({ params }: { params: Promise<{ division: s
           )}
 
           {districts.length > 0 && (
-            <ul className="mt-3 pt-3 border-t border-base-200 divide-y divide-base-200 text-sm">
+            <ul className="mt-3 pt-3 border-t border-base-200 space-y-1.5 text-sm">
               {districts.map((d) => {
                 const r = d.deputyReview;
                 const who = r?.actorName ? ` by Deputy ${r.actorName}` : ' by the Deputy';
                 return (
-                  <li key={d.name} className="py-1.5 flex flex-wrap items-baseline gap-x-1.5">
+                  <li key={d.name} className="flex flex-wrap items-baseline gap-x-1.5">
                     <span className="font-medium">{d.name}:</span>
                     {!r ? (
                       <span className="text-base-content/50">Not yet reviewed by the Deputy</span>
