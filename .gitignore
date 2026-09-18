@@ -102,3 +102,6 @@ revenue_data/
 
 # ─── Generated revenue-comparison output (real figures — see docs/revenue-comparison.md) ─
 revenue-comparison/
+
+# ─── Local prod D1 backups (real shop/revenue data, never committed — see docs/local-analysis-db.md) ─
+backups/

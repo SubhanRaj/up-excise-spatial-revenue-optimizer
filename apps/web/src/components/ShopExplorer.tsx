@@ -1,6 +1,7 @@
 'use client';
 
-import { memo, useMemo, useState } from 'react';
+import { memo, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { RevenueCell, type RevenueShopFields } from '@/components/RevenueCell';
 import { ThanaVariantsCard } from '@/components/ThanaVariantsCard';
 import { SHOP_TYPE_BADGE_CLASS, SHOP_TYPE_SHORT_LABEL } from '@/lib/shop-type';
@@ -17,6 +18,7 @@ export interface ShopExplorerRow extends RevenueShopFields {
   latitudeDecimal: number | null;
   longitudeDecimal: number | null;
   uploadedByDeo: string;
+  districtName?: string;
 }
 
 const TYPE_BADGE = SHOP_TYPE_BADGE_CLASS;
@@ -25,7 +27,7 @@ const TYPE_SHORT_LABEL = SHOP_TYPE_SHORT_LABEL;
 
 const fmtCr = (n: number) => `₹${(n / 1e7).toFixed(2)} Cr`;
 
-type SortKey = 'shopId' | 'shopName' | 'thanaName' | 'totalRevenue' | 'shopType';
+type SortKey = 'shopId' | 'shopName' | 'thanaName' | 'totalRevenue' | 'shopType' | 'circleSectorName' | 'districtName';
 type PageSizeVal = 10 | 25 | 50 | 100 | 'all';
 const PAGE_SIZES: PageSizeVal[] = [10, 25, 50, 100, 'all'];
 
@@ -57,9 +59,16 @@ function TypeBadge({ type, cl5cc }: { type: string; cl5cc: boolean }) {
   );
 }
 
-const ShopTableRow = memo(function ShopTableRow({ s }: { s: ShopExplorerRow }) {  // ponytail: memo prevents re-render of stable rows when toolbar state changes
+const ShopTableRow = memo(function ShopTableRow({ s, showDistrict }: { s: ShopExplorerRow; showDistrict?: boolean }) {  // ponytail: memo prevents re-render of stable rows when toolbar state changes
   return (
     <tr className="hover:bg-base-50 border-b border-base-100 last:border-0">
+      {showDistrict && (
+        <td className="text-xs max-w-[110px] truncate">
+          <Link href={`/admin/districts/${encodeURIComponent(s.districtName ?? '')}`} className="link link-hover font-medium" title={s.districtName}>
+            {s.districtName}
+          </Link>
+        </td>
+      )}
       <td className="font-mono text-xs text-base-content/90 whitespace-nowrap">{s.shopId}</td>
       <td className="max-w-[200px]">
         <span className="block truncate text-sm font-medium" title={s.shopName}>{s.shopName}</span>
@@ -85,6 +94,21 @@ const ShopTableRow = memo(function ShopTableRow({ s }: { s: ShopExplorerRow }) {
 
 const SKELETON_COLS = 9;
 
+interface StoredFilters {
+  search?: string;
+  typeFilter?: string;
+  cl5ccFilter?: boolean;
+  circleFilter?: string;
+  districtFilter?: string;
+  sortKey?: SortKey;
+  sortDir?: 'asc' | 'desc';
+}
+
+function readStoredFilters(key: string): StoredFilters {
+  if (typeof window === 'undefined') return {};
+  try { return JSON.parse(localStorage.getItem(key) ?? '{}') as StoredFilters; } catch { return {}; }
+}
+
 /** Shared, filterable/sortable/groupable shop browser — type breakdown bar, circle/sector
  * breakdown table, and the shop table itself, with per-district and per-circle/sector XLSX
  * export. Used by both the admin district detail page and the DEO final-verification screen
@@ -100,6 +124,9 @@ export function ShopExplorer({
   hasHbrOrPrv,
   excludeHbrPrv,
   onExcludeHbrPrvChange,
+  showDistrictColumn = false,
+  showCircleBreakdown = true,
+  showThanaVariants = true,
 }: {
   shops: ShopExplorerRow[];
   units: { name: string; type: string }[];
@@ -112,20 +139,44 @@ export function ShopExplorer({
   hasHbrOrPrv: boolean;
   excludeHbrPrv: boolean;
   onExcludeHbrPrvChange: (checked: boolean) => void;
+  // State-wide mode (the all-shops explorer): adds a District column/filter/sort. The
+  // circle/sector breakdown and Thana-variant scan both key off circleSectorName/thanaName
+  // alone, with no district in the key — across the whole state those collide (every district
+  // has a "Sector - 1") and the variant scan's O(n²) pass over thousands of distinct names
+  // would stall the page, so both are off by default and only worth enabling per-district.
+  showDistrictColumn?: boolean;
+  showCircleBreakdown?: boolean;
+  showThanaVariants?: boolean;
 }) {
-  const { typeCounts, cl5ccCount, circles, circleStats, thanaVariants } = useShopAggregates(shops, units);
+  const { typeCounts, cl5ccCount, circles, circleStats, thanaVariants } = useShopAggregates(shops, units, { skipThanaVariants: !showThanaVariants });
+  const districts = useMemo(
+    () => showDistrictColumn ? Array.from(new Set(shops.map((s) => s.districtName).filter((d): d is string => !!d))).sort() : [],
+    [shops, showDistrictColumn],
+  );
   const excludedTotal = useMemo(
     () => Object.values(typeCounts).reduce((sum, c) => sum + c.revenue, 0),
     [typeCounts],
   );
 
+  // The toolbar filters below only persist across a remount when showDistrictColumn is set —
+  // today that's just the state-wide all-shops explorer, whose whole point is staying on the
+  // same shop list across a visit to a district page and back (a per-district ShopExplorer
+  // resetting its filters is fine; a page a user left mid-filter shouldn't forget the filter).
+  const filterStorageKey = `${storageKeyPrefix}-filters`;
   const [showCircleStats, setShowCircleStats] = useState(true);
-  const [search, setSearch] = useState('');
-  const [typeFilter, setTypeFilter] = useState('all');
-  const [cl5ccFilter, setCl5ccFilter] = useState(false);
-  const [circleFilter, setCircleFilter] = useState('all');
-  const [sortKey, setSortKey] = useState<SortKey>('shopId');
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const [search, setSearch] = useState(() => showDistrictColumn ? (readStoredFilters(filterStorageKey).search ?? '') : '');
+  const [typeFilter, setTypeFilter] = useState(() => showDistrictColumn ? (readStoredFilters(filterStorageKey).typeFilter ?? 'all') : 'all');
+  const [cl5ccFilter, setCl5ccFilter] = useState(() => showDistrictColumn ? (readStoredFilters(filterStorageKey).cl5ccFilter ?? false) : false);
+  const [circleFilter, setCircleFilter] = useState(() => showDistrictColumn ? (readStoredFilters(filterStorageKey).circleFilter ?? 'all') : 'all');
+  const [districtFilter, setDistrictFilter] = useState(() => showDistrictColumn ? (readStoredFilters(filterStorageKey).districtFilter ?? 'all') : 'all');
+  const [sortKey, setSortKey] = useState<SortKey>(() => showDistrictColumn ? (readStoredFilters(filterStorageKey).sortKey ?? 'shopId') : 'shopId');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>(() => showDistrictColumn ? (readStoredFilters(filterStorageKey).sortDir ?? 'asc') : 'asc');
+
+  useEffect(() => {
+    if (!showDistrictColumn) return;
+    const filters: StoredFilters = { search, typeFilter, cl5ccFilter, circleFilter, districtFilter, sortKey, sortDir };
+    try { localStorage.setItem(filterStorageKey, JSON.stringify(filters)); } catch { }
+  }, [showDistrictColumn, filterStorageKey, search, typeFilter, cl5ccFilter, circleFilter, districtFilter, sortKey, sortDir]);
   const [groupByType, setGroupByType] = useState(() => {
     if (typeof window === 'undefined') return false;
     return localStorage.getItem(`${storageKeyPrefix}-group-by-type`) === 'true';
@@ -153,17 +204,18 @@ export function ShopExplorer({
       if (q && !s.shopId.toLowerCase().includes(q) && !s.shopName.toLowerCase().includes(q) && !s.thanaName.toLowerCase().includes(q)) return false;
       if (cl5ccFilter && !s.hasCl5cc) return false;
       if (circleFilter !== 'all' && s.circleSectorName !== circleFilter) return false;
+      if (districtFilter !== 'all' && s.districtName !== districtFilter) return false;
       return true;
     });
     rows = [...rows].sort((a, b) => {
-      const av = a[sortKey], bv = b[sortKey];
+      const av = a[sortKey] ?? '', bv = b[sortKey] ?? '';
       if (typeof av === 'number' && typeof bv === 'number') return sortDir === 'asc' ? av - bv : bv - av;
       return sortDir === 'asc'
         ? String(av).localeCompare(String(bv))
         : String(bv).localeCompare(String(av));
     });
     return rows;
-  }, [shops, search, typeFilter, cl5ccFilter, circleFilter, sortKey, sortDir]);
+  }, [shops, search, typeFilter, cl5ccFilter, circleFilter, districtFilter, sortKey, sortDir]);
 
   const effectivePageSize = pageSize === 'all' ? filteredSorted.length || 1 : pageSize;
   const totalPages = Math.ceil(filteredSorted.length / effectivePageSize);
@@ -189,6 +241,7 @@ export function ShopExplorer({
     setPage(1);
   }
   function handleCircleFilter(v: string) { setCircleFilter(v); setPage(1); }
+  function handleDistrictFilter(v: string) { setDistrictFilter(v); setPage(1); }
   function handlePageSize(v: PageSizeVal) { setPageSize(v); setPage(1); localStorage.setItem(`${storageKeyPrefix}-page-size`, String(v)); }
   function handleGroupByType(checked: boolean) {
     setGroupByType(checked);
@@ -211,6 +264,7 @@ export function ShopExplorer({
       title: `District: ${districtName.toUpperCase()}`,
       sheetName: districtName,
       filename: `${districtName}-shops.xlsx`,
+      includeDistrict: showDistrictColumn,
     });
   }
 
@@ -223,6 +277,8 @@ export function ShopExplorer({
       filename: `${districtName}-${circleSectorName}.xlsx`.replace(/[\\/:*?"<>|]/g, '-'),
     });
   }
+
+  const colCount = SKELETON_COLS + (showDistrictColumn ? 1 : 0);
 
   const grouped = useMemo(() => {
     if (!groupByType) return null;
@@ -287,7 +343,7 @@ export function ShopExplorer({
       )}
 
       {/* Circle/Sector breakdown */}
-      {!loading && circleStats.length > 0 && (
+      {!loading && showCircleBreakdown && circleStats.length > 0 && (
         <div className="bg-base-100 rounded-xl border border-base-200 overflow-hidden">
           <button
             type="button"
@@ -355,7 +411,7 @@ export function ShopExplorer({
 
       {/* Possible Thana name spelling variants — not auto-merged, a human confirms these are
           really the same place before anything changes (see findThanaNameVariants). */}
-      {!loading && <ThanaVariantsCard clusters={thanaVariants} />}
+      {!loading && showThanaVariants && <ThanaVariantsCard clusters={thanaVariants} />}
 
       {/* Table card */}
       <div className="bg-base-100 rounded-xl border border-base-200 overflow-hidden">
@@ -372,6 +428,17 @@ export function ShopExplorer({
               className="input input-sm input-bordered w-full pl-8 bg-base-100"
             />
           </div>
+
+          {showDistrictColumn && districts.length > 0 && (
+            <select
+              className="select select-sm select-bordered bg-base-100"
+              value={districtFilter}
+              onChange={(e) => handleDistrictFilter(e.target.value)}
+            >
+              <option value="all">All Districts</option>
+              {districts.map((d) => <option key={d} value={d}>{d}</option>)}
+            </select>
+          )}
 
           <select
             className="select select-sm select-bordered bg-base-100"
@@ -454,25 +521,33 @@ export function ShopExplorer({
         <div className="overflow-auto max-h-[calc(100vh-250px)] rounded-xl border border-base-200">
           <table className="table table-xs table-pin-rows table-fixed w-full" role="grid">
             <colgroup>
+              {showDistrictColumn && <col className="w-[9%]" />}
               <col className="w-[9%]" />
-              <col className="w-[16%]" />
-              <col className="w-[10%]" />
+              <col className="w-[15%]" />
               <col className="w-[9%]" />
-              <col className="w-[18%]" />
+              <col className="w-[8%]" />
+              <col className="w-[17%]" />
               <col className="w-[9%]" />
-              <col className="w-[12%]" />
-              <col className="w-[9%]" />
+              <col className="w-[11%]" />
+              <col className="w-[8%]" />
               <col className="w-[8%]" />
             </colgroup>
             <thead className="bg-base-200 text-[11px] uppercase tracking-wide text-base-content/70 z-10">
               <tr>
+                {showDistrictColumn && (
+                  <th className="cursor-pointer hover:text-base-content" onClick={() => handleSort('districtName')}>
+                    District <SortIcon active={sortKey === 'districtName'} dir={sortDir} />
+                  </th>
+                )}
                 <th className="cursor-pointer hover:text-base-content whitespace-nowrap" onClick={() => handleSort('shopId')}>
                   Shop ID <SortIcon active={sortKey === 'shopId'} dir={sortDir} />
                 </th>
                 <th className="cursor-pointer hover:text-base-content" onClick={() => handleSort('shopName')}>
                   Shop Name <SortIcon active={sortKey === 'shopName'} dir={sortDir} />
                 </th>
-                <th>Circle / Sector</th>
+                <th className="cursor-pointer hover:text-base-content" onClick={() => handleSort('circleSectorName')}>
+                  Circle / Sector <SortIcon active={sortKey === 'circleSectorName'} dir={sortDir} />
+                </th>
                 <th className="cursor-pointer hover:text-base-content" onClick={() => handleSort('thanaName')}>
                   Thana <SortIcon active={sortKey === 'thanaName'} dir={sortDir} />
                 </th>
@@ -491,7 +566,7 @@ export function ShopExplorer({
               {loading ? (
                 Array.from({ length: 15 }, (_, i) => (
                   <tr key={i} className="animate-pulse">
-                    {Array.from({ length: SKELETON_COLS }, (_, j) => (
+                    {Array.from({ length: colCount }, (_, j) => (
                       <td key={j}><div className="h-3 bg-base-300 rounded" /></td>
                     ))}
                   </tr>
@@ -506,7 +581,7 @@ export function ShopExplorer({
 
                   return [
                     <tr key={`hdr-${type}`} className="bg-base-200/60 border-t-2 border-base-300">
-                      <td colSpan={SKELETON_COLS} className="py-2 px-3">
+                      <td colSpan={colCount} className="py-2 px-3">
                         <div className="flex items-center gap-3">
                           <button onClick={() => toggleGroup(type)} className="flex items-center gap-2 hover:opacity-70 transition-opacity">
                             <span className="text-base-content/70 text-xs">{isExpanded ? '▾' : '▸'}</span>
@@ -521,10 +596,10 @@ export function ShopExplorer({
                       </td>
                     </tr>,
                     ...(isExpanded ? [
-                      ...gRows.map((s) => <ShopTableRow key={s.id} s={s} />),
+                      ...gRows.map((s) => <ShopTableRow key={s.id} s={s} showDistrict={showDistrictColumn} />),
                       ...(gTotalPages > 1 ? [
                         <tr key={`pgn-${type}`}>
-                          <td colSpan={SKELETON_COLS} className="py-1.5 px-4 bg-base-50">
+                          <td colSpan={colCount} className="py-1.5 px-4 bg-base-50">
                             <div className="flex items-center gap-2 text-xs text-base-content/80">
                               <button className="btn btn-ghost btn-xs" disabled={gPage === 1} onClick={() => setGPage(gPage - 1)}>← Prev</button>
                               <span>Page {gPage} of {gTotalPages}</span>
@@ -540,12 +615,12 @@ export function ShopExplorer({
                 displayRows.length === 0
                   ? (
                     <tr>
-                      <td colSpan={SKELETON_COLS} className="text-center py-12 text-base-content/60">
+                      <td colSpan={colCount} className="text-center py-12 text-base-content/60">
                         No shops match your filters.
                       </td>
                     </tr>
                   )
-                  : displayRows.map((s) => <ShopTableRow key={s.id} s={s} />)
+                  : displayRows.map((s) => <ShopTableRow key={s.id} s={s} showDistrict={showDistrictColumn} />)
               )}
             </tbody>
           </table>

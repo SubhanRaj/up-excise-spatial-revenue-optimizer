@@ -2099,6 +2099,26 @@ The browser's own print dialog produces the PDF ("Save as PDF" / "Microsoft Prin
 
 ---
 
+### M-108: State-Wide All Shops Explorer (`/admin/shops`) ✅ Complete
+
+**What it is:** a new admin page listing every uploaded shop from every district in one table, for spotting cross-district data-quality issues (like M-108's own trigger, a Kanpur Nagar/Gautam Buddha Nagar CL5CC `consideration_fee = 0` gap) without opening 75 district pages one at a time.
+
+**The page passes the state-wide shop list into the shared `ShopExplorer` component** — the same one the district detail page and DEO final-verification screen already use — so search, sort, type/circle filters, group-by-type, exclude-HBR/PRV, rows-per-page, pagination, and Export XLSX all behave identically to the per-district view with no duplicated UI code. `ShopExplorer` gained three new optional props, all off by default so the three existing callers are unaffected:
+- `showDistrictColumn` — adds a District column (linked to that district's own page), a District filter dropdown, and a `districtName` sort key. Table columns use a `colCount` computed from `showDistrictColumn` instead of the old hardcoded `9`, everywhere a `colSpan` or skeleton-row width depended on it.
+- `showCircleBreakdown` / `showThanaVariants` — both default `true` (existing behavior unchanged) but set `false` on this page. Both underlying computations key off `circleSectorName`/`thanaName` alone, with no district in the key — state-wide, every district's own "Sector - 1" would merge into one meaningless row, and `findThanaNameVariants()`'s O(n²) scan over one district's few dozen distinct Thana names would become an O(n²) scan over the state's several thousand, stalling the page. `useShopAggregates()` took a new `{ skipThanaVariants }` option that skips the scan entirely in that case, instead of running it and hiding the result.
+
+**Filters survive leaving and returning to the page.** The toolbar's search text, type/circle/district filters, and sort column/direction all reset to a plain `useState` on remount by default — fine for a per-district page, but on `/admin/shops` it meant picking a district, opening one of its shops' district links, and coming back reset the view to every district again. `ShopExplorer` now persists these seven fields to a `{storageKeyPrefix}-filters` localStorage key, gated behind the same `showDistrictColumn` flag so the three existing per-district callers keep their original reset-on-remount behavior.
+
+**Data source:** `useAdminExportData()` — the same `export_cache` IndexedDB entry `/admin/export` and `/admin/circles-sectors` already read. Local-first: no fetch on mount, and this page has no refresh button of its own — the navbar's Sync All is the only thing that reads D1 for this data, so visiting the page never costs a D1 read.
+
+**Small supporting fixes:** `ExportShopRow` (`apps/web/src/lib/excel.ts`) gained an `id: number` field — it was already present on every row `GET /api/admin/export/all` returns (a plain Drizzle `select()` over `phase1_raw_collection`), just never declared, which made it structurally identical to `ShopExplorerRow` and let the page pass export rows straight into `ShopExplorer` with no cast. `exportShopsToXlsx()` gained an optional `includeDistrict` flag so this page's Export XLSX includes a District Name column, reusing the same `addShopSheet()` parameter the full-state export's "All Shops (Flat)" sheet already relies on.
+
+**Nav:** added to the admin navbar/mobile drawer (`Shops`, next to `Circles/Sectors`) and the breadcrumb map — both driven by the same `NAV_LINKS` array the rest of the admin portal already shares between desktop and mobile.
+
+**Verified:** `pnpm typecheck` and `pnpm test` (Excel OOXML limits check) both clean.
+
+---
+
 ## Backlog / Not Started
 
 - [x] ~~Verify `exciseup.in` in Resend and switch `RESEND_FROM_EMAIL`~~ — Done. `mail.exciseup.in` verified; `RESEND_FROM_EMAIL` set to `noreply@mail.exciseup.in` on this project's Worker, and the same address set as `FROM_EMAIL` on the sibling `excise-revenue-recovery-portal` project's Worker (different env var name there, same Resend account/domain). Magic-link email is now the Admin/HQ login channel only (DEOs use CUG login as of M-17).

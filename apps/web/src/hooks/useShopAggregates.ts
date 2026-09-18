@@ -29,6 +29,7 @@ export interface CircleStat {
 export function useShopAggregates<T extends AggregateShop>(
   shops: T[],
   units: { name: string; type: string }[],
+  opts?: { skipThanaVariants?: boolean },
 ) {
   const typeCounts = useMemo(() => {
     const counts: Record<string, { count: number; revenue: number }> = {};
@@ -72,9 +73,11 @@ export function useShopAggregates<T extends AggregateShop>(
   // This is why a district's Circle/Sector Breakdown "Thanas" column can read 5-6 when the
   // real count is 2: exact-string counting (even after the case/whitespace normalization
   // above) still treats a genuine spelling variant as a distinct Thana.
+  // findThanaNameVariants is O(n²) over distinct names — fine for one district's few dozen
+  // Thanas, too slow over the state-wide thousands (see the all-shops explorer, which skips it).
   const thanaVariants = useMemo(
-    () => findThanaNameVariants(shops.map((s) => s.thanaName).filter(Boolean)),
-    [shops],
+    () => opts?.skipThanaVariants ? [] : findThanaNameVariants(shops.map((s) => s.thanaName).filter(Boolean)),
+    [shops, opts?.skipThanaVariants],
   );
 
   return { typeCounts, cl5ccCount, circles, circleStats, thanaVariants };

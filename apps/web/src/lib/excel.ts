@@ -823,6 +823,7 @@ export async function generateProvisionTemplate(rows: ProvisionTemplateRow[] = [
 // Enum section).
 
 export interface ExportShopRow {
+  id: number;
   districtName?: string;
   shopId: string;
   shopName: string;
@@ -937,12 +938,12 @@ function addShopSheet(
  * circle/sector's shop list (district detail page). */
 export async function exportShopsToXlsx(
   shops: ExportShopRow[],
-  opts: { title: string; sheetName: string; filename: string },
+  opts: { title: string; sheetName: string; filename: string; includeDistrict?: boolean },
 ): Promise<void> {
   const wb = new ExcelJS.Workbook();
   wb.creator = 'UP Excise Spatial Revenue Optimizer';
   wb.created = new Date();
-  addShopSheet(wb, opts.sheetName, opts.title, shops, false);
+  addShopSheet(wb, opts.sheetName, opts.title, shops, opts.includeDistrict ?? false);
 
   const buf = await wb.xlsx.writeBuffer();
   const url = URL.createObjectURL(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
