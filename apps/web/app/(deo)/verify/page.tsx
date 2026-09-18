@@ -22,6 +22,7 @@ import { normalizeThanaName, looseThanaName } from '@/lib/thana-name';
 import { validatePersonName } from '@/lib/person-name';
 
 interface UnlockRequestInfo { status: 'pending' | 'approved' | 'denied'; reason: string; adminNote: string | null }
+interface DeputyReview { verdict: string; note: string; at: number; actorName: string | null }
 
 const CHUNK_SIZE = 500;
 
@@ -172,6 +173,7 @@ export default function VerifyPage() {
   // English placeholder an admin set at provisioning, e.g. "Lucknow DEO"). session.name is
   // the wrong field for "who submitted this district" and was showing that stale placeholder.
   const [confirmedDeoName, setConfirmedDeoName] = useState<string | null>(null);
+  const [deputyReview, setDeputyReview] = useState<DeputyReview | null>(null);
 
   const loadUnits = useCallback(async () => {
     if (!district) return [];
@@ -196,10 +198,11 @@ export default function VerifyPage() {
   const loadDistrictStatus = useCallback(() => {
     if (!district) return;
     fetch(`/api/districts/${encodeURIComponent(district)}/status`)
-      .then((res) => (res.ok ? res.json() as Promise<{ districtStatus: string; deoName: string | null }> : { districtStatus: 'pending', deoName: null }))
+      .then((res) => (res.ok ? res.json() as Promise<{ districtStatus: string; deoName: string | null; deputyReview: DeputyReview | null }> : { districtStatus: 'pending', deoName: null, deputyReview: null }))
       .then((data) => {
         setDistrictStatus(data.districtStatus);
         setConfirmedDeoName(data.deoName);
+        setDeputyReview(data.deputyReview);
       });
   }, [district]);
 
@@ -718,6 +721,27 @@ export default function VerifyPage() {
             Download Current Data (.xlsx)
           </button>
         </div>
+
+        {/* Deputy review — the DEO's own visibility into what the Deputy Excise Commissioner
+            found, so a flagged reason doesn't only show up in an unlock request or the audit log */}
+        {deputyReview ? (
+          deputyReview.verdict === 'flagged' ? (
+            <div className="alert alert-error text-sm">
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="13"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              <div>
+                <p className="font-semibold">Flagged by the Deputy Excise Commissioner{deputyReview.actorName ? ` (${deputyReview.actorName})` : ''}</p>
+                <p className="text-xs opacity-80 mt-0.5">&quot;{deputyReview.note || 'no reason given'}&quot;</p>
+              </div>
+            </div>
+          ) : (
+            <div className="alert alert-success text-sm">
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><path d="m9 12 2 2 4-4"/></svg>
+              <span className="font-semibold">Verified by the Deputy Excise Commissioner{deputyReview.actorName ? ` (${deputyReview.actorName})` : ''} as correct.</span>
+            </div>
+          )
+        ) : (
+          <p className="text-xs text-base-content/50">Not yet reviewed by the Deputy Excise Commissioner.</p>
+        )}
 
         {/* Stat cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

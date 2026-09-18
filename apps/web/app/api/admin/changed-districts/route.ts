@@ -12,8 +12,11 @@ import { withErrorHandling } from '@/lib/with-error-handling';
 // state-wide dataset whenever *any* district happened to change. Deliberately excludes
 // unlock_requested/unlock_request_denied — those don't touch phase1_raw_collection or
 // district_circles_sectors, and the cheap unlock_requests_cache already refreshes on every
-// Sync All regardless.
-const CHANGE_EVENTS = ['district_submitted', 'district_verified', 'units_unlocked', 'data_correction_unlocked', 'district_data_cleared', 'fy_data_cleared'] as const;
+// Sync All regardless. deputy_district_reviewed doesn't touch shop data either, but callers
+// (adminShopsCache, adminDistrictsCache, deputyDistrictsCache) also carry the district's
+// deputyReview alongside it, and adminShopsCache has no TTL of its own to fall back on — this
+// is the only signal that tells any of them a review changed.
+const CHANGE_EVENTS = ['district_submitted', 'district_verified', 'units_unlocked', 'data_correction_unlocked', 'district_data_cleared', 'fy_data_cleared', 'deputy_district_reviewed'] as const;
 
 async function GET_(req: NextRequest): Promise<NextResponse> {
   const user = await getSession();

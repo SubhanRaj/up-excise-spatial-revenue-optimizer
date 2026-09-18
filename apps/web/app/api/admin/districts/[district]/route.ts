@@ -4,6 +4,7 @@ import { drizzle } from 'drizzle-orm/d1';
 import { eq, count, sum } from 'drizzle-orm';
 import { getSession, sha256hex, districtScope, isDistrictInScope } from '@/lib/auth';
 import { districts, districtCirclesSectors, phase1RawCollection, authUsers, auditLog } from '@excise/schema';
+import { latestDeputyReviews } from '@/lib/division-lock';
 import { withErrorHandling } from '@/lib/with-error-handling';
 
 type Ctx = { params: Promise<{ district: string }> };
@@ -23,13 +24,17 @@ async function GET_(_req: NextRequest, { params }: Ctx): Promise<NextResponse> {
   if (!meta) return NextResponse.json({ error: 'District not found' }, { status: 404 });
   if (!isDistrictInScope(scope, meta.division)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
-  const [units, agg] = await Promise.all([
+  const [units, agg, deputyReviews] = await Promise.all([
     db.select().from(districtCirclesSectors).where(eq(districtCirclesSectors.districtName, district)).all(),
     db.select({ vendCount: count(phase1RawCollection.id), totalRevenue: sum(phase1RawCollection.totalRevenue) })
       .from(phase1RawCollection).where(eq(phase1RawCollection.districtName, district)).get(),
+    latestDeputyReviews(db),
   ]);
 
-  return NextResponse.json({ ...meta, units, vendCount: agg?.vendCount ?? 0, totalRevenue: Number(agg?.totalRevenue ?? 0) });
+  return NextResponse.json({
+    ...meta, units, vendCount: agg?.vendCount ?? 0, totalRevenue: Number(agg?.totalRevenue ?? 0),
+    deputyReview: deputyReviews[district] ?? null,
+  });
 }
 
 export const GET = withErrorHandling('admin/districts/[district]:GET', GET_);

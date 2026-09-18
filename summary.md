@@ -2196,6 +2196,22 @@ A district's shop data is immutable once `verified` — the only thing that can 
 
 ---
 
+### M-115: DEO/Admin See the Deputy's Review Per District; Admin Sees Both DEO and Deputy Sign-Off ✅ Complete
+
+**Scope:** a Deputy Excise Commissioner's per-district review (M-102's "Looks correct" / "Flag an issue") only surfaced on the Deputy's own portal, the audit log, or — as of M-113 — the admin division page. A DEO whose district got flagged had no direct way to see why, short of an approved unlock request's note reaching them; an admin opening one district's own detail page had no way to see the Deputy's verdict at all, only the DEO's submission status.
+
+Three places now show it, each reusing the same `latestDeputyReviews()` helper (`apps/web/src/lib/division-lock.ts`, already backing the admin districts list and the M-113 division page) rather than a new query:
+
+- **DEO final-verification screen (`/verify`):** `GET /api/districts/[district]/status` now also returns `deputyReview`. A banner under the page header reads "Flagged by the Deputy Excise Commissioner (&lt;name&gt;)" with the reason, "Verified by the Deputy Excise Commissioner (&lt;name&gt;) as correct," or "Not yet reviewed."
+- **Admin district detail page (`/admin/districts/[district]`):** `GET /api/admin/districts/[district]` now also returns `deputyReview`. A two-line card between the summary stats and the shop table states the DEO's own status ("Verified by &lt;name&gt;" / "Submitted by &lt;name&gt;, not yet re-confirmed" / "Not yet submitted") and the Deputy's verdict, the same wording as the `/verify` banner and the M-113 division list — one place to see both sign-offs instead of inferring the DEO's from the header badge and finding the Deputy's in the audit log.
+- **Deputy's own district page** already showed both (the district status badge for the DEO, a "Your review" card for their own verdict) — unchanged.
+
+**A real staleness gap surfaced while wiring this up:** `GET /api/admin/changed-districts` (M-64) — the indexed audit-log scan that tells `adminShopsCache`, `adminDistrictsCache`, and `deputyDistrictsCache` whether to re-fetch — never included `deputy_district_reviewed` in its event list, since at M-64 the deputy portal didn't exist yet. `adminShopsCache` has no TTL of its own (M-74) to fall back on, so a deputy review recorded after an admin's per-district cache was written would never reach that admin's device on its own — only re-visiting with an empty cache, or an unrelated change event on the same district, would pick it up. Added `deputy_district_reviewed` to the event list; this also makes the M-113 division list and the M-115 admin district card live-update on a real review instead of only on the next unrelated change.
+
+**Verified:** `pnpm typecheck`, `pnpm test`, a full `next build`.
+
+---
+
 ## Backlog / Not Started
 
 - [x] ~~Verify `exciseup.in` in Resend and switch `RESEND_FROM_EMAIL`~~ — Done. `mail.exciseup.in` verified; `RESEND_FROM_EMAIL` set to `noreply@mail.exciseup.in` on this project's Worker, and the same address set as `FROM_EMAIL` on the sibling `excise-revenue-recovery-portal` project's Worker (different env var name there, same Resend account/domain). Magic-link email is now the Admin/HQ login channel only (DEOs use CUG login as of M-17).

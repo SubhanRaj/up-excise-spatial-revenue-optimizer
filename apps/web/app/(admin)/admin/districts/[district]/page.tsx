@@ -23,11 +23,14 @@ interface UnlockRequestRow {
   requestedByDeo: string;
 }
 
+interface DeputyReview { verdict: string; note: string; at: number; actorName: string | null }
+
 interface DistrictDetail {
   name: string; division: string | null; deoName: string | null; deoEmail: string | null;
   deoId: string | null; expectedVendCount: number | null; status: string;
   bboxMinLat: number | null; bboxMaxLat: number | null; bboxMinLon: number | null; bboxMaxLon: number | null;
   vendCount: number; totalRevenue: number; units: { name: string; type: string }[];
+  deputyReview: DeputyReview | null;
 }
 
 const fmtCr = (n: number) => `₹${(n / 1e7).toFixed(2)} Cr`;
@@ -373,6 +376,36 @@ export default function DistrictDetailPage({ params }: { params: Promise<{ distr
           <StatCard label="Total Revenue" value={fmtCr(displayTotalRevenue)} sub={`across ${displayVendCount.toLocaleString()} vends`} />
         </div>
       )}
+      {/* DEO + Deputy verification status — the two sign-offs a district goes through after
+          upload, both in one place instead of inferring DEO status from the header badge and
+          hunting for the Deputy's note in the audit log or the division page. */}
+      {!loading && detail && (
+        <div className="bg-base-100 rounded-xl border border-base-200 p-4 space-y-2 text-sm">
+          <p>
+            <span className="font-medium">DEO:</span>{' '}
+            {detail.status === 'verified' ? (
+              <span className="text-success">Verified by {detail.deoName ?? 'the DEO'}.</span>
+            ) : detail.status === 'submitted' ? (
+              <span className="text-base-content/70">Submitted by {detail.deoName ?? 'the DEO'}, not yet re-confirmed.</span>
+            ) : (
+              <span className="text-base-content/50">Not yet submitted.</span>
+            )}
+          </p>
+          <p>
+            <span className="font-medium">Deputy:</span>{' '}
+            {!detail.deputyReview ? (
+              <span className="text-base-content/50">Not yet reviewed.</span>
+            ) : detail.deputyReview.verdict === 'flagged' ? (
+              <span className="text-error">
+                Flagged{detail.deputyReview.actorName ? ` by ${detail.deputyReview.actorName}` : ''} — {detail.deputyReview.note || 'no reason given'}
+              </span>
+            ) : (
+              <span className="text-success">Verified{detail.deputyReview.actorName ? ` by ${detail.deputyReview.actorName}` : ''} as correct.</span>
+            )}
+          </p>
+        </div>
+      )}
+
       {showUnitsModal && detail && (
         <UnitsModal units={detail.units} districtName={detail.name} onClose={() => setShowUnitsModal(false)} />
       )}
