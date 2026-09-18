@@ -122,7 +122,10 @@ flowchart TD
     ReqCorrection3 -.-> DivisionLockCheck
 
     Verified --> DeputyReview["Deputy reviews the district on\ntheir division dashboard:\nPOST /api/deputy/districts/[d]/review\n{verdict: ok|flagged}, audit-only,\nno data mutation"]
-    DeputyReview --> AllOkCheck{Every district in the division\nverified AND deputy-reviewed ok?}
+    DeputyReview --> DeoSeesVerdict["DEO's /verify shows the verdict directly, M-115:\nGET .../status now returns deputyReview - the scan\nonly runs once status is submitted/verified, so every\nearlier-stage district's every page load skips it"]
+    DeoSeesVerdict --> VerdictCheck{verdict}
+    VerdictCheck -->|flagged| ReqCorrection3
+    VerdictCheck -->|ok| AllOkCheck{Every district in the division\nverified AND deputy-reviewed ok?}
     AllOkCheck -->|yes, deputy locks it| DivisionLocked["POST /api/deputy/divisions/[div]/lock\n(deputy types their own name)\n-> division_locks row + audit division_locked"]
     DivisionLocked --> StateCheck{division_locks row\nfor all 18 divisions?}
     StateCheck -->|yes| StateLocked["State locked - derived, not stored\n/admin shows Division & State Lock: locked"]
@@ -145,6 +148,7 @@ flowchart TD
     style WrongFileGuard fill:#f59e0b,color:#000
     style AdminTemplate fill:#16a34a,color:#fff
     style DivisionBlocked fill:#f59e0b,color:#000
+    style DeoSeesVerdict fill:#16a34a,color:#fff
 ```
 
 **Notes:**
@@ -169,7 +173,7 @@ flowchart TD
     SelfHeal -->|yes, background upgrade| Fetch
 
     Render --> DrillDistricts["/admin/districts: full 75-row table\n(same cached endpoint, client-side filter/sort;\nstatus filter persisted across a detail-page visit)"]
-    Render --> DrillDivisions["/admin/divisions/[division]: filtered\nclient-side from same cached data"]
+    Render --> DrillDivisions["/admin/divisions/[division]: filtered client-side\nfrom same cached data, plus a per-district Deputy\nreview line - verified/flagged with reason/not yet\nreviewed, and the deputy's own name, M-113"]
     Render --> ClickPolygon[Click district on map]
     DrillDistricts --> ExportPdf["Export PDF button: refetches districts,\nthen builds an A4-landscape status report\nclient-side (jsPDF + autoTable) - labeled\nchoropleth cover page, one division-grouped\npage per status"]
 
@@ -177,6 +181,7 @@ flowchart TD
     DrillDistricts --> DistrictDetail
     DistrictDetail --> ShopsFetch["GET /api/admin/districts/district/shops\n(only endpoint that loads shop rows)"]
     ShopsFetch --> ClientOps[ShopExplorer component: filter/sort/search/\ngroup/paginate client-side with useMemo\n- zero extra API calls - shared with DEO\nfinal-verification screen, M-67]
+    DistrictDetail --> VerifyCard["DEO + Deputy verification card, M-115:\nGET .../districts/district also returns\ndeputyReview - same submitted/verified\ngate as the DEO status route, so the\nscan only runs when it could apply"]
     DistrictDetail --> ClearData["Delete Shop Data button\nany admin, type-district-name\n+ reason to confirm, M-93/M-94"]
     ClearData --> ClearEP["POST /api/admin/districts/district/clear-data\ndeletes phase1_raw_collection rows only,\nresets status to pending,\naudit-logs district_data_cleared"]
 
@@ -195,15 +200,20 @@ flowchart TD
 
     ExportCache -.->|reused, no new D1 query| ShopTypeCard["Admin overview: Statewide Shop-Type\nBreakdown card + Circles/Sectors stat\n- card just doesn't render until\nExportCache has data, no prompt/button"]
     ExportCache -.->|reused, no new D1 query| CirclesSectorsPage["/admin/circles-sectors:\nCircle/Sector Master table\none row per circle/sector, all districts\n- plain 'click Sync All' text if empty"]
+    ExportCache -.->|reused, no new D1 query| AllShopsPage["/admin/shops, M-108: every shop,\nevery district, in one ShopExplorer table -\nno refresh button of its own, Sync All\nis the only thing that ever reads D1 for it"]
     ExportCache -.->|reused, no new D1 query| ProgressBtn["Admin overview: Download Progress button\ngenerateDistrictProgressWorkbook - M-62\nlightweight 2-sheet XLSX, not the full export"]
     ProgressBtn -.->|cache empty, click fetches once| ExportEP
 
     style UseCache fill:#16a34a,color:#fff
     style ClientOps fill:#16a34a,color:#fff
     style ExportCache fill:#16a34a,color:#fff
+    style AllShopsPage fill:#16a34a,color:#fff
+    style VerifyCard fill:#16a34a,color:#fff
     style ClearData fill:#dc2626,color:#fff
     style ClearEP fill:#dc2626,color:#fff
 ```
+
+**Note:** `SelfHeal`'s `changed-districts` scan (also used by `adminShopsCache` on `DistrictDetail` and `deputyDistrictsCache` on the Deputy portal, see diagram 5) checks for six audit-log event types — `district_submitted`, `district_verified`, `units_unlocked`, `data_correction_unlocked`, `district_data_cleared`, `fy_data_cleared`, and, as of M-115, `deputy_district_reviewed`. That last one was missing until M-115: it doesn't touch shop data, but `DistrictDetail` and `DrillDivisions` both now carry a district's Deputy review alongside it, and `adminShopsCache` has no TTL of its own to fall back on — this event was the only way either cache would ever learn a review changed.
 
 ## 4. API error handling (every non-trivial route)
 
@@ -227,3 +237,58 @@ flowchart LR
 ```
 
 **Note (M-106):** login (`POST /api/auth/verify`, `POST /api/auth/verify-cug`) and the audit-log page's opportunistic 45-day purge (`GET /api/admin/audit-log`) each do one write beyond their main job — an audit-log insert, or the purge delete. Both are wrapped in their own try/catch so a write-quota blip there can't turn an otherwise-successful login into a 500, or blank the whole audit-log page. This is narrower than `withErrorHandling` above: it protects one secondary write inside a handler that has already done its real job, not the whole route.
+
+## 5. Deputy Excise Commissioner portal — division review and lock
+
+```mermaid
+flowchart TD
+    DepLogin(["Deputy signs in with CUG number\n(expect: 'deputy') -> /deputy-division"]) --> DepData[useDeputyData hook]
+
+    DepData --> DepCacheCheck{deputyDistrictsCache\nfor this division\nin excise-deputy IndexedDB?}
+    DepCacheCheck -->|hit| DepServeCache[Serve cached district list\ninstantly, no D1 query]
+    DepCacheCheck -->|miss| DepFetch["GET /api/admin/districts\nWHERE division = session.division\n(same route the admin portal uses,\ndistrictScope narrows it)"]
+
+    DepServeCache --> DepSelfHeal["changed-districts?since=cache's fetchedAt,\nfiltered to this division only -\nincludes deputy_district_reviewed, M-115"]
+    DepSelfHeal -->|nothing changed| DepRender[Render dashboard + /districts list]
+    DepSelfHeal -->|something changed| DepFetch
+    DepFetch --> DepStoreCache[(Store in deputyDistrictsCache\n+ deputyReviewsCache)]
+    DepStoreCache --> DepRender
+
+    DepRender --> DepOpenDistrict["/deputy-division/districts/[district]"]
+    DepOpenDistrict --> DepShopCacheCheck{deputyShopsCache\nfor divisionKey:district?}
+    DepShopCacheCheck -->|miss| DepShopFetch["GET .../districts/district\n+ .../districts/district/shops?pageSize=all\n(403 if the district isn't in this division)"]
+    DepShopCacheCheck -->|hit, status cached\nas 'verified'| DepSkipCheck{"deputyDistrictsCache row for\nthis district also 'verified'?\nM-114"}
+    DepSkipCheck -->|yes| DepServeShops[Serve cached shop rows,\nzero network calls at all]
+    DepSkipCheck -->|no, or cached status\nwasn't 'verified'| DepStaleCheck["changed-districts?since=cache's\nfetchedAt - the per-visit check\nM-114 skips only for a stable verified district"]
+    DepStaleCheck -->|unchanged| DepServeShops
+    DepStaleCheck -->|changed| DepShopFetch
+    DepShopFetch --> DepShopStoreCache[(Store in deputyShopsCache,\nkeyed divisionKey:district)]
+    DepShopStoreCache --> DepServeShops
+
+    DepServeShops --> DepReviewChoice{Deputy reviews the figures}
+    DepReviewChoice -->|looks correct| DepReviewOk["POST /api/deputy/districts/district/review\n{verdict: 'ok', note?} - audit-only,\nno data mutation"]
+    DepReviewChoice -->|found an issue| DepReviewFlag["POST .../review\n{verdict: 'flagged', note required}"]
+    DepReviewOk --> DepReviewSaved[audit_log deputy_district_reviewed\n+ deputyReviewsCache invalidated]
+    DepReviewFlag --> DepReviewSaved
+    DepReviewSaved --> DeoNotified["DEO sees this verdict directly on\ntheir own /verify screen, M-115 -\nsee diagram 2 for the DEO-side branch"]
+
+    DepRender --> DepLockCard["Dashboard: Verify & Lock Division card\nGET /api/deputy/reviews ->\neligibleToLock + blockers"]
+    DepLockCard --> DepLockCheck{Every district verified\nAND latest review is 'ok'?}
+    DepLockCheck -->|no| DepBlockers[Card lists which districts\nblock it: notVerified, notReviewedOk]
+    DepLockCheck -->|yes| DepLockBtn["Deputy types their own name\n(same liability pattern as a DEO submit/verify)"]
+    DepLockBtn --> DepLockPost["POST /api/deputy/divisions/division/lock\n-> division_locks row + audit division_locked"]
+    DepLockPost --> DepLocked["Division locked - DEOs in it can no longer\nself-request a correction unlock"]
+    DepLocked --> AdminUnlock["Only DELETE /api/admin/divisions/division/lock\n(any admin, note required) reopens it -\na deputy cannot undo their own lock"]
+
+    style DepServeCache fill:#16a34a,color:#fff
+    style DepServeShops fill:#16a34a,color:#fff
+    style DeoNotified fill:#16a34a,color:#fff
+    style DepLocked fill:#16a34a,color:#fff
+    style DepBlockers fill:#f59e0b,color:#000
+    style AdminUnlock fill:#dc2626,color:#fff
+```
+
+**Notes:**
+- This is the diagram promised in diagram 2's note under the DEO workflow — the deputy side of the district → division → state lock hierarchy (M-102/M-103) in full.
+- `districtScope()` (`apps/web/src/lib/auth.ts`) is what narrows `GET /api/admin/districts` to one division for a `deputy` session — the same route an admin session reads state-wide from.
+- M-114's shortcut only applies to the shop-data cache (`deputyShopsCache`) — it never skips the district list's own staleness check, so a review or lock recorded elsewhere still reaches the dashboard/list pages on their normal schedule.

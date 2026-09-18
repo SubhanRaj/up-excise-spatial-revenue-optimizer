@@ -662,7 +662,7 @@ This operation is idempotent — re-running it on an already-provisioned system 
 
 **Admin Dashboard — Charts (Chart.js via jsDelivr CDN):**
 
-Both charts are powered by a single call to `GET /api/admin/map-data`, which returns 75 district-level aggregate rows. No shop rows are loaded for charting.
+Both charts read from the same `GET /api/admin/districts` call the overview page already makes for its district list and choropleth map — there is no separate charting endpoint. Every field the charts need (status counts, revenue per district) is already on that response, so charting never triggers a second scan of `phase1_raw_collection`.
 
 | Chart | Type | Data Source |
 |---|---|---|
@@ -711,17 +711,22 @@ The `?key=` parameter was added after the original spec was written — CARTO no
 - **Refresh:** admin data is cache-first (IndexedDB, TTL-based) with no auto-polling — a single "Sync All" button in the admin navbar invalidates every admin cache table and reloads, refetching fresh from D1. Only the audit log (`/admin/audit`) never caches — it always fetches live on every page load, since a stale activity feed would be actively misleading.
 
 **Admin Capabilities (Phase 1) — Summary:**
-- Overview (`/admin`): choropleth map, top-10-by-revenue districts, an 18-division grid, and summary charts. District summary list + "All State" totals cached in IndexedDB (15-min TTL).
+- Overview (`/admin`): choropleth map, top-10-by-revenue districts, an 18-division grid, summary charts, and a Division & State Lock card showing how many of the 18 divisions the Deputy Excise Commissioners have locked. District summary list + "All State" totals cached in IndexedDB (15-min TTL).
 - `/admin/districts`: full 75-district sortable/searchable/filterable table (read-only — district/DEO editing lives on District Master).
-- `/admin/divisions` and `/admin/divisions/[division]`: division-level rollups derived client-side from the same district data.
+- `/admin/shops`: every shop from every district in one state-wide, filterable/sortable table — the shared `ShopExplorer` component, reused rather than a separate view. Read-only, cache-first off the same `export_cache` IndexedDB entry `/admin/export` populates; never triggers a D1 read on its own.
+- `/admin/circles-sectors`: every registered circle/sector across all 75 districts in one table, with a per-shop-type breakdown per row. Same cache-first source as `/admin/shops`.
+- `/admin/divisions` and `/admin/divisions/[division]`: division-level rollups derived client-side from the same district data, including each district's Deputy Excise Commissioner review (verified as correct, flagged with the deputy's stated reason, or not yet reviewed) and the deputy's own name.
 - District Master (`/admin/provision`, superadmin-only): inline per-district edit drawer + bulk Excel provisioning.
-- District drill-down (`/admin/districts/[district]`): full district shop table (all rows in one call, cached in admin IndexedDB; all filtering/sorting/grouping/pagination client-side).
+- Admin Users (`/admin/users`, superadmin-only): create, edit, and remove admin/HQ login accounts.
+- District drill-down (`/admin/districts/[district]`): full district shop table (all rows in one call, cached in admin IndexedDB; all filtering/sorting/grouping/pagination client-side), plus a card showing both the DEO's own confirmation status and the Deputy's review verdict for that district.
 - Cross-district D1 search, paginated, results cached per query hash.
 - Per-district XLSX export and full-state XLSX export (`/admin/export` → chunked download, ExcelJS, never rendered as a UI table — and never CSV).
 - District status PDF report (`/admin/districts` → Export PDF, jsPDF/autoTable in-browser) — A4 landscape, a labeled choropleth cover page, one division-grouped page per status (or one status, from a dropdown).
 - Audit log viewer — last 45 days, always live (no cache).
-- Self-service unlock-request review (`/admin/unlock-requests`) — approve or deny a DEO's request to re-open a locked circle/sector list.
+- Self-service unlock-request review (`/admin/unlock-requests`) — approve or deny a DEO's request to re-open a locked circle/sector list, or (state HQ only) reopen a division a Deputy Excise Commissioner has locked.
 - Bulk DEO provisioning via Excel upload (ExcelJS in-browser → preview → submit).
+
+A separate, division-scoped **Deputy Excise Commissioner portal** (`/deputy-<division>`, one per division, CUG login) sits alongside the admin portal: a Deputy reviews their own division's districts read-only, signs off "Looks correct" or flags an issue with a reason, and locks the division once every district in it is DEO-verified and signed off. See Section 5.4b for the schema and the "Two-level lock hierarchy" note in CLAUDE.md for the full district → division → state lock sequence.
 
 **Admin Cannot (Phase 1):**
 - View all ~30,000 shop records in a single browser UI table. Full-state data is available only as a file download.
