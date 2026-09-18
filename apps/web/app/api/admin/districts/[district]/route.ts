@@ -4,7 +4,7 @@ import { drizzle } from 'drizzle-orm/d1';
 import { eq, count, sum } from 'drizzle-orm';
 import { getSession, sha256hex, districtScope, isDistrictInScope } from '@/lib/auth';
 import { districts, districtCirclesSectors, phase1RawCollection, authUsers, auditLog } from '@excise/schema';
-import { latestDeputyReviews } from '@/lib/division-lock';
+import { latestDeputyReviews, type DeputyReview } from '@/lib/division-lock';
 import { withErrorHandling } from '@/lib/with-error-handling';
 
 type Ctx = { params: Promise<{ district: string }> };
@@ -24,11 +24,16 @@ async function GET_(_req: NextRequest, { params }: Ctx): Promise<NextResponse> {
   if (!meta) return NextResponse.json({ error: 'District not found' }, { status: 404 });
   if (!isDistrictInScope(scope, meta.division)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
+  // A Deputy can't review a district before it's submitted, so this whole-audit-log scan is
+  // only worth running for a district that's actually reached that stage — skipping it for
+  // every still-pending/in-progress district (most of the campaign timeline, most calls to
+  // this route) is a real read-count cut, not just a style preference.
+  const needsDeputyReview = meta.status === 'submitted' || meta.status === 'verified';
   const [units, agg, deputyReviews] = await Promise.all([
     db.select().from(districtCirclesSectors).where(eq(districtCirclesSectors.districtName, district)).all(),
     db.select({ vendCount: count(phase1RawCollection.id), totalRevenue: sum(phase1RawCollection.totalRevenue) })
       .from(phase1RawCollection).where(eq(phase1RawCollection.districtName, district)).get(),
-    latestDeputyReviews(db),
+    needsDeputyReview ? latestDeputyReviews(db) : Promise.resolve({} as Record<string, DeputyReview>),
   ]);
 
   return NextResponse.json({

@@ -4,7 +4,7 @@ import { drizzle } from 'drizzle-orm/d1';
 import { eq, count } from 'drizzle-orm';
 import { getSession } from '@/lib/auth';
 import { districtCirclesSectors, phase1RawCollection, districts } from '@excise/schema';
-import { latestDeputyReviews } from '@/lib/division-lock';
+import { latestDeputyReviews, type DeputyReview } from '@/lib/division-lock';
 import { withErrorHandling } from '@/lib/with-error-handling';
 
 
@@ -21,15 +21,21 @@ async function GET_(
   const { env } = await getCloudflareContext({ async: true }) as { env: CloudflareEnv };
   const db = drizzle(env.DB);
 
-  const [units, uploaded, districtRow, deputyReviews] = await Promise.all([
+  // This route is hit on every DEO page load state-wide (the (deo) layout calls it, not just
+  // /verify), so the deputy-review scan below only runs once we already know it can possibly
+  // apply — a district can't be Deputy-reviewed before it's submitted, which is most districts
+  // for most of the campaign. Fetch the district row first to make that call, instead of
+  // scanning the whole audit log on every DEO's every page load regardless of district status.
+  const [units, uploaded, districtRow] = await Promise.all([
     db.select({ name: districtCirclesSectors.name }).from(districtCirclesSectors)
       .where(eq(districtCirclesSectors.districtName, district)).all(),
     db.select({ circleSectorName: phase1RawCollection.circleSectorName, rowCount: count(phase1RawCollection.id) })
       .from(phase1RawCollection).where(eq(phase1RawCollection.districtName, district))
       .groupBy(phase1RawCollection.circleSectorName).all(),
     db.select({ status: districts.status, deoName: districts.deoName, fyDataClearedAt: districts.fyDataClearedAt }).from(districts).where(eq(districts.name, district)).get(),
-    latestDeputyReviews(db),
   ]);
+  const needsDeputyReview = districtRow?.status === 'submitted' || districtRow?.status === 'verified';
+  const deputyReviews: Record<string, DeputyReview> = needsDeputyReview ? await latestDeputyReviews(db) : {};
 
   const uploadedMap = Object.fromEntries(uploaded.map((u) => [u.circleSectorName, u.rowCount]));
   const summary = units.map((u) => ({ name: u.name, rowCount: uploadedMap[u.name] ?? 0 }));
