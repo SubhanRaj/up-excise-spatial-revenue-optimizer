@@ -77,6 +77,21 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           [data-density="spacious"] .table td, [data-density="spacious"] .table th { padding: 0.75rem 1rem !important; }
           [data-view-width="wide"] .admin-content { max-width: 100%; }
           [data-view-width="full"] .admin-content { max-width: 100%; padding-left: 0.5rem; padding-right: 0.5rem; }
+          /* Data tables stay desktop-shaped (see CLAUDE.md) — below this width the fix is to make
+             the horizontal scroll they already have easier to use, not to reshape the table: the
+             first column stays on screen while the rest scrolls past it, cells get more room to
+             tap, and the scrollbar is thick and colored instead of the near-invisible default. */
+          @media (max-width: 767px) {
+            .table > thead > tr > *:first-child { position: sticky; left: 0; z-index: 3; background-color: var(--color-base-100); }
+            .table > thead.bg-base-200 > tr > *:first-child { background-color: var(--color-base-200); }
+            .table > tbody > tr > *:first-child { position: sticky; left: 0; z-index: 3; background-color: var(--color-base-100); }
+            .table-zebra > tbody > tr:nth-child(even) > *:first-child { background-color: var(--color-base-200); }
+            .table :where(th, td) { padding-top: 0.75rem; padding-bottom: 0.75rem; }
+            .overflow-x-auto, .overflow-auto { scrollbar-width: auto; scrollbar-color: var(--color-base-300) transparent; }
+            .overflow-x-auto::-webkit-scrollbar, .overflow-auto::-webkit-scrollbar { height: 10px; }
+            .overflow-x-auto::-webkit-scrollbar-thumb, .overflow-auto::-webkit-scrollbar-thumb { background-color: var(--color-base-300); border-radius: 9999px; }
+            .overflow-x-auto::-webkit-scrollbar-track, .overflow-auto::-webkit-scrollbar-track { background: transparent; }
+          }
           .leaflet-tooltip.district-map-label { background: transparent !important; border: none !important; box-shadow: none !important; font-size: 10px !important; font-weight: 700 !important; color: #1e293b !important; text-shadow: 0 0 4px #fff, 0 0 4px #fff, 0 0 4px #fff !important; padding: 0 !important; white-space: nowrap !important; pointer-events: none !important; }
           .leaflet-tooltip.district-map-label::before { display: none !important; }
           [data-theme="dark"] .leaflet-tooltip.district-map-label { color: #f1f5f9 !important; text-shadow: 0 0 4px #0f172a, 0 0 4px #0f172a, 0 0 4px #0f172a !important; }

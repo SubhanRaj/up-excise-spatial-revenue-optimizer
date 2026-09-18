@@ -2153,6 +2153,23 @@ Added for data-quality review: several DEOs have shops on file with `0` (or miss
 
 ---
 
+### M-112: Data Tables Made Easier to Use on Phone Width, Without Reshaping Them ✅ Complete
+
+**Scope:** every table in the app already scrolled horizontally on a narrow screen (`overflow-x-auto`/`overflow-auto`), but that scroll was hard to notice and use — the first column (usually the one identifying the row, like Shop ID or the "When" column on the audit log) disappeared off-screen along with everything else, cells were cramped for a finger to tap accurately, and the native scrollbar is thin enough on most phones to go unnoticed. CLAUDE.md documents data tables staying desktop-shaped by design; this keeps that shape and only changes how the existing horizontal scroll behaves.
+
+**Three rules, added once as global CSS in `apps/web/app/layout.tsx`'s existing `<style>` block, scoped to `@media (max-width: 767px)` (below Tailwind's own `md` breakpoint) so desktop is untouched:**
+1. **First column stays on screen.** `.table > thead/tbody > tr > *:first-child` gets `position: sticky; left: 0`, so scrolling reveals the rest of a row while the identifying column stays put. This needed an explicit, opaque background on the sticky cell — a transparent one lets the columns sliding underneath show through — matched per header shade actually in use: `--color-base-100` by default, `--color-base-200` for the two tables (`ShopExplorer`, the DEO final-verification screen) whose `<thead>` carries that class, and `--color-base-200` again on even rows of the two `table-zebra` tables (the admin and deputy dashboards' top-10 tables).
+2. **Bigger tap targets.** `.table th/td` gets more vertical padding on this breakpoint.
+3. **A visible scrollbar.** `scrollbar-width`/`scrollbar-color` (Firefox) and `::-webkit-scrollbar*` (Chromium-based browsers) make the horizontal scrollbar thicker and colored instead of the near-invisible default. iOS Safari doesn't support scrollbar styling at all and keeps its own auto-hiding overlay scrollbar there — the sticky column and bigger padding still apply on iOS regardless.
+
+Because every one of these tables already shares the same DaisyUI `.table` class and the same `overflow-x-auto`/`overflow-auto` wrapper class, none of the ~15 files with a table needed touching — the fix is a single CSS addition.
+
+**Verified live** against local D1 (all 75 districts already seeded) rather than by inspection alone: a throwaway local `auth_users`/magic-link row logged a real browser session in via Playwright at a 375px viewport, and `/admin/audit`'s table (5 columns, genuinely wider than 375px) was screenshotted before and after scrolling it to the far right. The "When" column's background was a visibly mismatched gray box against the plain-white header on the first pass — `bg-base-50`, used on several `<thead>`s across the app, turned out to resolve to a fully transparent color in this Tailwind/DaisyUI setup (`getComputedStyle` confirmed `--color-base-50` doesn't exist as a token here), so a header using it or no class at all is really sitting on the plain `base-100` card underneath, not a `base-50` shade — the sticky-cell rule was corrected to that once this was checked directly instead of assumed. The corrected version scrolled cleanly: the "When" column with its real timestamps stayed pinned while "District" and "Details" scrolled into view, header shading matched on both sides of the sticky column, and no content bled through underneath it.
+
+**Verified:** `pnpm typecheck`, a full `next build`, and the live Playwright/local-D1 check above.
+
+---
+
 ## Backlog / Not Started
 
 - [x] ~~Verify `exciseup.in` in Resend and switch `RESEND_FROM_EMAIL`~~ — Done. `mail.exciseup.in` verified; `RESEND_FROM_EMAIL` set to `noreply@mail.exciseup.in` on this project's Worker, and the same address set as `FROM_EMAIL` on the sibling `excise-revenue-recovery-portal` project's Worker (different env var name there, same Resend account/domain). Magic-link email is now the Admin/HQ login channel only (DEOs use CUG login as of M-17).
