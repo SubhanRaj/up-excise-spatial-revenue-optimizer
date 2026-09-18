@@ -9,23 +9,27 @@ import { isLocked } from '@/lib/status';
 const fmt = (n: number) => n >= 1e7 ? `₹${(n / 1e7).toFixed(2)} Cr` : n >= 1e5 ? `₹${(n / 1e5).toFixed(2)} L` : `₹${n.toLocaleString('en-IN')}`;
 
 export default function DivisionsPage() {
-  const { districts, loading } = useAdminDistricts();
+  const { districts, divisionLocks, loading } = useAdminDistricts();
 
   const divisions = useMemo(() => {
-    const map = new Map<string, { count: number; submitted: number; inProgress: number; vends: number; revenue: number; districts: string[] }>();
+    const map = new Map<string, { count: number; submitted: number; inProgress: number; signedOff: number; flagged: number; vends: number; revenue: number; districts: string[] }>();
     for (const d of districts) {
       if (!d.division) continue;
-      const e = map.get(d.division) ?? { count: 0, submitted: 0, inProgress: 0, vends: 0, revenue: 0, districts: [] };
+      const e = map.get(d.division) ?? { count: 0, submitted: 0, inProgress: 0, signedOff: 0, flagged: 0, vends: 0, revenue: 0, districts: [] };
       e.count++;
       e.districts.push(d.name);
       if (isLocked(d.status)) e.submitted++;
       else if (d.status === 'in_progress') e.inProgress++;
+      if (d.deputyReview?.verdict === 'ok') e.signedOff++;
+      else if (d.deputyReview?.verdict === 'flagged') e.flagged++;
       e.vends += d.vendCount;
       e.revenue += d.totalRevenue;
       map.set(d.division, e);
     }
-    return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b)).map(([name, s]) => ({ name, ...s }));
-  }, [districts]);
+    const lockedDivisions = new Set(divisionLocks.map((l) => l.division));
+    return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b))
+      .map(([name, s]) => ({ name, locked: lockedDivisions.has(name), ...s }));
+  }, [districts, divisionLocks]);
 
   return (
     <div className="space-y-5">
@@ -57,8 +61,8 @@ export default function DivisionsPage() {
                 <h2 className="font-semibold text-base group-hover:text-primary transition-colors">{div.name}</h2>
                 <span className="badge badge-sm badge-ghost shrink-0">{div.count} districts</span>
               </div>
-              {/* Progress bar */}
-              <div className="w-full h-1.5 bg-base-200 rounded-full overflow-hidden mb-3">
+              {/* Submission progress bar */}
+              <div className="w-full h-1.5 bg-base-200 rounded-full overflow-hidden mb-2">
                 <div
                   className="h-full bg-success rounded-full transition-all"
                   style={{ width: `${div.count ? (div.submitted / div.count) * 100 : 0}%` }}
@@ -68,6 +72,22 @@ export default function DivisionsPage() {
                 <span className="text-success font-medium">{div.submitted} submitted</span>
                 {div.inProgress > 0 && <span className="text-warning">{div.inProgress} in progress</span>}
                 <span className="ml-auto tabular-nums font-medium text-base-content/90">{fmt(div.revenue)}</span>
+              </div>
+              {/* Deputy sign-off progress — so checking how far a division is from locked
+                  doesn't require opening it */}
+              <div className="w-full h-1.5 bg-base-200 rounded-full overflow-hidden mt-3 mb-2">
+                <div
+                  className="h-full bg-info rounded-full transition-all"
+                  style={{ width: `${div.count ? (div.signedOff / div.count) * 100 : 0}%` }}
+                />
+              </div>
+              <div className="flex items-center gap-3 text-xs text-base-content/70">
+                {div.locked ? (
+                  <span className="badge badge-xs badge-info">Locked by Deputy</span>
+                ) : (
+                  <span className="text-info font-medium">{div.signedOff}/{div.count} signed off by Deputy</span>
+                )}
+                {div.flagged > 0 && <span className="text-error">{div.flagged} flagged</span>}
               </div>
               <p className="mt-2 text-[11px] text-base-content/50 truncate">{div.districts.slice(0, 4).join(', ')}{div.count > 4 ? ` +${div.count - 4} more` : ''}</p>
             </Link>

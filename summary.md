@@ -2119,6 +2119,20 @@ The browser's own print dialog produces the PDF ("Save as PDF" / "Microsoft Prin
 
 ---
 
+### M-109: Division Detail Back-Link Fix, Deputy Progress on the Divisions Grid, All Shops Default Sort ✅ Complete
+
+**Division detail page (`/admin/divisions/[division]`) pointed its back button and breadcrumb at `/admin/districts` instead of `/admin/divisions`.** A district detail page reached from `/admin/districts` correctly links back there; a division detail page is only ever reached from the divisions grid, but its back link and non-clickable "Divisions" breadcrumb segment gave no way back to that grid — only sideways to the unrelated districts list. Both now point at `/admin/divisions`.
+
+**Divisions grid (`/admin/divisions`) gained a Deputy sign-off progress bar per card**, next to the existing submission progress bar — a second bar showing `signedOff / count` districts (green checks from `deputyReview.verdict === 'ok'`), a "Locked by Deputy" badge once `divisionLocks` has a row for that division, and a flagged count when any district's latest review is `'flagged'`. Previously the only way to see how close a division was to a Deputy lock was opening its own detail page and reading the same numbers there.
+
+**`/admin/shops` now defaults to sorting by district name** on a first-ever visit (`districtName` replaces `shopId` as the initial `sortKey` when `showDistrictColumn` is on), matching how an admin actually wants to scan the state-wide list — grouped by district first. Once a device has its own saved sort in `admin-shops-filters` (see M-108's filter-persistence entry), that stays in effect as before; this only changes what a device with no saved preference starts on.
+
+**`ShopExplorer`'s rows-per-page ladder jumped straight from 100 to All** — harmless on a district's few hundred/thousand rows, but on `/admin/shops`'s ~30K statewide rows, "All" renders every row as a real `<tr>` in the DOM (the table isn't virtualized) and could hang the tab. `PAGE_SIZES` now steps through 10 / 25 / 50 / 100 / 500 / 1,000 / 2,000 / 5,000 / 10,000 / All, so there's a size between "quick glance" and "the entire state" no matter which page loaded the component. The shop table's column widths were also rebalanced into two explicit sets (with/without the District column) that each sum to 100% — the District column had been added by shaving a percent off several others without re-summing them, leaving the row a few percent over 100 wide; Coordinates and Revenue (the two columns actually carrying long formatted numbers — 4-decimal lat/lon, comma-grouped rupee figures) got the extra room.
+
+**Verified:** `pnpm typecheck` and a full `next build` both clean.
+
+---
+
 ## Backlog / Not Started
 
 - [x] ~~Verify `exciseup.in` in Resend and switch `RESEND_FROM_EMAIL`~~ — Done. `mail.exciseup.in` verified; `RESEND_FROM_EMAIL` set to `noreply@mail.exciseup.in` on this project's Worker, and the same address set as `FROM_EMAIL` on the sibling `excise-revenue-recovery-portal` project's Worker (different env var name there, same Resend account/domain). Magic-link email is now the Admin/HQ login channel only (DEOs use CUG login as of M-17).

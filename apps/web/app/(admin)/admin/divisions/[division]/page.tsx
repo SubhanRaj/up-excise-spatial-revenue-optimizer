@@ -62,9 +62,9 @@ export default function DivisionPage({ params }: { params: Promise<{ division: s
     <div className="space-y-5">
       {/* Header */}
       <div className="flex gap-3 items-center flex-wrap">
-        <Link href="/admin/districts" className="btn btn-ghost btn-sm gap-1">
+        <Link href="/admin/divisions" className="btn btn-ghost btn-sm gap-1">
           <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-          Districts
+          Divisions
         </Link>
         <span className="text-base-content/50">/</span>
         <div>

@@ -28,8 +28,16 @@ const TYPE_SHORT_LABEL = SHOP_TYPE_SHORT_LABEL;
 const fmtCr = (n: number) => `₹${(n / 1e7).toFixed(2)} Cr`;
 
 type SortKey = 'shopId' | 'shopName' | 'thanaName' | 'totalRevenue' | 'shopType' | 'circleSectorName' | 'districtName';
-type PageSizeVal = 10 | 25 | 50 | 100 | 'all';
-const PAGE_SIZES: PageSizeVal[] = [10, 25, 50, 100, 'all'];
+type PageSizeVal = 10 | 25 | 50 | 100 | 500 | 1000 | 2000 | 5000 | 10000 | 'all';
+const PAGE_SIZES: PageSizeVal[] = [10, 25, 50, 100, 500, 1000, 2000, 5000, 10000, 'all'];
+
+// Column widths (%) for the shop table's <colgroup>, in header order — a separate set per mode
+// so each sums to 100 on its own instead of scaling all ten columns down whenever the District
+// column (state-wide mode) is added. Coordinates and Revenue are wider than the rest since
+// they're the two columns that actually carry long formatted numbers (4-decimal lat/lon,
+// comma-grouped rupee figures).
+const COL_WIDTHS_WITH_DISTRICT = [9, 8, 13, 8, 7, 13, 8, 14, 12, 8]; // District, Shop ID, Shop Name, Circle/Sector, Thana, Adjacent Thanas, Type, Coordinates, Revenue, Uploaded By
+const COL_WIDTHS_NO_DISTRICT = [8, 14, 9, 8, 15, 9, 15, 13, 9]; // Shop ID, Shop Name, Circle/Sector, Thana, Adjacent Thanas, Type, Coordinates, Revenue, Uploaded By
 
 function AdjThanas({ raw }: { raw: string | null }) {
   if (!raw) return <span className="text-base-content/50">—</span>;
@@ -169,7 +177,7 @@ export function ShopExplorer({
   const [cl5ccFilter, setCl5ccFilter] = useState(() => showDistrictColumn ? (readStoredFilters(filterStorageKey).cl5ccFilter ?? false) : false);
   const [circleFilter, setCircleFilter] = useState(() => showDistrictColumn ? (readStoredFilters(filterStorageKey).circleFilter ?? 'all') : 'all');
   const [districtFilter, setDistrictFilter] = useState(() => showDistrictColumn ? (readStoredFilters(filterStorageKey).districtFilter ?? 'all') : 'all');
-  const [sortKey, setSortKey] = useState<SortKey>(() => showDistrictColumn ? (readStoredFilters(filterStorageKey).sortKey ?? 'shopId') : 'shopId');
+  const [sortKey, setSortKey] = useState<SortKey>(() => showDistrictColumn ? (readStoredFilters(filterStorageKey).sortKey ?? 'districtName') : 'shopId');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>(() => showDistrictColumn ? (readStoredFilters(filterStorageKey).sortDir ?? 'asc') : 'asc');
 
   useEffect(() => {
@@ -521,16 +529,9 @@ export function ShopExplorer({
         <div className="overflow-auto max-h-[calc(100vh-250px)] rounded-xl border border-base-200">
           <table className="table table-xs table-pin-rows table-fixed w-full" role="grid">
             <colgroup>
-              {showDistrictColumn && <col className="w-[9%]" />}
-              <col className="w-[9%]" />
-              <col className="w-[15%]" />
-              <col className="w-[9%]" />
-              <col className="w-[8%]" />
-              <col className="w-[17%]" />
-              <col className="w-[9%]" />
-              <col className="w-[11%]" />
-              <col className="w-[8%]" />
-              <col className="w-[8%]" />
+              {(showDistrictColumn ? COL_WIDTHS_WITH_DISTRICT : COL_WIDTHS_NO_DISTRICT).map((w, i) => (
+                <col key={i} style={{ width: `${w}%` }} />
+              ))}
             </colgroup>
             <thead className="bg-base-200 text-[11px] uppercase tracking-wide text-base-content/70 z-10">
               <tr>

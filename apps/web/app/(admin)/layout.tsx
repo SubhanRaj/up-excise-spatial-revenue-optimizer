@@ -172,7 +172,7 @@ function getBreadcrumbs(pathname: string): { label: string; href: string | null 
 
   if (divisionMatch) return [
     { label: 'Overview', href: '/admin' },
-    { label: 'Divisions', href: null },
+    { label: 'Divisions', href: '/admin/divisions' },
     { label: decodeURIComponent(divisionMatch[1]!), href: null },
   ];
 
