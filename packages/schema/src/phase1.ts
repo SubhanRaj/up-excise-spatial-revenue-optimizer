@@ -167,6 +167,57 @@ export const phase1PriorYearSnapshot = sqliteTable('phase1_prior_year_snapshot',
   shopIdIdx: index('pys_shop_idx').on(t.shopId),
 }));
 
+// Circle Reorganization Proposal (Additional Excise Commissioner, 2026-09-23) — static reference
+// data loaded once by scripts/load-circle-reorg.ts from the Commissioner's own already-computed
+// proposal (migrations/0015). Read-only: GET /api/admin/circle-reorg/* and the /admin/circle-reorg
+// page. No shop-level table — a shop's proposed circle is joined at read/export time from
+// phase1_raw_collection via (district_name, thana_key), since a thana lies wholly within one
+// proposed circle by construction. See CLAUDE.md's "Circle Reorganization Proposal" section.
+export const circleReorgDistricts = sqliteTable('circle_reorg_districts', {
+  districtName: text('district_name').primaryKey(),
+  currentCircleCount: integer('current_circle_count').notNull(),
+  proposedCircleCount: integer('proposed_circle_count').notNull(),
+  currentDeviation: real('current_deviation').notNull(),
+  proposedDeviation: real('proposed_deviation').notNull(),
+  optimized: text('optimized').notNull(), // 'Yes' | 'No'
+  basis: text('basis').notNull(),
+  shopsMoved: integer('shops_moved').notNull().default(0),
+  shopsStayFraction: real('shops_stay_fraction').notNull().default(0),
+  noLocationCount: integer('no_location_count').notNull().default(0),
+  createdAt: integer('created_at').notNull().default(0),
+});
+
+export const circleReorgCircles = sqliteTable('circle_reorg_circles', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  districtName: text('district_name').notNull(),
+  name: text('name').notNull(),
+  status: text('status').notNull(), // 'kept' | 'new' | 'abolished'
+  currentRevenue: integer('current_revenue'),
+  proposedRevenue: integer('proposed_revenue'),
+  currentBoundary: text('current_boundary'), // GeoJSON string
+  proposedBoundary: text('proposed_boundary'), // GeoJSON string
+  createdAt: integer('created_at').notNull().default(0),
+}, (t) => ({
+  districtIdx: index('crc_district_idx').on(t.districtName),
+}));
+
+export const circleReorgThanas = sqliteTable('circle_reorg_thanas', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  districtName: text('district_name').notNull(),
+  thanaName: text('thana_name').notNull(),
+  thanaKey: text('thana_key').notNull(), // normalizeThanaName()
+  revenue: integer('revenue').notNull().default(0),
+  shopCount: integer('shop_count').notNull().default(0),
+  currentCircleNames: text('current_circle_names').notNull(), // JSON string array
+  proposedCircleName: text('proposed_circle_name').notNull(),
+  boundary: text('boundary'), // GeoJSON string
+  labelLat: real('label_lat'),
+  labelLon: real('label_lon'),
+  createdAt: integer('created_at').notNull().default(0),
+}, (t) => ({
+  lookupIdx: index('crt_lookup_idx').on(t.districtName, t.thanaKey),
+}));
+
 export const auditLog = sqliteTable('audit_log', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   // 'login' | 'logout' | 'login_cug' | 'upload_chunk' | 'district_submitted' | 'unit_registered'

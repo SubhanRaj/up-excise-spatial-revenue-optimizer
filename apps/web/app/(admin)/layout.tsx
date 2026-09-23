@@ -163,6 +163,7 @@ function SearchBar({ mobile, onNavigate }: { mobile?: boolean; onNavigate?: () =
 function getBreadcrumbs(pathname: string): { label: string; href: string | null }[] {
   const districtMatch = pathname.match(/^\/admin\/districts\/(.+)$/);
   const divisionMatch = pathname.match(/^\/admin\/divisions\/(.+)$/);
+  const reorgDistrictMatch = pathname.match(/^\/admin\/circle-reorg\/(.+)$/);
 
   if (districtMatch) return [
     { label: 'Overview', href: '/admin' },
@@ -176,11 +177,18 @@ function getBreadcrumbs(pathname: string): { label: string; href: string | null 
     { label: decodeURIComponent(divisionMatch[1]!), href: null },
   ];
 
+  if (reorgDistrictMatch) return [
+    { label: 'Overview', href: '/admin' },
+    { label: 'Circle Reorganization Proposal', href: '/admin/circle-reorg' },
+    { label: decodeURIComponent(reorgDistrictMatch[1]!), href: null },
+  ];
+
   const MAP: Record<string, { label: string; href: string | null }[]> = {
     '/admin': [{ label: 'Overview', href: null }],
     '/admin/districts': [{ label: 'Overview', href: '/admin' }, { label: 'Districts', href: null }],
     '/admin/divisions': [{ label: 'Overview', href: '/admin' }, { label: 'Divisions', href: null }],
     '/admin/circles-sectors': [{ label: 'Overview', href: '/admin' }, { label: 'Circle & Sector Master', href: null }],
+    '/admin/circle-reorg': [{ label: 'Overview', href: '/admin' }, { label: 'Circle Reorganization Proposal', href: null }],
     '/admin/shops': [{ label: 'Overview', href: '/admin' }, { label: 'All Shops', href: null }],
     '/admin/provision': [{ label: 'Overview', href: '/admin' }, { label: 'District Master', href: null }],
     '/admin/users': [{ label: 'Overview', href: '/admin' }, { label: 'Admin Users', href: null }],
@@ -231,6 +239,7 @@ const NAV_LINKS = (session: ReturnType<typeof useSession>['session']) => [
   { href: '/admin/districts', label: 'Districts', active: (p: string) => p.startsWith('/admin/districts') },
   { href: '/admin/divisions', label: 'Divisions', active: (p: string) => p.startsWith('/admin/divisions') },
   { href: '/admin/circles-sectors', label: 'Circles/Sectors', active: (p: string) => p === '/admin/circles-sectors' },
+  { href: '/admin/circle-reorg', label: 'Circle Reorg', active: (p: string) => p === '/admin/circle-reorg' },
   { href: '/admin/shops', label: 'Shops', active: (p: string) => p === '/admin/shops' },
   { href: '/admin/unlock-requests', label: 'Unlock Requests', active: (p: string) => p === '/admin/unlock-requests' },
   { href: '/admin/audit', label: 'Audit', active: (p: string) => p === '/admin/audit' },

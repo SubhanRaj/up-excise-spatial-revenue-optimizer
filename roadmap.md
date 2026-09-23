@@ -28,6 +28,7 @@ See also [docs/app-flow.md](docs/app-flow.md) for Mermaid diagrams of the auth f
 4. [Data Dictionary & Shop Classification Matrix](#4-data-dictionary--shop-classification-matrix)
 5. [Phase 1 Database Schema](#5-phase-1-database-schema)
 6. [Development Milestones & Action Plan](#6-development-milestones--action-plan)
+7. [Phase 2 — Circle Reorganization Proposal](#7-phase-2--circle-reorganization-proposal)
 
 ---
 
@@ -1254,6 +1255,38 @@ Full per-milestone write-ups (Objective, Deliverables, Exit Criterion) for every
 | [M-34: District Detail Inline Edit (Superadmin-Only)](summary.md#m-34-district-detail-inline-edit-superadmin-only--complete) | ✅ Complete |
 
 See summary.md's "Backlog / Not Started" section for planned future work (SMS OTP login, self-service admin provisioning UI), and its "Timeline Summary" / "Pre-Campaign Blockers" sections for the original estimates and department-side blockers as originally written. For the live, current-status blockers list, see CLAUDE.md.
+
+---
+
+## 7. Phase 2 — Circle Reorganization Proposal
+
+Phase 2 as originally scoped in §1 (boundary optimization, Inspector reassignment, spatial/revenue optimization algorithms) remains a future undertaking with no concrete implementation plan beyond what's described here. What shipped in M-116 is narrower and concrete: a read-only, admin-only viewer and exporter for one specific proposal the Additional Excise Commissioner's office produced externally — not a general optimization engine. See CLAUDE.md's "What Is Out of Scope" for the standing rule that no boundary-optimization *algorithm* gets built in this app; this section documents the one thing that did get built around it.
+
+### 7.1 Origin and conditions
+
+On 2026-09-23 the Additional Excise Commissioner's office proposed a re-carving of circle/sector boundaries within each district, built against six conditions:
+
+1. All circles/sectors of a district lie entirely within that district.
+2. Each circle/sector is a single contiguous area.
+3. Net creation and deletion of circles across the state is zero.
+4. A thana lies wholly within one circle; a circle can hold several thanas.
+5. Circle revenue within a district: target within ±25%, may be relaxed to ±30%.
+6. Objective: circles as equitable as possible, and more equitable than now.
+
+The proposal was computed entirely outside this app — condition-by-condition verification, revenue-deviation minimization, and the actual re-carving decisions were all made by the Commissioner's own external process. Their office delivered the result as a standalone Leaflet-based HTML viewer (`up_excise_circle_map.html`) carrying its own embedded current-vs-proposed dataset, plus a sample Excel workbook showing the proposed re-mapping applied to a full-state export. Verified against this app's live prod-derived export at the time: 75 districts, 402 circles/sectors currently → 402 proposed (net zero, satisfying condition 3).
+
+### 7.2 What this app does with it
+
+This app's role is strictly import, display, and export — never computation:
+
+- **Import** (one-time, `scripts/load-circle-reorg.ts`): parses the Commissioner's embedded JSON and loads it into three new, purely additive D1 tables (`circle_reorg_districts`, `circle_reorg_circles`, `circle_reorg_thanas` — see `migrations/0015_add_circle_reorg.sql` and CLAUDE.md's "Circle Reorganization Proposal" section for the full column list). No shop-level table — a shop's proposed circle is resolved at read time by joining the existing `phase1_raw_collection` against `circle_reorg_thanas` on thana name, since condition 4 guarantees that join is exact.
+- **Display**: `/admin/circle-reorg` (state overview — sortable district table of current/proposed circle counts and revenue-deviation before/after) and `/admin/circle-reorg/[district]` (a Leaflet map with a Current/Proposed toggle and a Thana-boundary overlay, plus circle- and thana-level tables). Admin/HQ-only — explicitly not reachable by a `deo` or `deputy` session, per the Commissioner's own instruction that this proposal is for HQ review only.
+- **Export**: an Excel report (`generateCircleReorgReport()`) matching the shape of the Commissioner's own sample workbook — a district-level summary, a Circle-Sector Summary computed against the proposed circle names, and a per-shop "Proposed Changes" diff sheet (previous circle vs. proposed circle, changed or not, and whether the proposed circle is an existing (re-carved) one or a genuinely new one).
+- **No write path.** Nothing in this feature can alter `district_circles_sectors`, `phase1_raw_collection`, or any district's live status. If the proposal is ever formally adopted, that would be a separate, deliberate future change — not something the viewer does on its own.
+
+### 7.3 Source files
+
+The Commissioner's raw deliverables (`up_excise_circle_map.html`, the sample `.xlsx` workbooks, the conditions-list image) live in the repo-local `proposed/` folder, which is gitignored — they carry real district-level revenue figures and are provided material, not something this project generates or should redistribute. Only the parsed D1 data (loaded once, remotely) and the application code that reads it are checked into version control.
 
 ---
 

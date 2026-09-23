@@ -1,0 +1,133 @@
+#!/usr/bin/env node
+/**
+ * Loads the Additional Excise Commissioner's Circle Reorganization Proposal (2026-09-23) into
+ * circle_reorg_districts / circle_reorg_circles / circle_reorg_thanas (migrations/0015).
+ *
+ * Source: proposed/up_excise_circle_map.html — a standalone Leaflet viewer the Commissioner's
+ * office produced, carrying its own already-computed current-vs-proposed data as a
+ * <script id="data" type="application/json"> block. This script only parses and reshapes that
+ * block; it runs no optimization of its own (see CLAUDE.md's "Circle Reorganization Proposal").
+ *
+ * Emits a .sql file of INSERT batches; it does not touch any database itself. Apply with:
+ *   wrangler d1 execute up-excise-spatial-revenue-optimizer-prod --local  --file=<out>
+ *   wrangler d1 execute up-excise-spatial-revenue-optimizer-prod --remote --file=<out>
+ * Purely additive (three new tables) — never touches phase1_raw_collection, districts, or
+ * district_circles_sectors.
+ *
+ * Usage: pnpm tsx scripts/load-circle-reorg.ts [outfile]
+ */
+
+import { readFileSync, writeFileSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { tmpdir } from 'node:os';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
+// normalizeThanaName from apps/web/src/lib/thana-name.ts — kept in sync by hand (this script is
+// outside the Next build graph, same convention as scripts/build-district-thanas.ts).
+const normalizeThanaName = (s: string) => (s ?? '').trim().replace(/\s+/g, ' ').toLowerCase();
+const esc = (s: string) => "'" + s.replace(/'/g, "''") + "'";
+const escJson = (v: unknown) => esc(JSON.stringify(v));
+const num = (v: number) => Math.round(v);
+
+const htmlPath = join(__dirname, '..', 'proposed', 'up_excise_circle_map.html');
+const html = readFileSync(htmlPath, 'utf-8');
+const m = html.match(/<script id="data" type="application\/json">([\s\S]*?)<\/script>/);
+if (!m) {
+  console.error(`Could not find <script id="data"> block in ${htmlPath}`);
+  process.exit(1);
+}
+
+type Circle = { name: string; status: 'kept' | 'new' | 'abolished'; cur?: number; new?: number; gcur?: unknown; gnew?: unknown };
+type Thana = { name: string; rev: number; shops: number; cur: number[]; new: number; g?: unknown; lab?: [number, number] };
+type DistrictSummary = { curdev: number; newdev: number; opt: string; basis: string; shopsmoved: number; stay: number };
+type District = { circles: Circle[]; thanas: Thana[]; ncur: number; nnew: number; noloc: number; summary: DistrictSummary };
+
+const payload: { types: string[]; data: Record<string, District> } = JSON.parse(m[1]!);
+const districtNames = Object.keys(payload.data);
+
+const districtRows: string[] = [];
+const circleRows: string[] = [];
+const thanaRows: string[] = [];
+
+for (const districtName of districtNames) {
+  const d = payload.data[districtName]!;
+
+  districtRows.push(
+    `(${esc(districtName)}, ${d.ncur}, ${d.nnew}, ${d.summary.curdev}, ${d.summary.newdev}, ` +
+    `${esc(d.summary.opt)}, ${esc(d.summary.basis)}, ${d.summary.shopsmoved}, ${d.summary.stay}, ${d.noloc})`,
+  );
+
+  for (const c of d.circles) {
+    circleRows.push(
+      `(${esc(districtName)}, ${esc(c.name)}, ${esc(c.status)}, ` +
+      `${c.cur != null ? num(c.cur) : 'NULL'}, ${c.new != null ? num(c.new) : 'NULL'}, ` +
+      `${c.gcur ? escJson(c.gcur) : 'NULL'}, ${c.gnew ? escJson(c.gnew) : 'NULL'})`,
+    );
+  }
+
+  for (const t of d.thanas) {
+    const curNames = t.cur.map((i) => d.circles[i]?.name).filter((n): n is string => !!n);
+    const newName = d.circles[t.new]?.name;
+    if (!newName) {
+      console.error(`  skip (no proposed circle resolved): ${districtName} / ${t.name}`);
+      continue;
+    }
+    thanaRows.push(
+      `(${esc(districtName)}, ${esc(t.name)}, ${esc(normalizeThanaName(t.name))}, ${num(t.rev)}, ${t.shops}, ` +
+      `${escJson(curNames)}, ${esc(newName)}, ${t.g ? escJson(t.g) : 'NULL'}, ` +
+      `${t.lab ? t.lab[0] : 'NULL'}, ${t.lab ? t.lab[1] : 'NULL'})`,
+    );
+  }
+}
+
+// Row byte length varies a lot here (a thana/circle row can carry several KB of GeoJSON
+// coordinates), so a fixed row-count chunk can still produce a statement D1 rejects with
+// SQLITE_TOOBIG. Chunk by cumulative byte size instead, with a row-count cap as a floor for
+// the geometry-free tables (circle_reorg_districts).
+const MAX_STATEMENT_BYTES = 80_000;
+const MAX_ROWS_PER_STATEMENT = 200;
+
+function chunkedInsert(header: string, rows: string[]): string[] {
+  const out: string[] = [];
+  let batch: string[] = [];
+  let batchBytes = 0;
+  const flush = () => { if (batch.length) { out.push(`${header}\n${batch.join(',\n')};`); batch = []; batchBytes = 0; } };
+  for (const row of rows) {
+    if (batch.length > 0 && (batchBytes + row.length > MAX_STATEMENT_BYTES || batch.length >= MAX_ROWS_PER_STATEMENT)) flush();
+    batch.push(row);
+    batchBytes += row.length;
+  }
+  flush();
+  return out;
+}
+
+const out: string[] = [
+  '-- Circle Reorganization Proposal data, generated by scripts/load-circle-reorg.ts',
+  `-- ${districtNames.length} districts, ${circleRows.length} circles, ${thanaRows.length} thanas`,
+  'DELETE FROM circle_reorg_thanas;',
+  'DELETE FROM circle_reorg_circles;',
+  'DELETE FROM circle_reorg_districts;',
+  ...chunkedInsert(
+    'INSERT INTO circle_reorg_districts (district_name, current_circle_count, proposed_circle_count, current_deviation, proposed_deviation, optimized, basis, shops_moved, shops_stay_fraction, no_location_count) VALUES',
+    districtRows,
+  ),
+  ...chunkedInsert(
+    'INSERT INTO circle_reorg_circles (district_name, name, status, current_revenue, proposed_revenue, current_boundary, proposed_boundary) VALUES',
+    circleRows,
+  ),
+  ...chunkedInsert(
+    'INSERT INTO circle_reorg_thanas (district_name, thana_name, thana_key, revenue, shop_count, current_circle_names, proposed_circle_name, boundary, label_lat, label_lon) VALUES',
+    thanaRows,
+  ),
+];
+
+const outfile = process.argv[2] || join(tmpdir(), `circle-reorg-${Date.now()}.sql`);
+writeFileSync(outfile, out.join('\n') + '\n', 'utf-8');
+
+console.log(`Wrote ${outfile}`);
+console.log(`  ${districtNames.length} districts, ${circleRows.length} circles, ${thanaRows.length} thanas`);
+const totalCur = districtNames.reduce((s, n) => s + payload.data[n]!.ncur, 0);
+const totalNew = districtNames.reduce((s, n) => s + payload.data[n]!.nnew, 0);
+console.log(`  statewide circle count: current ${totalCur} -> proposed ${totalNew} (net ${totalNew - totalCur})`);

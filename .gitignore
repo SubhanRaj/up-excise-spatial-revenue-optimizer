@@ -105,3 +105,7 @@ revenue-comparison/
 
 # ─── Local prod D1 backups (real shop/revenue data, never committed — see docs/local-analysis-db.md) ─
 backups/
+
+# ─── Raw Circle Reorganization proposal source files (Commissioner's HTML/xlsx/images —
+# never committed, only the parsed/loaded D1 data + app code that reads it are; see roadmap.md §7) ─
+proposed/

@@ -1203,3 +1203,102 @@ export async function generateFullStateWorkbook(
 
   return new Blob([await wb.xlsx.writeBuffer()], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
 }
+
+// ── Circle Reorganization Proposal export ───────────────────────────────────────
+// Matches the shape of the Additional Excise Commissioner's own proposal workbook: a
+// "Proposed Changes" row-per-shop diff sheet, plus the same Circle-Sector Summary builder
+// reused against the proposed circle names (no separate builder needed — see CLAUDE.md's
+// "Circle Reorganization Proposal" section for why no shop-level D1 table exists to join here;
+// this function does that join itself, in the browser, against the already-loaded shop export).
+
+export interface CircleReorgThanaJoinRow { districtName: string; thanaKey: string; proposedCircleName: string }
+export interface CircleReorgCircleJoinRow { districtName: string; name: string; status: 'kept' | 'new' | 'abolished' }
+
+const REORG_STATUS_LABEL: Record<string, string> = { kept: 'Existing (re-carved)', new: 'New circle' };
+
+function buildProposedChangesSheet(
+  wb: ExcelJSNamespace.Workbook,
+  shops: ExportShopRow[],
+  thanaLookup: Map<string, string>,      // `${district}::${thanaKey}` -> proposedCircleName
+  circleStatus: Map<string, string>,     // `${district}::${circleName}` -> status
+) {
+  const ws = wb.addWorksheet('Proposed Changes');
+  const headers = ['District Name', 'Shop ID', 'Shop Name', 'Thana Name', 'Previous Circle / Sector', 'Proposed Circle / Sector', 'Changed?', 'Proposed circle status'];
+
+  ws.mergeCells(1, 1, 1, headers.length);
+  const noteCell = ws.getCell(1, 1);
+  noteCell.value = 'Proposed circle/sector re-arrangement. This is a proposal and has not been approved. No live district or shop data was changed.';
+  noteCell.font = { italic: true, size: 10, color: { argb: 'FF64748B' } };
+  ws.getRow(1).height = 20;
+
+  ws.getRow(2).values = headers as ExcelJSNamespace.CellValue[];
+  styleHeaderRow(ws, 2);
+
+  for (const s of shops) {
+    const district = s.districtName ?? '';
+    const proposed = thanaLookup.get(`${district}::${normalizeThanaName(s.thanaName)}`);
+    const status = proposed ? (REORG_STATUS_LABEL[circleStatus.get(`${district}::${proposed}`) ?? ''] ?? '') : 'Not matched';
+    const changed = proposed != null && proposed !== s.circleSectorName;
+    ws.addRow([district, s.shopId, s.shopName, s.thanaName, s.circleSectorName, proposed ?? '—', changed ? 'Yes' : 'No', status]);
+  }
+
+  ws.columns = headers.map((h) => ({ width: Math.max(16, h.length + 2) }));
+  applyPrintSetup(ws, 2, headers.length);
+  ws.pageSetup.printTitlesRow = '1:2';
+  ws.views = [{ state: 'frozen', ySplit: 2, xSplit: 0 }];
+}
+
+function buildReorgDistrictsSheet(wb: ExcelJSNamespace.Workbook, reorgDistricts: {
+  districtName: string; currentCircleCount: number; proposedCircleCount: number;
+  currentDeviation: number; proposedDeviation: number; optimized: string; shopsMoved: number;
+}[]) {
+  const ws = wb.addWorksheet('Districts (Proposed)');
+  const headers = ['District', 'Current Circles', 'Proposed Circles', 'Deviation (Current)', 'Deviation (Proposed)', 'More Equitable?', 'Shops Re-assigned'];
+  ws.getRow(1).values = headers as ExcelJSNamespace.CellValue[];
+  styleHeaderRow(ws, 1);
+  for (const d of [...reorgDistricts].sort((a, b) => a.districtName.localeCompare(b.districtName))) {
+    ws.addRow([d.districtName, d.currentCircleCount, d.proposedCircleCount, d.currentDeviation, d.proposedDeviation, d.optimized, d.shopsMoved]);
+  }
+  ws.getColumn(4).numFmt = '0.0%';
+  ws.getColumn(5).numFmt = '0.0%';
+  ws.columns.forEach((c, i) => { c.width = Math.max(14, headers[i]!.length + 2); });
+  applyPrintSetup(ws, 1, headers.length);
+  ws.views = [{ state: 'frozen', ySplit: 1, xSplit: 0 }];
+}
+
+/**
+ * Circle Reorganization Proposal report: Districts (Proposed), Circle-Sector Summary
+ * (Proposed) — reuses the same builder as the full-state export, fed the proposed circle
+ * names instead of current — and Proposed Changes (the per-shop diff). Built entirely
+ * client-side from data already on this device (export_cache + the circle-reorg cache), same
+ * as every other export in this app.
+ */
+export async function generateCircleReorgReport(
+  shops: ExportShopRow[],
+  reorgDistricts: { districtName: string; currentCircleCount: number; proposedCircleCount: number; currentDeviation: number; proposedDeviation: number; optimized: string; shopsMoved: number }[],
+  reorgThanas: CircleReorgThanaJoinRow[],
+  reorgCircles: CircleReorgCircleJoinRow[],
+): Promise<Blob> {
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'UP Excise Spatial Revenue Optimizer';
+  wb.created = new Date();
+
+  const thanaLookup = new Map(reorgThanas.map((t) => [`${t.districtName}::${t.thanaKey}`, t.proposedCircleName]));
+  const circleStatus = new Map(reorgCircles.map((c) => [`${c.districtName}::${c.name}`, c.status]));
+
+  buildReorgDistrictsSheet(wb, reorgDistricts);
+
+  const proposedShops = shops.map((s) => {
+    const district = s.districtName ?? '';
+    const proposed = thanaLookup.get(`${district}::${normalizeThanaName(s.thanaName)}`);
+    return proposed ? { ...s, circleSectorName: proposed } : s;
+  });
+  const proposedUnits: StateExportUnit[] = reorgCircles
+    .filter((c) => c.status !== 'abolished')
+    .map((c) => ({ districtName: c.districtName, name: c.name, type: c.name.startsWith('Sector') ? 'sector' : 'circle' }));
+  buildCircleSectorSummarySheet(wb, proposedShops, proposedUnits);
+
+  buildProposedChangesSheet(wb, shops, thanaLookup, circleStatus);
+
+  return new Blob([await wb.xlsx.writeBuffer()], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+}

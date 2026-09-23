@@ -281,6 +281,7 @@ function getAdminDb(): DexieInstance {
     _adminDb.version(4).stores({ export_cache: 'key', districts_cache: 'key', map_cache: 'key', shops_cache: 'key', audit_cache: 'key', unlock_requests_cache: 'key' });
     _adminDb.version(5).stores({ export_cache: 'key', districts_cache: 'key', map_cache: 'key', shops_cache: 'key', audit_cache: 'key', unlock_requests_cache: 'key', settings_cache: 'key' });
     _adminDb.version(6).stores({ export_cache: 'key', districts_cache: 'key', map_cache: 'key', shops_cache: 'key', audit_cache: 'key', unlock_requests_cache: 'key', settings_cache: 'key', prior_year_cache: 'key' });
+    _adminDb.version(7).stores({ export_cache: 'key', districts_cache: 'key', map_cache: 'key', shops_cache: 'key', audit_cache: 'key', unlock_requests_cache: 'key', settings_cache: 'key', prior_year_cache: 'key', circle_reorg_cache: 'key' });
   }
   return _adminDb;
 }
@@ -440,6 +441,26 @@ export async function fetchFullPriorYearSnapshot(): Promise<PriorYearShop[]> {
     offset += page.rows.length;
   }
   return rows;
+}
+
+// ── Circle Reorganization Proposal cache — fetch once, never re-fetch ──────────
+// Same reasoning as priorYearSnapshotCache above: circle_reorg_* is static, loaded once by
+// scripts/load-circle-reorg.ts, never written at app runtime. No ttlMs, and deliberately not
+// wired into invalidateAllAdminCaches()/Sync All — the /admin/circle-reorg page's own hook
+// fetches it lazily on first visit (single unpaginated GET, ~410 circles + ~1510 thanas, well
+// under any row-count that needs paging) and it stays valid on this device forever after.
+export interface CircleReorgData {
+  districts: unknown[];
+  circles: unknown[];
+  thanas: unknown[];
+}
+
+export const circleReorgCache = makeKvCache<CircleReorgData>('circle_reorg_cache', { fixedKey: 'circle_reorg' });
+
+export async function fetchCircleReorgData(): Promise<CircleReorgData> {
+  const res = await fetch('/api/admin/circle-reorg');
+  if (!res.ok) throw new Error('circle reorg fetch failed');
+  return res.json();
 }
 
 // ── Deputy portal cache (M-102) ──────────────────────────────────────────────
