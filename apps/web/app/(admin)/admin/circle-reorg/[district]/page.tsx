@@ -3,6 +3,10 @@
 import { use, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useCircleReorgData, type ReorgCircle, type ReorgThana } from '@/hooks/useCircleReorgData';
+import { useAdminExportData } from '@/hooks/useAdminExportData';
+import { useExcludeHbrPrv } from '@/hooks/useExcludeHbrPrv';
+import { ShopExplorer, type ShopExplorerRow } from '@/components/ShopExplorer';
+import { normalizeThanaName } from '@/lib/thana-name';
 import { adminSettingsCache } from '@/lib/db';
 
 const fmt = (n: number | null) => n == null ? '—' : n >= 1e7 ? `₹${(n / 1e7).toFixed(2)} Cr` : n >= 1e5 ? `₹${(n / 1e5).toFixed(2)} L` : `₹${n.toLocaleString('en-IN')}`;
@@ -66,6 +70,40 @@ export default function CircleReorgDistrictPage({ params }: { params: Promise<{ 
   const districtSummary = data?.districts.find((d) => d.districtName === name) ?? null;
   const circles = useMemo(() => (data?.circles ?? []).filter((c) => c.districtName === name), [data, name]);
   const thanas = useMemo(() => (data?.thanas ?? []).filter((t) => t.districtName === name), [data, name]);
+
+  // Real shop rows for this district, off the same export_cache the /admin/export and
+  // /admin/circles-sectors pages already share — no dedicated fetch for this page.
+  const { data: exportData, loading: exportLoading, syncing: exportSyncing, sync: syncExport } = useAdminExportData();
+  const currentShops = useMemo(
+    () => (exportData?.rows.filter((r) => r.districtName === name) ?? []) as ShopExplorerRow[],
+    [exportData, name],
+  );
+  const currentUnits = useMemo(
+    () => exportData?.units.filter((u) => u.districtName === name) ?? [],
+    [exportData, name],
+  );
+
+  // Proposed grouping: no shop-level table exists for the proposal (see CLAUDE.md's "Circle
+  // Reorganization Proposal" section) — a shop's proposed circle is derived here the same way
+  // generateCircleReorgReport() does for the export, by matching its Thana against thanaKey.
+  const thanaToProposedCircle = useMemo(
+    () => new Map(thanas.map((t) => [t.thanaKey, t.proposedCircleName])),
+    [thanas],
+  );
+  const proposedShops = useMemo(() => currentShops.map((s) => {
+    const proposed = thanaToProposedCircle.get(normalizeThanaName(s.thanaName));
+    return proposed ? { ...s, circleSectorName: proposed } : s;
+  }), [currentShops, thanaToProposedCircle]);
+  const proposedUnits = useMemo(
+    () => circles.filter((c) => c.status !== 'abolished').map((c) => ({ name: c.name, type: c.name.startsWith('Sector') ? 'sector' : 'circle' })),
+    [circles],
+  );
+
+  const { hasHbrOrPrv, excludeHbrPrv, setExcludeHbrPrv, effectiveShops: effectiveCurrentShops } = useExcludeHbrPrv('circle-reorg', name, currentShops);
+  const effectiveProposedShops = useMemo(
+    () => (excludeHbrPrv ? proposedShops.filter((s) => s.shopType !== 'HBR' && s.shopType !== 'PRV') : proposedShops),
+    [proposedShops, excludeHbrPrv],
+  );
 
   const [circleSearch, setCircleSearch] = useState('');
   const [circleSort, setCircleSort] = useState<{ key: CircleSortKey; dir: 'asc' | 'desc' }>({ key: 'name', dir: 'asc' });
@@ -368,6 +406,45 @@ export default function CircleReorgDistrictPage({ params }: { params: Promise<{ 
               )}
             </tbody>
           </table>
+        </div>
+      </div>
+
+      <div className="bg-base-100 rounded-xl border border-base-200 overflow-hidden">
+        <div className="px-4 py-3 border-b border-base-200 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <span className="font-semibold text-sm">Shop Explorer</span>
+            <p className="text-xs text-base-content/60 mt-0.5">
+              {view === 'current'
+                ? "Shops grouped by their real, currently-registered circle/sector."
+                : "Shops grouped by proposed circle, derived from each shop's Thana — not stored data."}
+            </p>
+          </div>
+          <div className="join">
+            <button className={`btn btn-sm join-item ${view === 'current' ? 'btn-active' : ''}`} onClick={() => setView('current')}>Current</button>
+            <button className={`btn btn-sm join-item ${view === 'proposed' ? 'btn-active' : ''}`} onClick={() => setView('proposed')}>Proposed</button>
+          </div>
+        </div>
+        <div className="p-4">
+          {!exportData ? (
+            <div className="text-center text-sm text-base-content/70 py-8 space-y-3">
+              <p>Shop data not loaded on this device yet.</p>
+              <button className="btn btn-primary btn-sm" onClick={() => void syncExport()} disabled={exportSyncing}>
+                {exportSyncing && <span className="loading loading-spinner loading-xs" />}
+                Load Shop Data
+              </button>
+            </div>
+          ) : (
+            <ShopExplorer
+              shops={view === 'current' ? effectiveCurrentShops : effectiveProposedShops}
+              units={view === 'current' ? currentUnits : proposedUnits}
+              districtName={name}
+              loading={exportLoading}
+              storageKeyPrefix={view === 'current' ? 'circle-reorg-current' : 'circle-reorg-proposed'}
+              hasHbrOrPrv={hasHbrOrPrv}
+              excludeHbrPrv={excludeHbrPrv}
+              onExcludeHbrPrvChange={setExcludeHbrPrv}
+            />
+          )}
         </div>
       </div>
     </div>
