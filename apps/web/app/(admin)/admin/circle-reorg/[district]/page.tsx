@@ -20,6 +20,21 @@ const TILE_URLS = {
   dark: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
 } as const;
 
+// Same two extra base layers the Commissioner's own standalone viewer (up_excise_circle_map.html)
+// offers alongside its boundary drawing — OpenStreetMap for a plain street/road map, Esri World
+// Imagery for satellite. Neither needs an API key.
+const OSM_TILE_URL = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+const SATELLITE_TILE_URL = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
+type BaseLayerKind = 'carto' | 'osm' | 'satellite';
+
+// Uttar Pradesh only — matches the admin overview choropleth's own bounds (CLAUDE.md's "Choropleth
+// Map & GeoJSON Data" section). Every Leaflet map in this app is capped to this extent: panning or
+// zooming out to a world/country view would render India's disputed international borders, which
+// this portal has no business displaying one way or another.
+const UP_MAX_BOUNDS: [[number, number], [number, number]] = [[22.5, 76.0], [31.5, 85.5]];
+const UP_MIN_ZOOM = 6;
+const UP_MAX_ZOOM = 19;
+
 const STATUS_BADGE: Record<string, string> = { kept: 'badge-ghost', new: 'badge-success', abolished: 'badge-error' };
 
 // Stable hash → HSL color per circle name, so the same circle keeps the same color whether
@@ -39,6 +54,7 @@ function SortIcon({ active, dir }: { active: boolean; dir: 'asc' | 'desc' }) {
 // page's own separate Leaflet ambient block. See CLAUDE.md's Leaflet CDN-global note.
 interface LeafletMapH {
   fitBounds: (b: [[number, number], [number, number]], o?: { padding?: [number, number] }) => LeafletMapH;
+  setMaxBounds: (b: [[number, number], [number, number]]) => LeafletMapH;
   remove: () => void;
 }
 interface LeafletLatLngH { lat: number; lng: number }
@@ -50,7 +66,7 @@ interface LeafletLayerH {
   getBounds?: () => LeafletLatLngBoundsH;
 }
 declare const L: {
-  map: (id: string) => LeafletMapH;
+  map: (id: string, opts?: { minZoom?: number; maxZoom?: number }) => LeafletMapH;
   tileLayer: (url: string, opts: unknown) => LeafletLayerH;
   geoJSON: (data: unknown, opts: unknown) => LeafletLayerH;
 };
@@ -59,7 +75,13 @@ declare const Chart: { new (ctx: CanvasRenderingContext2D, config: unknown): { d
 type CircleSortKey = 'name' | 'currentRevenue' | 'proposedRevenue' | 'change';
 type ThanaSortKey = 'thanaName' | 'shopCount' | 'revenue';
 
-const TILE_URL = (t: 'light' | 'dark', cartoKey: string | null) => (cartoKey ? `${TILE_URLS[t]}?key=${cartoKey}` : TILE_URLS[t]);
+const CARTO_TILE_URL = (t: 'light' | 'dark', cartoKey: string | null) => (cartoKey ? `${TILE_URLS[t]}?key=${cartoKey}` : TILE_URLS[t]);
+
+function baseTileLayer(kind: BaseLayerKind, theme: 'light' | 'dark', cartoKey: string | null): LeafletLayerH {
+  if (kind === 'osm') return L.tileLayer(OSM_TILE_URL, { attribution: '© OpenStreetMap contributors', maxZoom: UP_MAX_ZOOM });
+  if (kind === 'satellite') return L.tileLayer(SATELLITE_TILE_URL, { attribution: 'Imagery © Esri', maxZoom: UP_MAX_ZOOM });
+  return L.tileLayer(CARTO_TILE_URL(theme, cartoKey), { attribution: '© CartoDB', maxZoom: UP_MAX_ZOOM });
+}
 
 // One Leaflet instance for one map card (Current or Proposed). Called twice, side by side, so
 // both boundary layers render at once instead of behind a shared toggle.
@@ -71,27 +93,29 @@ function useCircleMap(
   showThanas: boolean,
   cartoKey: string | null,
   theme: 'light' | 'dark',
+  baseLayer: BaseLayerKind,
 ) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstance = useRef<LeafletMapH | null>(null);
   const baseLayerRef = useRef<LeafletLayerH | null>(null);
   const layersRef = useRef<LeafletLayerH[]>([]);
 
-  // Base tile layer only — separate from the circle/thana layers below so a theme switch or a
-  // late-arriving CARTO key never has to rebuild the polygons themselves.
+  // Base tile layer only — separate from the circle/thana layers below so a theme/base-layer
+  // switch or a late-arriving CARTO key never has to rebuild the polygons themselves.
   useEffect(() => {
     if (!mapInstance.current || typeof L === 'undefined') return;
     baseLayerRef.current?.remove();
-    baseLayerRef.current = L.tileLayer(TILE_URL(theme, cartoKey), { attribution: '© CartoDB' }).addTo(mapInstance.current);
-  }, [theme, cartoKey]);
+    baseLayerRef.current = baseTileLayer(baseLayer, theme, cartoKey).addTo(mapInstance.current);
+  }, [theme, cartoKey, baseLayer]);
 
   useEffect(() => {
     if (!mapRef.current || circles.length === 0 || typeof L === 'undefined') return;
     if (!mapInstance.current) {
-      mapInstance.current = L.map(elId);
+      mapInstance.current = L.map(elId, { minZoom: UP_MIN_ZOOM, maxZoom: UP_MAX_ZOOM });
+      mapInstance.current.setMaxBounds(UP_MAX_BOUNDS);
     }
     if (!baseLayerRef.current) {
-      baseLayerRef.current = L.tileLayer(TILE_URL(theme, cartoKey), { attribution: '© CartoDB' }).addTo(mapInstance.current);
+      baseLayerRef.current = baseTileLayer(baseLayer, theme, cartoKey).addTo(mapInstance.current);
     }
     layersRef.current.forEach((l) => l.remove());
     layersRef.current = [];
@@ -147,6 +171,7 @@ export default function CircleReorgDistrictPage({ params }: { params: Promise<{ 
 
   const [view, setView] = useState<'current' | 'proposed'>('proposed');
   const [showThanas, setShowThanas] = useState(false);
+  const [baseLayer, setBaseLayer] = useState<BaseLayerKind>('carto');
 
   const districtSummary = data?.districts.find((d) => d.districtName === name) ?? null;
   const circles = useMemo(() => (data?.circles ?? []).filter((c) => c.districtName === name), [data, name]);
@@ -267,8 +292,8 @@ export default function CircleReorgDistrictPage({ params }: { params: Promise<{ 
 
   // Current and Proposed each get their own Leaflet instance, kept side by side, instead of one
   // map with a toggle — a re-carve is far easier to compare when both are on screen at once.
-  const currentMapRef = useCircleMap('circle-reorg-map-current', 'current', circles, thanas, showThanas, cartoKey, theme);
-  const proposedMapRef = useCircleMap('circle-reorg-map-proposed', 'proposed', circles, thanas, showThanas, cartoKey, theme);
+  const currentMapRef = useCircleMap('circle-reorg-map-current', 'current', circles, thanas, showThanas, cartoKey, theme, baseLayer);
+  const proposedMapRef = useCircleMap('circle-reorg-map-proposed', 'proposed', circles, thanas, showThanas, cartoKey, theme, baseLayer);
 
   if (loading) return <div className="p-8 text-center text-base-content/60">Loading…</div>;
   if (!data) return (
@@ -319,7 +344,12 @@ export default function CircleReorgDistrictPage({ params }: { params: Promise<{ 
       <div className="bg-base-100 rounded-xl border border-base-200 p-4">
         <div className="flex flex-wrap items-center gap-3 mb-3">
           <span className="font-semibold text-sm">Current vs. Proposed Circles</span>
-          <label className="label cursor-pointer gap-2 ml-auto">
+          <div className="join ml-auto">
+            <button className={`btn btn-xs join-item ${baseLayer === 'carto' ? 'btn-active' : ''}`} onClick={() => setBaseLayer('carto')}>Map</button>
+            <button className={`btn btn-xs join-item ${baseLayer === 'osm' ? 'btn-active' : ''}`} onClick={() => setBaseLayer('osm')}>Street</button>
+            <button className={`btn btn-xs join-item ${baseLayer === 'satellite' ? 'btn-active' : ''}`} onClick={() => setBaseLayer('satellite')}>Satellite</button>
+          </div>
+          <label className="label cursor-pointer gap-2">
             <input type="checkbox" className="checkbox checkbox-sm" checked={showThanas} onChange={(e) => setShowThanas(e.target.checked)} />
             <span className="label-text text-sm">Show Thana boundaries</span>
           </label>

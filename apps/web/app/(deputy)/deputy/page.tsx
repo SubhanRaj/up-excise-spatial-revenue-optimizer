@@ -104,6 +104,9 @@ export default function DeputyDashboard() {
 
     if (!mapInstance.current) {
       mapInstance.current = L.map('deputy-map', { minZoom: 6, maxZoom: 11, zoomSnap: 0.25 });
+      // Same UP-only cap as the admin overview choropleth (CLAUDE.md's "Choropleth Map" section)
+      // — panning or zooming out to a world view isn't something this portal should ever render.
+      mapInstance.current.setMaxBounds([[22.5, 76.0], [31.5, 85.5]]);
     } else {
       geoLayer.current?.remove();
     }
