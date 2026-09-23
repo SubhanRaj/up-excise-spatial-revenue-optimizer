@@ -3,9 +3,18 @@
 import { use, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useCircleReorgData, type ReorgCircle, type ReorgThana } from '@/hooks/useCircleReorgData';
+import { adminSettingsCache } from '@/lib/db';
 
 const fmt = (n: number | null) => n == null ? '—' : n >= 1e7 ? `₹${(n / 1e7).toFixed(2)} Cr` : n >= 1e5 ? `₹${(n / 1e5).toFixed(2)} L` : `₹${n.toLocaleString('en-IN')}`;
 const pct = (n: number) => `${(n * 100).toFixed(1)}%`;
+
+// CARTO stopped serving these tiles anonymously — every request needs a `key` query param
+// (see CLAUDE.md's M-82 note). Same free, domain-restricted key the overview choropleth uses,
+// read from the same GET /api/admin/settings response.
+const TILE_URLS = {
+  light: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+  dark: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+} as const;
 
 const STATUS_BADGE: Record<string, string> = { kept: 'badge-ghost', new: 'badge-success', abolished: 'badge-error' };
 
@@ -23,11 +32,13 @@ interface LeafletMapH {
   fitBounds: (b: [[number, number], [number, number]], o?: { padding?: [number, number] }) => LeafletMapH;
   remove: () => void;
 }
+interface LeafletLatLngH { lat: number; lng: number }
+interface LeafletLatLngBoundsH { getSouthWest: () => LeafletLatLngH; getNorthEast: () => LeafletLatLngH }
 interface LeafletLayerH {
   addTo: (m: LeafletMapH) => LeafletLayerH;
   remove: () => void;
   bindTooltip?: (t: string, o?: unknown) => void;
-  getBounds?: () => [[number, number], [number, number]];
+  getBounds?: () => LeafletLatLngBoundsH;
 }
 declare const L: {
   map: (id: string) => LeafletMapH;
@@ -49,18 +60,56 @@ export default function CircleReorgDistrictPage({ params }: { params: Promise<{ 
 
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstance = useRef<LeafletMapH | null>(null);
+  const baseLayerRef = useRef<LeafletLayerH | null>(null);
   const layersRef = useRef<LeafletLayerH[]>([]);
+  const [cartoKey, setCartoKey] = useState<string | null>(null);
+  const [theme, setTheme] = useState<'light' | 'dark'>('light');
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const cached = await adminSettingsCache.get() as { cartoApiKey: string | null } | null;
+      if (cached?.cartoApiKey) { if (alive) setCartoKey(cached.cartoApiKey); return; }
+      const res = await fetch('/api/admin/settings');
+      if (!res.ok || !alive) return;
+      const s = await res.json() as { cartoApiKey: string | null };
+      void adminSettingsCache.set(s);
+      setCartoKey(s.cartoApiKey ?? null);
+    })();
+    return () => { alive = false; };
+  }, []);
+
+  useEffect(() => {
+    const syncTheme = () => setTheme(document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light');
+    syncTheme();
+    const observer = new MutationObserver(syncTheme);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    return () => observer.disconnect();
+  }, []);
+
+  const tileUrl = (t: 'light' | 'dark') => (cartoKey ? `${TILE_URLS[t]}?key=${cartoKey}` : TILE_URLS[t]);
+
+  // Base tile layer only — separate from the circle/thana layers below so a theme switch or a
+  // late-arriving CARTO key never has to rebuild the polygons themselves.
+  useEffect(() => {
+    if (!mapInstance.current || typeof L === 'undefined') return;
+    baseLayerRef.current?.remove();
+    baseLayerRef.current = L.tileLayer(tileUrl(theme), { attribution: '© CartoDB' }).addTo(mapInstance.current);
+  }, [theme, cartoKey]);
 
   useEffect(() => {
     if (!mapRef.current || circles.length === 0 || typeof L === 'undefined') return;
     if (!mapInstance.current) {
       mapInstance.current = L.map('circle-reorg-map');
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: '© CartoDB' }).addTo(mapInstance.current);
+    }
+    if (!baseLayerRef.current) {
+      baseLayerRef.current = L.tileLayer(tileUrl(theme), { attribution: '© CartoDB' }).addTo(mapInstance.current);
     }
     layersRef.current.forEach((l) => l.remove());
     layersRef.current = [];
 
-    let bounds: [[number, number], [number, number]] | null = null;
+    let swLat = Infinity, swLng = Infinity, neLat = -Infinity, neLng = -Infinity;
+    let hasBounds = false;
 
     for (const c of circles) {
       const geom = view === 'current' ? c.currentBoundary : c.proposedBoundary;
@@ -72,7 +121,13 @@ export default function CircleReorgDistrictPage({ params }: { params: Promise<{ 
       layer.bindTooltip?.(c.name, { permanent: false });
       layersRef.current.push(layer);
       const b = layer.getBounds?.();
-      if (b) bounds = bounds ? [[Math.min(bounds[0][0], b[0][0]), Math.min(bounds[0][1], b[0][1])], [Math.max(bounds[1][0], b[1][0]), Math.max(bounds[1][1], b[1][1])]] : b;
+      if (b) {
+        const sw = b.getSouthWest();
+        const ne = b.getNorthEast();
+        swLat = Math.min(swLat, sw.lat); swLng = Math.min(swLng, sw.lng);
+        neLat = Math.max(neLat, ne.lat); neLng = Math.max(neLng, ne.lng);
+        hasBounds = true;
+      }
     }
 
     if (showThanas) {
@@ -86,7 +141,7 @@ export default function CircleReorgDistrictPage({ params }: { params: Promise<{ 
       }
     }
 
-    if (bounds) mapInstance.current.fitBounds(bounds, { padding: [16, 16] });
+    if (hasBounds) mapInstance.current.fitBounds([[swLat, swLng], [neLat, neLng]], { padding: [16, 16] });
 
     return () => { layersRef.current.forEach((l) => l.remove()); layersRef.current = []; };
   }, [circles, thanas, view, showThanas]);

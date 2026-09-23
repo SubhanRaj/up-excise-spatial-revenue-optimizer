@@ -255,47 +255,55 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   return (
     <div className="min-h-screen bg-base-200">
-      {/* z-[1000] — must exceed Leaflet tooltip pane (z-index 650) */}
-      <nav className="navbar bg-base-100 shadow-sm px-3 sm:px-6 sticky top-0 z-[1000]">
-        <div className="flex-1 flex items-center gap-2 sm:gap-3">
-          <button
-            type="button"
-            className="btn btn-ghost btn-sm btn-square md:hidden"
-            aria-label="Open navigation menu"
-            aria-expanded={drawerOpen}
-            onClick={() => setDrawerOpen(true)}
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
-          </button>
-          <Link href="/admin" className="flex items-center gap-3 group">
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-9 h-9 sm:w-10 sm:h-10 text-primary shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18"/><path d="M9 8h1"/><path d="M9 12h1"/><path d="M9 16h1"/><path d="M14 8h1"/><path d="M14 12h1"/><path d="M14 16h1"/><path d="M5 21V6l7-3 7 3v15"/></svg>
-            <div className="hidden md:block">
-              <div className="font-bold text-sm leading-tight group-hover:text-primary transition-colors">UP Excise SRO</div>
-              <div className="text-xs text-base-content/70 leading-tight">Headquarters Dashboard</div>
-            </div>
-          </Link>
-        </div>
+      {/* z-[1000] — must exceed Leaflet tooltip pane (z-index 650). Two rows: the header row
+          (logo, search, Sync All, profile) never has to share width with the nav links, which
+          get their own slim strip below it — nine links no longer squeeze the logo down to fit
+          next to them on the same line. */}
+      <div className="sticky top-0 z-[1000] bg-base-100 shadow-sm">
+        <nav className="navbar px-3 sm:px-6">
+          <div className="flex-1 flex items-center gap-2 sm:gap-3">
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm btn-square md:hidden"
+              aria-label="Open navigation menu"
+              aria-expanded={drawerOpen}
+              onClick={() => setDrawerOpen(true)}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+            </button>
+            <Link href="/admin" className="flex items-center gap-3 group">
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-9 h-9 sm:w-10 sm:h-10 text-primary shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18"/><path d="M9 8h1"/><path d="M9 12h1"/><path d="M9 16h1"/><path d="M14 8h1"/><path d="M14 12h1"/><path d="M14 16h1"/><path d="M5 21V6l7-3 7 3v15"/></svg>
+              <div className="hidden md:block">
+                <div className="font-bold text-sm leading-tight group-hover:text-primary transition-colors">UP Excise SRO</div>
+                <div className="text-xs text-base-content/70 leading-tight">Headquarters Dashboard</div>
+              </div>
+            </Link>
+          </div>
 
-        <SearchBar />
+          <SearchBar />
 
-        <div className="hidden md:flex flex-none items-center flex-wrap justify-end gap-1">
+          <div className="hidden md:flex flex-none items-center gap-1">
+            <SyncAllButton />
+            {session && <ProfileMenu session={session} />}
+          </div>
+
+          {/* Mobile-only: sign out stays reachable in the header itself (identity + everything
+              else — nav links, search, sync — moves into the drawer, see below) — matching the
+              hasDrawer pattern in the sibling excise-revenue-recovery-portal project's
+              AppHeader.tsx. */}
+          <div className="flex md:hidden flex-none items-center gap-1">
+            <button className="btn btn-ghost btn-sm btn-square" onClick={signOut} aria-label="Sign out">
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+            </button>
+          </div>
+        </nav>
+
+        <div className="hidden md:flex items-center gap-1 px-3 sm:px-6 pb-2 overflow-x-auto">
           {navLinks.map((l) => (
-            <Link key={l.href} href={l.href} className={`btn btn-ghost btn-sm ${l.active(pathname) ? 'btn-active' : ''}`}>{l.label}</Link>
+            <Link key={l.href} href={l.href} className={`btn btn-ghost btn-xs whitespace-nowrap ${l.active(pathname) ? 'btn-active' : ''}`}>{l.label}</Link>
           ))}
-          <SyncAllButton />
-          {session && <ProfileMenu session={session} />}
         </div>
-
-        {/* Mobile-only: sign out stays reachable in the header itself (identity + everything
-            else — nav links, search, sync — moves into the drawer, see below) — matching the
-            hasDrawer pattern in the sibling excise-revenue-recovery-portal project's
-            AppHeader.tsx. */}
-        <div className="flex md:hidden flex-none items-center gap-1">
-          <button className="btn btn-ghost btn-sm btn-square" onClick={signOut} aria-label="Sign out">
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
-          </button>
-        </div>
-      </nav>
+      </div>
 
       {drawerOpen && (
         <>
