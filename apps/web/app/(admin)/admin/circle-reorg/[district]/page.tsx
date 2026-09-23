@@ -26,6 +26,11 @@ function colorForName(name: string): string {
   return `hsl(${h % 360}, 65%, 55%)`;
 }
 
+function SortIcon({ active, dir }: { active: boolean; dir: 'asc' | 'desc' }) {
+  if (!active) return <span className="text-base-content/40 ml-1">⇅</span>;
+  return <span className="text-info ml-1">{dir === 'asc' ? '↑' : '↓'}</span>;
+}
+
 // Ambient, file-local only (not `declare global`) — avoids colliding with the admin overview
 // page's own separate Leaflet ambient block. See CLAUDE.md's Leaflet CDN-global note.
 interface LeafletMapH {
@@ -45,6 +50,10 @@ declare const L: {
   tileLayer: (url: string, opts: unknown) => LeafletLayerH;
   geoJSON: (data: unknown, opts: unknown) => LeafletLayerH;
 };
+declare const Chart: { new (ctx: CanvasRenderingContext2D, config: unknown): { destroy: () => void } };
+
+type CircleSortKey = 'name' | 'currentRevenue' | 'proposedRevenue' | 'change';
+type ThanaSortKey = 'thanaName' | 'shopCount' | 'revenue';
 
 export default function CircleReorgDistrictPage({ params }: { params: Promise<{ district: string }> }) {
   const { district } = use(params);
@@ -57,6 +66,60 @@ export default function CircleReorgDistrictPage({ params }: { params: Promise<{ 
   const districtSummary = data?.districts.find((d) => d.districtName === name) ?? null;
   const circles = useMemo(() => (data?.circles ?? []).filter((c) => c.districtName === name), [data, name]);
   const thanas = useMemo(() => (data?.thanas ?? []).filter((t) => t.districtName === name), [data, name]);
+
+  const [circleSearch, setCircleSearch] = useState('');
+  const [circleSort, setCircleSort] = useState<{ key: CircleSortKey; dir: 'asc' | 'desc' }>({ key: 'name', dir: 'asc' });
+  const changeOf = (c: ReorgCircle) => (c.currentRevenue && c.proposedRevenue ? (c.proposedRevenue - c.currentRevenue) / c.currentRevenue : null);
+  const circleRows = useMemo(() => {
+    const filtered = circles.filter((c) => !circleSearch || c.name.toLowerCase().includes(circleSearch.toLowerCase()));
+    return [...filtered].sort((a, b) => {
+      let cmp = 0;
+      if (circleSort.key === 'name') cmp = a.name.localeCompare(b.name);
+      else if (circleSort.key === 'change') cmp = (changeOf(a) ?? -Infinity) - (changeOf(b) ?? -Infinity);
+      else cmp = (a[circleSort.key] ?? 0) - (b[circleSort.key] ?? 0);
+      return circleSort.dir === 'asc' ? cmp : -cmp;
+    });
+  }, [circles, circleSearch, circleSort]);
+  function toggleCircleSort(key: CircleSortKey) {
+    setCircleSort((s) => (s.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }));
+  }
+
+  const [thanaSearch, setThanaSearch] = useState('');
+  const [changedOnly, setChangedOnly] = useState(false);
+  const [thanaSort, setThanaSort] = useState<{ key: ThanaSortKey; dir: 'asc' | 'desc' }>({ key: 'thanaName', dir: 'asc' });
+  const isChanged = (t: ReorgThana) => !(t.currentCircleNames.length === 1 && t.currentCircleNames[0] === t.proposedCircleName);
+  const thanaRows = useMemo(() => {
+    let filtered = thanas.filter((t) => !thanaSearch || t.thanaName.toLowerCase().includes(thanaSearch.toLowerCase()));
+    if (changedOnly) filtered = filtered.filter(isChanged);
+    return [...filtered].sort((a, b) => {
+      const cmp = thanaSort.key === 'thanaName' ? a.thanaName.localeCompare(b.thanaName) : a[thanaSort.key] - b[thanaSort.key];
+      return thanaSort.dir === 'asc' ? cmp : -cmp;
+    });
+  }, [thanas, thanaSearch, changedOnly, thanaSort]);
+  function toggleThanaSort(key: ThanaSortKey) {
+    setThanaSort((s) => (s.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }));
+  }
+
+  const chartRef = useRef<HTMLCanvasElement>(null);
+  const chartInstance = useRef<{ destroy: () => void } | null>(null);
+  useEffect(() => {
+    chartInstance.current?.destroy();
+    chartInstance.current = null;
+    if (!chartRef.current || circles.length === 0 || typeof Chart === 'undefined') return;
+    const sorted = [...circles].sort((a, b) => (b.proposedRevenue ?? b.currentRevenue ?? 0) - (a.proposedRevenue ?? a.currentRevenue ?? 0));
+    chartInstance.current = new Chart(chartRef.current.getContext('2d')!, {
+      type: 'bar',
+      data: {
+        labels: sorted.map((c) => c.name),
+        datasets: [
+          { label: 'Current Revenue', data: sorted.map((c) => c.currentRevenue ?? 0), backgroundColor: '#94a3b8' },
+          { label: 'Proposed Revenue', data: sorted.map((c) => c.proposedRevenue ?? 0), backgroundColor: '#1d4ed8' },
+        ],
+      },
+      options: { indexAxis: 'y', maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } },
+    });
+    return () => { chartInstance.current?.destroy(); chartInstance.current = null; };
+  }, [circles]);
 
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstance = useRef<LeafletMapH | null>(null);
@@ -165,58 +228,133 @@ export default function CircleReorgDistrictPage({ params }: { params: Promise<{ 
       <div>
         <Link href="/admin/circle-reorg" className="text-sm link link-hover">&larr; Circle Reorganization Proposal</Link>
         <h1 className="text-2xl font-bold tracking-tight mt-1">{name}</h1>
-        <p className="text-sm text-base-content/70 mt-0.5">
-          {districtSummary.currentCircleCount} circles/sectors currently &rarr; {districtSummary.proposedCircleCount} proposed ·
-          {' '}revenue deviation {pct(districtSummary.currentDeviation)} &rarr; {pct(districtSummary.proposedDeviation)} ·
-          {' '}{districtSummary.shopsMoved.toLocaleString()} shops re-assigned
-        </p>
       </div>
 
-      <div className="bg-base-100 rounded-xl border border-base-200 p-4">
-        <div className="flex flex-wrap items-center gap-3 mb-3">
-          <div className="join">
-            <button className={`btn btn-sm join-item ${view === 'current' ? 'btn-active' : ''}`} onClick={() => setView('current')}>Current</button>
-            <button className={`btn btn-sm join-item ${view === 'proposed' ? 'btn-active' : ''}`} onClick={() => setView('proposed')}>Proposed</button>
-          </div>
-          <label className="label cursor-pointer gap-2">
-            <input type="checkbox" className="checkbox checkbox-sm" checked={showThanas} onChange={(e) => setShowThanas(e.target.checked)} />
-            <span className="label-text text-sm">Show Thana boundaries</span>
-          </label>
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div className="bg-base-100 rounded-xl border border-base-200 px-4 py-3">
+          <div className="text-xs text-base-content/70">Current Circles</div>
+          <div className="text-xl font-bold tabular-nums">{districtSummary.currentCircleCount}</div>
         </div>
-        <div id="circle-reorg-map" ref={mapRef} style={{ height: 480, borderRadius: 8 }} />
+        <div className="bg-base-100 rounded-xl border border-base-200 px-4 py-3">
+          <div className="text-xs text-base-content/70">Proposed Circles</div>
+          <div className="text-xl font-bold tabular-nums">{districtSummary.proposedCircleCount}</div>
+        </div>
+        <div className="bg-base-100 rounded-xl border border-base-200 px-4 py-3">
+          <div className="text-xs text-base-content/70">Deviation Now</div>
+          <div className="text-xl font-bold tabular-nums">{pct(districtSummary.currentDeviation)}</div>
+        </div>
+        <div className="bg-base-100 rounded-xl border border-base-200 px-4 py-3">
+          <div className="text-xs text-base-content/70">Deviation Proposed</div>
+          <div className="text-xl font-bold tabular-nums">{pct(districtSummary.proposedDeviation)}</div>
+        </div>
+        <div className="bg-base-100 rounded-xl border border-base-200 px-4 py-3">
+          <div className="text-xs text-base-content/70">Shops Re-assigned</div>
+          <div className="text-xl font-bold tabular-nums">{districtSummary.shopsMoved.toLocaleString()}</div>
+        </div>
+        <div className="bg-base-100 rounded-xl border border-base-200 px-4 py-3">
+          <div className="text-xs text-base-content/70">More Equitable?</div>
+          <div className="mt-1"><span className={`badge ${districtSummary.optimized === 'Yes' ? 'badge-success' : 'badge-ghost'}`}>{districtSummary.optimized}</span></div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+        <div className="bg-base-100 rounded-xl border border-base-200 p-4 lg:col-span-3">
+          <div className="flex flex-wrap items-center gap-3 mb-3">
+            <div className="join">
+              <button className={`btn btn-sm join-item ${view === 'current' ? 'btn-active' : ''}`} onClick={() => setView('current')}>Current</button>
+              <button className={`btn btn-sm join-item ${view === 'proposed' ? 'btn-active' : ''}`} onClick={() => setView('proposed')}>Proposed</button>
+            </div>
+            <label className="label cursor-pointer gap-2">
+              <input type="checkbox" className="checkbox checkbox-sm" checked={showThanas} onChange={(e) => setShowThanas(e.target.checked)} />
+              <span className="label-text text-sm">Show Thana boundaries</span>
+            </label>
+          </div>
+          <div id="circle-reorg-map" ref={mapRef} style={{ height: 480, borderRadius: 8 }} />
+        </div>
+
+        <div className="bg-base-100 rounded-xl border border-base-200 p-4 lg:col-span-2">
+          <div className="font-semibold text-sm mb-2">Revenue by Circle — Current vs. Proposed</div>
+          <div style={{ height: Math.max(320, circles.length * 34) }}>
+            <canvas ref={chartRef} aria-label="Circle revenue comparison chart" />
+          </div>
+        </div>
       </div>
 
       <div className="bg-base-100 rounded-xl border border-base-200 overflow-hidden">
-        <div className="px-4 py-3 border-b border-base-200 font-semibold text-sm">Circles / Sectors</div>
+        <div className="px-4 py-3 border-b border-base-200 flex flex-wrap items-center gap-3">
+          <span className="font-semibold text-sm">Circles / Sectors</span>
+          <input
+            type="text"
+            placeholder="Search circle…"
+            className="input input-sm input-bordered ml-auto w-full max-w-xs"
+            value={circleSearch}
+            onChange={(e) => setCircleSearch(e.target.value)}
+          />
+        </div>
         <div className="overflow-x-auto">
           <table className="table table-fixed w-full">
-            <colgroup><col style={{ width: '34%' }} /><col style={{ width: '16%' }} /><col style={{ width: '25%' }} /><col style={{ width: '25%' }} /></colgroup>
-            <thead><tr><th>Name</th><th>Status</th><th className="text-right">Current Revenue</th><th className="text-right">Proposed Revenue</th></tr></thead>
+            <colgroup><col style={{ width: '32%' }} /><col style={{ width: '14%' }} /><col style={{ width: '18%' }} /><col style={{ width: '18%' }} /><col style={{ width: '18%' }} /></colgroup>
+            <thead>
+              <tr>
+                <th className="cursor-pointer select-none" onClick={() => toggleCircleSort('name')}>Name <SortIcon active={circleSort.key === 'name'} dir={circleSort.dir} /></th>
+                <th>Status</th>
+                <th className="cursor-pointer select-none text-right" onClick={() => toggleCircleSort('currentRevenue')}>Current Revenue <SortIcon active={circleSort.key === 'currentRevenue'} dir={circleSort.dir} /></th>
+                <th className="cursor-pointer select-none text-right" onClick={() => toggleCircleSort('proposedRevenue')}>Proposed Revenue <SortIcon active={circleSort.key === 'proposedRevenue'} dir={circleSort.dir} /></th>
+                <th className="cursor-pointer select-none text-right" onClick={() => toggleCircleSort('change')}>Change <SortIcon active={circleSort.key === 'change'} dir={circleSort.dir} /></th>
+              </tr>
+            </thead>
             <tbody>
-              {circles.map((c: ReorgCircle) => (
-                <tr key={c.id} className="hover">
-                  <td className="flex items-center gap-2"><span className="inline-block w-3 h-3 rounded-full" style={{ backgroundColor: colorForName(c.name) }} />{c.name}</td>
-                  <td><span className={`badge badge-sm ${STATUS_BADGE[c.status] ?? ''}`}>{c.status}</span></td>
-                  <td className="text-right tabular-nums">{fmt(c.currentRevenue)}</td>
-                  <td className="text-right tabular-nums">{fmt(c.proposedRevenue)}</td>
-                </tr>
-              ))}
+              {circleRows.map((c: ReorgCircle) => {
+                const change = changeOf(c);
+                return (
+                  <tr key={c.id} className="hover">
+                    <td className="flex items-center gap-2"><span className="inline-block w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: colorForName(c.name) }} />{c.name}</td>
+                    <td><span className={`badge badge-sm ${STATUS_BADGE[c.status] ?? ''}`}>{c.status}</span></td>
+                    <td className="text-right tabular-nums">{fmt(c.currentRevenue)}</td>
+                    <td className="text-right tabular-nums">{fmt(c.proposedRevenue)}</td>
+                    <td className={`text-right tabular-nums font-medium ${change == null ? 'text-base-content/40' : change >= 0 ? 'text-success' : 'text-error'}`}>
+                      {change == null ? '—' : `${change >= 0 ? '+' : ''}${(change * 100).toFixed(1)}%`}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
       </div>
 
       <div className="bg-base-100 rounded-xl border border-base-200 overflow-hidden">
-        <div className="px-4 py-3 border-b border-base-200 font-semibold text-sm">Thanas</div>
+        <div className="px-4 py-3 border-b border-base-200 flex flex-wrap items-center gap-3">
+          <span className="font-semibold text-sm">Thanas</span>
+          <label className="label cursor-pointer gap-2">
+            <input type="checkbox" className="checkbox checkbox-sm" checked={changedOnly} onChange={(e) => setChangedOnly(e.target.checked)} />
+            <span className="label-text text-sm">Changed only</span>
+          </label>
+          <input
+            type="text"
+            placeholder="Search thana…"
+            className="input input-sm input-bordered ml-auto w-full max-w-xs"
+            value={thanaSearch}
+            onChange={(e) => setThanaSearch(e.target.value)}
+          />
+        </div>
         <div className="overflow-x-auto">
           <table className="table table-fixed w-full">
             <colgroup><col style={{ width: '24%' }} /><col style={{ width: '12%' }} /><col style={{ width: '18%' }} /><col style={{ width: '23%' }} /><col style={{ width: '23%' }} /></colgroup>
-            <thead><tr><th>Thana</th><th className="text-right">Shops</th><th className="text-right">Revenue</th><th>Current Circle(s)</th><th>Proposed Circle</th></tr></thead>
+            <thead>
+              <tr>
+                <th className="cursor-pointer select-none" onClick={() => toggleThanaSort('thanaName')}>Thana <SortIcon active={thanaSort.key === 'thanaName'} dir={thanaSort.dir} /></th>
+                <th className="cursor-pointer select-none text-right" onClick={() => toggleThanaSort('shopCount')}>Shops <SortIcon active={thanaSort.key === 'shopCount'} dir={thanaSort.dir} /></th>
+                <th className="cursor-pointer select-none text-right" onClick={() => toggleThanaSort('revenue')}>Revenue <SortIcon active={thanaSort.key === 'revenue'} dir={thanaSort.dir} /></th>
+                <th>Current Circle(s)</th>
+                <th>Proposed Circle</th>
+              </tr>
+            </thead>
             <tbody>
-              {thanas.map((t: ReorgThana) => {
-                const changed = !(t.currentCircleNames.length === 1 && t.currentCircleNames[0] === t.proposedCircleName);
+              {thanaRows.map((t: ReorgThana) => {
+                const changed = isChanged(t);
                 return (
-                  <tr key={t.id} className="hover">
+                  <tr key={t.id} className={`hover ${changed ? 'bg-warning/5' : ''}`}>
                     <td>{t.thanaName}</td>
                     <td className="text-right tabular-nums">{t.shopCount}</td>
                     <td className="text-right tabular-nums">{fmt(t.revenue)}</td>
@@ -225,6 +363,9 @@ export default function CircleReorgDistrictPage({ params }: { params: Promise<{ 
                   </tr>
                 );
               })}
+              {thanaRows.length === 0 && (
+                <tr><td colSpan={5} className="text-center text-sm text-base-content/60 py-6">No matching Thanas.</td></tr>
+              )}
             </tbody>
           </table>
         </div>

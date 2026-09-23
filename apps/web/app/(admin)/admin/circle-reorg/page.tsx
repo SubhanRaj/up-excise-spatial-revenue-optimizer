@@ -1,13 +1,13 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import HelpPanel from '@/app/_components/HelpPanel';
 import { useCircleReorgData } from '@/hooks/useCircleReorgData';
 import { useAdminExportData } from '@/hooks/useAdminExportData';
 import { generateCircleReorgReport } from '@/lib/excel';
 
-type SortKey = 'district' | 'currentCircleCount' | 'proposedCircleCount' | 'currentDeviation' | 'proposedDeviation' | 'shopsMoved';
+type SortKey = 'district' | 'currentCircleCount' | 'proposedCircleCount' | 'currentDeviation' | 'proposedDeviation' | 'improvement' | 'shopsMoved';
 
 function SortIcon({ active, dir }: { active: boolean; dir: 'asc' | 'desc' }) {
   if (!active) return <span className="text-base-content/40 ml-1">⇅</span>;
@@ -15,6 +15,12 @@ function SortIcon({ active, dir }: { active: boolean; dir: 'asc' | 'desc' }) {
 }
 
 const pct = (n: number) => `${(n * 100).toFixed(1)}%`;
+const improvement = (d: { currentDeviation: number; proposedDeviation: number }) => d.currentDeviation - d.proposedDeviation;
+
+// File-local ambient, not `declare global` — Chart.js is a CDN global (see CLAUDE.md's Frontend
+// CDN Stack table); the admin overview page separately declares the same shape as `declare
+// global`, but this file follows the same file-local convention its own Leaflet block uses.
+declare const Chart: { new (ctx: CanvasRenderingContext2D, config: unknown): { destroy: () => void } };
 
 export default function CircleReorgPage() {
   const { data, loading, syncing, sync } = useCircleReorgData();
@@ -53,6 +59,7 @@ export default function CircleReorgPage() {
     const sorted = [...filtered].sort((a, b) => {
       let cmp = 0;
       if (sortKey === 'district') cmp = a.districtName.localeCompare(b.districtName);
+      else if (sortKey === 'improvement') cmp = improvement(a) - improvement(b);
       else cmp = (a[sortKey] as number) - (b[sortKey] as number);
       return sortDir === 'asc' ? cmp : -cmp;
     });
@@ -68,6 +75,45 @@ export default function CircleReorgPage() {
       shopsMoved: data.districts.reduce((s, d) => s + d.shopsMoved, 0),
       optimizedCount: data.districts.filter((d) => d.optimized === 'Yes').length,
     };
+  }, [data]);
+
+  const chartRefs = { split: useRef<HTMLCanvasElement>(null), improve: useRef<HTMLCanvasElement>(null) };
+  const chartInstances = useRef<{ destroy: () => void }[]>([]);
+
+  useEffect(() => {
+    chartInstances.current.forEach((c) => c.destroy());
+    chartInstances.current = [];
+    if (!data || typeof Chart === 'undefined') return;
+
+    if (chartRefs.split.current) {
+      const no = data.districts.length - (totals?.optimizedCount ?? 0);
+      chartInstances.current.push(new Chart(chartRefs.split.current.getContext('2d')!, {
+        type: 'doughnut',
+        data: {
+          labels: ['More equitable under the proposal', 'Not improved'],
+          datasets: [{ data: [totals?.optimizedCount ?? 0, no], backgroundColor: ['#16a34a', '#94a3b8'] }],
+        },
+        options: { maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } },
+      }));
+    }
+
+    if (chartRefs.improve.current) {
+      const top = [...data.districts].sort((a, b) => improvement(b) - improvement(a)).slice(0, 15);
+      chartInstances.current.push(new Chart(chartRefs.improve.current.getContext('2d')!, {
+        type: 'bar',
+        data: {
+          labels: top.map((d) => d.districtName),
+          datasets: [{
+            label: 'Deviation reduced (percentage points)',
+            data: top.map((d) => +(improvement(d) * 100).toFixed(1)),
+            backgroundColor: top.map((d) => (improvement(d) >= 0 ? '#16a34a' : '#dc2626')),
+          }],
+        },
+        options: { indexAxis: 'y', maintainAspectRatio: false, plugins: { legend: { display: false } } },
+      }));
+    }
+
+    return () => { chartInstances.current.forEach((c) => c.destroy()); chartInstances.current = []; };
   }, [data]);
 
   return (
@@ -132,6 +178,21 @@ export default function CircleReorgPage() {
             </button>
           </div>
 
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="bg-base-100 rounded-xl border border-base-200 p-4">
+              <div className="font-semibold text-sm mb-2">Districts More Equitable Under the Proposal</div>
+              <div style={{ height: 300 }}>
+                <canvas ref={chartRefs.split} aria-label="Districts optimized vs not doughnut chart" />
+              </div>
+            </div>
+            <div className="bg-base-100 rounded-xl border border-base-200 p-4">
+              <div className="font-semibold text-sm mb-2">Revenue Deviation Improvement — Top 15 Districts</div>
+              <div style={{ height: 450 }}>
+                <canvas ref={chartRefs.improve} aria-label="Deviation improvement bar chart" />
+              </div>
+            </div>
+          </div>
+
           <div className="bg-base-100 rounded-xl border border-base-200 overflow-hidden">
             <div className="p-4 border-b border-base-200">
               <input
@@ -145,11 +206,12 @@ export default function CircleReorgPage() {
             <div className="overflow-x-auto">
               <table className="table table-fixed w-full">
                 <colgroup>
-                  <col style={{ width: '22%' }} />
-                  <col style={{ width: '13%' }} />
-                  <col style={{ width: '13%' }} />
-                  <col style={{ width: '14%' }} />
-                  <col style={{ width: '14%' }} />
+                  <col style={{ width: '20%' }} />
+                  <col style={{ width: '10%' }} />
+                  <col style={{ width: '10%' }} />
+                  <col style={{ width: '12%' }} />
+                  <col style={{ width: '12%' }} />
+                  <col style={{ width: '12%' }} />
                   <col style={{ width: '12%' }} />
                   <col style={{ width: '12%' }} />
                 </colgroup>
@@ -160,28 +222,35 @@ export default function CircleReorgPage() {
                     <th className="cursor-pointer select-none text-right" onClick={() => toggleSort('proposedCircleCount')}>Proposed <SortIcon active={sortKey === 'proposedCircleCount'} dir={sortDir} /></th>
                     <th className="cursor-pointer select-none text-right" onClick={() => toggleSort('currentDeviation')}>Deviation (now) <SortIcon active={sortKey === 'currentDeviation'} dir={sortDir} /></th>
                     <th className="cursor-pointer select-none text-right" onClick={() => toggleSort('proposedDeviation')}>Deviation (proposed) <SortIcon active={sortKey === 'proposedDeviation'} dir={sortDir} /></th>
+                    <th className="cursor-pointer select-none text-right" onClick={() => toggleSort('improvement')}>Improvement <SortIcon active={sortKey === 'improvement'} dir={sortDir} /></th>
                     <th className="cursor-pointer select-none text-right" onClick={() => toggleSort('shopsMoved')}>Shops Moved <SortIcon active={sortKey === 'shopsMoved'} dir={sortDir} /></th>
                     <th>More Equitable?</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((d) => (
-                    <tr key={d.districtName} className="hover">
-                      <td>
-                        <Link href={`/admin/circle-reorg/${encodeURIComponent(d.districtName)}`} className="link link-primary font-medium">
-                          {d.districtName}
-                        </Link>
-                      </td>
-                      <td className="text-right tabular-nums">{d.currentCircleCount}</td>
-                      <td className="text-right tabular-nums">{d.proposedCircleCount}</td>
-                      <td className="text-right tabular-nums">{pct(d.currentDeviation)}</td>
-                      <td className="text-right tabular-nums">{pct(d.proposedDeviation)}</td>
-                      <td className="text-right tabular-nums">{d.shopsMoved.toLocaleString()}</td>
-                      <td>
-                        <span className={`badge badge-sm ${d.optimized === 'Yes' ? 'badge-success' : 'badge-ghost'}`}>{d.optimized}</span>
-                      </td>
-                    </tr>
-                  ))}
+                  {rows.map((d) => {
+                    const imp = improvement(d);
+                    return (
+                      <tr key={d.districtName} className="hover">
+                        <td>
+                          <Link href={`/admin/circle-reorg/${encodeURIComponent(d.districtName)}`} className="link link-primary font-medium">
+                            {d.districtName}
+                          </Link>
+                        </td>
+                        <td className="text-right tabular-nums">{d.currentCircleCount}</td>
+                        <td className="text-right tabular-nums">{d.proposedCircleCount}</td>
+                        <td className="text-right tabular-nums">{pct(d.currentDeviation)}</td>
+                        <td className="text-right tabular-nums">{pct(d.proposedDeviation)}</td>
+                        <td className={`text-right tabular-nums font-medium ${imp > 0 ? 'text-success' : imp < 0 ? 'text-error' : ''}`}>
+                          {imp > 0 ? '↓ ' : imp < 0 ? '↑ ' : ''}{pct(Math.abs(imp))}
+                        </td>
+                        <td className="text-right tabular-nums">{d.shopsMoved.toLocaleString()}</td>
+                        <td>
+                          <span className={`badge badge-sm ${d.optimized === 'Yes' ? 'badge-success' : 'badge-ghost'}`}>{d.optimized}</span>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
