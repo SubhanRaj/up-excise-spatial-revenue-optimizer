@@ -59,6 +59,87 @@ declare const Chart: { new (ctx: CanvasRenderingContext2D, config: unknown): { d
 type CircleSortKey = 'name' | 'currentRevenue' | 'proposedRevenue' | 'change';
 type ThanaSortKey = 'thanaName' | 'shopCount' | 'revenue';
 
+const TILE_URL = (t: 'light' | 'dark', cartoKey: string | null) => (cartoKey ? `${TILE_URLS[t]}?key=${cartoKey}` : TILE_URLS[t]);
+
+// One Leaflet instance for one map card (Current or Proposed). Called twice, side by side, so
+// both boundary layers render at once instead of behind a shared toggle.
+function useCircleMap(
+  elId: string,
+  mode: 'current' | 'proposed',
+  circles: ReorgCircle[],
+  thanas: ReorgThana[],
+  showThanas: boolean,
+  cartoKey: string | null,
+  theme: 'light' | 'dark',
+) {
+  const mapRef = useRef<HTMLDivElement>(null);
+  const mapInstance = useRef<LeafletMapH | null>(null);
+  const baseLayerRef = useRef<LeafletLayerH | null>(null);
+  const layersRef = useRef<LeafletLayerH[]>([]);
+
+  // Base tile layer only — separate from the circle/thana layers below so a theme switch or a
+  // late-arriving CARTO key never has to rebuild the polygons themselves.
+  useEffect(() => {
+    if (!mapInstance.current || typeof L === 'undefined') return;
+    baseLayerRef.current?.remove();
+    baseLayerRef.current = L.tileLayer(TILE_URL(theme, cartoKey), { attribution: '© CartoDB' }).addTo(mapInstance.current);
+  }, [theme, cartoKey]);
+
+  useEffect(() => {
+    if (!mapRef.current || circles.length === 0 || typeof L === 'undefined') return;
+    if (!mapInstance.current) {
+      mapInstance.current = L.map(elId);
+    }
+    if (!baseLayerRef.current) {
+      baseLayerRef.current = L.tileLayer(TILE_URL(theme, cartoKey), { attribution: '© CartoDB' }).addTo(mapInstance.current);
+    }
+    layersRef.current.forEach((l) => l.remove());
+    layersRef.current = [];
+
+    let swLat = Infinity, swLng = Infinity, neLat = -Infinity, neLng = -Infinity;
+    let hasBounds = false;
+
+    for (const c of circles) {
+      const geom = mode === 'current' ? c.currentBoundary : c.proposedBoundary;
+      if (!geom) continue;
+      const color = colorForName(c.name);
+      const layer = L.geoJSON({ type: 'Feature', geometry: geom, properties: {} }, {
+        style: { fillColor: color, color, weight: 1.5, fillOpacity: 0.45 },
+      }).addTo(mapInstance.current);
+      layer.bindTooltip?.(c.name, { permanent: false });
+      layersRef.current.push(layer);
+      const b = layer.getBounds?.();
+      if (b) {
+        const sw = b.getSouthWest();
+        const ne = b.getNorthEast();
+        swLat = Math.min(swLat, sw.lat); swLng = Math.min(swLng, sw.lng);
+        neLat = Math.max(neLat, ne.lat); neLng = Math.max(neLng, ne.lng);
+        hasBounds = true;
+      }
+    }
+
+    if (showThanas) {
+      for (const t of thanas) {
+        if (!t.boundary) continue;
+        const layer = L.geoJSON({ type: 'Feature', geometry: t.boundary, properties: {} }, {
+          style: { fillColor: 'transparent', color: '#334155', weight: 1, dashArray: '3,3' },
+        }).addTo(mapInstance.current);
+        layer.bindTooltip?.(t.thanaName, { permanent: false });
+        layersRef.current.push(layer);
+      }
+    }
+
+    if (hasBounds) mapInstance.current.fitBounds([[swLat, swLng], [neLat, neLng]], { padding: [16, 16] });
+
+    return () => { layersRef.current.forEach((l) => l.remove()); layersRef.current = []; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- theme/cartoKey handled by the base-layer effect above
+  }, [circles, thanas, showThanas, elId, mode]);
+
+  useEffect(() => () => { mapInstance.current?.remove(); mapInstance.current = null; }, []);
+
+  return mapRef;
+}
+
 export default function CircleReorgDistrictPage({ params }: { params: Promise<{ district: string }> }) {
   const { district } = use(params);
   const name = decodeURIComponent(district);
@@ -159,10 +240,6 @@ export default function CircleReorgDistrictPage({ params }: { params: Promise<{ 
     return () => { chartInstance.current?.destroy(); chartInstance.current = null; };
   }, [circles]);
 
-  const mapRef = useRef<HTMLDivElement>(null);
-  const mapInstance = useRef<LeafletMapH | null>(null);
-  const baseLayerRef = useRef<LeafletLayerH | null>(null);
-  const layersRef = useRef<LeafletLayerH[]>([]);
   const [cartoKey, setCartoKey] = useState<string | null>(null);
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
 
@@ -188,66 +265,10 @@ export default function CircleReorgDistrictPage({ params }: { params: Promise<{ 
     return () => observer.disconnect();
   }, []);
 
-  const tileUrl = (t: 'light' | 'dark') => (cartoKey ? `${TILE_URLS[t]}?key=${cartoKey}` : TILE_URLS[t]);
-
-  // Base tile layer only — separate from the circle/thana layers below so a theme switch or a
-  // late-arriving CARTO key never has to rebuild the polygons themselves.
-  useEffect(() => {
-    if (!mapInstance.current || typeof L === 'undefined') return;
-    baseLayerRef.current?.remove();
-    baseLayerRef.current = L.tileLayer(tileUrl(theme), { attribution: '© CartoDB' }).addTo(mapInstance.current);
-  }, [theme, cartoKey]);
-
-  useEffect(() => {
-    if (!mapRef.current || circles.length === 0 || typeof L === 'undefined') return;
-    if (!mapInstance.current) {
-      mapInstance.current = L.map('circle-reorg-map');
-    }
-    if (!baseLayerRef.current) {
-      baseLayerRef.current = L.tileLayer(tileUrl(theme), { attribution: '© CartoDB' }).addTo(mapInstance.current);
-    }
-    layersRef.current.forEach((l) => l.remove());
-    layersRef.current = [];
-
-    let swLat = Infinity, swLng = Infinity, neLat = -Infinity, neLng = -Infinity;
-    let hasBounds = false;
-
-    for (const c of circles) {
-      const geom = view === 'current' ? c.currentBoundary : c.proposedBoundary;
-      if (!geom) continue;
-      const color = colorForName(c.name);
-      const layer = L.geoJSON({ type: 'Feature', geometry: geom, properties: {} }, {
-        style: { fillColor: color, color, weight: 1.5, fillOpacity: 0.45 },
-      }).addTo(mapInstance.current);
-      layer.bindTooltip?.(c.name, { permanent: false });
-      layersRef.current.push(layer);
-      const b = layer.getBounds?.();
-      if (b) {
-        const sw = b.getSouthWest();
-        const ne = b.getNorthEast();
-        swLat = Math.min(swLat, sw.lat); swLng = Math.min(swLng, sw.lng);
-        neLat = Math.max(neLat, ne.lat); neLng = Math.max(neLng, ne.lng);
-        hasBounds = true;
-      }
-    }
-
-    if (showThanas) {
-      for (const t of thanas) {
-        if (!t.boundary) continue;
-        const layer = L.geoJSON({ type: 'Feature', geometry: t.boundary, properties: {} }, {
-          style: { fillColor: 'transparent', color: '#334155', weight: 1, dashArray: '3,3' },
-        }).addTo(mapInstance.current);
-        layer.bindTooltip?.(t.thanaName, { permanent: false });
-        layersRef.current.push(layer);
-      }
-    }
-
-    if (hasBounds) mapInstance.current.fitBounds([[swLat, swLng], [neLat, neLng]], { padding: [16, 16] });
-
-    return () => { layersRef.current.forEach((l) => l.remove()); layersRef.current = []; };
-  }, [circles, thanas, view, showThanas]);
-
-  useEffect(() => () => { mapInstance.current?.remove(); mapInstance.current = null; }, []);
+  // Current and Proposed each get their own Leaflet instance, kept side by side, instead of one
+  // map with a toggle — a re-carve is far easier to compare when both are on screen at once.
+  const currentMapRef = useCircleMap('circle-reorg-map-current', 'current', circles, thanas, showThanas, cartoKey, theme);
+  const proposedMapRef = useCircleMap('circle-reorg-map-proposed', 'proposed', circles, thanas, showThanas, cartoKey, theme);
 
   if (loading) return <div className="p-8 text-center text-base-content/60">Loading…</div>;
   if (!data) return (
@@ -295,26 +316,30 @@ export default function CircleReorgDistrictPage({ params }: { params: Promise<{ 
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-        <div className="bg-base-100 rounded-xl border border-base-200 p-4 lg:col-span-3">
-          <div className="flex flex-wrap items-center gap-3 mb-3">
-            <div className="join">
-              <button className={`btn btn-sm join-item ${view === 'current' ? 'btn-active' : ''}`} onClick={() => setView('current')}>Current</button>
-              <button className={`btn btn-sm join-item ${view === 'proposed' ? 'btn-active' : ''}`} onClick={() => setView('proposed')}>Proposed</button>
-            </div>
-            <label className="label cursor-pointer gap-2">
-              <input type="checkbox" className="checkbox checkbox-sm" checked={showThanas} onChange={(e) => setShowThanas(e.target.checked)} />
-              <span className="label-text text-sm">Show Thana boundaries</span>
-            </label>
-          </div>
-          <div id="circle-reorg-map" ref={mapRef} style={{ height: 480, borderRadius: 8 }} />
+      <div className="bg-base-100 rounded-xl border border-base-200 p-4">
+        <div className="flex flex-wrap items-center gap-3 mb-3">
+          <span className="font-semibold text-sm">Current vs. Proposed Circles</span>
+          <label className="label cursor-pointer gap-2 ml-auto">
+            <input type="checkbox" className="checkbox checkbox-sm" checked={showThanas} onChange={(e) => setShowThanas(e.target.checked)} />
+            <span className="label-text text-sm">Show Thana boundaries</span>
+          </label>
         </div>
-
-        <div className="bg-base-100 rounded-xl border border-base-200 p-4 lg:col-span-2">
-          <div className="font-semibold text-sm mb-2">Revenue by Circle — Current vs. Proposed</div>
-          <div style={{ height: Math.max(320, circles.length * 34) }}>
-            <canvas ref={chartRef} aria-label="Circle revenue comparison chart" />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div>
+            <div className="text-xs font-medium text-base-content/70 mb-1">Current</div>
+            <div id="circle-reorg-map-current" ref={currentMapRef} style={{ height: 420, borderRadius: 8 }} />
           </div>
+          <div>
+            <div className="text-xs font-medium text-base-content/70 mb-1">Proposed</div>
+            <div id="circle-reorg-map-proposed" ref={proposedMapRef} style={{ height: 420, borderRadius: 8 }} />
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-base-100 rounded-xl border border-base-200 p-4">
+        <div className="font-semibold text-sm mb-2">Revenue by Circle — Current vs. Proposed</div>
+        <div style={{ height: Math.max(320, circles.length * 34) }}>
+          <canvas ref={chartRef} aria-label="Circle revenue comparison chart" />
         </div>
       </div>
 
