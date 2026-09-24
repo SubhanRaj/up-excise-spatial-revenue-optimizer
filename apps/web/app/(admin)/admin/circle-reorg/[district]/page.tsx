@@ -15,6 +15,28 @@ const fmt = (n: number | null) => n == null ? '—' : n >= 1e7 ? `₹${(n / 1e7)
 const pct = (n: number) => `${(n * 100).toFixed(1)}%`;
 const escapeHtml = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] as string));
 
+// Ray-casting point-in-polygon, GeoJSON coordinate order ([lon, lat]). Handles holes (a point
+// inside an outer ring but also inside one of its holes is outside) and MultiPolygon, even though
+// every UP district in up-districts.geojson is currently a plain Polygon — cheap to cover either way.
+type GeoRing = [number, number][];
+function pointInRing(lat: number, lon: number, ring: GeoRing): boolean {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [xi, yi] = ring[i]!, [xj, yj] = ring[j]!;
+    if (((yi > lat) !== (yj > lat)) && (lon < (xj - xi) * (lat - yi) / (yj - yi) + xi)) inside = !inside;
+  }
+  return inside;
+}
+function pointInDistrict(lat: number, lon: number, geom: { type: string; coordinates: unknown } | null): boolean | null {
+  if (!geom) return null; // boundary not loaded yet — don't flag anything
+  const polys = (geom.type === 'Polygon' ? [geom.coordinates] : geom.type === 'MultiPolygon' ? geom.coordinates : []) as GeoRing[][];
+  for (const rings of polys) {
+    if (!rings.length) continue;
+    if (pointInRing(lat, lon, rings[0]!) && !rings.slice(1).some((hole) => pointInRing(lat, lon, hole))) return true;
+  }
+  return false;
+}
+
 // CARTO stopped serving these tiles anonymously — every request needs a `key` query param
 // (see CLAUDE.md's M-82 note). Same free, domain-restricted key the overview choropleth uses,
 // read from the same GET /api/admin/settings response.
@@ -94,13 +116,15 @@ function baseTileLayer(kind: BaseLayerKind, theme: 'light' | 'dark', cartoKey: s
   return L.tileLayer(CARTO_TILE_URL(theme, cartoKey), { attribution: '© CartoDB', maxZoom: UP_MAX_ZOOM });
 }
 
-function shopPopupHtml(s: ShopExplorerRow): string {
+function shopPopupHtml(s: ShopExplorerRow, outOfBounds: boolean): string {
   return `<div style="font-size:12.5px;line-height:1.5"><b>${escapeHtml(s.shopName)}</b><br/>`
     + `ID ${escapeHtml(s.shopId)}<br/>`
     + `${escapeHtml(SHOP_TYPE_SHORT_LABEL[s.shopType] ?? s.shopType)}<br/>`
     + `Thana: ${escapeHtml(s.thanaName)}<br/>`
     + `Circle: ${escapeHtml(s.circleSectorName)}<br/>`
-    + `Revenue: ${fmt(s.totalRevenue)}</div>`;
+    + `Revenue: ${fmt(s.totalRevenue)}`
+    + (outOfBounds ? '<br/><i style="color:#b45309">Coordinates fall outside the district boundary</i>' : '')
+    + `</div>`;
 }
 
 // One Leaflet instance for one map card (Current or Proposed). Called twice, side by side, so
@@ -111,6 +135,7 @@ function useCircleMap(
   circles: ReorgCircle[],
   thanas: ReorgThana[],
   shops: ShopExplorerRow[],
+  outOfBoundsShopIds: Set<string>,
   showThanas: boolean,
   showShops: boolean,
   circleFilter: string,
@@ -185,11 +210,15 @@ function useCircleMap(
         if (s.latitudeDecimal == null || s.longitudeDecimal == null) continue;
         if (circleFilter !== 'all' && s.circleSectorName !== circleFilter) continue;
         if (typeFilter !== 'all' && s.shopType !== typeFilter) continue;
-        const layer = L.circleMarker([s.latitudeDecimal, s.longitudeDecimal], {
-          renderer: rendererRef.current, radius: 3.5, weight: 1, color: '#fff',
-          fillColor: colorForName(s.circleSectorName), fillOpacity: 0.9,
-        }).addTo(mapInstance.current);
-        layer.bindPopup?.(shopPopupHtml(s));
+        // Out-of-bounds shops get the Commissioner's own "doubtful location" treatment — a
+        // bigger, hollow (unfilled) marker instead of a small filled dot — rather than being
+        // plotted identically to a shop whose coordinates are actually trustworthy.
+        const outOfBounds = outOfBoundsShopIds.has(s.shopId);
+        const layer = L.circleMarker([s.latitudeDecimal, s.longitudeDecimal], outOfBounds
+          ? { renderer: rendererRef.current, radius: 5, weight: 1.6, color: '#b45309', fill: false }
+          : { renderer: rendererRef.current, radius: 3.5, weight: 1, color: '#fff', fillColor: colorForName(s.circleSectorName), fillOpacity: 0.9 },
+        ).addTo(mapInstance.current);
+        layer.bindPopup?.(shopPopupHtml(s, outOfBounds));
         layersRef.current.push(layer);
       }
     }
@@ -198,7 +227,7 @@ function useCircleMap(
 
     return () => { layersRef.current.forEach((l) => l.remove()); layersRef.current = []; };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- theme/cartoKey handled by the base-layer effect above
-  }, [circles, thanas, shops, showThanas, showShops, circleFilter, typeFilter, elId, mode]);
+  }, [circles, thanas, shops, outOfBoundsShopIds, showThanas, showShops, circleFilter, typeFilter, elId, mode]);
 
   useEffect(() => () => { mapInstance.current?.remove(); mapInstance.current = null; }, []);
 
@@ -232,6 +261,31 @@ export default function CircleReorgDistrictPage({ params }: { params: Promise<{ 
     () => exportData?.units.filter((u) => u.districtName === name) ?? [],
     [exportData, name],
   );
+
+  // District boundary, off the same public/geodata/up-districts.geojson file the admin overview
+  // choropleth already uses (static file, no D1 read) — used only to flag a shop whose recorded
+  // coordinates fall outside its own district, the same "doubtful location" check the
+  // Commissioner's own viewer runs (there, precomputed into the file; here, computed live against
+  // our own D1 data, since that's the data actually being plotted).
+  const [districtGeometry, setDistrictGeometry] = useState<{ type: string; coordinates: unknown } | null>(null);
+  useEffect(() => {
+    let alive = true;
+    fetch('/geodata/up-districts.geojson').then((r) => r.json()).then((geo: { features: { properties: { district: string }; geometry: { type: string; coordinates: unknown } }[] }) => {
+      if (!alive) return;
+      const feature = geo.features.find((f) => f.properties.district === name);
+      setDistrictGeometry(feature?.geometry ?? null);
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, [name]);
+  const outOfBoundsShopIds = useMemo(() => {
+    if (!districtGeometry) return new Set<string>();
+    const ids = new Set<string>();
+    for (const s of currentShops) {
+      if (s.latitudeDecimal == null || s.longitudeDecimal == null) continue;
+      if (pointInDistrict(s.latitudeDecimal, s.longitudeDecimal, districtGeometry) === false) ids.add(s.shopId);
+    }
+    return ids;
+  }, [currentShops, districtGeometry]);
 
   // Proposed grouping: no shop-level table exists for the proposal (see CLAUDE.md's "Circle
   // Reorganization Proposal" section) — a shop's proposed circle is derived here the same way
@@ -340,11 +394,11 @@ export default function CircleReorgDistrictPage({ params }: { params: Promise<{ 
   // Current and Proposed each get their own Leaflet instance, kept side by side, instead of one
   // map with a toggle — a re-carve is far easier to compare when both are on screen at once.
   const currentMap = useCircleMap(
-    'circle-reorg-map-current', 'current', circles, thanas, effectiveCurrentShops,
+    'circle-reorg-map-current', 'current', circles, thanas, effectiveCurrentShops, outOfBoundsShopIds,
     showThanas, showShops, mapCircleFilter, mapTypeFilter, cartoKey, theme, baseLayer,
   );
   const proposedMap = useCircleMap(
-    'circle-reorg-map-proposed', 'proposed', circles, thanas, effectiveProposedShops,
+    'circle-reorg-map-proposed', 'proposed', circles, thanas, effectiveProposedShops, outOfBoundsShopIds,
     showThanas, showShops, mapCircleFilter, mapTypeFilter, cartoKey, theme, baseLayer,
   );
 
@@ -412,23 +466,28 @@ export default function CircleReorgDistrictPage({ params }: { params: Promise<{ 
       </div>
 
       <div className="bg-base-100 rounded-xl border border-base-200 p-4">
-        <div className="flex flex-wrap items-center gap-3 mb-3">
-          <span className="font-semibold text-sm">Current vs. Proposed Circles</span>
-          <div className="join">
+        <div className="flex flex-nowrap items-center gap-3 mb-3 overflow-x-auto pb-1">
+          <span className="font-semibold text-sm shrink-0">Current vs. Proposed Circles</span>
+          <div className="join shrink-0">
             <button className={`btn btn-xs join-item ${baseLayer === 'carto' ? 'btn-active' : ''}`} onClick={() => setBaseLayer('carto')}>Map</button>
             <button className={`btn btn-xs join-item ${baseLayer === 'osm' ? 'btn-active' : ''}`} onClick={() => setBaseLayer('osm')}>Street</button>
             <button className={`btn btn-xs join-item ${baseLayer === 'satellite' ? 'btn-active' : ''}`} onClick={() => setBaseLayer('satellite')}>Satellite</button>
           </div>
-          <label className="label cursor-pointer gap-2">
+          <label className="label cursor-pointer gap-2 shrink-0">
             <input type="checkbox" className="checkbox checkbox-sm" checked={showThanas} onChange={(e) => setShowThanas(e.target.checked)} />
             <span className="label-text text-sm">Thana boundaries</span>
           </label>
-          <label className="label cursor-pointer gap-2">
+          <label className="label cursor-pointer gap-2 shrink-0">
             <input type="checkbox" className="checkbox checkbox-sm" checked={showShops} onChange={(e) => setShowShops(e.target.checked)} />
             <span className="label-text text-sm">Shops</span>
           </label>
+          {outOfBoundsShopIds.size > 0 && (
+            <span className="badge badge-warning badge-sm shrink-0" title="Shops whose recorded coordinates fall outside this district's boundary — shown hollow on the map">
+              ⚠ {outOfBoundsShopIds.size} outside district
+            </span>
+          )}
           <select
-            className="select select-xs select-bordered ml-auto"
+            className="select select-xs select-bordered ml-auto shrink-0"
             value={mapCircleFilter}
             onChange={(e) => setMapCircleFilter(e.target.value)}
           >
@@ -438,7 +497,7 @@ export default function CircleReorgDistrictPage({ params }: { params: Promise<{ 
             ))}
           </select>
           <select
-            className="select select-xs select-bordered"
+            className="select select-xs select-bordered shrink-0"
             value={mapTypeFilter}
             onChange={(e) => setMapTypeFilter(e.target.value)}
           >
