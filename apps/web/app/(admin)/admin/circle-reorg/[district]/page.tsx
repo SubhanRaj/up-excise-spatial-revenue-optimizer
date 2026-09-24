@@ -102,6 +102,8 @@ declare const L: {
   geoJSON: (data: unknown, opts: unknown) => LeafletLayerH;
   canvas: (opts?: { pane?: string }) => unknown;
   circleMarker: (latlng: [number, number], opts: unknown) => LeafletLayerH;
+  marker: (latlng: [number, number], opts?: unknown) => LeafletLayerH;
+  divIcon: (opts: { className?: string; html?: string; iconSize?: [number, number] | null }) => unknown;
 };
 declare const Chart: { new (ctx: CanvasRenderingContext2D, config: unknown): { destroy: () => void } };
 
@@ -114,6 +116,27 @@ function baseTileLayer(kind: BaseLayerKind, theme: 'light' | 'dark', cartoKey: s
   if (kind === 'osm') return L.tileLayer(OSM_TILE_URL, { attribution: '© OpenStreetMap contributors', maxZoom: UP_MAX_ZOOM });
   if (kind === 'satellite') return L.tileLayer(SATELLITE_TILE_URL, { attribution: 'Imagery © Esri', maxZoom: UP_MAX_ZOOM });
   return L.tileLayer(CARTO_TILE_URL(theme, cartoKey), { attribution: '© CartoDB', maxZoom: UP_MAX_ZOOM });
+}
+
+// Plain coordinate-scan bounds, independent of whether a circle is currently rendered on the
+// map — zoom-to-circle needs to work even for a circle the checklist has hidden, which
+// Leaflet's own layer.getBounds() can't answer since a hidden circle's layer is never added.
+function geometryBounds(geom: { type: string; coordinates: unknown }): [[number, number], [number, number]] | null {
+  let swLat = Infinity, swLng = Infinity, neLat = -Infinity, neLng = -Infinity;
+  let found = false;
+  function walk(coords: unknown): void {
+    if (!Array.isArray(coords)) return;
+    if (typeof coords[0] === 'number' && typeof coords[1] === 'number') {
+      const [lng, lat] = coords as [number, number];
+      swLat = Math.min(swLat, lat); swLng = Math.min(swLng, lng);
+      neLat = Math.max(neLat, lat); neLng = Math.max(neLng, lng);
+      found = true;
+      return;
+    }
+    for (const c of coords as unknown[]) walk(c);
+  }
+  walk(geom.coordinates);
+  return found ? [[swLat, swLng], [neLat, neLng]] : null;
 }
 
 function shopPopupHtml(s: ShopExplorerRow, outOfBounds: boolean): string {
@@ -138,8 +161,9 @@ function useCircleMap(
   outOfBoundsShopIds: Set<string>,
   districtGeometry: { type: string; coordinates: unknown } | null,
   showThanas: boolean,
+  showThanaLabels: boolean,
   showShops: boolean,
-  circleFilter: string,
+  hiddenCircleNames: Set<string>,
   typeFilter: string,
   cartoKey: string | null,
   theme: 'light' | 'dark',
@@ -150,6 +174,7 @@ function useCircleMap(
   const baseLayerRef = useRef<LeafletLayerH | null>(null);
   const layersRef = useRef<LeafletLayerH[]>([]);
   const rendererRef = useRef<unknown>(null);
+  const circleBoundsRef = useRef<Map<string, [[number, number], [number, number]]>>(new Map());
 
   // Base tile layer only — separate from the circle/thana layers below so a theme/base-layer
   // switch or a late-arriving CARTO key never has to rebuild the polygons themselves.
@@ -175,7 +200,16 @@ function useCircleMap(
     let swLat = Infinity, swLng = Infinity, neLat = -Infinity, neLng = -Infinity;
     let hasBounds = false;
 
-    const visibleCircles = circleFilter === 'all' ? circles : circles.filter((c) => c.name === circleFilter);
+    // Every circle's bounds, hidden or not — the checklist's zoom-to-circle link must work
+    // for a circle the checklist currently has unchecked, not just the ones actually rendered.
+    circleBoundsRef.current = new Map();
+    for (const c of circles) {
+      const geom = mode === 'current' ? c.currentBoundary : c.proposedBoundary;
+      const b = geom ? geometryBounds(geom) : null;
+      if (b) circleBoundsRef.current.set(c.name, b);
+    }
+
+    const visibleCircles = circles.filter((c) => !hiddenCircleNames.has(c.name));
     for (const c of visibleCircles) {
       const geom = mode === 'current' ? c.currentBoundary : c.proposedBoundary;
       if (!geom) continue;
@@ -205,13 +239,36 @@ function useCircleMap(
       layersRef.current.push(layer);
     }
 
-    if (showThanas) {
+    // A thana currently spanning more than one circle is a real condition-4 violation ("a thana
+    // lies wholly within one circle") — highlighted in red regardless of the plain Thana-boundary
+    // toggle, the same "split" treatment the Commissioner's own viewer gives it, and only on the
+    // Current map: the Proposed scheme resolves every thana to exactly one circle by construction.
+    if (showThanas || mode === 'current') {
       for (const t of thanas) {
         if (!t.boundary) continue;
+        const isSplit = mode === 'current' && t.currentCircleNames.length > 1;
+        if (!showThanas && !isSplit) continue;
         const layer = L.geoJSON({ type: 'Feature', geometry: t.boundary, properties: {} }, {
-          style: { fillColor: 'transparent', color: '#334155', weight: 1, dashArray: '3,3' },
+          style: isSplit
+            ? { fillColor: 'transparent', color: '#b42318', weight: 2.2, dashArray: '5 4' }
+            : { fillColor: 'transparent', color: '#334155', weight: 1, dashArray: '3,3' },
         }).addTo(mapInstance.current);
-        layer.bindTooltip?.(t.thanaName, { permanent: false });
+        layer.bindTooltip?.(isSplit ? `${t.thanaName} — split across ${t.currentCircleNames.length} circles` : t.thanaName, { permanent: false });
+        layersRef.current.push(layer);
+      }
+    }
+
+    if (showThanaLabels) {
+      for (const t of thanas) {
+        if (t.labelLat == null || t.labelLon == null) continue;
+        const layer = L.marker([t.labelLat, t.labelLon], {
+          interactive: false,
+          icon: L.divIcon({
+            className: 'reorg-thana-label',
+            html: `<div style="font-size:9px;font-weight:600;color:#1e293b;text-shadow:0 0 2px #fff,0 0 2px #fff,0 0 2px #fff;white-space:nowrap">${escapeHtml(t.thanaName)}</div>`,
+            iconSize: null,
+          }),
+        }).addTo(mapInstance.current);
         layersRef.current.push(layer);
       }
     }
@@ -219,7 +276,7 @@ function useCircleMap(
     if (showShops) {
       for (const s of shops) {
         if (s.latitudeDecimal == null || s.longitudeDecimal == null) continue;
-        if (circleFilter !== 'all' && s.circleSectorName !== circleFilter) continue;
+        if (hiddenCircleNames.has(s.circleSectorName)) continue;
         if (typeFilter !== 'all' && s.shopType !== typeFilter) continue;
         // Out-of-bounds shops get the Commissioner's own "doubtful location" treatment — a
         // bigger, hollow (unfilled) marker instead of a small filled dot — rather than being
@@ -238,11 +295,16 @@ function useCircleMap(
 
     return () => { layersRef.current.forEach((l) => l.remove()); layersRef.current = []; };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- theme/cartoKey handled by the base-layer effect above
-  }, [circles, thanas, shops, outOfBoundsShopIds, districtGeometry, showThanas, showShops, circleFilter, typeFilter, elId, mode]);
+  }, [circles, thanas, shops, outOfBoundsShopIds, districtGeometry, showThanas, showThanaLabels, showShops, hiddenCircleNames, typeFilter, elId, mode]);
 
   useEffect(() => () => { mapInstance.current?.remove(); mapInstance.current = null; }, []);
 
-  return { mapRef, mapInstance };
+  function zoomToCircle(name: string) {
+    const b = circleBoundsRef.current.get(name);
+    if (b) mapInstance.current?.fitBounds(b, { padding: [20, 20] });
+  }
+
+  return { mapRef, mapInstance, zoomToCircle };
 }
 
 export default function CircleReorgDistrictPage({ params }: { params: Promise<{ district: string }> }) {
@@ -252,12 +314,27 @@ export default function CircleReorgDistrictPage({ params }: { params: Promise<{ 
 
   const [view, setView] = useState<'current' | 'proposed'>('proposed');
   const [showThanas, setShowThanas] = useState(false);
+  const [showThanaLabels, setShowThanaLabels] = useState(false);
   const [showShops, setShowShops] = useState(true);
   const [baseLayer, setBaseLayer] = useState<BaseLayerKind>('carto');
-  const [mapCircleFilter, setMapCircleFilter] = useState('all');
+  const [hiddenCircleNames, setHiddenCircleNames] = useState<Set<string>>(new Set());
   const [mapTypeFilter, setMapTypeFilter] = useState('all');
+  function toggleCircleHidden(circleName: string) {
+    setHiddenCircleNames((prev) => {
+      const next = new Set(prev);
+      if (next.has(circleName)) next.delete(circleName); else next.add(circleName);
+      return next;
+    });
+  }
 
   const districtSummary = data?.districts.find((d) => d.districtName === name) ?? null;
+  const allDistrictNames = useMemo(
+    () => [...(data?.districts ?? [])].map((d) => d.districtName).sort((a, b) => a.localeCompare(b)),
+    [data],
+  );
+  const districtIndex = allDistrictNames.indexOf(name);
+  const prevDistrictName = districtIndex > 0 ? allDistrictNames[districtIndex - 1] : null;
+  const nextDistrictName = districtIndex >= 0 && districtIndex < allDistrictNames.length - 1 ? allDistrictNames[districtIndex + 1] : null;
   const circles = useMemo(() => (data?.circles ?? []).filter((c) => c.districtName === name), [data, name]);
   const thanas = useMemo(() => (data?.thanas ?? []).filter((t) => t.districtName === name), [data, name]);
   // Current-scheme circles only, so a district's total isn't double-counted against circles that
@@ -412,12 +489,16 @@ export default function CircleReorgDistrictPage({ params }: { params: Promise<{ 
   // map with a toggle — a re-carve is far easier to compare when both are on screen at once.
   const currentMap = useCircleMap(
     'circle-reorg-map-current', 'current', circles, thanas, effectiveCurrentShops, outOfBoundsShopIds, districtGeometry,
-    showThanas, showShops, mapCircleFilter, mapTypeFilter, cartoKey, theme, baseLayer,
+    showThanas, showThanaLabels, showShops, hiddenCircleNames, mapTypeFilter, cartoKey, theme, baseLayer,
   );
   const proposedMap = useCircleMap(
     'circle-reorg-map-proposed', 'proposed', circles, thanas, effectiveProposedShops, outOfBoundsShopIds, districtGeometry,
-    showThanas, showShops, mapCircleFilter, mapTypeFilter, cartoKey, theme, baseLayer,
+    showThanas, showThanaLabels, showShops, hiddenCircleNames, mapTypeFilter, cartoKey, theme, baseLayer,
   );
+  function zoomToCircle(circleName: string) {
+    currentMap.zoomToCircle(circleName);
+    proposedMap.zoomToCircle(circleName);
+  }
 
   // The two maps exist to be compared side by side — panning/zooming one should move the other
   // to the same view, matching the Commissioner's own viewer (up_excise_circle_map.html).
@@ -450,9 +531,19 @@ export default function CircleReorgDistrictPage({ params }: { params: Promise<{ 
 
   return (
     <div className="space-y-5">
-      <div>
-        <Link href="/admin/circle-reorg" className="text-sm link link-hover">&larr; Circle Reorganization Proposal</Link>
-        <h1 className="text-2xl font-bold tracking-tight mt-1">{name}</h1>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <Link href="/admin/circle-reorg" className="text-sm link link-hover">&larr; Circle Reorganization Proposal</Link>
+          <h1 className="text-2xl font-bold tracking-tight mt-1">{name}</h1>
+        </div>
+        <div className="join mt-1">
+          {prevDistrictName
+            ? <Link href={`/admin/circle-reorg/${encodeURIComponent(prevDistrictName)}`} className="btn btn-sm join-item">&larr; {prevDistrictName}</Link>
+            : <button className="btn btn-sm join-item btn-disabled">&larr;</button>}
+          {nextDistrictName
+            ? <Link href={`/admin/circle-reorg/${encodeURIComponent(nextDistrictName)}`} className="btn btn-sm join-item">{nextDistrictName} &rarr;</Link>
+            : <button className="btn btn-sm join-item btn-disabled">&rarr;</button>}
+        </div>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
@@ -506,6 +597,10 @@ export default function CircleReorgDistrictPage({ params }: { params: Promise<{ 
             <span className="label-text text-sm">Thana boundaries</span>
           </label>
           <label className="label cursor-pointer gap-2 shrink-0">
+            <input type="checkbox" className="checkbox checkbox-sm" checked={showThanaLabels} onChange={(e) => setShowThanaLabels(e.target.checked)} />
+            <span className="label-text text-sm">Thana labels</span>
+          </label>
+          <label className="label cursor-pointer gap-2 shrink-0">
             <input type="checkbox" className="checkbox checkbox-sm" checked={showShops} onChange={(e) => setShowShops(e.target.checked)} />
             <span className="label-text text-sm">Shops</span>
           </label>
@@ -514,16 +609,36 @@ export default function CircleReorgDistrictPage({ params }: { params: Promise<{ 
               ⚠ {outOfBoundsShopIds.size} outside district
             </span>
           )}
-          <select
-            className="select select-xs select-bordered ml-auto shrink-0"
-            value={mapCircleFilter}
-            onChange={(e) => setMapCircleFilter(e.target.value)}
-          >
-            <option value="all">All circles</option>
-            {[...circles].sort((a, b) => a.name.localeCompare(b.name)).map((c) => (
-              <option key={c.id} value={c.name}>{c.name}</option>
-            ))}
-          </select>
+          <details className="dropdown ml-auto shrink-0">
+            <summary className="btn btn-xs list-none cursor-pointer">
+              Circles ({circles.length - hiddenCircleNames.size}/{circles.length})
+            </summary>
+            <div className="dropdown-content z-10 menu p-2 shadow bg-base-100 rounded-box w-64 max-h-72 overflow-y-auto border border-base-200">
+              <div className="flex gap-2 mb-2">
+                <button type="button" className="btn btn-xs flex-1" onClick={() => setHiddenCircleNames(new Set())}>All on</button>
+                <button type="button" className="btn btn-xs flex-1" onClick={() => setHiddenCircleNames(new Set(circles.map((c) => c.name)))}>All off</button>
+              </div>
+              {[...circles].sort((a, b) => a.name.localeCompare(b.name)).map((c) => (
+                <label key={c.id} className="flex items-center gap-2 py-0.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="checkbox checkbox-xs shrink-0"
+                    checked={!hiddenCircleNames.has(c.name)}
+                    onChange={() => toggleCircleHidden(c.name)}
+                  />
+                  <span className="inline-block w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: colorForName(c.name) }} />
+                  <button
+                    type="button"
+                    className="link link-hover text-xs truncate flex-1 text-left"
+                    onClick={() => zoomToCircle(c.name)}
+                    title="Zoom both maps to this circle"
+                  >
+                    {c.name}
+                  </button>
+                </label>
+              ))}
+            </div>
+          </details>
           <select
             className="select select-xs select-bordered shrink-0"
             value={mapTypeFilter}
