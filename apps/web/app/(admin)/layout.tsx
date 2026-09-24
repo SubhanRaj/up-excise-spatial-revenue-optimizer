@@ -239,7 +239,7 @@ const NAV_LINKS = (session: ReturnType<typeof useSession>['session']) => [
   { href: '/admin/districts', label: 'Districts', active: (p: string) => p.startsWith('/admin/districts') },
   { href: '/admin/divisions', label: 'Divisions', active: (p: string) => p.startsWith('/admin/divisions') },
   { href: '/admin/circles-sectors', label: 'Circles/Sectors', active: (p: string) => p === '/admin/circles-sectors' },
-  { href: '/admin/circle-reorg', label: 'Circle Reorg', active: (p: string) => p === '/admin/circle-reorg' },
+  { href: '/admin/circle-reorg', label: 'Circle Reorg', active: (p: string) => p.startsWith('/admin/circle-reorg') },
   { href: '/admin/shops', label: 'Shops', active: (p: string) => p === '/admin/shops' },
   { href: '/admin/unlock-requests', label: 'Unlock Requests', active: (p: string) => p === '/admin/unlock-requests' },
   { href: '/admin/audit', label: 'Audit', active: (p: string) => p === '/admin/audit' },

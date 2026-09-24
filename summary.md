@@ -2303,6 +2303,16 @@ Three places now show it, each reusing the same `latestDeputyReviews()` helper (
 
 ---
 
+### M-121: Admin Nav Active-State Fix for Circle Reorg Sub-Routes; District Detail Link on the Circle Reorg Drill-Down Page ✅ Complete
+
+**Nav active-state bug.** `NAV_LINKS` in `app/(admin)/layout.tsx` matches each top-level link against the current path to decide which one gets the `btn-active` highlight. Every entry with real sub-routes (`Districts`, `Divisions`) used `pathname.startsWith(...)`; `Circle Reorg` was left on an exact `pathname === '/admin/circle-reorg'` check, so the link lost its highlight the moment an admin drilled into a specific district — `/admin/circle-reorg/[district]`, the page this feature's own maps and tables actually live on. Fixed to `startsWith`, matching the other two.
+
+**District detail link on the drill-down page.** The reorg district page only ever shows the proposal's own current/proposed circle and revenue figures — the real shop-level data (individual shop revenue, the full circle/sector breakdown) lives on `/admin/districts/[district]`, a separate page an admin previously had to navigate to manually, losing their place on the reorg map. Added a "View shop & revenue detail" link next to the page header, beside the existing Prev/Next buttons, opening `/admin/districts/[name]` in a new tab (`target="_blank"`) so the reorg map stays open in the original tab.
+
+**Verified:** `pnpm typecheck` clean. Live-verified via a throwaway Playwright script against a locally seeded D1: confirmed the `Circle Reorg` nav link carries `btn-active` on both `/admin/circle-reorg` and `/admin/circle-reorg/Agra`, and that the new detail link renders with `href="/admin/districts/Agra"` and `target="_blank"`. No console errors. Test data and script deleted afterward.
+
+---
+
 ## Backlog / Not Started
 
 - [x] ~~Verify `exciseup.in` in Resend and switch `RESEND_FROM_EMAIL`~~ — Done. `mail.exciseup.in` verified; `RESEND_FROM_EMAIL` set to `noreply@mail.exciseup.in` on this project's Worker, and the same address set as `FROM_EMAIL` on the sibling `excise-revenue-recovery-portal` project's Worker (different env var name there, same Resend account/domain). Magic-link email is now the Admin/HQ login channel only (DEOs use CUG login as of M-17).
