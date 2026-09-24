@@ -136,6 +136,7 @@ function useCircleMap(
   thanas: ReorgThana[],
   shops: ShopExplorerRow[],
   outOfBoundsShopIds: Set<string>,
+  districtGeometry: { type: string; coordinates: unknown } | null,
   showThanas: boolean,
   showShops: boolean,
   circleFilter: string,
@@ -194,6 +195,16 @@ function useCircleMap(
       }
     }
 
+    // District outline, matching the Commissioner's own viewer's `boundary` layer — always on
+    // (no toggle) since it's a thin, low-noise reference line, the same treatment the admin
+    // overview choropleth gives district borders.
+    if (districtGeometry) {
+      const layer = L.geoJSON({ type: 'Feature', geometry: districtGeometry, properties: {} }, {
+        style: { fillColor: 'transparent', color: '#1d2731', weight: 2.2, dashArray: '7 5', fill: false },
+      }).addTo(mapInstance.current);
+      layersRef.current.push(layer);
+    }
+
     if (showThanas) {
       for (const t of thanas) {
         if (!t.boundary) continue;
@@ -227,7 +238,7 @@ function useCircleMap(
 
     return () => { layersRef.current.forEach((l) => l.remove()); layersRef.current = []; };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- theme/cartoKey handled by the base-layer effect above
-  }, [circles, thanas, shops, outOfBoundsShopIds, showThanas, showShops, circleFilter, typeFilter, elId, mode]);
+  }, [circles, thanas, shops, outOfBoundsShopIds, districtGeometry, showThanas, showShops, circleFilter, typeFilter, elId, mode]);
 
   useEffect(() => () => { mapInstance.current?.remove(); mapInstance.current = null; }, []);
 
@@ -249,6 +260,12 @@ export default function CircleReorgDistrictPage({ params }: { params: Promise<{ 
   const districtSummary = data?.districts.find((d) => d.districtName === name) ?? null;
   const circles = useMemo(() => (data?.circles ?? []).filter((c) => c.districtName === name), [data, name]);
   const thanas = useMemo(() => (data?.thanas ?? []).filter((t) => t.districtName === name), [data, name]);
+  // Current-scheme circles only, so a district's total isn't double-counted against circles that
+  // exist in both current and proposed (every 'kept' circle would otherwise count twice).
+  const districtRevenueTotal = useMemo(
+    () => circles.filter((c) => c.status !== 'new').reduce((s, c) => s + (c.currentRevenue ?? 0), 0),
+    [circles],
+  );
 
   // Real shop rows for this district, off the same export_cache the /admin/export and
   // /admin/circles-sectors pages already share — no dedicated fetch for this page.
@@ -394,11 +411,11 @@ export default function CircleReorgDistrictPage({ params }: { params: Promise<{ 
   // Current and Proposed each get their own Leaflet instance, kept side by side, instead of one
   // map with a toggle — a re-carve is far easier to compare when both are on screen at once.
   const currentMap = useCircleMap(
-    'circle-reorg-map-current', 'current', circles, thanas, effectiveCurrentShops, outOfBoundsShopIds,
+    'circle-reorg-map-current', 'current', circles, thanas, effectiveCurrentShops, outOfBoundsShopIds, districtGeometry,
     showThanas, showShops, mapCircleFilter, mapTypeFilter, cartoKey, theme, baseLayer,
   );
   const proposedMap = useCircleMap(
-    'circle-reorg-map-proposed', 'proposed', circles, thanas, effectiveProposedShops, outOfBoundsShopIds,
+    'circle-reorg-map-proposed', 'proposed', circles, thanas, effectiveProposedShops, outOfBoundsShopIds, districtGeometry,
     showThanas, showShops, mapCircleFilter, mapTypeFilter, cartoKey, theme, baseLayer,
   );
 
@@ -463,7 +480,18 @@ export default function CircleReorgDistrictPage({ params }: { params: Promise<{ 
           <div className="text-xs text-base-content/70">More Equitable?</div>
           <div className="mt-1"><span className={`badge ${districtSummary.optimized === 'Yes' ? 'badge-success' : 'badge-ghost'}`}>{districtSummary.optimized}</span></div>
         </div>
+        <div className="bg-base-100 rounded-xl border border-base-200 px-4 py-3">
+          <div className="text-xs text-base-content/70">Shops Kept in Same Circle</div>
+          <div className="text-xl font-bold tabular-nums">{pct(districtSummary.shopsStayFraction)}</div>
+        </div>
+        <div className="bg-base-100 rounded-xl border border-base-200 px-4 py-3">
+          <div className="text-xs text-base-content/70">Shops Without Location</div>
+          <div className="text-xl font-bold tabular-nums">{districtSummary.noLocationCount.toLocaleString()}</div>
+        </div>
       </div>
+      <p className="text-xs text-base-content/60 -mt-2">
+        District revenue: <span className="font-medium">{fmt(districtRevenueTotal)}</span> · Thanas: <span className="font-medium">{thanas.length}</span> · Balance basis: <span className="font-medium">{districtSummary.basis}</span>
+      </p>
 
       <div className="bg-base-100 rounded-xl border border-base-200 p-4">
         <div className="flex flex-nowrap items-center gap-3 mb-3 overflow-x-auto pb-1">
