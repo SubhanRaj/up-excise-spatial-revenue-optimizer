@@ -8,9 +8,12 @@ import { useExcludeHbrPrv } from '@/hooks/useExcludeHbrPrv';
 import { ShopExplorer, type ShopExplorerRow } from '@/components/ShopExplorer';
 import { normalizeThanaName } from '@/lib/thana-name';
 import { adminSettingsCache } from '@/lib/db';
+import { SHOP_TYPE_SHORT_LABEL } from '@/lib/shop-type';
+import { SHOP_TYPES } from '@excise/schema';
 
 const fmt = (n: number | null) => n == null ? '—' : n >= 1e7 ? `₹${(n / 1e7).toFixed(2)} Cr` : n >= 1e5 ? `₹${(n / 1e5).toFixed(2)} L` : `₹${n.toLocaleString('en-IN')}`;
 const pct = (n: number) => `${(n * 100).toFixed(1)}%`;
+const escapeHtml = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] as string));
 
 // CARTO stopped serving these tiles anonymously — every request needs a `key` query param
 // (see CLAUDE.md's M-82 note). Same free, domain-restricted key the overview choropleth uses,
@@ -55,6 +58,11 @@ function SortIcon({ active, dir }: { active: boolean; dir: 'asc' | 'desc' }) {
 interface LeafletMapH {
   fitBounds: (b: [[number, number], [number, number]], o?: { padding?: [number, number] }) => LeafletMapH;
   setMaxBounds: (b: [[number, number], [number, number]]) => LeafletMapH;
+  setView: (center: LeafletLatLngH, zoom: number, o?: { animate?: boolean }) => LeafletMapH;
+  getCenter: () => LeafletLatLngH;
+  getZoom: () => number;
+  on: (evt: string, fn: () => void) => LeafletMapH;
+  off: (evt: string, fn: () => void) => LeafletMapH;
   remove: () => void;
 }
 interface LeafletLatLngH { lat: number; lng: number }
@@ -63,12 +71,15 @@ interface LeafletLayerH {
   addTo: (m: LeafletMapH) => LeafletLayerH;
   remove: () => void;
   bindTooltip?: (t: string, o?: unknown) => void;
+  bindPopup?: (html: string) => void;
   getBounds?: () => LeafletLatLngBoundsH;
 }
 declare const L: {
   map: (id: string, opts?: { minZoom?: number; maxZoom?: number }) => LeafletMapH;
   tileLayer: (url: string, opts: unknown) => LeafletLayerH;
   geoJSON: (data: unknown, opts: unknown) => LeafletLayerH;
+  canvas: (opts?: { pane?: string }) => unknown;
+  circleMarker: (latlng: [number, number], opts: unknown) => LeafletLayerH;
 };
 declare const Chart: { new (ctx: CanvasRenderingContext2D, config: unknown): { destroy: () => void } };
 
@@ -83,6 +94,15 @@ function baseTileLayer(kind: BaseLayerKind, theme: 'light' | 'dark', cartoKey: s
   return L.tileLayer(CARTO_TILE_URL(theme, cartoKey), { attribution: '© CartoDB', maxZoom: UP_MAX_ZOOM });
 }
 
+function shopPopupHtml(s: ShopExplorerRow): string {
+  return `<div style="font-size:12.5px;line-height:1.5"><b>${escapeHtml(s.shopName)}</b><br/>`
+    + `ID ${escapeHtml(s.shopId)}<br/>`
+    + `${escapeHtml(SHOP_TYPE_SHORT_LABEL[s.shopType] ?? s.shopType)}<br/>`
+    + `Thana: ${escapeHtml(s.thanaName)}<br/>`
+    + `Circle: ${escapeHtml(s.circleSectorName)}<br/>`
+    + `Revenue: ${fmt(s.totalRevenue)}</div>`;
+}
+
 // One Leaflet instance for one map card (Current or Proposed). Called twice, side by side, so
 // both boundary layers render at once instead of behind a shared toggle.
 function useCircleMap(
@@ -90,7 +110,11 @@ function useCircleMap(
   mode: 'current' | 'proposed',
   circles: ReorgCircle[],
   thanas: ReorgThana[],
+  shops: ShopExplorerRow[],
   showThanas: boolean,
+  showShops: boolean,
+  circleFilter: string,
+  typeFilter: string,
   cartoKey: string | null,
   theme: 'light' | 'dark',
   baseLayer: BaseLayerKind,
@@ -99,6 +123,7 @@ function useCircleMap(
   const mapInstance = useRef<LeafletMapH | null>(null);
   const baseLayerRef = useRef<LeafletLayerH | null>(null);
   const layersRef = useRef<LeafletLayerH[]>([]);
+  const rendererRef = useRef<unknown>(null);
 
   // Base tile layer only — separate from the circle/thana layers below so a theme/base-layer
   // switch or a late-arriving CARTO key never has to rebuild the polygons themselves.
@@ -117,13 +142,15 @@ function useCircleMap(
     if (!baseLayerRef.current) {
       baseLayerRef.current = baseTileLayer(baseLayer, theme, cartoKey).addTo(mapInstance.current);
     }
+    if (!rendererRef.current) rendererRef.current = L.canvas();
     layersRef.current.forEach((l) => l.remove());
     layersRef.current = [];
 
     let swLat = Infinity, swLng = Infinity, neLat = -Infinity, neLng = -Infinity;
     let hasBounds = false;
 
-    for (const c of circles) {
+    const visibleCircles = circleFilter === 'all' ? circles : circles.filter((c) => c.name === circleFilter);
+    for (const c of visibleCircles) {
       const geom = mode === 'current' ? c.currentBoundary : c.proposedBoundary;
       if (!geom) continue;
       const color = colorForName(c.name);
@@ -153,15 +180,29 @@ function useCircleMap(
       }
     }
 
+    if (showShops) {
+      for (const s of shops) {
+        if (s.latitudeDecimal == null || s.longitudeDecimal == null) continue;
+        if (circleFilter !== 'all' && s.circleSectorName !== circleFilter) continue;
+        if (typeFilter !== 'all' && s.shopType !== typeFilter) continue;
+        const layer = L.circleMarker([s.latitudeDecimal, s.longitudeDecimal], {
+          renderer: rendererRef.current, radius: 3.5, weight: 1, color: '#fff',
+          fillColor: colorForName(s.circleSectorName), fillOpacity: 0.9,
+        }).addTo(mapInstance.current);
+        layer.bindPopup?.(shopPopupHtml(s));
+        layersRef.current.push(layer);
+      }
+    }
+
     if (hasBounds) mapInstance.current.fitBounds([[swLat, swLng], [neLat, neLng]], { padding: [16, 16] });
 
     return () => { layersRef.current.forEach((l) => l.remove()); layersRef.current = []; };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- theme/cartoKey handled by the base-layer effect above
-  }, [circles, thanas, showThanas, elId, mode]);
+  }, [circles, thanas, shops, showThanas, showShops, circleFilter, typeFilter, elId, mode]);
 
   useEffect(() => () => { mapInstance.current?.remove(); mapInstance.current = null; }, []);
 
-  return mapRef;
+  return { mapRef, mapInstance };
 }
 
 export default function CircleReorgDistrictPage({ params }: { params: Promise<{ district: string }> }) {
@@ -171,7 +212,10 @@ export default function CircleReorgDistrictPage({ params }: { params: Promise<{ 
 
   const [view, setView] = useState<'current' | 'proposed'>('proposed');
   const [showThanas, setShowThanas] = useState(false);
+  const [showShops, setShowShops] = useState(true);
   const [baseLayer, setBaseLayer] = useState<BaseLayerKind>('carto');
+  const [mapCircleFilter, setMapCircleFilter] = useState('all');
+  const [mapTypeFilter, setMapTypeFilter] = useState('all');
 
   const districtSummary = data?.districts.find((d) => d.districtName === name) ?? null;
   const circles = useMemo(() => (data?.circles ?? []).filter((c) => c.districtName === name), [data, name]);
@@ -212,10 +256,13 @@ export default function CircleReorgDistrictPage({ params }: { params: Promise<{ 
   );
 
   const [circleSearch, setCircleSearch] = useState('');
+  const [circleStatusFilter, setCircleStatusFilter] = useState('all');
   const [circleSort, setCircleSort] = useState<{ key: CircleSortKey; dir: 'asc' | 'desc' }>({ key: 'name', dir: 'asc' });
   const changeOf = (c: ReorgCircle) => (c.currentRevenue && c.proposedRevenue ? (c.proposedRevenue - c.currentRevenue) / c.currentRevenue : null);
   const circleRows = useMemo(() => {
-    const filtered = circles.filter((c) => !circleSearch || c.name.toLowerCase().includes(circleSearch.toLowerCase()));
+    const filtered = circles
+      .filter((c) => !circleSearch || c.name.toLowerCase().includes(circleSearch.toLowerCase()))
+      .filter((c) => circleStatusFilter === 'all' || c.status === circleStatusFilter);
     return [...filtered].sort((a, b) => {
       let cmp = 0;
       if (circleSort.key === 'name') cmp = a.name.localeCompare(b.name);
@@ -223,7 +270,7 @@ export default function CircleReorgDistrictPage({ params }: { params: Promise<{ 
       else cmp = (a[circleSort.key] ?? 0) - (b[circleSort.key] ?? 0);
       return circleSort.dir === 'asc' ? cmp : -cmp;
     });
-  }, [circles, circleSearch, circleSort]);
+  }, [circles, circleSearch, circleStatusFilter, circleSort]);
   function toggleCircleSort(key: CircleSortKey) {
     setCircleSort((s) => (s.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }));
   }
@@ -292,8 +339,31 @@ export default function CircleReorgDistrictPage({ params }: { params: Promise<{ 
 
   // Current and Proposed each get their own Leaflet instance, kept side by side, instead of one
   // map with a toggle — a re-carve is far easier to compare when both are on screen at once.
-  const currentMapRef = useCircleMap('circle-reorg-map-current', 'current', circles, thanas, showThanas, cartoKey, theme, baseLayer);
-  const proposedMapRef = useCircleMap('circle-reorg-map-proposed', 'proposed', circles, thanas, showThanas, cartoKey, theme, baseLayer);
+  const currentMap = useCircleMap(
+    'circle-reorg-map-current', 'current', circles, thanas, effectiveCurrentShops,
+    showThanas, showShops, mapCircleFilter, mapTypeFilter, cartoKey, theme, baseLayer,
+  );
+  const proposedMap = useCircleMap(
+    'circle-reorg-map-proposed', 'proposed', circles, thanas, effectiveProposedShops,
+    showThanas, showShops, mapCircleFilter, mapTypeFilter, cartoKey, theme, baseLayer,
+  );
+
+  // The two maps exist to be compared side by side — panning/zooming one should move the other
+  // to the same view, matching the Commissioner's own viewer (up_excise_circle_map.html).
+  useEffect(() => {
+    const a = currentMap.mapInstance.current, b = proposedMap.mapInstance.current;
+    if (!a || !b) return;
+    let guard = false;
+    const sync = (src: LeafletMapH, dst: LeafletMapH) => () => {
+      if (guard) return;
+      guard = true;
+      dst.setView(src.getCenter(), src.getZoom(), { animate: false });
+      guard = false;
+    };
+    const onA = sync(a, b), onB = sync(b, a);
+    a.on('move', onA); b.on('move', onB);
+    return () => { a.off('move', onA); b.off('move', onB); };
+  }, [circles, currentMap.mapInstance, proposedMap.mapInstance]);
 
   if (loading) return <div className="p-8 text-center text-base-content/60">Loading…</div>;
   if (!data) return (
@@ -344,26 +414,51 @@ export default function CircleReorgDistrictPage({ params }: { params: Promise<{ 
       <div className="bg-base-100 rounded-xl border border-base-200 p-4">
         <div className="flex flex-wrap items-center gap-3 mb-3">
           <span className="font-semibold text-sm">Current vs. Proposed Circles</span>
-          <div className="join ml-auto">
+          <div className="join">
             <button className={`btn btn-xs join-item ${baseLayer === 'carto' ? 'btn-active' : ''}`} onClick={() => setBaseLayer('carto')}>Map</button>
             <button className={`btn btn-xs join-item ${baseLayer === 'osm' ? 'btn-active' : ''}`} onClick={() => setBaseLayer('osm')}>Street</button>
             <button className={`btn btn-xs join-item ${baseLayer === 'satellite' ? 'btn-active' : ''}`} onClick={() => setBaseLayer('satellite')}>Satellite</button>
           </div>
           <label className="label cursor-pointer gap-2">
             <input type="checkbox" className="checkbox checkbox-sm" checked={showThanas} onChange={(e) => setShowThanas(e.target.checked)} />
-            <span className="label-text text-sm">Show Thana boundaries</span>
+            <span className="label-text text-sm">Thana boundaries</span>
           </label>
+          <label className="label cursor-pointer gap-2">
+            <input type="checkbox" className="checkbox checkbox-sm" checked={showShops} onChange={(e) => setShowShops(e.target.checked)} />
+            <span className="label-text text-sm">Shops</span>
+          </label>
+          <select
+            className="select select-xs select-bordered ml-auto"
+            value={mapCircleFilter}
+            onChange={(e) => setMapCircleFilter(e.target.value)}
+          >
+            <option value="all">All circles</option>
+            {[...circles].sort((a, b) => a.name.localeCompare(b.name)).map((c) => (
+              <option key={c.id} value={c.name}>{c.name}</option>
+            ))}
+          </select>
+          <select
+            className="select select-xs select-bordered"
+            value={mapTypeFilter}
+            onChange={(e) => setMapTypeFilter(e.target.value)}
+          >
+            <option value="all">All shop types</option>
+            {SHOP_TYPES.map((t) => (
+              <option key={t} value={t}>{SHOP_TYPE_SHORT_LABEL[t] ?? t}</option>
+            ))}
+          </select>
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <div>
             <div className="text-xs font-medium text-base-content/70 mb-1">Current</div>
-            <div id="circle-reorg-map-current" ref={currentMapRef} style={{ height: 420, borderRadius: 8 }} />
+            <div id="circle-reorg-map-current" ref={currentMap.mapRef} style={{ height: 420, borderRadius: 8 }} />
           </div>
           <div>
             <div className="text-xs font-medium text-base-content/70 mb-1">Proposed</div>
-            <div id="circle-reorg-map-proposed" ref={proposedMapRef} style={{ height: 420, borderRadius: 8 }} />
+            <div id="circle-reorg-map-proposed" ref={proposedMap.mapRef} style={{ height: 420, borderRadius: 8 }} />
           </div>
         </div>
+        <p className="text-xs text-base-content/50 mt-2">Panning or zooming either map moves the other to match, and click a shop marker for its details.</p>
       </div>
 
       <div className="bg-base-100 rounded-xl border border-base-200 p-4">
@@ -376,10 +471,20 @@ export default function CircleReorgDistrictPage({ params }: { params: Promise<{ 
       <div className="bg-base-100 rounded-xl border border-base-200 overflow-hidden">
         <div className="px-4 py-3 border-b border-base-200 flex flex-wrap items-center gap-3">
           <span className="font-semibold text-sm">Circles / Sectors</span>
+          <select
+            className="select select-sm select-bordered ml-auto"
+            value={circleStatusFilter}
+            onChange={(e) => setCircleStatusFilter(e.target.value)}
+          >
+            <option value="all">All statuses</option>
+            <option value="kept">Kept</option>
+            <option value="new">New</option>
+            <option value="abolished">Abolished</option>
+          </select>
           <input
             type="text"
             placeholder="Search circle…"
-            className="input input-sm input-bordered ml-auto w-full max-w-xs"
+            className="input input-sm input-bordered w-full max-w-xs"
             value={circleSearch}
             onChange={(e) => setCircleSearch(e.target.value)}
           />

@@ -2250,6 +2250,25 @@ Three places now show it, each reusing the same `latestDeputyReviews()` helper (
 
 ---
 
+### M-118: Circle Reorg Maps Plot Shops, Synced Pan/Zoom, Map/Table Filters; Fixed CSP Blocking OSM/Satellite ✅ Complete
+
+**Scope:** immediate follow-up after M-117 shipped — the user asked why the maps didn't plot shops (they simply weren't drawn — the map only rendered circle/thana boundary polygons) and why several features from the Commissioner's own `up_excise_circle_map.html` viewer were still missing, then separately reported the Street base layer wasn't loading and asked whether it needed an API key.
+
+**Shop markers.** Every shop with a non-null `latitudeDecimal`/`longitudeDecimal` is now drawn on both the Current and Proposed maps as an `L.circleMarker`, colored by its circle the same way the boundary polygons already are, with a click popup (shop name, ID, type, Thana, circle, revenue). Both markers and popup content go through a shared `L.canvas()` renderer per map — one canvas element instead of one DOM node per shop, since a district can have several hundred rows. Shop name and ID are DEO-entered fields, not app-controlled, so the popup HTML is built through a small `escapeHtml()` helper rather than interpolated raw.
+
+**Street layer wasn't loading — not an API key problem.** `apps/web/public/_headers` sets this app's Content-Security-Policy, and its `img-src` only ever whitelisted `*.basemaps.cartocdn.com`. When M-117 added the OpenStreetMap and Esri satellite base layers, the CSP was never updated to match — the browser was silently blocking both tile domains in production. `next dev` doesn't enforce `_headers` at all (it's Cloudflare's own static-asset serving, not a Next.js concern), so this only ever surfaced after a real deploy, never in local testing. Fixed by adding `https://*.tile.openstreetmap.org` and `https://server.arcgisonline.com` to `img-src`. No key was ever needed for either layer, as CLAUDE.md already stated when they were added in M-117 — the CSP gap was a separate, unrelated bug.
+
+**Feature-parity additions, matching the Commissioner's viewer:**
+- **Synced pan/zoom** — panning or zooming either map now moves the other to the same view, via a plain Leaflet `move` event listener wired between the two map instances with a re-entrancy guard against an infinite `setView` loop.
+- **Circle and shop-type filter dropdowns** above the maps narrow both the boundary polygons and the plotted shop markers to one circle and/or one shop type at a time.
+- **Status filter** (Kept / New / Abolished) added to the Circles/Sectors table, alongside its existing search box.
+
+**Deliberately not ported**, named explicitly rather than left as a silent gap: an opacity slider for circle fill, a color-by-shop-type mode for the whole map (the shop-type filter dropdown covers the common case), a per-circle show/hide legend (the circle filter dropdown does the same job for isolating one circle), and the Commissioner's "doubtful shop location" flag — the last one needs a data field `phase1_raw_collection` doesn't have (the Commissioner's own file marks a shop's location as geocoded/uncertain; this app's schema has no equivalent column, and inventing one to backfill a flag with no real source data behind it isn't warranted).
+
+**Verified:** `pnpm typecheck`, `pnpm --filter web build` — clean. Live-verified via a throwaway Playwright script against a locally seeded D1 (synthetic shop rows inserted for the test, deleted afterward): logged in, loaded the proposal and shop data, confirmed the new filter dropdowns and checkboxes render and are populated correctly, confirmed the shop-marker canvas renderer attaches to the DOM (proof at least one marker was drawn), and confirmed the OpenStreetMap Street layer renders real tiles once the CSP fix is in place.
+
+---
+
 ## Backlog / Not Started
 
 - [x] ~~Verify `exciseup.in` in Resend and switch `RESEND_FROM_EMAIL`~~ — Done. `mail.exciseup.in` verified; `RESEND_FROM_EMAIL` set to `noreply@mail.exciseup.in` on this project's Worker, and the same address set as `FROM_EMAIL` on the sibling `excise-revenue-recovery-portal` project's Worker (different env var name there, same Resend account/domain). Magic-link email is now the Admin/HQ login channel only (DEOs use CUG login as of M-17).
